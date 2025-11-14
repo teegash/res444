@@ -23,10 +23,10 @@ export function Header() {
           <a href="#pricing" className="text-sm font-medium text-muted-foreground hover:text-foreground transition">Pricing</a>
         </nav>
         <div className="flex items-center gap-3">
-          <Link href="/login">
+          <Link href="/auth/login">
             <Button variant="ghost" className="text-primary font-medium">Login</Button>
           </Link>
-          <Link href="/dashboard/setup">
+          <Link href="/auth/signup">
             <Button className="bg-primary hover:bg-primary/90 font-medium">Get Started</Button>
           </Link>
         </div>

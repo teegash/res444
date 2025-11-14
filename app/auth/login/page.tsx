@@ -3,7 +3,7 @@
 import { useState, useEffect, Suspense } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Eye, EyeOff, Shield, Crown, Loader2 } from 'lucide-react'
+import { Eye, EyeOff, Shield, Crown, Loader2, ArrowLeft, Info } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card } from '@/components/ui/card'
@@ -19,6 +19,7 @@ function LoginForm() {
   const [isLoading, setIsLoading] = useState(false)
   const [accountType, setAccountType] = useState<'tenant' | 'admin'>('tenant')
   const [error, setError] = useState<string | null>(null)
+  const [showTenantMessage, setShowTenantMessage] = useState(false)
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -149,36 +150,87 @@ function LoginForm() {
             </Alert>
           )}
 
-          <div className="mb-6">
-            <div className="flex rounded-lg border-2 border-gray-100 p-1 bg-gray-50">
-              <button
-                type="button"
-                onClick={() => setAccountType('tenant')}
-                className={`flex-1 flex items-center justify-center gap-2 py-2 px-4 rounded-md transition-all ${
-                  accountType === 'tenant'
-                    ? 'bg-white text-blue-600 shadow-sm font-medium'
-                    : 'text-gray-600 hover:text-gray-900'
-                }`}
-              >
-                <Shield className="w-4 h-4" />
-                Tenant
-              </button>
-              <button
-                type="button"
-                onClick={() => setAccountType('admin')}
-                className={`flex-1 flex items-center justify-center gap-2 py-2 px-4 rounded-md transition-all ${
-                  accountType === 'admin'
-                    ? 'bg-white text-blue-600 shadow-sm font-medium'
-                    : 'text-gray-600 hover:text-gray-900'
-                }`}
-              >
-                <Crown className="w-4 h-4" />
-                Manager
-              </button>
-            </div>
-          </div>
+          {/* Tenant Signup Message */}
+          {showTenantMessage ? (
+            <div className="space-y-6">
+              <div className="text-center space-y-4">
+                {/* Icon */}
+                <div className="flex justify-center">
+                  <div className="flex items-center justify-center w-16 h-16 rounded-full bg-blue-100">
+                    <Info className="w-8 h-8 text-blue-600" />
+                  </div>
+                </div>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+                {/* Title */}
+                <div className="space-y-2">
+                  <h2 className="text-2xl font-bold text-gray-900">
+                    Tenant Registration
+                  </h2>
+                  <p className="text-sm text-gray-600">
+                    Tenants cannot self-register
+                  </p>
+                </div>
+
+                {/* Message */}
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
+                  <p className="text-sm text-gray-700 leading-relaxed">
+                    Please contact your property manager for account credentials. 
+                    Tenants cannot self-register on this platform.
+                  </p>
+                </div>
+
+                {/* Back Button */}
+                <div className="pt-4">
+                  <Button
+                    type="button"
+                    onClick={() => setShowTenantMessage(false)}
+                    variant="outline"
+                    className="w-full border-gray-300 text-gray-700 hover:bg-gray-50"
+                  >
+                    <ArrowLeft className="w-4 h-4 mr-2" />
+                    Back to Login
+                  </Button>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <>
+              <div className="mb-6">
+                <div className="flex rounded-lg border-2 border-gray-100 p-1 bg-gray-50">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAccountType('tenant')
+                      setShowTenantMessage(false)
+                    }}
+                    className={`flex-1 flex items-center justify-center gap-2 py-2 px-4 rounded-md transition-all ${
+                      accountType === 'tenant'
+                        ? 'bg-white text-blue-600 shadow-sm font-medium'
+                        : 'text-gray-600 hover:text-gray-900'
+                    }`}
+                  >
+                    <Shield className="w-4 h-4" />
+                    Tenant
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAccountType('admin')
+                      setShowTenantMessage(false)
+                    }}
+                    className={`flex-1 flex items-center justify-center gap-2 py-2 px-4 rounded-md transition-all ${
+                      accountType === 'admin'
+                        ? 'bg-white text-blue-600 shadow-sm font-medium'
+                        : 'text-gray-600 hover:text-gray-900'
+                    }`}
+                  >
+                    <Crown className="w-4 h-4" />
+                    Manager
+                  </button>
+                </div>
+              </div>
+
+              <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
               <label
                 htmlFor="email"
@@ -271,9 +323,7 @@ function LoginForm() {
               {accountType === 'tenant' ? (
                 <button
                   type="button"
-                  onClick={() => {
-                    alert('Please contact your property manager for account credentials. Tenants cannot self-register.')
-                  }}
+                  onClick={() => setShowTenantMessage(true)}
                   className="text-blue-600 font-semibold hover:text-blue-700 underline"
                 >
                   Sign up
@@ -288,6 +338,8 @@ function LoginForm() {
               )}
             </p>
           </div>
+            </>
+          )}
         </div>
       </Card>
     </div>
