@@ -444,35 +444,58 @@ export default function SignupPage() {
         email: registrationPayload.email,
         role: registrationPayload.role,
         hasOrganization: !!registrationPayload.organization,
+        payloadKeys: Object.keys(registrationPayload),
       })
 
-      const response = await fetch('/api/auth/register', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(registrationPayload),
-      })
+      // Create AbortController for timeout
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 30000) // 30 second timeout
+
+      let response: Response
+      try {
+        response = await fetch('/api/auth/register', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(registrationPayload),
+          signal: controller.signal,
+        })
+        clearTimeout(timeoutId)
+      } catch (fetchError: any) {
+        clearTimeout(timeoutId)
+        if (fetchError.name === 'AbortError') {
+          console.error('Registration request timed out')
+          throw new Error('Request timed out. Please check your connection and try again.')
+        }
+        console.error('Fetch error:', fetchError)
+        throw new Error('Network error. Please check your connection and try again.')
+      }
 
       console.log('Registration response status:', response.status, response.statusText)
+      console.log('Registration response headers:', Object.fromEntries(response.headers.entries()))
 
       // Parse response
       let result: any
       try {
         const responseText = await response.text()
         console.log('Registration response text:', responseText)
-        result = responseText ? JSON.parse(responseText) : {}
+        
+        if (!responseText) {
+          throw new Error('Empty response from server')
+        }
+        
+        result = JSON.parse(responseText)
+        console.log('Registration result parsed:', result)
       } catch (parseError) {
         console.error('Failed to parse response:', parseError)
         throw new Error('Invalid response from server. Please try again.')
       }
 
-      console.log('Registration result:', result)
-
       // Handle response
       if (!response.ok || !result.success) {
         const errorMessage = result.error || `Registration failed with status ${response.status}`
-        console.error('Registration failed:', errorMessage)
+        console.error('Registration failed:', errorMessage, 'Full result:', result)
         throw new Error(errorMessage)
       }
 

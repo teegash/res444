@@ -636,7 +636,11 @@ export async function registerUser(input: RegisterInput): Promise<RegisterResult
     }
   } catch (error) {
     const err = error as Error
-    console.error('Registration error:', err)
+    console.error('Registration error in registerUser:', {
+      name: err.name,
+      message: err.message,
+      stack: err.stack,
+    })
 
     return {
       success: false,

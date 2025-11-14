@@ -2,8 +2,12 @@ import { NextRequest, NextResponse } from 'next/server'
 import { registerUser, RegisterInput } from '@/lib/auth/register'
 
 export async function POST(request: NextRequest) {
+  console.log('Registration API called at:', new Date().toISOString())
+  
   try {
+    console.log('Parsing request body...')
     const body = await request.json()
+    console.log('Request body parsed. Email:', body.email, 'Role:', body.role)
 
     // Validate required fields
     const { 
@@ -150,9 +154,15 @@ export async function POST(request: NextRequest) {
     }
   } catch (error) {
     const err = error as Error
+    console.error('Registration API error caught:', {
+      name: err.name,
+      message: err.message,
+      stack: err.stack,
+    })
 
     // Handle JSON parse errors
     if (err.name === 'SyntaxError' || err.message.includes('JSON')) {
+      console.error('JSON parse error')
       return NextResponse.json(
         {
           success: false,
@@ -163,15 +173,17 @@ export async function POST(request: NextRequest) {
     }
 
     // Handle other errors
-    console.error('Registration API error:', err)
+    console.error('Registration API unexpected error:', err)
 
     return NextResponse.json(
       {
         success: false,
-        error: 'An unexpected error occurred. Please try again later.',
+        error: err.message || 'An unexpected error occurred. Please try again later.',
       },
       { status: 500 }
     )
+  } finally {
+    console.log('Registration API request completed at:', new Date().toISOString())
   }
 }
 
