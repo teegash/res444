@@ -68,30 +68,9 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // For owners (admin), organization data should be provided
-    const { organization } = body
-    if (normalizedRole === 'admin' && !organization) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Organization details are required for property owners',
-        },
-        { status: 400 }
-      )
-    }
-
-    // Validate organization data if provided
-    if (organization) {
-      if (!organization.name || !organization.location || !organization.registration_number) {
-        return NextResponse.json(
-          {
-            success: false,
-            error: 'Organization name, location, and registration number are required',
-          },
-          { status: 400 }
-        )
-      }
-    }
+    // Organization data is NOT required during registration
+    // Owners will set up their organization after email confirmation and first login
+    // This prevents Vercel API timeout issues
 
     // Log the role being registered for debugging
     console.log('Registration API - Registering user with role:', normalizedRole)
@@ -108,14 +87,7 @@ export async function POST(request: NextRequest) {
       national_id: national_id?.trim(), // Optional - national ID
       address: address?.trim(), // Optional - address
       date_of_birth: date_of_birth?.trim(), // Optional - date of birth (YYYY-MM-DD)
-      organization: organization ? {
-        name: organization.name.trim(),
-        email: organization.email?.trim() || email.trim(),
-        phone: organization.phone?.trim() || phone.trim(),
-        location: organization.location.trim(),
-        registration_number: organization.registration_number.trim(),
-        logo_url: organization.logo_url?.trim() || null,
-      } : undefined,
+      // organization is NOT included - owners set it up after first login
     }
 
     // Call registration function with timeout wrapper

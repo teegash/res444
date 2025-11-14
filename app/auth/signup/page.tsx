@@ -370,12 +370,8 @@ export default function SignupPage() {
     setErrors(newErrors)
 
     if (Object.keys(newErrors).length === 0) {
-      // If owner, go to page 2, otherwise register immediately
-      if (formData.userType === 'owner') {
-        setCurrentPage(2)
-      } else {
-        handleRegistration()
-      }
+      // All user types register immediately (organization setup happens after email confirmation)
+      handleRegistration()
     }
   }
 
@@ -410,7 +406,7 @@ export default function SignupPage() {
       // Map userType to role (owner -> admin, others stay the same)
       const role = formData.userType === 'owner' ? 'admin' : formData.userType
 
-      // Prepare registration payload
+      // Prepare registration payload (NO organization data - that happens after email confirmation)
       const registrationPayload: any = {
         email: formData.email,
         password: formData.password,
@@ -419,36 +415,14 @@ export default function SignupPage() {
         role: role,
         organization_id: formData.userType === 'owner' ? undefined : selectedOrganizationId,
         building_id: formData.userType === 'caretaker' ? selectedBuildingId : undefined,
-      }
-
-      // If owner, include organization data
-      // Logo is optional - registration will succeed even if logo_url is null
-      if (formData.userType === 'owner') {
-        registrationPayload.organization = {
-          name: orgData.name.trim(),
-          email: formData.email.trim(), // Same as user email
-          phone: formData.phone.trim(), // Same as user phone
-          location: orgData.location.trim(),
-          registration_number: orgData.registrationNumber.trim(),
-          logo_url: orgData.logoUrl || null, // Logo is optional - can be null, won't block registration
-        }
-        
-        console.log('Organization payload prepared:', {
-          name: registrationPayload.organization.name,
-          email: registrationPayload.organization.email,
-          phone: registrationPayload.organization.phone,
-          location: registrationPayload.organization.location,
-          registration_number: registrationPayload.organization.registration_number,
-          hasLogo: !!registrationPayload.organization.logo_url,
-          note: 'Logo is optional - registration will succeed even if null',
-        })
+        // Organization data is NOT included - owners will set it up after first login
       }
 
       // Call the registration API endpoint
-      console.log('Submitting registration:', {
+      console.log('Submitting registration (Step 1 only - organization setup happens after login):', {
         email: registrationPayload.email,
         role: registrationPayload.role,
-        hasOrganization: !!registrationPayload.organization,
+        hasOrganizationId: !!registrationPayload.organization_id,
         payloadKeys: Object.keys(registrationPayload),
       })
 
@@ -549,10 +523,12 @@ export default function SignupPage() {
       <Card className="w-full max-w-md md:max-w-2xl lg:max-w-3xl p-6 md:p-8 border border-border">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-foreground mb-2">
-            {currentPage === 1 ? 'Create Your Account' : 'Organization Details'}
+            Create Your Account
           </h1>
           <p className="text-sm text-muted-foreground">
-            {currentPage === 1 ? 'Step 1 of 2' : 'Step 2 of 2'}
+            {formData.userType === 'owner' 
+              ? 'Complete your account setup. You\'ll configure your organization after email confirmation.'
+              : 'Sign up to get started'}
           </p>
         </div>
 
@@ -571,9 +547,8 @@ export default function SignupPage() {
           </Alert>
         )}
 
-        {/* Page 1: User Registration */}
-        {currentPage === 1 && (
-          <form onSubmit={handlePage1Submit} className="space-y-5">
+        {/* User Registration Form */}
+        <form onSubmit={handlePage1Submit} className="space-y-5">
             {/* Full Name */}
             <div className="space-y-2">
               <Label htmlFor="fullName" className="text-sm font-medium">
@@ -856,11 +831,6 @@ export default function SignupPage() {
                   <Loader2 className="w-4 h-4 animate-spin" />
                   Processing...
                 </div>
-              ) : formData.userType === 'owner' ? (
-                <div className="flex items-center gap-2">
-                  Next
-                  <ArrowRight className="w-4 h-4" />
-                </div>
               ) : (
                 'Create Account'
               )}
@@ -877,182 +847,9 @@ export default function SignupPage() {
               </Link>
             </p>
           </form>
-        )}
 
-        {/* Page 2: Organization Definition (Owners only) */}
-        {currentPage === 2 && (
-          <form onSubmit={handlePage2Submit} className="space-y-5">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-              {/* Organization Name */}
-              <div className="space-y-2 md:col-span-2">
-                <Label htmlFor="orgName" className="text-sm font-medium">
-                  Organization Name <span className="text-destructive">*</span>
-                </Label>
-                <Input
-                  id="orgName"
-                  name="name"
-                  type="text"
-                  placeholder="Your Organization Name"
-                  value={orgData.name}
-                  onChange={handleOrgChange}
-                  disabled={isLoading}
-                  className={orgErrors.name ? 'border-destructive' : ''}
-                />
-                {orgErrors.name && (
-                  <p className="text-xs text-destructive">{orgErrors.name}</p>
-                )}
-              </div>
-
-              {/* Email (read-only, from page 1) */}
-              <div className="space-y-2">
-                <Label htmlFor="orgEmail" className="text-sm font-medium">
-                  Email
-                </Label>
-                <Input
-                  id="orgEmail"
-                  type="email"
-                  value={formData.email}
-                  disabled
-                  className="bg-muted"
-                />
-                <p className="text-xs text-muted-foreground">
-                  This will be used as the organization email
-                </p>
-              </div>
-
-              {/* Phone (read-only, from page 1) */}
-              <div className="space-y-2">
-                <Label htmlFor="orgPhone" className="text-sm font-medium">
-                  Phone Number
-                </Label>
-                <Input
-                  id="orgPhone"
-                  type="tel"
-                  value={formData.phone}
-                  disabled
-                  className="bg-muted"
-                />
-                <p className="text-xs text-muted-foreground">
-                  This will be used as the organization phone
-                </p>
-              </div>
-
-              {/* Location */}
-              <div className="space-y-2">
-                <Label htmlFor="location" className="text-sm font-medium">
-                  Location <span className="text-destructive">*</span>
-                </Label>
-                <Input
-                  id="location"
-                  name="location"
-                  type="text"
-                  placeholder="Organization location/address"
-                  value={orgData.location}
-                  onChange={handleOrgChange}
-                  disabled={isLoading}
-                  className={orgErrors.location ? 'border-destructive' : ''}
-                />
-                {orgErrors.location && (
-                  <p className="text-xs text-destructive">{orgErrors.location}</p>
-                )}
-              </div>
-
-              {/* Registration Number */}
-              <div className="space-y-2">
-                <Label htmlFor="registrationNumber" className="text-sm font-medium">
-                  Registration Number <span className="text-destructive">*</span>
-                </Label>
-                <Input
-                  id="registrationNumber"
-                  name="registrationNumber"
-                  type="text"
-                  placeholder="Organization registration number"
-                  value={orgData.registrationNumber}
-                  onChange={handleOrgChange}
-                  disabled={isLoading}
-                  className={orgErrors.registrationNumber ? 'border-destructive' : ''}
-                />
-                {orgErrors.registrationNumber && (
-                  <p className="text-xs text-destructive">{orgErrors.registrationNumber}</p>
-                )}
-              </div>
-            </div>
-
-            {/* Logo Upload */}
-            <div className="space-y-2">
-              <Label htmlFor="logo" className="text-sm font-medium">
-                Organization Logo (Optional)
-              </Label>
-              {orgData.logoUrl ? (
-                <div className="relative inline-block">
-                  <img
-                    src={orgData.logoUrl}
-                    alt="Organization logo"
-                    className="w-32 h-32 md:w-40 md:h-40 object-cover rounded-lg border"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setOrgData(prev => ({ ...prev, logoUrl: '' }))}
-                    className="absolute -top-2 -right-2 bg-destructive text-destructive-foreground rounded-full p-1 hover:bg-destructive/90"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
-              ) : (
-                <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 md:p-8 text-center max-w-md">
-                  <input
-                    type="file"
-                    id="logo"
-                    accept="image/jpeg,image/jpg,image/png,image/webp"
-                    onChange={handleLogoUpload}
-                    disabled={isLoading || isUploadingLogo}
-                    className="hidden"
-                  />
-                  <label
-                    htmlFor="logo"
-                    className="cursor-pointer flex flex-col items-center gap-2"
-                  >
-                    <Upload className="w-8 h-8 md:w-10 md:h-10 text-gray-400" />
-                    <span className="text-sm text-gray-600">
-                      {isUploadingLogo ? 'Uploading...' : 'Click to upload logo'}
-                    </span>
-                    <span className="text-xs text-gray-500">
-                      PNG, JPG, WebP up to 5MB
-                    </span>
-                  </label>
-                </div>
-              )}
-            </div>
-
-            {/* Navigation Buttons */}
-            <div className="flex gap-3">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setCurrentPage(1)}
-                disabled={isLoading}
-                className="flex-1"
-              >
-                <ArrowLeft className="w-4 h-4 mr-2" />
-                Back
-              </Button>
-              <Button
-                type="submit"
-                disabled={isLoading}
-                className="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold"
-              >
-                {isLoading ? (
-                  <div className="flex items-center gap-2">
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Creating Account...
-                  </div>
-                ) : (
-                  'Create Account'
-                )}
-              </Button>
-            </div>
-          </form>
-        )}
+        {/* Page 2 removed - Organization setup happens after email confirmation and first login */}
+        {/* Organization setup now happens at /dashboard/setup/organization after first login */}
       </Card>
     </main>
   )

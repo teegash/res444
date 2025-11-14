@@ -71,8 +71,8 @@ export async function proxy(request: NextRequest) {
 
   // Role-based route protection for dashboard routes
   if (isProtectedPath && user) {
-    // Allow access to setup page for users without roles (new signups)
-    if (pathname === '/dashboard/setup') {
+    // Allow access to setup page for users without roles or organizations
+    if (pathname === '/dashboard/setup' || pathname === '/dashboard/setup/organization') {
       return supabaseResponse
     }
 
@@ -80,20 +80,36 @@ export async function proxy(request: NextRequest) {
       // Get user's role from organization_members table
       const { data: membership, error } = await supabase
         .from('organization_members')
-        .select('role')
+        .select('role, organization_id')
         .eq('user_id', user.id)
         .order('joined_at', { ascending: true })
         .limit(1)
         .maybeSingle()
 
       if (error || !membership) {
-        // User has no role assigned - redirect to setup page instead of unauthorized
+        // Check if user is an admin (owner) who needs to set up organization
+        const userRole = user.user_metadata?.role as UserRole
+        if (userRole === 'admin') {
+          // Admin without organization - redirect to organization setup
+          const url = request.nextUrl.clone()
+          url.pathname = '/dashboard/setup/organization'
+          return NextResponse.redirect(url)
+        }
+        
+        // Other users without membership - redirect to setup page
         const url = request.nextUrl.clone()
         url.pathname = '/dashboard/setup'
         return NextResponse.redirect(url)
       }
 
       const userRole = membership.role as UserRole
+
+      // Special check: If admin (owner) has no organization, redirect to setup
+      if (userRole === 'admin' && !membership.organization_id) {
+        const url = request.nextUrl.clone()
+        url.pathname = '/dashboard/setup/organization'
+        return NextResponse.redirect(url)
+      }
 
       // Check if user's role can access this route
       if (!roleCanAccessRoute(userRole, pathname)) {

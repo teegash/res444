@@ -616,67 +616,11 @@ export async function registerUser(input: RegisterInput): Promise<RegisterResult
       }
     }
 
-    // Create organization if provided (for owners) - MUST succeed for owners
-    let createdOrganizationId: string | undefined
-    if (input.organization) {
-      console.log('Creating organization (required for owners)...')
-      try {
-        const adminSupabase = createAdminClient()
-        
-        const insertResult = await Promise.race([
-          adminSupabase
-            .from('organizations')
-            .insert({
-              name: input.organization.name,
-              email: input.organization.email.toLowerCase(),
-              phone: input.organization.phone || null,
-              location: input.organization.location,
-              registration_number: input.organization.registration_number,
-              logo_url: input.organization.logo_url || null, // Logo is optional - null is acceptable, won't block registration
-            })
-            .select()
-            .single(),
-          new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('Organization insert timed out after 15 seconds')), 15000)
-          )
-        ]) as any
-        
-        if (insertResult.error) {
-          if (insertResult.error.code === '23505') {
-            return {
-              success: false,
-              error: 'Registration number already exists. Please use a different registration number.',
-            }
-          }
-          console.error('✗ Organization creation error:', insertResult.error)
-          return {
-            success: false,
-            error: insertResult.error.message || 'Failed to create organization. Please try again.',
-          }
-        }
-        
-        const organization = Array.isArray(insertResult.data)
-          ? insertResult.data[0]
-          : insertResult.data
-
-        if (organization?.id) {
-          createdOrganizationId = organization.id
-          console.log('✓ Organization created successfully in organizations table:', organization.id)
-        } else {
-          console.error('✗ Organization created but ID missing')
-          return {
-            success: false,
-            error: 'Organization was created but ID was not returned. Please verify Supabase insert permissions.',
-          }
-        }
-      } catch (orgError: any) {
-        console.error('✗ Organization creation error:', orgError.message)
-        return {
-          success: false,
-          error: `Organization creation failed: ${orgError.message}. Please try again.`,
-        }
-      }
-    }
+    // Organization creation is SKIPPED during registration
+    // Owners will set up their organization after email confirmation and first login
+    // This prevents Vercel API timeout issues
+    let createdOrganizationId: string | undefined = undefined
+    console.log('Organization creation skipped - will be done after first login for owners')
 
     // Create organization member - MUST succeed if organization exists
     if (input.organization_id || createdOrganizationId) {
@@ -727,13 +671,8 @@ export async function registerUser(input: RegisterInput): Promise<RegisterResult
       }
     }
 
-    if (input.organization && !createdOrganizationId) {
-      console.error('✗ Registration completed but organization was not created')
-      return {
-        success: false,
-        error: 'User account created but organization was not saved. Please contact support.',
-      }
-    }
+    // Organization creation is not required during registration
+    // Owners will set it up after first login
 
     if ((input.organization_id || createdOrganizationId) && !organizationMemberCreated) {
       console.error('✗ Registration completed but organization member was not created')

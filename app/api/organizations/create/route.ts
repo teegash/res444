@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 
 export async function POST(request: NextRequest) {
   try {
@@ -20,6 +21,9 @@ export async function POST(request: NextRequest) {
         { status: 401 }
       )
     }
+
+    // Use admin client for organization creation to bypass RLS
+    const adminSupabase = createAdminClient()
 
     const body = await request.json()
     const {
@@ -51,7 +55,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if user already has an organization membership
-    const { data: existingMembership } = await supabase
+    const { data: existingMembership } = await adminSupabase
       .from('organization_members')
       .select('role, organization_id')
       .eq('user_id', user.id)
@@ -69,10 +73,10 @@ export async function POST(request: NextRequest) {
     }
 
     // Get user's role from auth metadata (set during signup)
-    const userRole = user.user_metadata?.role || 'manager'
+    const userRole = user.user_metadata?.role || 'admin'
 
-    // Create organization
-    const { data: organization, error: orgError } = await supabase
+    // Create organization with logo_url support using admin client
+    const { data: organization, error: orgError } = await adminSupabase
       .from('organizations')
       .insert({
         name: name.trim(),
@@ -80,6 +84,7 @@ export async function POST(request: NextRequest) {
         phone: phone?.trim() || null,
         registration_number: registration_number?.trim() || null,
         location: location?.trim() || address?.trim() || null,
+        logo_url: body.logo_url?.trim() || null, // Support logo URL from client upload
       })
       .select()
       .single()
@@ -116,8 +121,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Add user as organization member with their role
-    const { error: memberError } = await supabase
+    // Add user as organization member with their role using admin client
+    const { error: memberError } = await adminSupabase
       .from('organization_members')
       .insert({
         user_id: user.id,
@@ -128,7 +133,7 @@ export async function POST(request: NextRequest) {
 
     if (memberError) {
       // If member creation fails, try to delete the organization
-      await supabase.from('organizations').delete().eq('id', organization.id)
+      await adminSupabase.from('organizations').delete().eq('id', organization.id)
 
       // Check if member already exists (shouldn't happen, but handle it)
       if (memberError.code === '23505') {
