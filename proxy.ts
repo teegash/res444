@@ -3,6 +3,13 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { roleCanAccessRoute, UserRole } from './lib/rbac/roles'
 
 export async function proxy(request: NextRequest) {
+  const pathname = request.nextUrl.pathname
+
+  // Allow API routes to bypass Supabase auth checks to avoid long-running registration calls timing out
+  if (pathname.startsWith('/api')) {
+    return NextResponse.next()
+  }
+
   let supabaseResponse = NextResponse.next({
     request,
   })
@@ -35,14 +42,9 @@ export async function proxy(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser()
 
-  const pathname = request.nextUrl.pathname
-
   // Public routes that don't require authentication
   const publicPaths = ['/', '/auth/login', '/auth/signup', '/auth/callback', '/auth/forgot-password', '/auth/reset-password']
   const isPublicPath = publicPaths.some((path) => pathname === path)
-
-  // API routes (handled separately)
-  const isApiRoute = pathname.startsWith('/api')
 
   // Auth routes
   const authPaths = ['/auth/login', '/auth/signup']
@@ -126,4 +128,3 @@ export const config = {
     '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 }
-
