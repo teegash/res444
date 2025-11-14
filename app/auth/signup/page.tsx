@@ -18,6 +18,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { useAuth } from '@/lib/auth/context'
+import { createClient } from '@/lib/supabase/client'
 
 type UserType = 'owner' | 'manager' | 'caretaker'
 
@@ -286,46 +287,51 @@ export default function SignupPage() {
         }
       }
 
-      const formData = new FormData()
-      formData.append('file', fileToUpload)
+      // Upload directly from client to Supabase (bypasses server timeout completely)
+      const supabase = createClient()
 
-      // Increase timeout to 60 seconds for better reliability
-      const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), 60000) // 60 second timeout
+      // Generate unique file path
+      const timestamp = Date.now()
+      const fileExtension = fileToUpload.name.split('.').pop()
+      const fileName = `organizations/${timestamp}-${Math.random().toString(36).substring(7)}.${fileExtension}`
 
-      const response = await fetch('/api/storage/upload-logo', {
-        method: 'POST',
-        body: formData,
-        signal: controller.signal,
-      })
+      // Try both bucket naming conventions
+      let bucketName = 'profile_pictures'
+      let { data, error } = await supabase.storage
+        .from(bucketName)
+        .upload(fileName, fileToUpload, {
+          contentType: fileToUpload.type,
+          cacheControl: '3600',
+          upsert: false,
+        })
 
-      clearTimeout(timeoutId)
-
-      if (!response.ok) {
-        const errorText = await response.text()
-        let errorData
-        try {
-          errorData = JSON.parse(errorText)
-        } catch {
-          errorData = { error: errorText || response.statusText }
-        }
-        throw new Error(errorData.error || `Upload failed: ${response.statusText}`)
+      // If bucket doesn't exist, try with hyphen
+      if (error && (error.message.includes('Bucket') || error.message.includes('not found'))) {
+        bucketName = 'profile-pictures'
+        const retryResult = await supabase.storage
+          .from(bucketName)
+          .upload(fileName, fileToUpload, {
+            contentType: fileToUpload.type,
+            cacheControl: '3600',
+            upsert: false,
+          })
+        data = retryResult.data
+        error = retryResult.error
       }
 
-      const result = await response.json()
-
-      if (result.success) {
-        setOrgData((prev) => ({
-          ...prev,
-          logoUrl: result.url,
-        }))
-      } else {
-        setError(result.error || 'Failed to upload logo')
+      if (error) {
+        throw new Error(error.message || 'Failed to upload logo. Please ensure the storage bucket exists and allows public uploads.')
       }
+
+      // Get public URL
+      const { data: urlData } = supabase.storage.from(bucketName).getPublicUrl(fileName)
+
+      setOrgData((prev) => ({
+        ...prev,
+        logoUrl: urlData.publicUrl,
+      }))
     } catch (err) {
-      if (err instanceof Error && err.name === 'AbortError') {
-        setError('Upload timed out. Please check your internet connection and try again.')
-      } else if (err instanceof Error) {
+      if (err instanceof Error) {
         setError(err.message || 'Failed to upload logo. Please try again.')
       } else {
         setError('Failed to upload logo. Please try again.')

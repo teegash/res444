@@ -1,16 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 
+/**
+ * Generate presigned URL for direct client-side upload
+ * This avoids Vercel serverless function timeout limits
+ */
 export async function POST(request: NextRequest) {
   try {
-    const formData = await request.formData()
-    const file = formData.get('file') as File
+    const body = await request.json()
+    const { fileName, contentType, fileSize } = body
 
-    if (!file) {
+    if (!fileName || !contentType) {
       return NextResponse.json(
         {
           success: false,
-          error: 'No file provided',
+          error: 'File name and content type are required',
         },
         { status: 400 }
       )
@@ -18,7 +22,7 @@ export async function POST(request: NextRequest) {
 
     // Validate file type
     const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp']
-    if (!allowedTypes.includes(file.type)) {
+    if (!allowedTypes.includes(contentType)) {
       return NextResponse.json(
         {
           success: false,
@@ -30,7 +34,7 @@ export async function POST(request: NextRequest) {
 
     // Validate file size (max 5MB)
     const maxSize = 5 * 1024 * 1024 // 5MB
-    if (file.size > maxSize) {
+    if (fileSize && fileSize > maxSize) {
       return NextResponse.json(
         {
           success: false,
@@ -40,25 +44,11 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Use admin client to bypass RLS and speed up uploads
+    // Use admin client to generate presigned URL
     const supabase = createAdminClient()
 
-    // Generate unique filename
-    const timestamp = Date.now()
-    const fileExtension = file.name.split('.').pop()
-    const fileName = `organizations/${timestamp}-${Math.random().toString(36).substring(7)}.${fileExtension}`
-
-    // Convert file to ArrayBuffer (more efficient for large files)
-    const arrayBuffer = await file.arrayBuffer()
-
     // Check available buckets and determine the correct bucket name
-    const { data: buckets, error: bucketsError } = await supabase.storage.listBuckets()
-    
-    if (bucketsError) {
-      console.error('Error listing buckets:', bucketsError)
-      // Continue anyway, will try default bucket name
-    }
-    
+    const { data: buckets } = await supabase.storage.listBuckets()
     const bucketNames = buckets?.map(b => b.name) || []
     
     // Try to find the correct bucket name (support both naming conventions)
@@ -66,56 +56,44 @@ export async function POST(request: NextRequest) {
                      bucketNames.find(b => b === 'profile-pictures') ||
                      'profile_pictures' // Default fallback
 
-    console.log('Available buckets:', bucketNames)
-    console.log('Using bucket:', bucketName)
-    
-    // If bucket doesn't exist in the list, provide helpful error
-    if (bucketNames.length > 0 && !bucketNames.includes(bucketName)) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: `Storage bucket "${bucketName}" not found. Available buckets: ${bucketNames.join(', ')}. Please create the bucket in Supabase Dashboard.`,
-        },
-        { status: 404 }
-      )
-    }
+    // Generate unique file path
+    const timestamp = Date.now()
+    const fileExtension = fileName.split('.').pop()
+    const filePath = `organizations/${timestamp}-${Math.random().toString(36).substring(7)}.${fileExtension}`
 
-    // Upload to profile_pictures bucket
-    // Using admin client bypasses RLS and is faster
-    const { data, error } = await supabase.storage
+    // Create presigned URL for upload (valid for 5 minutes)
+    const { data: signedUrlData, error: signedUrlError } = await supabase.storage
       .from(bucketName)
-      .upload(fileName, arrayBuffer, {
-        contentType: file.type,
-        cacheControl: '3600',
-        upsert: false,
-      })
+      .createSignedUploadUrl(filePath)
 
-    if (error) {
-      console.error('Error uploading logo:', error)
-      console.error('Error details:', JSON.stringify(error, null, 2))
+    if (signedUrlError) {
+      console.error('Error creating presigned URL:', signedUrlError)
       return NextResponse.json(
         {
           success: false,
-          error: error.message || 'Failed to upload logo. Please ensure the storage bucket exists.',
+          error: signedUrlError.message || 'Failed to generate upload URL',
         },
         { status: 500 }
       )
     }
 
-    // Get public URL immediately
-    const { data: urlData } = supabase.storage.from(bucketName).getPublicUrl(fileName)
+    // Get public URL for the file (will be available after upload)
+    const { data: urlData } = supabase.storage.from(bucketName).getPublicUrl(filePath)
 
     return NextResponse.json(
       {
         success: true,
-        url: urlData.publicUrl,
-        path: data.path,
+        uploadUrl: signedUrlData.signedUrl,
+        token: signedUrlData.token,
+        path: filePath,
+        publicUrl: urlData.publicUrl,
+        bucket: bucketName,
       },
       { status: 200 }
     )
   } catch (error) {
     const err = error as Error
-    console.error('Logo upload error:', err)
+    console.error('Presigned URL generation error:', err)
 
     return NextResponse.json(
       {
