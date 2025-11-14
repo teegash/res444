@@ -516,23 +516,37 @@ export async function registerUser(input: RegisterInput): Promise<RegisterResult
       console.error(`SignUp operation failed after ${elapsed}ms:`, timeoutError.message)
       
       // If it's a timeout, check if user was created anyway
+      // This is critical - Supabase might have created the user even if the response timed out
       if (timeoutError.message.includes('timed out')) {
-        console.log('Checking if user was created despite timeout...')
+        console.log('⚠ SignUp timed out - checking if user was created anyway...')
         try {
-          const { data: existingUser, error: checkError } = await supabase.auth.admin.getUserByEmail(input.email.toLowerCase().trim())
-          if (checkError) {
+          // Use a shorter timeout for the check (2 seconds)
+          const checkPromise = supabase.auth.admin.getUserByEmail(input.email.toLowerCase().trim())
+          const checkTimeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('User check timed out')), 2000)
+          )
+          
+          const { data: existingUser, error: checkError } = await Promise.race([
+            checkPromise,
+            checkTimeoutPromise
+          ]) as any
+          
+          if (checkError && checkError.status !== 404) {
             console.error('Error checking existing user:', checkError.message)
           }
+          
           if (existingUser?.user) {
             console.log('✓ User was created despite timeout, using existing user:', existingUser.user.id)
             authData = { user: existingUser.user }
             authError = null
+            // User exists - registration can proceed
           } else {
-            console.log('✗ User was not created')
+            console.log('✗ User was not created - registration failed')
             authError = timeoutError
           }
         } catch (checkError: any) {
           console.error('Failed to check existing user:', checkError.message)
+          // If check also fails, assume user wasn't created
           authError = timeoutError
         }
       } else {
