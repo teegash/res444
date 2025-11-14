@@ -79,51 +79,60 @@ export async function proxy(request: NextRequest) {
     }
 
     try {
-      // Get user's role from organization_members table
-      const { data: membership, error } = await supabase
-        .from('organization_members')
-        .select('role, organization_id')
-        .eq('user_id', user.id)
-        .order('joined_at', { ascending: true })
-        .limit(1)
+      // Get user's role from user_profiles table (much simpler!)
+      const { data: profile, error: profileError } = await supabase
+        .from('user_profiles')
+        .select('role')
+        .eq('id', user.id)
         .maybeSingle()
 
-      if (error || !membership) {
-        // Check if user is an admin (owner) who needs to set up organization
-        const userRole = user.user_metadata?.role as UserRole
-        if (userRole === 'admin') {
-          // Admin without organization - redirect to organization setup
-          const url = request.nextUrl.clone()
-          url.pathname = '/dashboard/setup/organization'
-          return NextResponse.redirect(url)
-        }
-        
-        // For managers/caretakers: Try to create organization member from metadata
-        // This handles cases where registration skipped member creation
-        if ((userRole === 'manager' || userRole === 'caretaker') && user.user_metadata?.organization_id) {
+      if (profileError || !profile || !profile.role) {
+        // If profile doesn't exist or role is missing, try to create/update it
+        const userRoleFromMetadata = user.user_metadata?.role as UserRole
+        if (userRoleFromMetadata) {
           try {
             const { createProfileOnLogin } = await import('@/lib/auth/create-profile-on-login')
+            const organizationId = user.user_metadata?.organization_id as string | undefined
+            
             await createProfileOnLogin(
               user.id,
               {
                 full_name: user.user_metadata?.full_name,
                 phone: user.user_metadata?.phone,
-                role: userRole,
+                role: userRoleFromMetadata,
                 building_id: user.user_metadata?.building_id,
               },
-              user.user_metadata.organization_id
+              organizationId
             )
             
-            // Retry getting membership after creation
-            const { data: newMembership } = await supabase
-              .from('organization_members')
-              .select('role, organization_id')
-              .eq('user_id', user.id)
+            // Retry getting profile after creation
+            const { data: newProfile } = await supabase
+              .from('user_profiles')
+              .select('role')
+              .eq('id', user.id)
               .maybeSingle()
             
-            if (newMembership) {
-              // Member created successfully, continue with normal flow
-              const userRole = newMembership.role as UserRole
+            if (newProfile?.role) {
+              const userRole = newProfile.role as UserRole
+              
+              // Check if admin needs to set up organization
+              if (userRole === 'admin') {
+                // Check if admin has organization
+                const { data: membership } = await supabase
+                  .from('organization_members')
+                  .select('organization_id')
+                  .eq('user_id', user.id)
+                  .maybeSingle()
+                
+                if (!membership || !membership.organization_id) {
+                  // Admin without organization - redirect to organization setup
+                  const url = request.nextUrl.clone()
+                  url.pathname = '/dashboard/setup/organization'
+                  return NextResponse.redirect(url)
+                }
+              }
+              
+              // Check if user's role can access this route
               if (!roleCanAccessRoute(userRole, pathname)) {
                 const url = request.nextUrl.clone()
                 url.pathname = '/unauthorized'
@@ -132,28 +141,37 @@ export async function proxy(request: NextRequest) {
                 url.searchParams.set('path', pathname)
                 return NextResponse.redirect(url)
               }
+              
               supabaseResponse.headers.set('x-user-role', userRole)
               return supabaseResponse
             }
           } catch (createError) {
-            console.error('Failed to create profile/member on login:', createError)
-            // Continue to redirect to setup page
+            console.error('Failed to create/update profile on login:', createError)
           }
         }
         
-        // Other users without membership - redirect to setup page
+        // If still no role, redirect to setup page
         const url = request.nextUrl.clone()
         url.pathname = '/dashboard/setup'
         return NextResponse.redirect(url)
       }
 
-      const userRole = membership.role as UserRole
+      const userRole = profile.role as UserRole
 
-      // Special check: If admin (owner) has no organization, redirect to setup
-      if (userRole === 'admin' && !membership.organization_id) {
-        const url = request.nextUrl.clone()
-        url.pathname = '/dashboard/setup/organization'
-        return NextResponse.redirect(url)
+      // Check if admin (owner) has organization
+      if (userRole === 'admin') {
+        const { data: membership } = await supabase
+          .from('organization_members')
+          .select('organization_id')
+          .eq('user_id', user.id)
+          .maybeSingle()
+        
+        if (!membership || !membership.organization_id) {
+          // Admin without organization - redirect to organization setup
+          const url = request.nextUrl.clone()
+          url.pathname = '/dashboard/setup/organization'
+          return NextResponse.redirect(url)
+        }
       }
 
       // Check if user's role can access this route

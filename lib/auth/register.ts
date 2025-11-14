@@ -158,6 +158,7 @@ async function createUserProfile(
   userId: string,
   fullName: string,
   phone: string,
+  role?: string,
   nationalId?: string,
   address?: string,
   dateOfBirth?: string
@@ -172,6 +173,7 @@ async function createUserProfile(
       id: string
       full_name: string
       phone_number: string
+      role?: string
       national_id?: string
       address?: string
       date_of_birth?: string
@@ -180,6 +182,11 @@ async function createUserProfile(
       id: userId,
       full_name: fullName.trim(),
       phone_number: phone.trim(),
+    }
+
+    // Add role if provided
+    if (role && role.trim()) {
+      profileData.role = role.trim()
     }
 
     // Add optional fields if provided
@@ -585,11 +592,11 @@ export async function registerUser(input: RegisterInput): Promise<RegisterResult
     let profileCreated = false
     let organizationMemberCreated = false
 
-    // SKIP profile creation during registration - let database trigger handle it
-    // This prevents timeout issues and ensures faster registration
-    // Profile will be created automatically by trigger when user signs up
-    console.log('Skipping profile creation - database trigger will handle it')
-    profileCreated = false // Will be created by trigger
+    // Profile is created by database trigger automatically when user signs up
+    // The trigger sets role from user metadata, so profile should have role already
+    // We can optionally update it to ensure all fields are set, but it's not critical
+    console.log('Profile created by database trigger with role from metadata')
+    profileCreated = true // Created by trigger
 
     // Organization creation is SKIPPED during registration
     // Owners will set up their organization after email confirmation and first login

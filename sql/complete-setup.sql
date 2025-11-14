@@ -7,14 +7,35 @@
 -- This automatically creates user_profiles when a new user signs up
 -- This ensures profiles are always created, even if registration code fails
 
+-- Add role column to user_profiles if it doesn't exist
+ALTER TABLE public.user_profiles 
+ADD COLUMN IF NOT EXISTS role text;
+
+-- Add check constraint for role
+ALTER TABLE public.user_profiles
+DROP CONSTRAINT IF EXISTS user_profiles_role_check;
+
+ALTER TABLE public.user_profiles
+ADD CONSTRAINT user_profiles_role_check 
+CHECK (
+  role IS NULL OR role = ANY (
+    ARRAY['admin'::text, 'manager'::text, 'caretaker'::text, 'tenant'::text]
+  )
+);
+
+-- Create index on role
+CREATE INDEX IF NOT EXISTS idx_user_profiles_role 
+ON public.user_profiles(role);
+
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
-  INSERT INTO public.user_profiles (id, full_name, phone_number, created_at, updated_at)
+  INSERT INTO public.user_profiles (id, full_name, phone_number, role, created_at, updated_at)
   VALUES (
     NEW.id,
     COALESCE(NEW.raw_user_meta_data->>'full_name', ''),
     COALESCE(NEW.raw_user_meta_data->>'phone', ''),
+    COALESCE(NEW.raw_user_meta_data->>'role', NULL),
     NOW(),
     NOW()
   )
@@ -22,6 +43,7 @@ BEGIN
   SET 
     full_name = COALESCE(EXCLUDED.full_name, user_profiles.full_name),
     phone_number = COALESCE(EXCLUDED.phone_number, user_profiles.phone_number),
+    role = COALESCE(EXCLUDED.role, user_profiles.role),
     updated_at = NOW();
   RETURN NEW;
 END;

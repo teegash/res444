@@ -32,7 +32,7 @@ export async function createProfileOnLogin(
     // Check if profile exists (should exist if trigger is working, but check anyway)
     const { data: existingProfile, error: profileCheckError } = await supabase
       .from('user_profiles')
-      .select('id, full_name, phone_number')
+      .select('id, full_name, phone_number, role')
       .eq('id', userId)
       .maybeSingle()
 
@@ -43,6 +43,7 @@ export async function createProfileOnLogin(
           id: userId,
           full_name: userMetadata.full_name || '',
           phone_number: userMetadata.phone || '',
+          role: userMetadata.role || null,
           updated_at: new Date().toISOString(),
         }
 
@@ -59,6 +60,7 @@ export async function createProfileOnLogin(
               .update({
                 full_name: userMetadata.full_name || existingProfile?.full_name || '',
                 phone_number: userMetadata.phone || existingProfile?.phone_number || '',
+                role: userMetadata.role || existingProfile?.role || null,
                 updated_at: new Date().toISOString(),
               })
               .eq('id', userId)
@@ -79,15 +81,17 @@ export async function createProfileOnLogin(
     } else {
       result.profileCreated = true // Profile already exists
       
-      // Update profile if metadata has more complete information
+      // Update profile if metadata has more complete information or role is missing
       if ((userMetadata.full_name && existingProfile.full_name !== userMetadata.full_name) ||
-          (userMetadata.phone && existingProfile.phone_number !== userMetadata.phone)) {
+          (userMetadata.phone && existingProfile.phone_number !== userMetadata.phone) ||
+          (!existingProfile.role && userMetadata.role)) {
         try {
           const { error: updateError } = await supabase
             .from('user_profiles')
             .update({
               full_name: userMetadata.full_name || existingProfile.full_name,
               phone_number: userMetadata.phone || existingProfile.phone_number,
+              role: userMetadata.role || existingProfile.role || null,
               updated_at: new Date().toISOString(),
             })
             .eq('id', userId)

@@ -60,30 +60,43 @@ export async function POST(request: NextRequest) {
     const userMetadata = data.user.user_metadata || {}
     const userRoleFromMetadata = userMetadata.role as string | undefined
 
-    // Get user's role from organization_members
-    const { data: membership, error: membershipError } = await supabase
-      .from('organization_members')
-      .select('role, organization_id')
-      .eq('user_id', userId)
-      .order('joined_at', { ascending: true })
-      .limit(1)
+    // Get user's role from user_profiles (much simpler and more reliable!)
+    const { data: profile, error: profileError } = await supabase
+      .from('user_profiles')
+      .select('role')
+      .eq('id', userId)
       .maybeSingle()
 
-    let userRole = membership?.role || userRoleFromMetadata || null
+    let userRole = profile?.role || userRoleFromMetadata || null
 
-    // If no membership exists but user has role in metadata, try to create profile/member
-    if (!membership && userRoleFromMetadata) {
-      console.log('No membership found, attempting to create profile/member on login...')
-      
+    // If profile exists but role is missing, update it from metadata
+    if (profile && !profile.role && userRoleFromMetadata) {
+      console.log('Profile exists but role is missing, updating from metadata...')
       try {
-        // Import the createProfileOnLogin function
+        const { error: updateError } = await supabase
+          .from('user_profiles')
+          .update({ role: userRoleFromMetadata })
+          .eq('id', userId)
+
+        if (!updateError) {
+          userRole = userRoleFromMetadata
+          console.log('✓ Role updated in profile:', userRole)
+        } else {
+          console.warn('⚠ Failed to update role in profile:', updateError.message)
+        }
+      } catch (updateError: any) {
+        console.warn('⚠ Error updating role in profile:', updateError.message)
+      }
+    }
+
+    // If no profile exists, create it (shouldn't happen if trigger is working, but handle it)
+    if (!profile && userRoleFromMetadata) {
+      console.log('Profile not found, creating profile with role...')
+      try {
         const { createProfileOnLogin } = await import('@/lib/auth/create-profile-on-login')
-        
-        // Get organization_id from metadata (for managers/caretakers)
         const organizationId = userMetadata.organization_id as string | undefined
         
-        // Create profile and/or organization member if needed
-        const createResult = await createProfileOnLogin(
+        await createProfileOnLogin(
           userId,
           {
             full_name: userMetadata.full_name as string | undefined,
@@ -94,43 +107,26 @@ export async function POST(request: NextRequest) {
           organizationId
         )
 
-        if (createResult.memberCreated || createResult.profileCreated) {
-          console.log('✓ Profile/member created on login:', {
-            profileCreated: createResult.profileCreated,
-            memberCreated: createResult.memberCreated,
-          })
+        // Retry getting profile after creation
+        const { data: newProfile } = await supabase
+          .from('user_profiles')
+          .select('role')
+          .eq('id', userId)
+          .maybeSingle()
 
-          // Retry getting membership after creation
-          const { data: newMembership } = await supabase
-            .from('organization_members')
-            .select('role, organization_id')
-            .eq('user_id', userId)
-            .maybeSingle()
-
-          if (newMembership) {
-            userRole = newMembership.role
-            console.log('✓ Membership found after creation:', userRole)
-          } else {
-            // If still no membership, use role from metadata
-            // This is fine for admins who need to set up organization first
-            userRole = userRoleFromMetadata
-            console.log('⚠ No membership after creation, using metadata role:', userRole)
-          }
+        if (newProfile?.role) {
+          userRole = newProfile.role
+          console.log('✓ Profile created with role:', userRole)
         } else {
-          // Creation failed, but use role from metadata anyway
-          // Admins can login without membership (they'll be redirected to setup)
           userRole = userRoleFromMetadata
-          console.log('⚠ Profile/member creation failed, using metadata role:', userRole)
+          console.log('⚠ Profile created but role missing, using metadata:', userRole)
         }
       } catch (createError: any) {
-        console.error('Error creating profile/member on login:', createError)
-        // Use role from metadata anyway - admins can login without membership
+        console.error('Error creating profile on login:', createError)
         userRole = userRoleFromMetadata
       }
     }
 
-    // For admins: Allow login even without membership (they'll set up organization)
-    // For managers/caretakers: They should have organization_id in metadata
     // If no role at all, return error
     if (!userRole) {
       return NextResponse.json(
@@ -147,7 +143,6 @@ export async function POST(request: NextRequest) {
         success: true,
         role: userRole,
         user_id: userId,
-        has_membership: !!membership,
       },
       { status: 200 }
     )
