@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 
 export async function POST(request: NextRequest) {
   try {
@@ -16,12 +16,52 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const supabase = await createClient()
-
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    })
+    // Use admin client to avoid cookies() which can hang in serverless functions
+    // Vercel has 10 second limit - signin should complete in < 3 seconds
+    console.log('Starting sign in for:', email)
+    
+    const supabase = createAdminClient()
+    
+    // Sign in with password with timeout
+    // Vercel limit is 10s, so we use 3s timeout to be safe
+    let data: any
+    let error: any
+    
+    try {
+      const signInPromise = supabase.auth.signInWithPassword({
+        email,
+        password,
+      })
+      
+      // 3 second timeout - should be plenty for signin
+      const signInTimeout = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Sign in timed out after 3 seconds')), 3000)
+      )
+      
+      const result = await Promise.race([signInPromise, signInTimeout]) as any
+      data = result.data
+      error = result.error
+      
+      console.log('Sign in result - Success:', !!data?.session, 'Error:', !!error)
+    } catch (signInError: any) {
+      console.error('Sign in error:', signInError.message)
+      if (signInError.message.includes('timed out')) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: 'Sign in timed out. Please check your connection and try again.',
+          },
+          { status: 504 }
+        )
+      }
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Failed to sign in. Please try again.',
+        },
+        { status: 500 }
+      )
+    }
 
     if (error) {
       // Handle specific error cases
