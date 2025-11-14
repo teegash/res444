@@ -614,7 +614,7 @@ export async function registerUser(input: RegisterInput): Promise<RegisterResult
               phone: input.organization.phone || null,
               location: input.organization.location,
               registration_number: input.organization.registration_number,
-              logo_url: input.organization.logo_url || null,
+              logo_url: input.organization.logo_url || null, // Logo is optional - null is acceptable, won't block registration
             })
             .select()
             .single(),

@@ -274,7 +274,8 @@ export default function SignupPage() {
 
     setIsUploadingLogo(true)
     setError(null)
-
+    
+    // Logo upload is optional - if it fails, we'll just continue without logo
     try {
       // Compress image if it's larger than 500KB to speed up upload
       let fileToUpload = file
@@ -309,20 +310,13 @@ export default function SignupPage() {
         })
 
       if (error) {
-        console.error('Storage upload error:', {
+        console.warn('Storage upload error (non-blocking):', {
           message: error.message,
           statusCode: error.statusCode,
-          error: error,
         })
-        
-        // Provide more helpful error message
-        if (error.message?.includes('new row violates row-level security')) {
-          throw new Error('Storage bucket RLS policy is blocking upload. Please check bucket policies in Supabase Dashboard.')
-        } else if (error.message?.includes('Bucket') || error.message?.includes('not found')) {
-          throw new Error(`Storage bucket "${bucketName}" not found. Please create it in Supabase Dashboard.`)
-        } else {
-          throw new Error(error.message || 'Failed to upload logo. Please ensure the storage bucket exists and allows public uploads.')
-        }
+        // Logo upload failed - just continue without logo (it's optional)
+        // Don't show error to user - logo is optional
+        return
       }
 
       // Get public URL
@@ -332,13 +326,13 @@ export default function SignupPage() {
         ...prev,
         logoUrl: urlData.publicUrl,
       }))
-    } catch (err) {
-      if (err instanceof Error) {
-        setError(err.message || 'Failed to upload logo. Please try again.')
-      } else {
-        setError('Failed to upload logo. Please try again.')
-      }
-      console.error('Logo upload error:', err)
+      console.log('Logo uploaded successfully:', urlData.publicUrl)
+    } catch (err: any) {
+      console.warn('Logo upload failed (non-blocking):', err.message)
+      // Logo upload is optional - don't block registration if it fails
+      // Just clear the logo URL and continue
+      setOrgData((prev) => ({ ...prev, logoUrl: '' }))
+      // Don't show error to user - logo is optional
     } finally {
       setIsUploadingLogo(false)
     }
@@ -428,15 +422,26 @@ export default function SignupPage() {
       }
 
       // If owner, include organization data
+      // Logo is optional - registration will succeed even if logo_url is null
       if (formData.userType === 'owner') {
         registrationPayload.organization = {
           name: orgData.name.trim(),
-          email: formData.email, // Same as user email
-          phone: formData.phone, // Same as user phone
+          email: formData.email.trim(), // Same as user email
+          phone: formData.phone.trim(), // Same as user phone
           location: orgData.location.trim(),
           registration_number: orgData.registrationNumber.trim(),
-          logo_url: orgData.logoUrl || null,
+          logo_url: orgData.logoUrl || null, // Logo is optional - can be null, won't block registration
         }
+        
+        console.log('Organization payload prepared:', {
+          name: registrationPayload.organization.name,
+          email: registrationPayload.organization.email,
+          phone: registrationPayload.organization.phone,
+          location: registrationPayload.organization.location,
+          registration_number: registrationPayload.organization.registration_number,
+          hasLogo: !!registrationPayload.organization.logo_url,
+          note: 'Logo is optional - registration will succeed even if null',
+        })
       }
 
       // Call the registration API endpoint
@@ -1032,18 +1037,13 @@ export default function SignupPage() {
               </Button>
               <Button
                 type="submit"
-                disabled={isLoading || isUploadingLogo}
+                disabled={isLoading}
                 className="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold"
               >
                 {isLoading ? (
                   <div className="flex items-center gap-2">
                     <Loader2 className="w-4 h-4 animate-spin" />
                     Creating Account...
-                  </div>
-                ) : isUploadingLogo ? (
-                  <div className="flex items-center gap-2">
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Uploading Logo...
                   </div>
                 ) : (
                   'Create Account'
