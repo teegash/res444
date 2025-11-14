@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerClient } from '@supabase/ssr'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { Database } from '@/lib/supabase/database.types'
 
 export async function POST(request: NextRequest) {
   try {
