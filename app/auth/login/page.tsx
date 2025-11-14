@@ -57,7 +57,7 @@ function LoginForm() {
 
     try {
       // Use API route instead of server action to get role information
-      // Login should be FAST - 9 second timeout (gives API 8s + 1s buffer)
+      // Login should be FAST - 8 second timeout (gives API 6s + 2s buffer)
       console.log('Starting sign in request...')
       const requestStartTime = Date.now()
       
@@ -66,7 +66,7 @@ function LoginForm() {
         const elapsed = Date.now() - requestStartTime
         console.error(`Client-side fetch timed out after ${elapsed}ms`)
         controller.abort()
-      }, 9000) // 9 second timeout - gives API 8s + 1s buffer
+      }, 8000) // 8 second timeout - gives API 6s + 2s buffer
       
       let response: Response
       try {
@@ -124,8 +124,23 @@ function LoginForm() {
         return
       }
 
-      // Session cookies are set by the API route automatically
-      // No need to set them client-side - the cookies from the API response will work
+      // If we have a session, set it in the client
+      // Admin client doesn't set cookies automatically, so we need to do it client-side
+      if (result.session) {
+        try {
+          console.log('Setting session cookies client-side...')
+          const { createClient } = await import('@/lib/supabase/client')
+          const supabase = createClient()
+          await supabase.auth.setSession({
+            access_token: result.session.access_token,
+            refresh_token: result.session.refresh_token,
+          })
+          console.log('✓ Session set successfully')
+        } catch (sessionError: any) {
+          console.warn('Failed to set session (non-blocking):', sessionError.message)
+          // Continue anyway - user might still be authenticated via cookies
+        }
+      }
 
       // Validate role matches selected login type
       const userRole = result.role?.toLowerCase()

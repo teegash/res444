@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { Database } from '@/lib/supabase/database.types'
 
 export async function POST(request: NextRequest) {
@@ -19,56 +20,20 @@ export async function POST(request: NextRequest) {
 
     console.log('Starting sign in for:', email)
     
-    // Use server client directly with request cookies to avoid cookies() hanging
-    // This matches the proxy.ts pattern - fast and reliable
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-    const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-
-    if (!supabaseUrl || !anonKey) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Server configuration error. Please contact support.',
-        },
-        { status: 500 }
-      )
-    }
-
-    // Create response object first (needed for cookie setting)
-    let supabaseResponse = NextResponse.next({
-      request,
-    })
-
-    // Create server client directly with request cookies (no async cookies() call)
-    // This is the same pattern as proxy.ts - fast and doesn't hang
-    console.log('Creating Supabase server client...')
+    // Try admin client first - it's faster (no cookies), same pattern as registration
+    // If that fails, fall back to server client
+    console.log('Creating Supabase admin client for signin...')
     const clientStartTime = Date.now()
     
-    const supabase = createServerClient<Database>(supabaseUrl, anonKey, {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll()
-        },
-        setAll(cookiesToSet) {
-          // Set cookies properly - this is how proxy.ts does it
-          cookiesToSet.forEach(({ name, value, options }) =>
-            request.cookies.set(name, value)
-          )
-          supabaseResponse = NextResponse.next({
-            request,
-          })
-          cookiesToSet.forEach(({ name, value, options }) =>
-            supabaseResponse.cookies.set(name, value, options)
-          )
-        },
-      },
-    })
+    // Use admin client for signin - same approach as registration (which works)
+    // Admin client doesn't use cookies() so it's much faster
+    const supabase = createAdminClient()
     
     const clientTime = Date.now() - clientStartTime
-    console.log(`Supabase client created in ${clientTime}ms`)
+    console.log(`Supabase admin client created in ${clientTime}ms`)
     
     // Sign in with password with timeout
-    // Vercel limit is 10s, so we use 8s timeout to be safe
+    // Vercel limit is 10s, so we use 6s timeout to be safe and get faster feedback
     console.log('Calling signInWithPassword...')
     const startTime = Date.now()
     
@@ -81,15 +46,16 @@ export async function POST(request: NextRequest) {
         password,
       })
       
-      // 8 second timeout - should be plenty for signin, well under Vercel's 10s limit
+      // 6 second timeout - faster feedback if it's hanging
+      // Same approach as registration which works
       const signInTimeout = new Promise((_, reject) => 
         setTimeout(() => {
           const elapsed = Date.now() - startTime
-          reject(new Error(`Sign in timed out after ${elapsed}ms (8s limit)`))
-        }, 8000)
+          reject(new Error(`Sign in timed out after ${elapsed}ms (6s limit)`))
+        }, 6000)
       )
       
-      console.log('Waiting for signInWithPassword to complete (timeout: 8s)...')
+      console.log('Waiting for signInWithPassword to complete (timeout: 6s)...')
       const result = await Promise.race([signInPromise, signInTimeout]) as any
       const elapsed = Date.now() - startTime
       
@@ -97,6 +63,14 @@ export async function POST(request: NextRequest) {
       error = result.error
       
       console.log(`Sign in completed in ${elapsed}ms - Success:`, !!data?.session, 'Error:', !!error)
+      
+      if (error) {
+        console.error('Supabase signin error:', {
+          message: error.message,
+          status: error.status,
+          name: error.name,
+        })
+      }
     } catch (signInError: any) {
       const elapsed = Date.now() - startTime
       console.error(`Sign in failed after ${elapsed}ms:`, signInError.message)
@@ -208,31 +182,17 @@ export async function POST(request: NextRequest) {
     // Login successful - fast!
     console.log('✓ Login successful - role:', userRole)
 
-    // Update supabaseResponse with JSON body - cookies are already set by Supabase SSR via setAll callback
-    // This is how proxy.ts handles it - use the response that Supabase SSR created
+    // Admin client doesn't set cookies automatically, so return session data
+    // Client will set cookies using the session tokens
     const response = NextResponse.json(
       {
         success: true,
         role: userRole,
         user_id: userId,
+        session: data.session, // Include session for client to set cookies
       },
       { status: 200 }
     )
-
-    // Copy all cookies from supabaseResponse (set by Supabase SSR) to our JSON response
-    // This ensures the session cookies are included in the response
-    supabaseResponse.cookies.getAll().forEach((cookie) => {
-      const existingCookie = supabaseResponse.cookies.get(cookie.name)
-      if (existingCookie) {
-        response.cookies.set(cookie.name, existingCookie.value, {
-          httpOnly: true,
-          secure: process.env.NODE_ENV === 'production',
-          sameSite: 'lax',
-          path: '/',
-          ...(existingCookie.attributes || {}),
-        })
-      }
-    })
 
     return response
   } catch (error) {
