@@ -147,11 +147,14 @@ export async function POST(request: NextRequest) {
     // Login successful - fast!
     console.log('✓ Login successful - role:', userRole)
 
+    // Return session data so client can set cookies
+    // Admin client doesn't set cookies automatically
     return NextResponse.json(
       {
         success: true,
         role: userRole,
         user_id: userId,
+        session: data.session, // Include session for client-side cookie setting
       },
       { status: 200 }
     )
