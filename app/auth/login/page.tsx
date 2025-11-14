@@ -256,15 +256,36 @@ function LoginForm() {
             </Button>
           </form>
 
-          <div className="text-center mt-6">
+          <div className="text-center mt-4">
+            <Link
+              href="/auth/forgot-password"
+              className="text-sm text-blue-600 font-semibold hover:text-blue-700 underline"
+            >
+              Forgot password?
+            </Link>
+          </div>
+
+          <div className="text-center mt-4">
             <p className="text-sm text-gray-600">
               Don't have an account?{' '}
-              <Link
-                href="/auth/signup"
-                className="text-blue-600 font-semibold hover:text-blue-700 underline"
-              >
-                Sign up
-              </Link>
+              {accountType === 'tenant' ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    alert('Please contact your property manager for account credentials. Tenants cannot self-register.')
+                  }}
+                  className="text-blue-600 font-semibold hover:text-blue-700 underline"
+                >
+                  Sign up
+                </button>
+              ) : (
+                <Link
+                  href="/auth/signup"
+                  className="text-blue-600 font-semibold hover:text-blue-700 underline"
+                >
+                  Sign up
+                </Link>
+              )}
             </p>
           </div>
         </div>

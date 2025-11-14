@@ -51,8 +51,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Validate role is one of the allowed values
-    const validRoles = ['admin', 'manager', 'caretaker', 'tenant']
+    // Validate role is one of the allowed values (removed tenant)
+    const validRoles = ['admin', 'manager', 'caretaker']
     const normalizedRole = role.trim().toLowerCase()
     if (!validRoles.includes(normalizedRole)) {
       return NextResponse.json(
@@ -62,6 +62,31 @@ export async function POST(request: NextRequest) {
         },
         { status: 400 }
       )
+    }
+
+    // For owners (admin), organization data should be provided
+    const { organization } = body
+    if (normalizedRole === 'admin' && !organization) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Organization details are required for property owners',
+        },
+        { status: 400 }
+      )
+    }
+
+    // Validate organization data if provided
+    if (organization) {
+      if (!organization.name || !organization.location || !organization.registration_number) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: 'Organization name, location, and registration number are required',
+          },
+          { status: 400 }
+        )
+      }
     }
 
     // Log the role being registered for debugging
@@ -79,6 +104,14 @@ export async function POST(request: NextRequest) {
       national_id: national_id?.trim(), // Optional - national ID
       address: address?.trim(), // Optional - address
       date_of_birth: date_of_birth?.trim(), // Optional - date of birth (YYYY-MM-DD)
+      organization: organization ? {
+        name: organization.name.trim(),
+        email: organization.email?.trim() || email.trim(),
+        phone: organization.phone?.trim() || phone.trim(),
+        location: organization.location.trim(),
+        registration_number: organization.registration_number.trim(),
+        logo_url: organization.logo_url?.trim() || null,
+      } : undefined,
     }
 
     // Call registration function

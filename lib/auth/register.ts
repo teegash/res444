@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { AuthError } from '@/lib/supabase/types'
 
 export type UserRole = 'admin' | 'manager' | 'caretaker' | 'tenant'
@@ -11,11 +12,19 @@ export interface RegisterInput {
   full_name: string
   phone: string
   role: UserRole
-  organization_id?: string // Optional - user might create/join organization later
+  organization_id?: string // For managers/caretakers - existing organization
   building_id?: string // For caretakers - the building they'll manage
   national_id?: string // Optional - national ID number
   address?: string // Optional - user address
   date_of_birth?: string // Optional - date of birth (YYYY-MM-DD format)
+  organization?: {
+    name: string
+    email: string
+    phone: string
+    location: string
+    registration_number: string
+    logo_url?: string | null
+  } // For owners - organization to create
 }
 
 export interface RegisterResult {
@@ -287,7 +296,8 @@ async function createUserProfile(
 async function createOrganizationMember(
   userId: string,
   role: UserRole,
-  organizationId?: string
+  organizationId?: string,
+  useAdminClient: boolean = false
 ): Promise<{ success: boolean; error?: string }> {
   try {
     // If no organization_id provided, skip member creation
@@ -297,7 +307,8 @@ async function createOrganizationMember(
       return { success: false, error: 'Organization ID required' }
     }
 
-    const supabase = await createClient()
+    // Use admin client during registration to bypass RLS
+    const supabase = useAdminClient ? createAdminClient() : await createClient()
 
     // Try to create organization member
     // Matches your schema: user_id, organization_id, role, joined_at
@@ -491,17 +502,63 @@ export async function registerUser(input: RegisterInput): Promise<RegisterResult
       }
     }
 
-    // Create organization member (requires organization_id from input)
+    // Create organization if provided (for owners)
+    // Use admin client to bypass RLS during registration
+    let createdOrganizationId: string | undefined
+    if (input.organization) {
+      const adminSupabase = createAdminClient()
+      const { data: organization, error: orgError } = await adminSupabase
+        .from('organizations')
+        .insert({
+          name: input.organization.name,
+          email: input.organization.email.toLowerCase(),
+          phone: input.organization.phone,
+          location: input.organization.location,
+          registration_number: input.organization.registration_number,
+          logo_url: input.organization.logo_url || null,
+        })
+        .select()
+        .single()
+
+      if (orgError) {
+        // Handle duplicate registration number
+        if (orgError.code === '23505') {
+          return {
+            success: false,
+            error: 'Registration number already exists. Please use a different registration number.',
+          }
+        }
+
+        console.error('Error creating organization:', orgError)
+        return {
+          success: false,
+          error: orgError.message || 'Failed to create organization',
+        }
+      }
+
+      if (organization) {
+        createdOrganizationId = organization.id
+        console.log('Organization created:', organization.id)
+      }
+    }
+
+    // Create organization member
+    // Use admin client during registration to bypass RLS
     const memberResult = await createOrganizationMember(
       userId,
       input.role,
-      input.organization_id
+      input.organization_id || createdOrganizationId, // Use created org ID for owners, or provided ID for managers/caretakers
+      true // Use admin client during registration
     )
     if (memberResult.success) {
       organizationMemberCreated = true
     } else if (memberResult.error === 'Organization ID required') {
-      // This is acceptable - user can join organization later
-      console.info('User registered without organization. They can join/create one later.')
+      // This should not happen for owners, but handle it
+      console.error('Failed to create organization member after organization creation')
+      return {
+        success: false,
+        error: 'Failed to link user to organization',
+      }
     }
 
     // Determine if verification email was sent
