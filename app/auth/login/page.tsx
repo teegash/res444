@@ -79,6 +79,12 @@ function LoginForm() {
       // Validate role matches selected login type
       const userRole = result.role?.toLowerCase()
       
+      if (!userRole) {
+        setError('Unable to determine user role. Please contact support.')
+        setIsLoading(false)
+        return
+      }
+
       if (accountType === 'tenant') {
         // Tenant tab: only tenants can login
         if (userRole !== 'tenant') {
@@ -91,19 +97,16 @@ function LoginForm() {
       } else {
         // Manager tab: only admin, manager, and caretaker can login
         const allowedRoles = ['admin', 'manager', 'caretaker']
-        if (!userRole || !allowedRoles.includes(userRole)) {
-          setError('This account is not authorized for manager access. Please use the Tenant login tab.')
+        if (!allowedRoles.includes(userRole)) {
+          setError(`This account (${userRole}) is not authorized for manager access. Please use the Tenant login tab.`)
           setIsLoading(false)
           return
         }
-        // Redirect to appropriate dashboard based on role
-        if (userRole === 'admin' || userRole === 'manager') {
-          router.push('/dashboard')
-        } else if (userRole === 'caretaker') {
-          router.push('/dashboard/caretaker')
-        } else {
-          router.push('/dashboard')
-        }
+        
+        // For admins without membership: They'll be redirected to organization setup by proxy
+        // For managers/caretakers: They should have membership created above
+        // Redirect to dashboard - proxy will handle routing
+        router.push('/dashboard')
       }
     } catch (err) {
       setError('An unexpected error occurred')

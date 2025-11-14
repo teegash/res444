@@ -62,8 +62,10 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
-  // Redirect to dashboard if accessing auth pages while authenticated
-  if (isAuthPath && user) {
+  // Allow login page even if authenticated - let login page handle redirect
+  // This prevents redirect loops when user logs in
+  // Only redirect from signup page if authenticated
+  if (pathname === '/auth/signup' && user) {
     const url = request.nextUrl.clone()
     url.pathname = '/dashboard'
     return NextResponse.redirect(url)
