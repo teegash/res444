@@ -5,7 +5,8 @@ import { roleCanAccessRoute, UserRole } from './lib/rbac/roles'
 export async function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname
 
-  // Allow API routes to bypass Supabase auth checks to avoid long-running registration calls timing out
+  // Allow API routes to bypass Supabase auth checks completely to avoid any delays
+  // This is critical for registration API which needs to run without interference
   if (pathname.startsWith('/api')) {
     return NextResponse.next()
   }
