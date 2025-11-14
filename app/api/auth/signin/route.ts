@@ -63,6 +63,9 @@ export async function POST(request: NextRequest) {
     
     // Sign in with password with timeout
     // Vercel limit is 10s, so we use 8s timeout to be safe
+    console.log('Calling signInWithPassword...')
+    const startTime = Date.now()
+    
     let data: any
     let error: any
     
@@ -74,14 +77,20 @@ export async function POST(request: NextRequest) {
       
       // 8 second timeout - should be plenty for signin, well under Vercel's 10s limit
       const signInTimeout = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Sign in timed out after 8 seconds')), 8000)
+        setTimeout(() => {
+          const elapsed = Date.now() - startTime
+          reject(new Error(`Sign in timed out after ${elapsed}ms (8s limit)`))
+        }, 8000)
       )
       
+      console.log('Waiting for signInWithPassword to complete (timeout: 8s)...')
       const result = await Promise.race([signInPromise, signInTimeout]) as any
+      const elapsed = Date.now() - startTime
+      
       data = result.data
       error = result.error
       
-      console.log('Sign in result - Success:', !!data?.session, 'Error:', !!error)
+      console.log(`Sign in completed in ${elapsed}ms - Success:`, !!data?.session, 'Error:', !!error)
     } catch (signInError: any) {
       console.error('Sign in error:', signInError.message)
       if (signInError.message.includes('timed out')) {
@@ -186,7 +195,8 @@ export async function POST(request: NextRequest) {
     // Login successful - fast!
     console.log('✓ Login successful - role:', userRole)
 
-    // Create JSON response - cookies are already set by Supabase SSR via setAll callback
+    // Update supabaseResponse with JSON body - cookies are already set by Supabase SSR via setAll callback
+    // This is how proxy.ts handles it - use the response that Supabase SSR created
     const response = NextResponse.json(
       {
         success: true,
@@ -196,15 +206,19 @@ export async function POST(request: NextRequest) {
       { status: 200 }
     )
 
-    // Copy cookies from supabaseResponse to our response
-    // Supabase SSR sets cookies via setAll callback, so we need to include them
+    // Copy all cookies from supabaseResponse (set by Supabase SSR) to our JSON response
+    // This ensures the session cookies are included in the response
     supabaseResponse.cookies.getAll().forEach((cookie) => {
-      response.cookies.set(cookie.name, cookie.value, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
-        path: '/',
-      })
+      const existingCookie = supabaseResponse.cookies.get(cookie.name)
+      if (existingCookie) {
+        response.cookies.set(cookie.name, existingCookie.value, {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: 'lax',
+          path: '/',
+          ...(existingCookie.attributes || {}),
+        })
+      }
     })
 
     return response
