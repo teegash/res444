@@ -2,7 +2,7 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 import { roleCanAccessRoute, UserRole } from './lib/rbac/roles'
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
     request,
   })
@@ -101,7 +101,7 @@ export async function middleware(request: NextRequest) {
       // Add user role to response headers for use in pages
       supabaseResponse.headers.set('x-user-role', userRole)
     } catch (error) {
-      console.error('Error checking user role in middleware:', error)
+      console.error('Error checking user role in proxy:', error)
       // On error, allow access but log it
       // In production, you might want to redirect to unauthorized
     }
