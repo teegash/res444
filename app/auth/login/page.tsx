@@ -57,9 +57,9 @@ function LoginForm() {
 
     try {
       // Use API route instead of server action to get role information
-      // Add timeout to prevent infinite loading
+      // Login should be FAST - 5 second timeout (well under Vercel's 10s limit)
       const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), 10000) // 10 second timeout
+      const timeoutId = setTimeout(() => controller.abort(), 5000) // 5 second timeout
       
       let response: Response
       try {

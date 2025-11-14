@@ -79,55 +79,47 @@ export async function proxy(request: NextRequest) {
     }
 
     try {
-      // Get user's role from user_profiles table (much simpler!)
-      // Add timeout to prevent hanging - query should complete quickly
-      let userRole: UserRole | null = null
+      // Proxy should be FAST - just get role and check access
+      // Use metadata first (no database query) - fastest!
+      let userRole: UserRole | null = (user.user_metadata?.role as UserRole) || null
       
-      try {
-        const profileQuery = supabase
-          .from('user_profiles')
-          .select('role')
-          .eq('id', user.id)
-          .maybeSingle()
-        
-        const profileTimeout = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Profile query timed out after 3 seconds')), 3000)
-        )
-        
-        const { data: profile, error: profileError } = await Promise.race([
-          profileQuery,
-          profileTimeout
-        ]) as any
-        
-        if (profileError && !profileError.message.includes('timed out')) {
-          console.warn('Profile query error in proxy:', profileError.message)
+      // If metadata doesn't have role, try profile query with very short timeout
+      // But don't wait - use metadata as primary source
+      if (!userRole) {
+        try {
+          const profileQuery = supabase
+            .from('user_profiles')
+            .select('role')
+            .eq('id', user.id)
+            .maybeSingle()
+          
+          // Very short timeout - 1 second max (proxy should be fast!)
+          const profileTimeout = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Profile query timed out')), 1000)
+          )
+          
+          const { data: profile } = await Promise.race([
+            profileQuery,
+            profileTimeout
+          ]) as any
+          
+          if (profile?.role) {
+            userRole = profile.role as UserRole
+          }
+        } catch (queryError: any) {
+          // Profile query failed - that's okay, use metadata or redirect
         }
-        
-        if (profile?.role) {
-          userRole = profile.role as UserRole
-        }
-      } catch (queryError: any) {
-        console.warn('Profile query failed in proxy:', queryError.message)
-        // Fall back to metadata
-        userRole = (user.user_metadata?.role as UserRole) || null
       }
 
-      // Profile should be fully populated during registration
-      // If it doesn't exist or role is missing, try metadata or redirect to setup
+      // If still no role, redirect to setup
       if (!userRole) {
-        // Try metadata as fallback
-        userRole = (user.user_metadata?.role as UserRole) || null
-        
-        if (!userRole) {
-          console.warn('Profile missing or incomplete - redirecting to setup')
-          const url = request.nextUrl.clone()
-          url.pathname = '/dashboard/setup'
-          return NextResponse.redirect(url)
-        }
+        const url = request.nextUrl.clone()
+        url.pathname = '/dashboard/setup'
+        return NextResponse.redirect(url)
       }
 
       // Check if admin (owner) has organization
-      // Add timeout to prevent hanging
+      // Use very short timeout - proxy should be fast!
       if (userRole === 'admin') {
         try {
           const membershipQuery = supabase
@@ -136,8 +128,9 @@ export async function proxy(request: NextRequest) {
             .eq('user_id', user.id)
             .maybeSingle()
           
+          // Very short timeout - 1 second max (proxy should be fast!)
           const membershipTimeout = new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('Membership query timed out after 3 seconds')), 3000)
+            setTimeout(() => reject(new Error('Membership query timed out')), 1000)
           )
           
           const { data: membership } = await Promise.race([
@@ -152,8 +145,8 @@ export async function proxy(request: NextRequest) {
             return NextResponse.redirect(url)
           }
         } catch (membershipError: any) {
-          console.warn('Membership query failed in proxy (non-blocking):', membershipError.message)
-          // Allow access - membership will be created later if needed
+          // Membership query failed - allow access, will be created later if needed
+          // Don't log or wait - just continue
         }
       }
 

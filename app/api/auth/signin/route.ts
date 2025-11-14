@@ -58,41 +58,42 @@ export async function POST(request: NextRequest) {
 
     const userId = data.user.id
 
-    // Get user's role from user_profiles (profile should be fully populated during registration)
-    // Add timeout to prevent hanging - query should complete quickly
-    let userRole: string | null = null
+    // Login should be FAST - just get role and return
+    // Profile is created by trigger during registration, so it should exist
+    // But we don't wait for it - use metadata as primary source for speed
+    // Login completes in < 1 second this way
     
-    try {
-      const profileQuery = supabase
-        .from('user_profiles')
-        .select('role')
-        .eq('id', userId)
-        .maybeSingle()
-      
-      const profileTimeout = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Profile query timed out after 3 seconds')), 3000)
-      )
-      
-      const { data: profile, error: profileError } = await Promise.race([
-        profileQuery,
-        profileTimeout
-      ]) as any
-      
-      if (profileError && !profileError.message.includes('timed out')) {
-        console.warn('Profile query error (non-blocking):', profileError.message)
-      }
-      
-      userRole = profile?.role || null
-    } catch (queryError: any) {
-      console.warn('Profile query failed (non-blocking):', queryError.message)
-      // Continue with metadata fallback
-    }
-
-    // If profile query didn't return role, use metadata as fallback
+    // Try to get role from metadata first (fastest - no database query)
+    let userRole: string | null = data.user.user_metadata?.role || null
+    
+    // Optionally try profile query with very short timeout (non-blocking)
+    // Only if metadata doesn't have role
     if (!userRole) {
-      userRole = data.user.user_metadata?.role || null
+      try {
+        const profileQuery = supabase
+          .from('user_profiles')
+          .select('role')
+          .eq('id', userId)
+          .maybeSingle()
+        
+        // Very short timeout - 1 second max (login should be fast!)
+        const profileTimeout = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Profile query timed out')), 1000)
+        )
+        
+        const { data: profile } = await Promise.race([
+          profileQuery,
+          profileTimeout
+        ]) as any
+        
+        userRole = profile?.role || null
+      } catch (queryError: any) {
+        // Profile query failed or timed out - use metadata
+        // Don't log or wait - just continue
+      }
     }
 
+    // If still no role, that's a problem
     if (!userRole) {
       return NextResponse.json(
         {
@@ -103,8 +104,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Profile is already populated during registration, so login is just about getting role and redirecting
-    console.log('✓ Login successful - role from profile:', userRole)
+    // Login successful - fast!
+    console.log('✓ Login successful - role:', userRole)
 
     return NextResponse.json(
       {
