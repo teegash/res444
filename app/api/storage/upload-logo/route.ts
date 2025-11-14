@@ -47,14 +47,8 @@ export async function POST(request: NextRequest) {
     // Use admin client to generate presigned URL
     const supabase = createAdminClient()
 
-    // Check available buckets and determine the correct bucket name
-    const { data: buckets } = await supabase.storage.listBuckets()
-    const bucketNames = buckets?.map(b => b.name) || []
-    
-    // Try to find the correct bucket name (support both naming conventions)
-    let bucketName = bucketNames.find(b => b === 'profile_pictures') || 
-                     bucketNames.find(b => b === 'profile-pictures') ||
-                     'profile_pictures' // Default fallback
+    // Use profile-pictures bucket (confirmed bucket name)
+    const bucketName = 'profile-pictures'
 
     // Generate unique file path
     const timestamp = Date.now()

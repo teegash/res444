@@ -295,29 +295,15 @@ export default function SignupPage() {
       const fileExtension = fileToUpload.name.split('.').pop()
       const fileName = `organizations/${timestamp}-${Math.random().toString(36).substring(7)}.${fileExtension}`
 
-      // Try both bucket naming conventions
-      let bucketName = 'profile_pictures'
-      let { data, error } = await supabase.storage
+      // Use profile-pictures bucket (confirmed bucket name)
+      const bucketName = 'profile-pictures'
+      const { data, error } = await supabase.storage
         .from(bucketName)
         .upload(fileName, fileToUpload, {
           contentType: fileToUpload.type,
           cacheControl: '3600',
           upsert: false,
         })
-
-      // If bucket doesn't exist, try with hyphen
-      if (error && (error.message.includes('Bucket') || error.message.includes('not found'))) {
-        bucketName = 'profile-pictures'
-        const retryResult = await supabase.storage
-          .from(bucketName)
-          .upload(fileName, fileToUpload, {
-            contentType: fileToUpload.type,
-            cacheControl: '3600',
-            upsert: false,
-          })
-        data = retryResult.data
-        error = retryResult.error
-      }
 
       if (error) {
         throw new Error(error.message || 'Failed to upload logo. Please ensure the storage bucket exists and allows public uploads.')
