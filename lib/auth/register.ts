@@ -163,6 +163,7 @@ async function createUserProfile(
   dateOfBirth?: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
+    console.log('Creating user profile for userId:', userId)
     const supabase = await createClient()
 
     // Prepare profile data object with all available fields
@@ -188,7 +189,7 @@ async function createUserProfile(
       profileData.address = address.trim()
     }
     if (dateOfBirth && dateOfBirth.trim()) {
-      // Validate date format (YYYY-MM-DD)
+      // Validate date format (YYYY-MM-DD) - database expects DATE type
       const dateRegex = /^\d{4}-\d{2}-\d{2}$/
       if (dateRegex.test(dateOfBirth.trim())) {
         profileData.date_of_birth = dateOfBirth.trim()
@@ -198,22 +199,43 @@ async function createUserProfile(
     }
 
     // First, check if profile already exists (might have been created by trigger)
-    const { data: existingProfile } = await supabase
+    // Add timeout to prevent hanging
+    console.log('Checking if profile exists...')
+    const checkPromise = supabase
       .from('user_profiles')
       .select('id, full_name, phone_number')
       .eq('id', userId)
       .maybeSingle()
+    
+    const checkTimeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('Profile check timed out after 5 seconds')), 5000)
+    )
+    
+    const { data: existingProfile } = await Promise.race([
+      checkPromise,
+      checkTimeoutPromise
+    ]) as any
 
     if (existingProfile) {
       // Profile exists (likely created by trigger), update it with our data
+      console.log('Profile exists, updating...')
       const updateData = { ...profileData }
       delete updateData.id // Don't include id in update
       updateData.updated_at = new Date().toISOString()
 
-      const { error: updateError } = await supabase
+      const updatePromise = supabase
         .from('user_profiles')
         .update(updateData)
         .eq('id', userId)
+      
+      const updateTimeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Profile update timed out after 10 seconds')), 10000)
+      )
+      
+      const { error: updateError } = await Promise.race([
+        updatePromise,
+        updateTimeoutPromise
+      ]) as any
 
       if (updateError) {
         // If update fails, check if it's a table structure issue
@@ -230,11 +252,22 @@ async function createUserProfile(
         return { success: false, error: updateError.message }
       }
 
+      console.log('Profile updated successfully')
       return { success: true }
     }
 
     // Profile doesn't exist, create it
-    const { error } = await supabase.from('user_profiles').insert(profileData)
+    console.log('Profile does not exist, creating new profile...')
+    const insertPromise = supabase.from('user_profiles').insert(profileData)
+    
+    const insertTimeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('Profile insert timed out after 10 seconds')), 10000)
+    )
+    
+    const { error } = await Promise.race([
+      insertPromise,
+      insertTimeoutPromise
+    ]) as any
 
     if (error) {
       // If error is due to duplicate (race condition with trigger)
@@ -496,7 +529,8 @@ export async function registerUser(input: RegisterInput): Promise<RegisterResult
 
     // Create user profile (matches your schema: phone_number, no email column)
     // Populate all available fields from registration form
-    const profileResult = await createUserProfile(
+    console.log('Creating user profile...')
+    const profilePromise = createUserProfile(
       userId,
       input.full_name.trim(),
       input.phone.trim(),
@@ -504,6 +538,17 @@ export async function registerUser(input: RegisterInput): Promise<RegisterResult
       input.address,
       input.date_of_birth
     )
+    
+    const profileTimeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('Profile creation timed out after 15 seconds')), 15000)
+    )
+    
+    const profileResult = await Promise.race([
+      profilePromise,
+      profileTimeoutPromise
+    ]) as any
+    
+    console.log('Profile creation result:', profileResult.success ? 'success' : profileResult.error)
 
     if (profileResult.success) {
       profileCreated = true
@@ -623,21 +668,42 @@ export async function registerUser(input: RegisterInput): Promise<RegisterResult
 
     // Create organization member
     // Use admin client during registration to bypass RLS
-    const memberResult = await createOrganizationMember(
+    console.log('Creating organization member...')
+    const memberPromise = createOrganizationMember(
       userId,
       input.role,
       input.organization_id || createdOrganizationId, // Use created org ID for owners, or provided ID for managers/caretakers
       true // Use admin client during registration
     )
-    if (memberResult.success) {
+    
+    const memberTimeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('Organization member creation timed out after 10 seconds')), 10000)
+    )
+    
+    let memberResult: any
+    try {
+      memberResult = await Promise.race([
+        memberPromise,
+        memberTimeoutPromise
+      ]) as any
+      console.log('Organization member creation result:', memberResult?.success ? 'success' : memberResult?.error)
+    } catch (timeoutError: any) {
+      console.warn('Organization member creation timed out, continuing:', timeoutError.message)
+      memberResult = { success: false, error: timeoutError.message }
+    }
+    
+    if (memberResult && memberResult.success) {
       organizationMemberCreated = true
-    } else if (memberResult.error === 'Organization ID required') {
+    } else if (memberResult && memberResult.error === 'Organization ID required') {
       // This should not happen for owners, but handle it
       console.error('Failed to create organization member after organization creation')
       return {
         success: false,
         error: 'Failed to link user to organization',
       }
+    } else if (memberResult && memberResult.error) {
+      // Log but don't fail registration if member creation fails
+      console.warn('Organization member creation failed, but continuing:', memberResult.error)
     }
 
     // Determine if verification email was sent

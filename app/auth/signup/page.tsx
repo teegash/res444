@@ -449,7 +449,7 @@ export default function SignupPage() {
 
       // Create AbortController for timeout
       const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), 30000) // 30 second timeout
+      const timeoutId = setTimeout(() => controller.abort(), 45000) // 45 second timeout (increased for organization creation)
 
       let response: Response
       try {
