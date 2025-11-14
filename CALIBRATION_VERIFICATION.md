@@ -156,11 +156,32 @@
 1. **Missing Form Fields**: The form doesn't collect `national_id`, `address`, or `date_of_birth`. These are optional in the database, so this is fine, but if you want to collect them, you'll need to add form fields.
 
 2. **user_profiles.id**: The code assumes `user_profiles.id` references `auth.users.id`. Verify your Supabase schema has this foreign key constraint:
+   
+   **Check if constraint exists:**
    ```sql
-   ALTER TABLE user_profiles 
-   ADD CONSTRAINT user_profiles_id_fkey 
-   FOREIGN KEY (id) REFERENCES auth.users(id) ON DELETE CASCADE;
+   SELECT constraint_name 
+   FROM information_schema.table_constraints 
+   WHERE table_name = 'user_profiles' 
+   AND constraint_name = 'user_profiles_id_fkey';
    ```
+   
+   **If it doesn't exist, create it (safe version):**
+   ```sql
+   DO $$ 
+   BEGIN
+     IF NOT EXISTS (
+       SELECT 1 FROM information_schema.table_constraints 
+       WHERE table_name = 'user_profiles' 
+       AND constraint_name = 'user_profiles_id_fkey'
+     ) THEN
+       ALTER TABLE user_profiles 
+       ADD CONSTRAINT user_profiles_id_fkey 
+       FOREIGN KEY (id) REFERENCES auth.users(id) ON DELETE CASCADE;
+     END IF;
+   END $$;
+   ```
+   
+   **Note**: If you get an error saying the constraint already exists, that's good! It means your database is already properly configured. ✅
 
 3. **Database Trigger**: The code handles the case where a trigger might create the profile first. Verify your trigger exists:
    ```sql
