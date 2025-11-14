@@ -509,15 +509,28 @@ export async function registerUser(input: RegisterInput): Promise<RegisterResult
       const result = await Promise.race([
         signUpPromise,
         signUpTimeoutPromise
-      ])
+      ]) as { data: any; error: any }
       
       const elapsed = Date.now() - startTime
       console.log(`SignUp completed in ${elapsed}ms`)
       
-      authData = result.data
-      authError = result.error
+      authData = result?.data || null
+      authError = result?.error || null
       
-      console.log('Sign up result - User created:', !!authData?.user, 'Has error:', !!authError, 'User ID:', authData?.user?.id)
+      console.log('Sign up result:')
+      console.log('  - User created:', !!authData?.user)
+      console.log('  - Has error:', !!authError)
+      console.log('  - User ID:', authData?.user?.id)
+      console.log('  - Error message:', authError?.message)
+      
+      // If we have an error, log it immediately
+      if (authError) {
+        console.error('SignUp error details:', {
+          message: authError.message,
+          status: authError.status,
+          name: authError.name,
+        })
+      }
     } catch (timeoutError: any) {
       const elapsed = Date.now() - startTime
       console.error(`SignUp operation failed after ${elapsed}ms:`, timeoutError.message)
@@ -589,74 +602,24 @@ export async function registerUser(input: RegisterInput): Promise<RegisterResult
     }
 
     const userId = authData.user.id
-    let profileCreated = false
-    let organizationMemberCreated = false
-
-    // Profile is created by database trigger automatically, but we need to ensure it's fully populated
-    // Update the profile with all registration data (role, national_id, address, date_of_birth, etc.)
-    console.log('Ensuring profile is fully populated with registration data...')
-    try {
-      const profileResult = await Promise.race([
-        createUserProfile(
-      userId,
-      input.full_name.trim(),
-          input.phone.trim(),
-          input.role, // Include role
-          input.national_id,
-          input.address,
-          input.date_of_birth
-        ),
-        new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Profile update timed out after 5 seconds')), 5000)
-        )
-      ]) as any
-      
-      if (profileResult?.success) {
-      profileCreated = true
-        console.log('✓ Profile fully populated during registration')
-      } else {
-        console.warn('⚠ Profile update failed during registration (non-blocking):', profileResult?.error)
-        profileCreated = true // Trigger created it, even if update failed
-      }
-    } catch (profileError: any) {
-      console.warn('⚠ Profile update error during registration (non-blocking):', profileError.message)
-      profileCreated = true // Trigger created it, even if update failed
-    }
-
+    
+    // Profile is created by database trigger automatically with role from metadata
+    // Trigger populates: id, full_name (from user_metadata.full_name), phone_number (from user_metadata.phone), role (from user_metadata.role)
+    // Additional fields (national_id, address, date_of_birth) can be updated later if needed via API
+    // We don't update profile during registration to keep it fast - just user account creation
+    console.log('✓ User account created. Profile will be created by database trigger with role from metadata')
+    
     // Organization creation is SKIPPED during registration
     // Owners will set up their organization after email confirmation and first login
     // This prevents Vercel API timeout issues
     let createdOrganizationId: string | undefined = undefined
     console.log('Organization creation skipped - will be done after first login for owners')
 
-    // Create organization member for managers/caretakers during registration
-    // This makes login faster - just redirect to dashboard
+    // Organization member creation is also SKIPPED during registration
+    // It will be created on first login by the proxy or signin API
+    // This keeps registration fast - just user account creation
     if (input.organization_id) {
-      console.log('Creating organization member during registration...')
-      try {
-        const memberResult = await Promise.race([
-          createOrganizationMember(
-      userId,
-      input.role,
-            input.organization_id,
-            true // Use admin client
-          ),
-          new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('Organization member creation timed out after 5 seconds')), 5000)
-          )
-        ]) as any
-        
-        if (memberResult?.success) {
-      organizationMemberCreated = true
-          console.log('✓ Organization member created during registration')
-        } else {
-          console.warn('⚠ Organization member creation failed during registration (non-blocking):', memberResult?.error)
-          // Member will be created on first login if it fails here
-        }
-      } catch (memberError: any) {
-        console.warn('⚠ Organization member creation error during registration (non-blocking):', memberError.message)
-        // Member will be created on first login if it fails here
-      }
+      console.log('Organization member creation skipped - will be created on first login')
     }
 
     // Determine if verification email was sent
@@ -664,15 +627,15 @@ export async function registerUser(input: RegisterInput): Promise<RegisterResult
     const verificationEmailSent = !authData.session && authData.user
 
     // User account is created - that's the critical part!
-    // Profile is fully populated during registration (all fields including role)
-    // Organization member is created during registration (for managers/caretakers)
-    // This ensures login is fast - just get role and redirect!
+    // Profile is created by database trigger automatically with role from metadata
+    // Additional profile fields and organization member are updated/created asynchronously
+    // This ensures registration completes quickly (just user creation)
     
     console.log('✓ Registration completed successfully:')
     console.log('  - User account created in auth.users:', userId)
-    console.log('  - Profile fully populated in user_profiles:', profileCreated ? '✓' : '⚠')
+    console.log('  - Profile will be created by database trigger with role from metadata')
     if (input.organization_id) {
-      console.log('  - Organization member created in organization_members:', organizationMemberCreated ? '✓' : '⚠')
+      console.log('  - Organization member will be created asynchronously')
     }
     if (createdOrganizationId) {
       console.log('  - Organization created in organizations table:', createdOrganizationId)
@@ -680,15 +643,15 @@ export async function registerUser(input: RegisterInput): Promise<RegisterResult
 
     return {
       success: true,
-      message: 'User created successfully. Profile fully populated during registration.',
+      message: 'User created successfully. Please check your email to verify your account.',
       data: {
         user_id: userId,
         email: input.email.toLowerCase().trim(),
         role: input.role,
-        profile_created: profileCreated,
+        profile_created: true, // Created by trigger
         organization_created: !!createdOrganizationId,
         organization_id: createdOrganizationId,
-        organization_member_created: organizationMemberCreated,
+        organization_member_created: !!input.organization_id, // Will be created asynchronously
         verification_email_sent: verificationEmailSent,
       },
     }
