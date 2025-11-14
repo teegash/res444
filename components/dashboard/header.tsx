@@ -70,7 +70,7 @@ export function Header() {
   }
 
   const handleLogout = () => {
-    router.push('/login')
+    router.push('/auth/login')
   }
 
   return (

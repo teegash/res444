@@ -26,7 +26,7 @@ function Sidebar() {
   const router = useRouter()
 
   const handleLogout = () => {
-    router.push('/login')
+    router.push('/auth/login')
   }
 
   return (

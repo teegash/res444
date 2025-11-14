@@ -34,7 +34,7 @@ export function TenantHeader() {
   const unreadCount = notifications.filter(n => n.unread).length
 
   const handleLogout = () => {
-    router.push('/login')
+    router.push('/auth/login')
   }
 
   return (
