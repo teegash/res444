@@ -41,6 +41,9 @@ export async function POST(request: NextRequest) {
 
     // Create server client directly with request cookies (no async cookies() call)
     // This is the same pattern as proxy.ts - fast and doesn't hang
+    console.log('Creating Supabase server client...')
+    const clientStartTime = Date.now()
+    
     const supabase = createServerClient<Database>(supabaseUrl, anonKey, {
       cookies: {
         getAll() {
@@ -60,6 +63,9 @@ export async function POST(request: NextRequest) {
         },
       },
     })
+    
+    const clientTime = Date.now() - clientStartTime
+    console.log(`Supabase client created in ${clientTime}ms`)
     
     // Sign in with password with timeout
     // Vercel limit is 10s, so we use 8s timeout to be safe
@@ -92,7 +98,14 @@ export async function POST(request: NextRequest) {
       
       console.log(`Sign in completed in ${elapsed}ms - Success:`, !!data?.session, 'Error:', !!error)
     } catch (signInError: any) {
-      console.error('Sign in error:', signInError.message)
+      const elapsed = Date.now() - startTime
+      console.error(`Sign in failed after ${elapsed}ms:`, signInError.message)
+      console.error('Sign in error details:', {
+        name: signInError.name,
+        message: signInError.message,
+        stack: signInError.stack?.substring(0, 500), // Limit stack trace
+      })
+      
       if (signInError.message.includes('timed out')) {
         return NextResponse.json(
           {
@@ -105,7 +118,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           success: false,
-          error: 'Failed to sign in. Please try again.',
+          error: signInError.message || 'Failed to sign in. Please try again.',
         },
         { status: 500 }
       )

@@ -57,12 +57,20 @@ function LoginForm() {
 
     try {
       // Use API route instead of server action to get role information
-      // Login should be FAST - 5 second timeout (well under Vercel's 10s limit)
+      // Login should be FAST - 9 second timeout (gives API 8s + 1s buffer)
+      console.log('Starting sign in request...')
+      const requestStartTime = Date.now()
+      
       const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), 5000) // 5 second timeout
+      const timeoutId = setTimeout(() => {
+        const elapsed = Date.now() - requestStartTime
+        console.error(`Client-side fetch timed out after ${elapsed}ms`)
+        controller.abort()
+      }, 9000) // 9 second timeout - gives API 8s + 1s buffer
       
       let response: Response
       try {
+        console.log('Sending sign in request to API...')
         response = await fetch('/api/auth/signin', {
           method: 'POST',
           headers: {
@@ -75,10 +83,20 @@ function LoginForm() {
           signal: controller.signal,
         })
         clearTimeout(timeoutId)
+        const elapsed = Date.now() - requestStartTime
+        console.log(`Sign in request completed in ${elapsed}ms, status:`, response.status)
       } catch (fetchError: any) {
         clearTimeout(timeoutId)
+        const elapsed = Date.now() - requestStartTime
+        console.error(`Sign in request failed after ${elapsed}ms:`, fetchError)
+        
         if (fetchError.name === 'AbortError') {
           setError('Sign in request timed out. Please check your connection and try again.')
+          setIsLoading(false)
+          return
+        }
+        if (fetchError.name === 'TypeError' && fetchError.message.includes('fetch')) {
+          setError('Network error. Please check your internet connection and try again.')
           setIsLoading(false)
           return
         }
