@@ -118,20 +118,41 @@ export async function POST(request: NextRequest) {
       } : undefined,
     }
 
-    // Call registration function
+    // Call registration function with timeout wrapper
     console.log('Calling registerUser with input:', {
       email: registerInput.email,
       role: registerInput.role,
       hasOrganization: !!registerInput.organization,
     })
     
-    const result = await registerUser(registerInput)
+    // Wrap registerUser in a timeout to ensure we always return a response
+    const registrationPromise = registerUser(registerInput)
+    const registrationTimeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('Registration process timed out after 55 seconds')), 55000)
+    )
     
-    console.log('registerUser result:', {
-      success: result.success,
-      error: result.error,
-      data: result.data,
-    })
+    let result: any
+    try {
+      result = await Promise.race([
+        registrationPromise,
+        registrationTimeoutPromise
+      ]) as any
+      
+      console.log('registerUser result:', {
+        success: result.success,
+        error: result.error,
+        data: result.data,
+      })
+    } catch (timeoutError: any) {
+      console.error('Registration timed out at API level:', timeoutError.message)
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Registration timed out. Please try again. If the issue persists, the account may have been created - try logging in.',
+        },
+        { status: 504 } // Gateway Timeout
+      )
+    }
 
     // Return appropriate status code based on result
     if (result.success) {
