@@ -479,38 +479,57 @@ export async function registerUser(input: RegisterInput): Promise<RegisterResult
     }
 
     console.log('Calling supabase.auth.signUp...')
-    const signUpPromise = supabase.auth.signUp({
-      email: input.email.toLowerCase().trim(),
-      password: input.password,
-      options: {
-        emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/auth/callback`,
-        data: userMetadata,
-      },
-    })
     
-    // Increase timeout for signUp as it can be slow with email verification
-    const signUpTimeoutPromise = new Promise((_, reject) => 
-      setTimeout(() => reject(new Error('Sign up timed out after 30 seconds')), 30000)
-    )
-    
-    let authData: any
-    let authError: any
+    // Use a more aggressive timeout and better error handling
+    let authData: any = null
+    let authError: any = null
     
     try {
+      // Create a promise that will reject if signUp takes too long
+      const signUpPromise = supabase.auth.signUp({
+        email: input.email.toLowerCase().trim(),
+        password: input.password,
+        options: {
+          emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/auth/callback`,
+          data: userMetadata,
+        },
+      })
+      
+      // Use a shorter timeout - if signUp takes longer than 20 seconds, something is wrong
+      const signUpTimeoutPromise = new Promise<never>((_, reject) => 
+        setTimeout(() => reject(new Error('Sign up timed out after 20 seconds')), 20000)
+      )
+      
       const result = await Promise.race([
         signUpPromise,
         signUpTimeoutPromise
-      ]) as any
+      ])
       
       authData = result.data
       authError = result.error
+      
+      console.log('Sign up completed. User created:', !!authData?.user, 'Error:', !!authError)
     } catch (timeoutError: any) {
-      console.error('SignUp operation timed out:', timeoutError.message)
-      authError = timeoutError
-      authData = null
+      console.error('SignUp operation timed out or failed:', timeoutError.message)
+      // If it's a timeout, check if user was created anyway
+      if (timeoutError.message.includes('timed out')) {
+        // Try to verify if user was created by checking auth
+        try {
+          const { data: existingUser } = await supabase.auth.admin.getUserByEmail(input.email.toLowerCase().trim())
+          if (existingUser?.user) {
+            console.log('User was created despite timeout, using existing user')
+            authData = { user: existingUser.user }
+            authError = null
+          } else {
+            authError = timeoutError
+          }
+        } catch (checkError) {
+          authError = timeoutError
+        }
+      } else {
+        authError = timeoutError
+      }
     }
-    
-    console.log('Sign up completed. User created:', !!authData?.user, 'Error:', !!authError)
 
     // Verify role was set in metadata
     if (authData?.user) {
@@ -543,183 +562,127 @@ export async function registerUser(input: RegisterInput): Promise<RegisterResult
     let profileCreated = false
     let organizationMemberCreated = false
 
-    // Create user profile (matches your schema: phone_number, no email column)
-    // Populate all available fields from registration form
-    // Make this non-blocking - don't fail registration if profile creation fails
-    console.log('Creating user profile...')
-    try {
-      const profilePromise = createUserProfile(
-        userId,
-        input.full_name.trim(),
-        input.phone.trim(),
-        input.national_id,
-        input.address,
-        input.date_of_birth
-      )
-      
-      const profileTimeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Profile creation timed out after 10 seconds')), 10000)
-      )
-      
-      const profileResult = await Promise.race([
-        profilePromise,
-        profileTimeoutPromise
-      ]) as any
-      
-      console.log('Profile creation result:', profileResult?.success ? 'success' : profileResult?.error)
-
-      if (profileResult?.success) {
-        profileCreated = true
-      } else {
-        // Don't fail registration if profile creation fails - it can be created later
-        console.warn('Profile creation failed, but continuing with registration:', profileResult?.error)
-      }
-    } catch (profileError: any) {
-      // Don't fail registration if profile creation times out or errors
-      console.warn('Profile creation error (non-blocking):', profileError.message)
-    }
-
-    // Create organization if provided (for owners)
-    // Use SECURITY DEFINER function to bypass RLS completely
-    let createdOrganizationId: string | undefined
-    if (input.organization) {
-      console.log('Starting organization creation...')
-      const adminSupabase = createAdminClient()
-      
-      // Verify admin client is using service_role
-      console.log('Creating organization with admin client (service_role)...')
-      console.log('Organization data:', {
-        name: input.organization.name,
-        email: input.organization.email.toLowerCase(),
-        hasLogo: !!input.organization.logo_url,
-      })
-      
-      // Use direct insert with admin client (bypasses RLS)
-      // Skip RPC call to avoid potential hanging issues
-      console.log('Using direct insert with admin client...')
-      
-      let organization: any = null
-      let orgError: any = null
-      
+    // Create user profile and organization in parallel to speed things up
+    console.log('Starting parallel operations: profile and organization creation...')
+    
+    // Create user profile (non-blocking)
+    const profilePromise = (async () => {
       try {
-        const insertPromise = adminSupabase
-          .from('organizations')
-          .insert({
-            name: input.organization.name,
-            email: input.organization.email.toLowerCase(),
-            phone: input.organization.phone || null,
-            location: input.organization.location,
-            registration_number: input.organization.registration_number,
-            logo_url: input.organization.logo_url || null,
-          })
-          .select()
-          .single()
-        
-        const insertTimeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Organization insert timed out after 20 seconds')), 20000)
-        )
-        
-        const insertResult = await Promise.race([
-          insertPromise,
-          insertTimeoutPromise
+        console.log('Creating user profile...')
+        const profileResult = await Promise.race([
+          createUserProfile(
+            userId,
+            input.full_name.trim(),
+            input.phone.trim(),
+            input.national_id,
+            input.address,
+            input.date_of_birth
+          ),
+          new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Profile creation timed out after 8 seconds')), 8000)
+          )
         ]) as any
         
-        const insertedOrganization = Array.isArray(insertResult.data)
+        if (profileResult?.success) {
+          profileCreated = true
+          console.log('Profile created successfully')
+        } else {
+          console.warn('Profile creation failed (non-blocking):', profileResult?.error)
+        }
+      } catch (profileError: any) {
+        console.warn('Profile creation error (non-blocking):', profileError.message)
+      }
+    })()
+
+    // Create organization if provided (for owners) - run in parallel with profile
+    let createdOrganizationId: string | undefined
+    const organizationPromise = (async () => {
+      if (!input.organization) return
+      
+      try {
+        console.log('Creating organization...')
+        const adminSupabase = createAdminClient()
+        
+        const insertResult = await Promise.race([
+          adminSupabase
+            .from('organizations')
+            .insert({
+              name: input.organization.name,
+              email: input.organization.email.toLowerCase(),
+              phone: input.organization.phone || null,
+              location: input.organization.location,
+              registration_number: input.organization.registration_number,
+              logo_url: input.organization.logo_url || null,
+            })
+            .select()
+            .single(),
+          new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Organization insert timed out after 15 seconds')), 15000)
+          )
+        ]) as any
+        
+        if (insertResult.error) {
+          if (insertResult.error.code === '23505') {
+            throw new Error('Registration number already exists. Please use a different registration number.')
+          }
+          throw insertResult.error
+        }
+        
+        const organization = Array.isArray(insertResult.data)
           ? insertResult.data[0]
           : insertResult.data
 
-        organization = insertedOrganization
-        orgError = insertResult.error
-        
-        if (organization) {
+        if (organization?.id) {
+          createdOrganizationId = organization.id
           console.log('Organization created successfully:', organization.id)
+        } else {
+          console.error('Organization created but ID missing')
         }
-      } catch (timeoutError: any) {
-        console.error('Organization creation timed out or failed:', timeoutError)
-        orgError = timeoutError
+      } catch (orgError: any) {
+        console.error('Organization creation failed (non-blocking):', orgError.message)
+        // Don't throw - let registration succeed even if org creation fails
       }
+    })()
 
-      if (orgError) {
-        // Handle duplicate registration number
-        if (orgError.code === '23505') {
-          return {
-            success: false,
-            error: 'Registration number already exists. Please use a different registration number.',
-          }
-        }
-
-        // Log detailed error for RLS issues
-        console.error('Error creating organization:', {
-          message: orgError.message,
-          code: orgError.code,
-          details: orgError.details,
-          hint: orgError.hint,
-        })
-        
-        // Provide helpful error message for RLS violations
-        if (orgError.message?.includes('row-level security') || orgError.code === '42501') {
-          return {
-            success: false,
-            error: 'Permission denied. Please ensure RLS policies allow service_role to insert organizations. Check SUPABASE_SERVICE_ROLE_KEY is set correctly.',
-          }
-        }
-
-        return {
-          success: false,
-          error: orgError.message || 'Failed to create organization',
-        }
-      }
-
-      if (organization && organization.id) {
-        createdOrganizationId = organization.id
-        console.log('Organization created:', organization.id)
-      } else if (!createdOrganizationId) {
-        console.error('Organization creation succeeded but ID is missing in response')
-        return {
-          success: false,
-          error: 'Organization was created but ID was not returned. Please verify Supabase insert permissions.',
-        }
-      }
-    }
-
-    // Create organization member
-    // Use admin client during registration to bypass RLS
-    console.log('Creating organization member...')
-    const memberPromise = createOrganizationMember(
-      userId,
-      input.role,
-      input.organization_id || createdOrganizationId, // Use created org ID for owners, or provided ID for managers/caretakers
-      true // Use admin client during registration
-    )
-    
-    const memberTimeoutPromise = new Promise((_, reject) => 
-      setTimeout(() => reject(new Error('Organization member creation timed out after 10 seconds')), 10000)
-    )
-    
-    let memberResult: any
+    // Wait for both operations with a combined timeout
     try {
-      memberResult = await Promise.race([
-        memberPromise,
-        memberTimeoutPromise
-      ]) as any
-      console.log('Organization member creation result:', memberResult?.success ? 'success' : memberResult?.error)
-    } catch (timeoutError: any) {
-      console.warn('Organization member creation timed out, continuing:', timeoutError.message)
-      memberResult = { success: false, error: timeoutError.message }
+      await Promise.race([
+        Promise.all([profilePromise, organizationPromise]),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Profile/Organization creation timed out after 15 seconds')), 15000)
+        )
+      ])
+    } catch (parallelError: any) {
+      console.warn('Parallel operations timed out or failed (non-blocking):', parallelError.message)
+      // Continue - registration can succeed even if these fail
     }
-    
-    if (memberResult && memberResult.success) {
-      organizationMemberCreated = true
-    } else if (memberResult && memberResult.error === 'Organization ID required') {
-      // This should not happen for owners, but handle it
-      console.error('Failed to create organization member after organization creation')
-      return {
-        success: false,
-        error: 'Failed to link user to organization',
+
+    // Create organization member (non-blocking)
+    if (input.organization_id || createdOrganizationId) {
+      try {
+        console.log('Creating organization member...')
+        const memberResult = await Promise.race([
+          createOrganizationMember(
+            userId,
+            input.role,
+            input.organization_id || createdOrganizationId,
+            true
+          ),
+          new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Organization member creation timed out after 8 seconds')), 8000)
+          )
+        ]) as any
+        
+        if (memberResult?.success) {
+          organizationMemberCreated = true
+          console.log('Organization member created successfully')
+        } else {
+          console.warn('Organization member creation failed (non-blocking):', memberResult?.error)
+        }
+      } catch (memberError: any) {
+        console.warn('Organization member creation error (non-blocking):', memberError.message)
+        // Don't fail registration - member can be added later
       }
-    } else if (memberResult && memberResult.error) {
-      // Log but don't fail registration if member creation fails
-      console.warn('Organization member creation failed, but continuing:', memberResult.error)
     }
 
     // Determine if verification email was sent
