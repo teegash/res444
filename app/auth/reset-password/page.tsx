@@ -2,7 +2,8 @@
 
 import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Eye, EyeOff, Lock, Loader2, CheckCircle2, AlertCircle } from 'lucide-react'
+import Link from 'next/link'
+import { Eye, EyeOff, Lock, Loader2, CheckCircle2, AlertCircle, ArrowLeft, Mail } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -19,6 +20,7 @@ function ResetPasswordForm() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
+  const [isInvalidLink, setIsInvalidLink] = useState(false)
 
   useEffect(() => {
     // Check if we have the required token from Supabase
@@ -26,6 +28,7 @@ function ResetPasswordForm() {
     const type = searchParams.get('type')
     
     if (!accessToken || type !== 'recovery') {
+      setIsInvalidLink(true)
       setError('Invalid or expired reset link. Please request a new password reset.')
     }
   }, [searchParams])
@@ -77,7 +80,7 @@ function ResetPasswordForm() {
       const result = await response.json()
 
       if (result.success) {
-        setSuccess('Password reset successfully! Redirecting to login...')
+        setSuccess('Password reset successfully!')
         setTimeout(() => {
           router.push('/auth/login')
         }, 2000)
@@ -91,143 +94,233 @@ function ResetPasswordForm() {
     }
   }
 
-  return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-      <Card className="w-full max-w-md bg-white shadow-xl">
-        <div className="p-8">
-          <div className="text-center mb-8">
-            <div className="flex items-center justify-center gap-2 mb-4">
-              <div className="flex items-center justify-center w-12 h-12 bg-blue-600 rounded-lg">
-                <Lock className="w-7 h-7 text-white" />
-              </div>
-              <div className="text-left">
-                <h1 className="text-xl font-bold text-blue-600">RentalKenya</h1>
-                <p className="text-xs text-gray-600 font-medium">
-                  Reset Password
-                </p>
+  // If invalid link, show message with go back button
+  if (isInvalidLink) {
+    return (
+      <main className="min-h-screen bg-background flex items-center justify-center p-4">
+        <Card className="w-full max-w-md p-8 border border-border shadow-lg">
+          <div className="text-center space-y-6">
+            {/* Icon */}
+            <div className="flex justify-center">
+              <div className="flex items-center justify-center w-16 h-16 rounded-full bg-destructive/10">
+                <AlertCircle className="w-8 h-8 text-destructive" />
               </div>
             </div>
-            <h2 className="text-2xl font-bold text-gray-900 mb-1">
-              Set New Password
-            </h2>
-            <p className="text-sm text-gray-600">
-              Enter your new password below
-            </p>
-          </div>
 
-          {error && (
-            <Alert variant="destructive" className="mb-4">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          )}
-
-          {success && (
-            <Alert className="mb-4 border-green-500 bg-green-50">
-              <CheckCircle2 className="h-4 w-4 text-green-600" />
-              <AlertDescription className="text-green-800">
-                {success}
-              </AlertDescription>
-            </Alert>
-          )}
-
-          <form onSubmit={handleSubmit} className="space-y-4">
+            {/* Title */}
             <div className="space-y-2">
-              <Label htmlFor="password" className="text-sm font-medium text-gray-700">
-                New Password
-              </Label>
-              <div className="relative">
-                <Input
-                  id="password"
-                  type={showPassword ? 'text' : 'password'}
-                  placeholder="Enter new password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  disabled={isLoading}
-                  className="bg-white border-gray-300 focus:border-blue-600 focus:ring-blue-600 pr-10"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                  disabled={isLoading}
-                >
-                  {showPassword ? (
-                    <EyeOff className="w-5 h-5" />
-                  ) : (
-                    <Eye className="w-5 h-5" />
-                  )}
-                </button>
-              </div>
-              <p className="text-xs text-gray-500">
-                Must be at least 8 characters with uppercase and number
+              <h1 className="text-2xl font-bold text-foreground">
+                Invalid Reset Link
+              </h1>
+              <p className="text-sm text-muted-foreground">
+                This password reset link is invalid or has expired.
               </p>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="confirmPassword" className="text-sm font-medium text-gray-700">
-                Confirm Password
-              </Label>
-              <div className="relative">
-                <Input
-                  id="confirmPassword"
-                  type={showConfirmPassword ? 'text' : 'password'}
-                  placeholder="Confirm new password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  required
-                  disabled={isLoading}
-                  className="bg-white border-gray-300 focus:border-blue-600 focus:ring-blue-600 pr-10"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                  disabled={isLoading}
-                >
-                  {showConfirmPassword ? (
-                    <EyeOff className="w-5 h-5" />
-                  ) : (
-                    <Eye className="w-5 h-5" />
-                  )}
-                </button>
+            {/* Message */}
+            <div className="bg-muted/50 rounded-lg p-4 border border-border">
+              <p className="text-sm text-foreground">
+                Please request a new password reset link from the login page.
+              </p>
+            </div>
+
+            {/* Go Back Button */}
+            <div className="pt-4">
+              <Button
+                onClick={() => router.push('/auth/login')}
+                className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold py-6"
+              >
+                <ArrowLeft className="w-4 h-4 mr-2" />
+                Go Back to Login
+              </Button>
+            </div>
+          </div>
+        </Card>
+      </main>
+    )
+  }
+
+  // If success, show success message with go back button
+  if (success) {
+    return (
+      <main className="min-h-screen bg-background flex items-center justify-center p-4">
+        <Card className="w-full max-w-md p-8 border border-border shadow-lg">
+          <div className="text-center space-y-6">
+            {/* Icon */}
+            <div className="flex justify-center">
+              <div className="flex items-center justify-center w-16 h-16 rounded-full bg-green-500/10">
+                <CheckCircle2 className="w-8 h-8 text-green-600" />
               </div>
             </div>
 
-            <Button
-              type="submit"
-              disabled={isLoading || !searchParams.get('access_token')}
-              className="w-full text-white font-medium py-5 text-base bg-blue-600 hover:bg-blue-700"
-            >
-              {isLoading ? (
-                <div className="flex items-center gap-2">
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Resetting...
-                </div>
-              ) : (
-                <>
-                  <Lock className="w-4 h-4 mr-2" />
-                  Reset Password
-                </>
-              )}
-            </Button>
-          </form>
+            {/* Title */}
+            <div className="space-y-2">
+              <h1 className="text-2xl font-bold text-foreground">
+                Password Reset Successful
+              </h1>
+              <p className="text-sm text-muted-foreground">
+                Your password has been successfully reset.
+              </p>
+            </div>
+
+            {/* Message */}
+            <div className="bg-green-50 dark:bg-green-950/20 rounded-lg p-4 border border-green-200 dark:border-green-900">
+              <p className="text-sm text-green-800 dark:text-green-200">
+                You can now log in with your new password.
+              </p>
+            </div>
+
+            {/* Go Back Button */}
+            <div className="pt-4">
+              <Button
+                onClick={() => router.push('/auth/login')}
+                className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold py-6"
+              >
+                <ArrowLeft className="w-4 h-4 mr-2" />
+                Go Back to Login
+              </Button>
+            </div>
+          </div>
+        </Card>
+      </main>
+    )
+  }
+
+  // Show reset password form
+  return (
+    <main className="min-h-screen bg-background flex items-center justify-center p-4">
+      <Card className="w-full max-w-md p-8 border border-border shadow-lg">
+        <div className="mb-8">
+          <div className="flex items-center justify-center mb-4">
+            <div className="flex items-center justify-center w-12 h-12 rounded-lg bg-primary/10">
+              <Lock className="w-6 h-6 text-primary" />
+            </div>
+          </div>
+          <h1 className="text-3xl font-bold text-foreground mb-2 text-center">
+            Reset Password
+          </h1>
+          <p className="text-sm text-muted-foreground text-center">
+            Enter your new password below
+          </p>
         </div>
+
+        {error && (
+          <Alert variant="destructive" className="mb-6">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+
+        <form onSubmit={handleSubmit} className="space-y-5">
+          {/* New Password */}
+          <div className="space-y-2">
+            <Label htmlFor="password" className="text-sm font-medium">
+              New Password
+            </Label>
+            <div className="relative">
+              <Input
+                id="password"
+                type={showPassword ? 'text' : 'password'}
+                placeholder="Enter new password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                disabled={isLoading}
+                className="pr-10"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                disabled={isLoading}
+              >
+                {showPassword ? (
+                  <EyeOff className="w-5 h-5" />
+                ) : (
+                  <Eye className="w-5 h-5" />
+                )}
+              </button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Must be at least 8 characters with uppercase and number
+            </p>
+          </div>
+
+          {/* Confirm Password */}
+          <div className="space-y-2">
+            <Label htmlFor="confirmPassword" className="text-sm font-medium">
+              Confirm Password
+            </Label>
+            <div className="relative">
+              <Input
+                id="confirmPassword"
+                type={showConfirmPassword ? 'text' : 'password'}
+                placeholder="Confirm new password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                required
+                disabled={isLoading}
+                className="pr-10"
+              />
+              <button
+                type="button"
+                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                disabled={isLoading}
+              >
+                {showConfirmPassword ? (
+                  <EyeOff className="w-5 h-5" />
+                ) : (
+                  <Eye className="w-5 h-5" />
+                )}
+              </button>
+            </div>
+          </div>
+
+          {/* Submit Button */}
+          <Button
+            type="submit"
+            disabled={isLoading || !searchParams.get('access_token')}
+            className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold py-6"
+          >
+            {isLoading ? (
+              <div className="flex items-center gap-2">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Resetting Password...
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <Lock className="w-4 h-4" />
+                Reset Password
+              </div>
+            )}
+          </Button>
+
+          {/* Go Back Link */}
+          <div className="pt-2">
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => router.push('/auth/login')}
+              className="w-full text-muted-foreground hover:text-foreground"
+            >
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Back to Login
+            </Button>
+          </div>
+        </form>
       </Card>
-    </div>
+    </main>
   )
 }
 
 export default function ResetPasswordPage() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-        <Card className="w-full max-w-md bg-white shadow-xl">
-          <div className="p-8">
-            <div className="flex items-center justify-center">
-              <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
-            </div>
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <Card className="w-full max-w-md p-8 border border-border shadow-lg">
+          <div className="flex items-center justify-center">
+            <Loader2 className="w-8 h-8 animate-spin text-primary" />
           </div>
         </Card>
       </div>
@@ -236,4 +329,3 @@ export default function ResetPasswordPage() {
     </Suspense>
   )
 }
-

@@ -203,6 +203,57 @@ export default function SignupPage() {
     }))
   }
 
+  const compressImage = (file: File, maxWidth: number = 800, quality: number = 0.8): Promise<File> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.readAsDataURL(file)
+      reader.onload = (event) => {
+        const img = new Image()
+        img.src = event.target?.result as string
+        img.onload = () => {
+          const canvas = document.createElement('canvas')
+          let width = img.width
+          let height = img.height
+
+          // Calculate new dimensions
+          if (width > maxWidth) {
+            height = (height * maxWidth) / width
+            width = maxWidth
+          }
+
+          canvas.width = width
+          canvas.height = height
+
+          const ctx = canvas.getContext('2d')
+          if (!ctx) {
+            reject(new Error('Failed to get canvas context'))
+            return
+          }
+
+          ctx.drawImage(img, 0, 0, width, height)
+
+          canvas.toBlob(
+            (blob) => {
+              if (!blob) {
+                reject(new Error('Failed to compress image'))
+                return
+              }
+              const compressedFile = new File([blob], file.name, {
+                type: file.type,
+                lastModified: Date.now(),
+              })
+              resolve(compressedFile)
+            },
+            file.type,
+            quality
+          )
+        }
+        img.onerror = () => reject(new Error('Failed to load image'))
+      }
+      reader.onerror = () => reject(new Error('Failed to read file'))
+    })
+  }
+
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
@@ -224,13 +275,35 @@ export default function SignupPage() {
     setError(null)
 
     try {
+      // Compress image if it's larger than 500KB to speed up upload
+      let fileToUpload = file
+      if (file.size > 500 * 1024) {
+        try {
+          fileToUpload = await compressImage(file, 800, 0.8)
+        } catch (compressError) {
+          console.warn('Image compression failed, using original file:', compressError)
+          // Continue with original file if compression fails
+        }
+      }
+
       const formData = new FormData()
-      formData.append('file', file)
+      formData.append('file', fileToUpload)
+
+      // Add timeout to prevent hanging (reduced to 20 seconds since we're compressing)
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 20000) // 20 second timeout
 
       const response = await fetch('/api/storage/upload-logo', {
         method: 'POST',
         body: formData,
+        signal: controller.signal,
       })
+
+      clearTimeout(timeoutId)
+
+      if (!response.ok) {
+        throw new Error(`Upload failed: ${response.statusText}`)
+      }
 
       const result = await response.json()
 
@@ -243,7 +316,11 @@ export default function SignupPage() {
         setError(result.error || 'Failed to upload logo')
       }
     } catch (err) {
-      setError('Failed to upload logo')
+      if (err instanceof Error && err.name === 'AbortError') {
+        setError('Upload timed out. Please try again with a smaller file.')
+      } else {
+        setError('Failed to upload logo. Please try again.')
+      }
     } finally {
       setIsUploadingLogo(false)
     }
