@@ -297,6 +297,9 @@ export default function SignupPage() {
 
       // Use profile-pictures bucket (confirmed bucket name)
       const bucketName = 'profile-pictures'
+      
+      console.log('Uploading to bucket:', bucketName, 'File size:', fileToUpload.size, 'File type:', fileToUpload.type)
+      
       const { data, error } = await supabase.storage
         .from(bucketName)
         .upload(fileName, fileToUpload, {
@@ -306,7 +309,20 @@ export default function SignupPage() {
         })
 
       if (error) {
-        throw new Error(error.message || 'Failed to upload logo. Please ensure the storage bucket exists and allows public uploads.')
+        console.error('Storage upload error:', {
+          message: error.message,
+          statusCode: error.statusCode,
+          error: error,
+        })
+        
+        // Provide more helpful error message
+        if (error.message?.includes('new row violates row-level security')) {
+          throw new Error('Storage bucket RLS policy is blocking upload. Please check bucket policies in Supabase Dashboard.')
+        } else if (error.message?.includes('Bucket') || error.message?.includes('not found')) {
+          throw new Error(`Storage bucket "${bucketName}" not found. Please create it in Supabase Dashboard.`)
+        } else {
+          throw new Error(error.message || 'Failed to upload logo. Please ensure the storage bucket exists and allows public uploads.')
+        }
       }
 
       // Get public URL

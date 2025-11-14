@@ -503,7 +503,7 @@ export async function registerUser(input: RegisterInput): Promise<RegisterResult
     }
 
     // Create organization if provided (for owners)
-    // Use admin client (service_role) to bypass RLS during registration
+    // Use SECURITY DEFINER function to bypass RLS completely
     let createdOrganizationId: string | undefined
     if (input.organization) {
       const adminSupabase = createAdminClient()
@@ -516,18 +516,51 @@ export async function registerUser(input: RegisterInput): Promise<RegisterResult
         hasLogo: !!input.organization.logo_url,
       })
       
-      const { data: organization, error: orgError } = await adminSupabase
-        .from('organizations')
-        .insert({
-          name: input.organization.name,
-          email: input.organization.email.toLowerCase(),
-          phone: input.organization.phone,
-          location: input.organization.location,
-          registration_number: input.organization.registration_number,
-          logo_url: input.organization.logo_url || null,
-        })
-        .select()
-        .single()
+      // Try using SECURITY DEFINER function first (bypasses RLS completely)
+      const { data: functionResult, error: functionError } = await adminSupabase.rpc(
+        'create_organization',
+        {
+          p_name: input.organization.name,
+          p_email: input.organization.email.toLowerCase(),
+          p_phone: input.organization.phone || null,
+          p_location: input.organization.location,
+          p_registration_number: input.organization.registration_number,
+          p_logo_url: input.organization.logo_url || null,
+        }
+      )
+
+      let organization: any = null
+      let orgError: any = null
+
+      if (functionError) {
+        // If function doesn't exist or fails, fall back to direct insert
+        console.log('Function approach failed, trying direct insert:', functionError.message)
+        const insertResult = await adminSupabase
+          .from('organizations')
+          .insert({
+            name: input.organization.name,
+            email: input.organization.email.toLowerCase(),
+            phone: input.organization.phone || null,
+            location: input.organization.location,
+            registration_number: input.organization.registration_number,
+            logo_url: input.organization.logo_url || null,
+          })
+          .select()
+          .single()
+        
+        organization = insertResult.data
+        orgError = insertResult.error
+      } else {
+        // Function succeeded, fetch the created organization
+        const { data: fetchedOrg, error: fetchError } = await adminSupabase
+          .from('organizations')
+          .select()
+          .eq('id', functionResult)
+          .single()
+        
+        organization = fetchedOrg
+        orgError = fetchError
+      }
 
       if (orgError) {
         // Handle duplicate registration number
