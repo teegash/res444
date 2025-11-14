@@ -1,38 +1,6 @@
-create table public.user_profiles (
-  id uuid not null,
-  full_name text null,
-  phone_number text null,
-  national_id text null,
-  profile_picture_url text null,
-  address text null,
-  date_of_birth date null,
-  created_at timestamp with time zone null default CURRENT_TIMESTAMP,
-  updated_at timestamp with time zone null default CURRENT_TIMESTAMP,
-  constraint user_profiles_pkey primary key (id),
-  constraint user_profiles_national_id_key unique (national_id),
-  constraint user_profiles_id_fkey foreign KEY (id) references auth.users (id) on delete CASCADE
-) TABLESPACE pg_default;
-
-create index IF not exists idx_user_profiles_id on public.user_profiles using btree (id) TABLESPACE pg_default;
 
 
 
-create table public.user_profiles (
-  id uuid not null,
-  full_name text null,
-  phone_number text null,
-  national_id text null,
-  profile_picture_url text null,
-  address text null,
-  date_of_birth date null,
-  created_at timestamp with time zone null default CURRENT_TIMESTAMP,
-  updated_at timestamp with time zone null default CURRENT_TIMESTAMP,
-  constraint user_profiles_pkey primary key (id),
-  constraint user_profiles_national_id_key unique (national_id),
-  constraint user_profiles_id_fkey foreign KEY (id) references auth.users (id) on delete CASCADE
-) TABLESPACE pg_default;
-
-create index IF not exists idx_user_profiles_id on public.user_profiles using btree (id) TABLESPACE pg_default;
 
 
 
