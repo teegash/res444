@@ -503,10 +503,19 @@ export async function registerUser(input: RegisterInput): Promise<RegisterResult
     }
 
     // Create organization if provided (for owners)
-    // Use admin client to bypass RLS during registration
+    // Use admin client (service_role) to bypass RLS during registration
     let createdOrganizationId: string | undefined
     if (input.organization) {
       const adminSupabase = createAdminClient()
+      
+      // Verify admin client is using service_role
+      console.log('Creating organization with admin client (service_role)...')
+      console.log('Organization data:', {
+        name: input.organization.name,
+        email: input.organization.email.toLowerCase(),
+        hasLogo: !!input.organization.logo_url,
+      })
+      
       const { data: organization, error: orgError } = await adminSupabase
         .from('organizations')
         .insert({
@@ -529,7 +538,22 @@ export async function registerUser(input: RegisterInput): Promise<RegisterResult
           }
         }
 
-        console.error('Error creating organization:', orgError)
+        // Log detailed error for RLS issues
+        console.error('Error creating organization:', {
+          message: orgError.message,
+          code: orgError.code,
+          details: orgError.details,
+          hint: orgError.hint,
+        })
+        
+        // Provide helpful error message for RLS violations
+        if (orgError.message?.includes('row-level security') || orgError.code === '42501') {
+          return {
+            success: false,
+            error: 'Permission denied. Please ensure RLS policies allow service_role to insert organizations. Check SUPABASE_SERVICE_ROLE_KEY is set correctly.',
+          }
+        }
+
         return {
           success: false,
           error: orgError.message || 'Failed to create organization',

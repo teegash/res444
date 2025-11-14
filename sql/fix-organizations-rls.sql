@@ -1,56 +1,87 @@
 -- Fix RLS policies for organizations table to allow creation during signup
+-- This script ensures service_role (admin client) can create organizations
 
--- First, check if there are existing INSERT policies and drop them
-DROP POLICY IF EXISTS "Allow organization creation during signup" ON organizations;
-DROP POLICY IF EXISTS "Service role can insert organizations" ON organizations;
-DROP POLICY IF EXISTS "Authenticated users can create organizations" ON organizations;
+-- ============================================
+-- ORGANIZATIONS TABLE POLICIES
+-- ============================================
 
--- Option 1: Allow service role (admin client) to insert organizations
--- This is the safest option since we're using admin client during registration
+-- Drop all existing INSERT policies on organizations
+DO $$
+DECLARE
+    r RECORD;
+BEGIN
+    FOR r IN (SELECT policyname FROM pg_policies WHERE schemaname = 'public' AND tablename = 'organizations' AND cmd = 'INSERT') LOOP
+        EXECUTE 'DROP POLICY IF EXISTS "' || r.policyname || '" ON organizations';
+    END LOOP;
+END $$;
+
+-- Create policy to allow service_role to insert (admin client uses this)
 CREATE POLICY "Service role can insert organizations"
 ON organizations
 FOR INSERT
 TO service_role
 WITH CHECK (true);
 
--- Option 2: Allow authenticated users to create organizations
--- Use this if you want users to be able to create organizations after signup
+-- Create policy to allow authenticated users to insert (fallback)
 CREATE POLICY "Authenticated users can create organizations"
 ON organizations
 FOR INSERT
 TO authenticated
 WITH CHECK (true);
 
--- Keep the existing SELECT policy (if it exists)
--- If it doesn't exist, create it
+-- Ensure SELECT policy exists (for viewing organizations)
+DROP POLICY IF EXISTS "Users can view their organization" ON organizations;
+CREATE POLICY "Users can view their organization"
+ON organizations
+FOR SELECT
+USING (
+  id IN (
+    SELECT organization_id 
+    FROM organization_members 
+    WHERE user_id = auth.uid()
+  )
+);
+
+-- ============================================
+-- ORGANIZATION_MEMBERS TABLE POLICIES
+-- ============================================
+
+-- Drop all existing INSERT policies on organization_members
 DO $$
+DECLARE
+    r RECORD;
 BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_policies 
-    WHERE schemaname = 'public' 
-    AND tablename = 'organizations' 
-    AND policyname = 'Users can view their organization'
-  ) THEN
-    CREATE POLICY "Users can view their organization"
-      ON organizations FOR SELECT
-      USING (id IN (SELECT organization_id FROM organization_members WHERE user_id = auth.uid()));
-  END IF;
+    FOR r IN (SELECT policyname FROM pg_policies WHERE schemaname = 'public' AND tablename = 'organization_members' AND cmd = 'INSERT') LOOP
+        EXECUTE 'DROP POLICY IF EXISTS "' || r.policyname || '" ON organization_members';
+    END LOOP;
 END $$;
 
--- Also ensure organization_members table allows INSERT during signup
-DROP POLICY IF EXISTS "Service role can insert members" ON organization_members;
-DROP POLICY IF EXISTS "Allow member creation during signup" ON organization_members;
-
+-- Create policy to allow service_role to insert members (admin client uses this)
 CREATE POLICY "Service role can insert members"
 ON organization_members
 FOR INSERT
 TO service_role
 WITH CHECK (true);
 
--- Allow authenticated users to insert their own membership
+-- Create policy to allow authenticated users to insert their own membership
 CREATE POLICY "Users can create own membership"
 ON organization_members
 FOR INSERT
 TO authenticated
 WITH CHECK (user_id = auth.uid());
+
+-- Ensure SELECT policy exists (for viewing memberships)
+DROP POLICY IF EXISTS "Users can view own memberships" ON organization_members;
+CREATE POLICY "Users can view own memberships"
+ON organization_members
+FOR SELECT
+USING (user_id = auth.uid());
+
+-- ============================================
+-- VERIFICATION QUERIES
+-- ============================================
+
+-- Verify policies were created (run these separately to check)
+-- SELECT * FROM pg_policies WHERE schemaname = 'public' AND tablename = 'organizations';
+-- SELECT * FROM pg_policies WHERE schemaname = 'public' AND tablename = 'organization_members';
 
