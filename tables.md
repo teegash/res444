@@ -15,6 +15,27 @@ create table public.user_profiles (
 
 create index IF not exists idx_user_profiles_id on public.user_profiles using btree (id) TABLESPACE pg_default;
 
+
+
+create table public.user_profiles (
+  id uuid not null,
+  full_name text null,
+  phone_number text null,
+  national_id text null,
+  profile_picture_url text null,
+  address text null,
+  date_of_birth date null,
+  created_at timestamp with time zone null default CURRENT_TIMESTAMP,
+  updated_at timestamp with time zone null default CURRENT_TIMESTAMP,
+  constraint user_profiles_pkey primary key (id),
+  constraint user_profiles_national_id_key unique (national_id),
+  constraint user_profiles_id_fkey foreign KEY (id) references auth.users (id) on delete CASCADE
+) TABLESPACE pg_default;
+
+create index IF not exists idx_user_profiles_id on public.user_profiles using btree (id) TABLESPACE pg_default;
+
+
+
 create table public.organizations (
   id uuid not null default gen_random_uuid (),
   name text not null,
@@ -30,6 +51,24 @@ create table public.organizations (
 ) TABLESPACE pg_default;
 
 create index IF not exists idx_organizations_id on public.organizations using btree (id) TABLESPACE pg_default;
+
+
+create table public.apartment_buildings (
+  id uuid not null default gen_random_uuid (),
+  organization_id uuid not null,
+  name text not null,
+  location text not null,
+  total_units integer not null,
+  description text null,
+  image_url text null,
+  created_at timestamp with time zone null default CURRENT_TIMESTAMP,
+  updated_at timestamp with time zone null default CURRENT_TIMESTAMP,
+  constraint apartment_buildings_pkey primary key (id),
+  constraint apartment_buildings_organization_id_fkey foreign KEY (organization_id) references organizations (id) on delete CASCADE
+) TABLESPACE pg_default;
+
+create index IF not exists idx_buildings_org_id on public.apartment_buildings using btree (organization_id) TABLESPACE pg_default;
+
 
 create table public.organization_members (
   id uuid not null default gen_random_uuid (),
@@ -60,6 +99,7 @@ create index IF not exists idx_org_members_user_id on public.organization_member
 create index IF not exists idx_org_members_org_id on public.organization_members using btree (organization_id) TABLESPACE pg_default;
 
 create index IF not exists idx_org_members_role on public.organization_members using btree (role) TABLESPACE pg_default;
+
 
 
 create table public.water_bills (
@@ -138,6 +178,8 @@ create index IF not exists idx_reports_report_type on public.reports using btree
 create index IF not exists idx_reports_created_at on public.reports using btree (created_at) TABLESPACE pg_default;
 
 
+
+
 create table public.reminders (
   id uuid not null default gen_random_uuid (),
   user_id uuid not null,
@@ -190,6 +232,8 @@ create index IF not exists idx_reminders_user_id on public.reminders using btree
 create index IF not exists idx_reminders_scheduled_for on public.reminders using btree (scheduled_for) TABLESPACE pg_default;
 
 create index IF not exists idx_reminders_delivery_status on public.reminders using btree (delivery_status) TABLESPACE pg_default;
+
+
 
 
 create table public.payments (
@@ -248,6 +292,7 @@ where
 
 
 
+
   create table public.mpesa_verification_audit (
   id uuid not null default gen_random_uuid (),
   payment_id uuid not null,
@@ -264,6 +309,7 @@ where
 create index IF not exists idx_audit_payment on public.mpesa_verification_audit using btree (payment_id) TABLESPACE pg_default;
 
 create index IF not exists idx_audit_timestamp on public.mpesa_verification_audit using btree (query_timestamp) TABLESPACE pg_default;
+
 
 
 
@@ -352,6 +398,7 @@ create index IF not exists idx_leases_status on public.leases using btree (statu
 create index IF not exists idx_leases_unit_id on public.leases using btree (unit_id) TABLESPACE pg_default;
 
 create index IF not exists idx_leases_tenant_user_id on public.leases using btree (tenant_user_id) TABLESPACE pg_default;
+
 
 
 create table public.invoices (
@@ -488,20 +535,3 @@ create index IF not exists idx_units_building_id on public.apartment_units using
 create index IF not exists idx_units_status on public.apartment_units using btree (status) TABLESPACE pg_default;
 
 create index IF not exists idx_units_bulk_group on public.apartment_units using btree (bulk_group_id) TABLESPACE pg_default;
-
-
-create table public.apartment_buildings (
-  id uuid not null default gen_random_uuid (),
-  organization_id uuid not null,
-  name text not null,
-  location text not null,
-  total_units integer not null,
-  description text null,
-  image_url text null,
-  created_at timestamp with time zone null default CURRENT_TIMESTAMP,
-  updated_at timestamp with time zone null default CURRENT_TIMESTAMP,
-  constraint apartment_buildings_pkey primary key (id),
-  constraint apartment_buildings_organization_id_fkey foreign KEY (organization_id) references organizations (id) on delete CASCADE
-) TABLESPACE pg_default;
-
-create index IF not exists idx_buildings_org_id on public.apartment_buildings using btree (organization_id) TABLESPACE pg_default;

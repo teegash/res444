@@ -427,9 +427,9 @@ export default function SignupPage() {
       })
 
       // Create AbortController for timeout
-      // Increased to 120 seconds to account for Vercel cold starts + Supabase delays
+      // Reduced to 25 seconds - registration should be fast now
       const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), 120000) // 120 second timeout
+      const timeoutId = setTimeout(() => controller.abort(), 25000) // 25 second timeout (reduced from 120s)
 
       let response: Response
       try {

@@ -98,10 +98,10 @@ export async function POST(request: NextRequest) {
     })
     
     // Wrap registerUser in a timeout to ensure we always return a response
-    // Increased timeout to 90 seconds to account for Supabase auth delays
+    // Reduced timeout to 20 seconds - registration should be fast now
     const registrationPromise = registerUser(registerInput)
     const registrationTimeoutPromise = new Promise((_, reject) => 
-      setTimeout(() => reject(new Error('Registration process timed out after 90 seconds')), 90000)
+      setTimeout(() => reject(new Error('Registration process timed out after 20 seconds')), 20000) // Reduced from 90s to 20s
     )
     
     let result: any
