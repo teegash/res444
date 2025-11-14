@@ -164,7 +164,8 @@ async function createUserProfile(
 ): Promise<{ success: boolean; error?: string }> {
   try {
     console.log('Creating user profile for userId:', userId)
-    const supabase = await createClient()
+    // Use admin client to bypass RLS and avoid cookie issues
+    const supabase = createAdminClient()
 
     // Prepare profile data object with all available fields
     const profileData: {
@@ -455,10 +456,12 @@ export async function registerUser(input: RegisterInput): Promise<RegisterResult
       // Continue with registration - email uniqueness will be checked by Supabase
     }
 
-    // Create Supabase client
-    console.log('Creating Supabase client...')
-    const supabase = await createClient()
-    console.log('Supabase client created')
+    // Create Supabase client for auth operations
+    // Use admin client to avoid cookie issues in server actions
+    // signUp works fine with admin client - it will still send verification emails
+    console.log('Creating Supabase admin client for auth...')
+    const supabase = createAdminClient()
+    console.log('Supabase admin client created')
 
     // Log the role being stored in user metadata
     console.log('Creating user with role:', input.role, 'for email:', input.email)
