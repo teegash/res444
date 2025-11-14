@@ -454,59 +454,48 @@ export default function SignupPage() {
         body: JSON.stringify(registrationPayload),
       })
 
-      console.log('Registration response status:', response.status)
+      console.log('Registration response status:', response.status, response.statusText)
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: 'Failed to parse error response' }))
-        console.error('Registration API error:', errorData)
-        throw new Error(errorData.error || `Registration failed with status ${response.status}`)
+      // Parse response
+      let result: any
+      try {
+        const responseText = await response.text()
+        console.log('Registration response text:', responseText)
+        result = responseText ? JSON.parse(responseText) : {}
+      } catch (parseError) {
+        console.error('Failed to parse response:', parseError)
+        throw new Error('Invalid response from server. Please try again.')
       }
 
-      const result = await response.json()
       console.log('Registration result:', result)
 
-      if (result.success) {
-        const roleDisplay = formData.userType === 'owner' ? 'Admin' : formData.userType.charAt(0).toUpperCase() + formData.userType.slice(1)
-        
-        if (result.data?.verification_email_sent) {
-          // Email verification required - redirect to login with manager tab
-          setSuccess(`${roleDisplay} account created successfully! Please check your email to verify your account. Redirecting to login...`)
-          setIsLoading(false)
-          setTimeout(() => {
-            router.push('/auth/login?tab=manager')
-          }, 2000)
-        } else if (formData.userType === 'owner') {
-          // Owner registration successful - redirect to login with manager tab active
-          setSuccess(`Property Owner account and organization created successfully! Redirecting to login...`)
-          setIsLoading(false)
-          setTimeout(() => {
-            router.push('/auth/login?tab=manager')
-          }, 2000)
-        } else if (formData.userType === 'manager') {
-          setSuccess(`Manager account created successfully! You have been added to the organization. Redirecting to login...`)
-          setIsLoading(false)
-          setTimeout(() => {
-            router.push('/auth/login?tab=manager')
-          }, 2000)
-        } else if (formData.userType === 'caretaker') {
-          setSuccess(`Caretaker account created successfully! You have been assigned to the apartment building. Redirecting to login...`)
-          setIsLoading(false)
-          setTimeout(() => {
-            router.push('/auth/login?tab=manager')
-          }, 2000)
-        }
-      } else {
-        setError(result.error || 'Failed to create account')
-        setIsLoading(false)
+      // Handle response
+      if (!response.ok || !result.success) {
+        const errorMessage = result.error || `Registration failed with status ${response.status}`
+        console.error('Registration failed:', errorMessage)
+        throw new Error(errorMessage)
       }
+
+      // Success - always redirect to login with email verification message
+      console.log('Registration successful, redirecting to login...')
+      
+      // Clear loading state before redirect
+      setIsLoading(false)
+      
+      // Small delay to ensure state updates, then redirect
+      await new Promise(resolve => setTimeout(resolve, 100))
+      
+      // Redirect to login page with success message
+      router.push('/auth/login?tab=manager&registered=true&email=' + encodeURIComponent(formData.email))
     } catch (err) {
       console.error('Registration error:', err)
+      setIsLoading(false) // Always clear loading state on error
+      
       if (err instanceof Error) {
         setError(err.message || 'Failed to create account. Please try again.')
       } else {
         setError('An unexpected error occurred. Please try again.')
       }
-      setIsLoading(false)
     }
   }
 

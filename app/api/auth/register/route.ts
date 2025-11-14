@@ -115,10 +115,23 @@ export async function POST(request: NextRequest) {
     }
 
     // Call registration function
+    console.log('Calling registerUser with input:', {
+      email: registerInput.email,
+      role: registerInput.role,
+      hasOrganization: !!registerInput.organization,
+    })
+    
     const result = await registerUser(registerInput)
+    
+    console.log('registerUser result:', {
+      success: result.success,
+      error: result.error,
+      data: result.data,
+    })
 
     // Return appropriate status code based on result
     if (result.success) {
+      console.log('Registration successful, returning 201')
       return NextResponse.json(result, { status: 201 })
     } else {
       // Determine status code based on error type
@@ -132,6 +145,7 @@ export async function POST(request: NextRequest) {
         statusCode = 500 // Internal Server Error
       }
 
+      console.error('Registration failed:', result.error, 'Status:', statusCode)
       return NextResponse.json(result, { status: statusCode })
     }
   } catch (error) {

@@ -3,7 +3,7 @@
 import { useState, useEffect, Suspense } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Eye, EyeOff, Shield, Crown, Loader2, ArrowLeft, Info } from 'lucide-react'
+import { Eye, EyeOff, Shield, Crown, Loader2, ArrowLeft, Info, CheckCircle2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card } from '@/components/ui/card'
@@ -32,6 +32,8 @@ function LoginForm() {
   })
 
   const redirectTo = searchParams.get('redirectTo') || '/dashboard'
+  const registered = searchParams.get('registered') === 'true'
+  const registeredEmail = searchParams.get('email')
 
   // Update account type when tab parameter changes
   useEffect(() => {
@@ -158,6 +160,15 @@ function LoginForm() {
               Sign in to your premium account
             </p>
           </div>
+
+          {registered && registeredEmail && (
+            <Alert className="mb-4 border-green-500 bg-green-50 dark:bg-green-950/20">
+              <CheckCircle2 className="h-4 w-4 text-green-600" />
+              <AlertDescription className="text-green-800 dark:text-green-200">
+                Account created successfully! Please check your email ({registeredEmail}) to confirm your account before logging in.
+              </AlertDescription>
+            </Alert>
+          )}
 
           {error && (
             <Alert variant="destructive" className="mb-4">
