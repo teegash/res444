@@ -1,5 +1,68 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createAdminClient } from '@/lib/supabase/admin'
+
+async function fetchWithTimeout(
+  url: string,
+  options: RequestInit,
+  timeoutMs: number,
+  label: string
+) {
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => {
+    controller.abort()
+  }, timeoutMs)
+
+  try {
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal,
+    })
+    return response
+  } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw new Error(`${label} timed out after ${timeoutMs}ms`)
+    }
+    throw error
+  } finally {
+    clearTimeout(timeoutId)
+  }
+}
+
+async function fetchUserRoleFromProfiles(userId: string) {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+  if (!supabaseUrl || !serviceRoleKey) {
+    return null
+  }
+
+  try {
+    const response = await fetchWithTimeout(
+      `${supabaseUrl}/rest/v1/user_profiles?id=eq.${userId}&select=role&limit=1`,
+      {
+        method: 'GET',
+        headers: {
+          apikey: serviceRoleKey,
+          Authorization: `Bearer ${serviceRoleKey}`,
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+          Prefer: 'return=representation',
+        },
+      },
+      1000,
+      'Role lookup'
+    )
+
+    if (!response.ok) {
+      return null
+    }
+
+    const result = await response.json()
+    return result?.[0]?.role || null
+  } catch (error) {
+    console.warn('Role lookup failed:', (error as Error).message)
+    return null
+  }
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -17,12 +80,7 @@ export async function POST(request: NextRequest) {
     }
 
     console.log('Starting sign in for:', email)
-    
-    // Use direct HTTP request to Supabase auth API - fastest and most reliable
-    // This avoids client creation overhead and cookie issues
-    console.log('Calling Supabase auth API directly...')
-    const startTime = Date.now()
-    
+
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
     const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
@@ -38,47 +96,40 @@ export async function POST(request: NextRequest) {
 
     let data: any
     let error: any
-    
+    const startTime = Date.now()
+
     try {
-      // Direct HTTP request to Supabase auth API - fastest approach
       const authUrl = `${supabaseUrl}/auth/v1/token?grant_type=password`
-      
-      const signInPromise = fetch(authUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'apikey': anonKey,
-          'Authorization': `Bearer ${anonKey}`,
+      console.log('Calling Supabase auth API directly with 5s timeout...')
+      const response = await fetchWithTimeout(
+        authUrl,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            apikey: anonKey,
+            Authorization: `Bearer ${anonKey}`,
+          },
+          body: JSON.stringify({
+            email,
+            password,
+          }),
         },
-        body: JSON.stringify({
-          email,
-          password,
-        }),
-      }).then(async (res) => {
-        const result = await res.json()
-        if (!res.ok) {
-          return { data: null, error: result }
-        }
-        return { data: result, error: null }
-      })
-      
-      // 6 second timeout - faster feedback if it's hanging
-      const signInTimeout = new Promise((_, reject) => 
-        setTimeout(() => {
-          const elapsed = Date.now() - startTime
-          reject(new Error(`Sign in timed out after ${elapsed}ms (6s limit)`))
-        }, 6000)
+        5000,
+        'Sign in'
       )
-      
-      console.log('Waiting for signInWithPassword to complete (timeout: 6s)...')
-      const result = await Promise.race([signInPromise, signInTimeout]) as any
+
       const elapsed = Date.now() - startTime
-      
-      data = result.data
-      error = result.error
-      
+      const result = await response.json()
+
+      if (!response.ok) {
+        error = result
+      } else {
+        data = result
+      }
+
       console.log(`Sign in completed in ${elapsed}ms - Success:`, !!data?.access_token, 'Error:', !!error)
-      
+
       if (error) {
         console.error('Supabase signin error:', {
           message: error.error_description || error.message,
@@ -165,33 +216,10 @@ export async function POST(request: NextRequest) {
     
     // Try to get role from metadata first (fastest - no database query)
     let userRole: string | null = data.user.user_metadata?.role || null
-    
-    // Optionally try profile query with very short timeout (non-blocking)
-    // Only if metadata doesn't have role
+
+    // Fallback to profile table via REST (service role) with strict timeout
     if (!userRole) {
-      try {
-        const adminSupabase = createAdminClient()
-        const profileQuery = adminSupabase
-          .from('user_profiles')
-          .select('role')
-          .eq('id', userId)
-          .maybeSingle()
-        
-        // Very short timeout - 1 second max (login should be fast!)
-        const profileTimeout = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Profile query timed out')), 1000)
-        )
-        
-        const { data: profile } = await Promise.race([
-          profileQuery,
-          profileTimeout
-        ]) as any
-        
-        userRole = profile?.role || null
-      } catch (queryError: any) {
-        // Profile query failed or timed out - use metadata
-        // Don't log or wait - just continue
-      }
+      userRole = await fetchUserRoleFromProfiles(userId)
     }
 
     // If still no role, that's a problem
@@ -233,4 +261,3 @@ export async function POST(request: NextRequest) {
     )
   }
 }
-
