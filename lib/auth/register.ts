@@ -479,12 +479,16 @@ export async function registerUser(input: RegisterInput): Promise<RegisterResult
     }
 
     console.log('Calling supabase.auth.signUp...')
+    console.log('Environment check - SITE_URL:', process.env.NEXT_PUBLIC_SITE_URL)
     
     // Use a more aggressive timeout and better error handling
     let authData: any = null
     let authError: any = null
     
     try {
+      console.log('Starting signUp operation...')
+      const startTime = Date.now()
+      
       // Create a promise that will reject if signUp takes too long
       const signUpPromise = supabase.auth.signUp({
         email: input.email.toLowerCase().trim(),
@@ -495,35 +499,49 @@ export async function registerUser(input: RegisterInput): Promise<RegisterResult
         },
       })
       
-      // Use a shorter timeout - if signUp takes longer than 20 seconds, something is wrong
+      // Increase timeout to 30 seconds for Supabase auth operation
       const signUpTimeoutPromise = new Promise<never>((_, reject) => 
-        setTimeout(() => reject(new Error('Sign up timed out after 20 seconds')), 20000)
+        setTimeout(() => {
+          const elapsed = Date.now() - startTime
+          reject(new Error(`Sign up timed out after ${elapsed}ms (limit: 30000ms)`))
+        }, 30000)
       )
       
+      console.log('Waiting for signUp to complete (timeout: 30s)...')
       const result = await Promise.race([
         signUpPromise,
         signUpTimeoutPromise
       ])
       
+      const elapsed = Date.now() - startTime
+      console.log(`SignUp completed in ${elapsed}ms`)
+      
       authData = result.data
       authError = result.error
       
-      console.log('Sign up completed. User created:', !!authData?.user, 'Error:', !!authError)
+      console.log('Sign up result - User created:', !!authData?.user, 'Has error:', !!authError, 'User ID:', authData?.user?.id)
     } catch (timeoutError: any) {
-      console.error('SignUp operation timed out or failed:', timeoutError.message)
+      const elapsed = Date.now() - Date.now()
+      console.error(`SignUp operation failed after ${elapsed}ms:`, timeoutError.message)
+      
       // If it's a timeout, check if user was created anyway
       if (timeoutError.message.includes('timed out')) {
-        // Try to verify if user was created by checking auth
+        console.log('Checking if user was created despite timeout...')
         try {
-          const { data: existingUser } = await supabase.auth.admin.getUserByEmail(input.email.toLowerCase().trim())
+          const { data: existingUser, error: checkError } = await supabase.auth.admin.getUserByEmail(input.email.toLowerCase().trim())
+          if (checkError) {
+            console.error('Error checking existing user:', checkError.message)
+          }
           if (existingUser?.user) {
-            console.log('User was created despite timeout, using existing user')
+            console.log('✓ User was created despite timeout, using existing user:', existingUser.user.id)
             authData = { user: existingUser.user }
             authError = null
           } else {
+            console.log('✗ User was not created')
             authError = timeoutError
           }
-        } catch (checkError) {
+        } catch (checkError: any) {
+          console.error('Failed to check existing user:', checkError.message)
           authError = timeoutError
         }
       } else {
