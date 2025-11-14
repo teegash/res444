@@ -64,6 +64,42 @@ async function fetchUserRoleFromProfiles(userId: string) {
   }
 }
 
+async function hasOrganizationMembership(userId: string) {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+  if (!supabaseUrl || !serviceRoleKey) {
+    return false
+  }
+
+  try {
+    const response = await fetchWithTimeout(
+      `${supabaseUrl}/rest/v1/organization_members?user_id=eq.${userId}&select=organization_id&limit=1`,
+      {
+        method: 'GET',
+        headers: {
+          apikey: serviceRoleKey,
+          Authorization: `Bearer ${serviceRoleKey}`,
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+        },
+      },
+      1000,
+      'Organization membership lookup'
+    )
+
+    if (!response.ok) {
+      return false
+    }
+
+    const result = await response.json()
+    return Array.isArray(result) && result.length > 0 && !!result[0]?.organization_id
+  } catch (error) {
+    console.warn('Organization membership lookup failed:', (error as Error).message)
+    return false
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
@@ -233,8 +269,14 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    let needsOrganizationSetup = false
+    if (userRole === 'admin') {
+      const membershipExists = await hasOrganizationMembership(userId)
+      needsOrganizationSetup = !membershipExists
+    }
+
     // Login successful - fast!
-    console.log('✓ Login successful - role:', userRole)
+    console.log('✓ Login successful - role:', userRole, 'needsOrganizationSetup:', needsOrganizationSetup)
 
     // Return session data - client will set cookies using the session tokens
     const response = NextResponse.json(
@@ -242,6 +284,7 @@ export async function POST(request: NextRequest) {
         success: true,
         role: userRole,
         user_id: userId,
+        needsOrganizationSetup,
         session: session, // Include session for client to set cookies
       },
       { status: 200 }

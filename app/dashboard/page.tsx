@@ -1,5 +1,7 @@
 'use client'
 
+import { useCallback, useEffect, useState } from 'react'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { Sidebar } from '@/components/dashboard/sidebar'
 import { Header } from '@/components/dashboard/header'
 import { Crown, Building2, Users, DollarSign, Wrench } from 'lucide-react'
@@ -7,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import Link from 'next/link'
 import { Line, LineChart, Bar, BarChart, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell, Pie, PieChart } from 'recharts'
+import { OrganizationSetupModal } from '@/components/dashboard/organization-setup-modal'
 
 const revenueData = [
   { month: 'Jul', revenue: 800000, expenses: 520000 },
@@ -31,6 +34,26 @@ const paymentData = [
 ]
 
 export default function DashboardPage() {
+  const searchParams = useSearchParams()
+  const router = useRouter()
+  const pathname = usePathname()
+  const setupParam = searchParams.get('setup')
+  const [showSetupModal, setShowSetupModal] = useState(setupParam === '1')
+
+  useEffect(() => {
+    setShowSetupModal(setupParam === '1')
+  }, [setupParam])
+
+  const handleModalClose = useCallback(() => {
+    setShowSetupModal(false)
+    if (setupParam === '1') {
+      const params = new URLSearchParams(searchParams.toString())
+      params.delete('setup')
+      const nextPath = params.toString() ? `${pathname}?${params.toString()}` : pathname
+      router.replace(nextPath, { scroll: false })
+    }
+  }, [pathname, router, searchParams, setupParam])
+
   const totalPayments = paymentData.reduce((acc, item) => acc + item.value, 0)
   const collectedPercentage = Math.round((paymentData[0].value / totalPayments) * 100)
 
@@ -292,6 +315,7 @@ export default function DashboardPage() {
           </div>
         </main>
       </div>
+      <OrganizationSetupModal open={showSetupModal} onClose={handleModalClose} />
     </div>
   )
 }

@@ -57,70 +57,84 @@ function LoginForm() {
     setIsLoading(true)
 
     try {
-      // Sign in directly via Supabase client with strict timeout
-      let timeoutId: ReturnType<typeof setTimeout> | undefined
-      const timeoutPromise = new Promise<never>((_, reject) => {
-        timeoutId = setTimeout(() => {
-          reject(
-            new Error(
-              'Sign in request timed out. Please check your connection and try again.'
-            )
-          )
-        }, 8000)
-      })
+      console.log('Starting sign in request...')
+      const requestStartTime = Date.now()
 
-      let signInResult:
-        | Awaited<ReturnType<typeof supabase.auth.signInWithPassword>>
-        | undefined
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => {
+        const elapsed = Date.now() - requestStartTime
+        console.error(`Client-side fetch timed out after ${elapsed}ms`)
+        controller.abort()
+      }, 9500) // Slightly under Vercel's 10s limit
 
+      let response: Response
       try {
-        signInResult = await Promise.race([
-          supabase.auth.signInWithPassword({
+        console.log('Sending sign in request to API...')
+        response = await fetch('/api/auth/signin', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
             email: formData.email,
             password: formData.password,
           }),
-          timeoutPromise,
-        ])
-      } catch (raceError) {
-        setError(
-          raceError instanceof Error
-            ? raceError.message
-            : 'Sign in request failed. Please try again.'
-        )
+          signal: controller.signal,
+        })
+        clearTimeout(timeoutId)
+        const elapsed = Date.now() - requestStartTime
+        console.log(`Sign in request completed in ${elapsed}ms, status:`, response.status)
+      } catch (fetchError: any) {
+        clearTimeout(timeoutId)
+        const elapsed = Date.now() - requestStartTime
+        console.error(`Sign in request failed after ${elapsed}ms:`, fetchError)
+
+        if (fetchError.name === 'AbortError') {
+          setError('Sign in request timed out. Please check your connection and try again.')
+          setIsLoading(false)
+          return
+        }
+        if (fetchError.name === 'TypeError' && fetchError.message.includes('fetch')) {
+          setError('Network error. Please check your internet connection and try again.')
+          setIsLoading(false)
+          return
+        }
+        throw fetchError
+      }
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        let errorData
+        try {
+          errorData = JSON.parse(errorText)
+        } catch {
+          errorData = { error: 'Failed to sign in' }
+        }
+        setError(errorData.error || `Sign in failed with status ${response.status}`)
         setIsLoading(false)
         return
-      } finally {
-        if (timeoutId) {
-          clearTimeout(timeoutId)
+      }
+
+      const result = await response.json()
+
+      if (!result.success) {
+        setError(result.error || 'Failed to sign in')
+        setIsLoading(false)
+        return
+      }
+
+      if (result.session) {
+        try {
+          await supabase.auth.setSession({
+            access_token: result.session.access_token,
+            refresh_token: result.session.refresh_token,
+          })
+        } catch (sessionError: any) {
+          console.warn('Failed to set session (non-blocking):', sessionError.message)
         }
       }
 
-      if (!signInResult) {
-        setError('Sign in failed. Please try again.')
-        setIsLoading(false)
-        return
-      }
-
-      const { data, error } = signInResult
-
-      if (error) {
-        const errorMessage =
-          error.message || 'Failed to sign in. Please check your credentials.'
-
-        if (errorMessage.includes('Email not confirmed')) {
-          setError(
-            'Please verify your email address before logging in. Check your inbox for the verification link.'
-          )
-        } else if (errorMessage.includes('Invalid login credentials')) {
-          setError('Invalid email or password. Please try again.')
-        } else {
-          setError(errorMessage)
-        }
-        setIsLoading(false)
-        return
-      }
-
-      const userRole = data.user?.user_metadata?.role?.toLowerCase()
+      const userRole = result.role?.toLowerCase()
 
       if (!userRole) {
         setError('Unable to determine user role. Please contact support.')
@@ -143,7 +157,12 @@ function LoginForm() {
           setIsLoading(false)
           return
         }
-        router.push('/dashboard')
+
+        if (result.needsOrganizationSetup) {
+          router.push('/dashboard?setup=1')
+        } else {
+          router.push('/dashboard')
+        }
         router.refresh()
       }
     } catch (err) {
