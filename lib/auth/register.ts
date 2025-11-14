@@ -401,17 +401,31 @@ export async function registerUser(input: RegisterInput): Promise<RegisterResult
       }
     }
 
-    // Check email uniqueness
-    const emailExists = await checkEmailExists(input.email)
-    if (emailExists) {
-      return {
-        success: false,
-        error: 'Email already exists. Please use a different email address.',
+    // Check email uniqueness with timeout
+    console.log('Checking email uniqueness...')
+    try {
+      const emailCheckPromise = checkEmailExists(input.email)
+      const emailTimeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Email check timed out')), 5000)
+      )
+      
+      const emailExists = await Promise.race([emailCheckPromise, emailTimeoutPromise]) as boolean
+      
+      if (emailExists) {
+        return {
+          success: false,
+          error: 'Email already exists. Please use a different email address.',
+        }
       }
+    } catch (emailCheckError: any) {
+      console.warn('Email check failed or timed out, continuing anyway:', emailCheckError.message)
+      // Continue with registration - email uniqueness will be checked by Supabase
     }
 
     // Create Supabase client
+    console.log('Creating Supabase client...')
     const supabase = await createClient()
+    console.log('Supabase client created')
 
     // Log the role being stored in user metadata
     console.log('Creating user with role:', input.role, 'for email:', input.email)
@@ -428,7 +442,8 @@ export async function registerUser(input: RegisterInput): Promise<RegisterResult
       userMetadata.building_id = input.building_id
     }
 
-    const { data: authData, error: authError } = await supabase.auth.signUp({
+    console.log('Calling supabase.auth.signUp...')
+    const signUpPromise = supabase.auth.signUp({
       email: input.email.toLowerCase().trim(),
       password: input.password,
       options: {
@@ -436,6 +451,17 @@ export async function registerUser(input: RegisterInput): Promise<RegisterResult
         data: userMetadata,
       },
     })
+    
+    const signUpTimeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('Sign up timed out after 15 seconds')), 15000)
+    )
+    
+    const { data: authData, error: authError } = await Promise.race([
+      signUpPromise,
+      signUpTimeoutPromise
+    ]) as any
+    
+    console.log('Sign up completed. User created:', !!authData?.user, 'Error:', !!authError)
 
     // Verify role was set in metadata
     if (authData?.user) {
@@ -506,6 +532,7 @@ export async function registerUser(input: RegisterInput): Promise<RegisterResult
     // Use SECURITY DEFINER function to bypass RLS completely
     let createdOrganizationId: string | undefined
     if (input.organization) {
+      console.log('Starting organization creation...')
       const adminSupabase = createAdminClient()
       
       // Verify admin client is using service_role
@@ -516,26 +543,15 @@ export async function registerUser(input: RegisterInput): Promise<RegisterResult
         hasLogo: !!input.organization.logo_url,
       })
       
-      // Try using SECURITY DEFINER function first (bypasses RLS completely)
-      const { data: functionResult, error: functionError } = await adminSupabase.rpc(
-        'create_organization',
-        {
-          p_name: input.organization.name,
-          p_email: input.organization.email.toLowerCase(),
-          p_phone: input.organization.phone || null,
-          p_location: input.organization.location,
-          p_registration_number: input.organization.registration_number,
-          p_logo_url: input.organization.logo_url || null,
-        }
-      )
-
+      // Use direct insert with admin client (bypasses RLS)
+      // Skip RPC call to avoid potential hanging issues
+      console.log('Using direct insert with admin client...')
+      
       let organization: any = null
       let orgError: any = null
-
-      if (functionError) {
-        // If function doesn't exist or fails, fall back to direct insert
-        console.log('Function approach failed, trying direct insert:', functionError.message)
-        const insertResult = await adminSupabase
+      
+      try {
+        const insertPromise = adminSupabase
           .from('organizations')
           .insert({
             name: input.organization.name,
@@ -548,18 +564,24 @@ export async function registerUser(input: RegisterInput): Promise<RegisterResult
           .select()
           .single()
         
+        const insertTimeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Organization insert timed out after 15 seconds')), 15000)
+        )
+        
+        const insertResult = await Promise.race([
+          insertPromise,
+          insertTimeoutPromise
+        ]) as any
+        
         organization = insertResult.data
         orgError = insertResult.error
-      } else {
-        // Function succeeded, fetch the created organization
-        const { data: fetchedOrg, error: fetchError } = await adminSupabase
-          .from('organizations')
-          .select()
-          .eq('id', functionResult)
-          .single()
         
-        organization = fetchedOrg
-        orgError = fetchError
+        if (organization) {
+          console.log('Organization created successfully:', organization.id)
+        }
+      } catch (timeoutError: any) {
+        console.error('Organization creation timed out or failed:', timeoutError)
+        orgError = timeoutError
       }
 
       if (orgError) {
