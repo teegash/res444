@@ -387,6 +387,7 @@ export default function SignupPage() {
 
   const handlePage2Submit = async (e: React.FormEvent) => {
     e.preventDefault()
+    console.log('Page 2 form submitted')
 
     // Validate organization fields
     const newErrors: Record<string, string> = {}
@@ -395,10 +396,14 @@ export default function SignupPage() {
     if (!orgData.location.trim()) newErrors.location = 'Location is required'
     if (!orgData.registrationNumber.trim()) newErrors.registrationNumber = 'Registration number is required'
 
+    console.log('Validation errors:', newErrors)
     setOrgErrors(newErrors)
 
     if (Object.keys(newErrors).length === 0) {
+      console.log('No validation errors, calling handleRegistration...')
       await handleRegistration()
+    } else {
+      console.log('Validation failed, not submitting')
     }
   }
 
@@ -435,6 +440,12 @@ export default function SignupPage() {
       }
 
       // Call the registration API endpoint
+      console.log('Submitting registration:', {
+        email: registrationPayload.email,
+        role: registrationPayload.role,
+        hasOrganization: !!registrationPayload.organization,
+      })
+
       const response = await fetch('/api/auth/register', {
         method: 'POST',
         headers: {
@@ -443,31 +454,45 @@ export default function SignupPage() {
         body: JSON.stringify(registrationPayload),
       })
 
+      console.log('Registration response status:', response.status)
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Failed to parse error response' }))
+        console.error('Registration API error:', errorData)
+        throw new Error(errorData.error || `Registration failed with status ${response.status}`)
+      }
+
       const result = await response.json()
+      console.log('Registration result:', result)
 
       if (result.success) {
         const roleDisplay = formData.userType === 'owner' ? 'Admin' : formData.userType.charAt(0).toUpperCase() + formData.userType.slice(1)
         
         if (result.data?.verification_email_sent) {
-          setSuccess(`${roleDisplay} account created successfully! Please check your email to verify your account.`)
-          setIsLoading(false)
-        } else if (formData.userType === 'owner') {
-          setSuccess(`Property Owner account and organization created successfully! Redirecting to dashboard...`)
+          // Email verification required - redirect to login with manager tab
+          setSuccess(`${roleDisplay} account created successfully! Please check your email to verify your account. Redirecting to login...`)
           setIsLoading(false)
           setTimeout(() => {
-            router.push('/dashboard')
+            router.push('/auth/login?tab=manager')
+          }, 2000)
+        } else if (formData.userType === 'owner') {
+          // Owner registration successful - redirect to login with manager tab active
+          setSuccess(`Property Owner account and organization created successfully! Redirecting to login...`)
+          setIsLoading(false)
+          setTimeout(() => {
+            router.push('/auth/login?tab=manager')
           }, 2000)
         } else if (formData.userType === 'manager') {
-          setSuccess(`Manager account created successfully! You have been added to the organization. Redirecting to dashboard...`)
+          setSuccess(`Manager account created successfully! You have been added to the organization. Redirecting to login...`)
           setIsLoading(false)
           setTimeout(() => {
-            router.push('/dashboard')
+            router.push('/auth/login?tab=manager')
           }, 2000)
         } else if (formData.userType === 'caretaker') {
-          setSuccess(`Caretaker account created successfully! You have been assigned to the apartment building. Redirecting to dashboard...`)
+          setSuccess(`Caretaker account created successfully! You have been assigned to the apartment building. Redirecting to login...`)
           setIsLoading(false)
           setTimeout(() => {
-            router.push('/dashboard')
+            router.push('/auth/login?tab=manager')
           }, 2000)
         }
       } else {
@@ -475,7 +500,12 @@ export default function SignupPage() {
         setIsLoading(false)
       }
     } catch (err) {
-      setError('An unexpected error occurred')
+      console.error('Registration error:', err)
+      if (err instanceof Error) {
+        setError(err.message || 'Failed to create account. Please try again.')
+      } else {
+        setError('An unexpected error occurred. Please try again.')
+      }
       setIsLoading(false)
     }
   }
@@ -996,7 +1026,12 @@ export default function SignupPage() {
                 {isLoading ? (
                   <div className="flex items-center gap-2">
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    Creating...
+                    Creating Account...
+                  </div>
+                ) : isUploadingLogo ? (
+                  <div className="flex items-center gap-2">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Uploading Logo...
                   </div>
                 ) : (
                   'Create Account'

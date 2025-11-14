@@ -17,7 +17,13 @@ function LoginForm() {
   const { user, loading: authLoading } = useAuth()
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
-  const [accountType, setAccountType] = useState<'tenant' | 'admin'>('tenant')
+  
+  // Get tab from URL parameter, default to tenant
+  const tabParam = searchParams.get('tab')
+  const [accountType, setAccountType] = useState<'tenant' | 'admin'>(
+    tabParam === 'manager' ? 'admin' : 'tenant'
+  )
+  
   const [error, setError] = useState<string | null>(null)
   const [showTenantMessage, setShowTenantMessage] = useState(false)
   const [formData, setFormData] = useState({
@@ -26,6 +32,15 @@ function LoginForm() {
   })
 
   const redirectTo = searchParams.get('redirectTo') || '/dashboard'
+
+  // Update account type when tab parameter changes
+  useEffect(() => {
+    if (tabParam === 'manager') {
+      setAccountType('admin')
+    } else if (tabParam === 'tenant') {
+      setAccountType('tenant')
+    }
+  }, [tabParam])
 
   useEffect(() => {
     if (!authLoading && user) {
