@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createAdminClient } from '@/lib/supabase/admin'
+import { createServerClient } from '@supabase/ssr'
+import { Database } from '@/lib/supabase/database.types'
 
 export async function POST(request: NextRequest) {
   try {
@@ -16,14 +17,52 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Use admin client to avoid cookies() which can hang in serverless functions
-    // Vercel has 10 second limit - signin should complete in < 3 seconds
     console.log('Starting sign in for:', email)
     
-    const supabase = createAdminClient()
+    // Use server client directly with request cookies to avoid cookies() hanging
+    // This matches the proxy.ts pattern - fast and reliable
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+    if (!supabaseUrl || !anonKey) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Server configuration error. Please contact support.',
+        },
+        { status: 500 }
+      )
+    }
+
+    // Create response object first (needed for cookie setting)
+    let supabaseResponse = NextResponse.next({
+      request,
+    })
+
+    // Create server client directly with request cookies (no async cookies() call)
+    // This is the same pattern as proxy.ts - fast and doesn't hang
+    const supabase = createServerClient<Database>(supabaseUrl, anonKey, {
+      cookies: {
+        getAll() {
+          return request.cookies.getAll()
+        },
+        setAll(cookiesToSet) {
+          // Set cookies properly - this is how proxy.ts does it
+          cookiesToSet.forEach(({ name, value, options }) =>
+            request.cookies.set(name, value)
+          )
+          supabaseResponse = NextResponse.next({
+            request,
+          })
+          cookiesToSet.forEach(({ name, value, options }) =>
+            supabaseResponse.cookies.set(name, value, options)
+          )
+        },
+      },
+    })
     
     // Sign in with password with timeout
-    // Vercel limit is 10s, so we use 3s timeout to be safe
+    // Vercel limit is 10s, so we use 8s timeout to be safe
     let data: any
     let error: any
     
@@ -33,9 +72,9 @@ export async function POST(request: NextRequest) {
         password,
       })
       
-      // 3 second timeout - should be plenty for signin
+      // 8 second timeout - should be plenty for signin, well under Vercel's 10s limit
       const signInTimeout = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Sign in timed out after 3 seconds')), 3000)
+        setTimeout(() => reject(new Error('Sign in timed out after 8 seconds')), 8000)
       )
       
       const result = await Promise.race([signInPromise, signInTimeout]) as any
@@ -147,17 +186,28 @@ export async function POST(request: NextRequest) {
     // Login successful - fast!
     console.log('✓ Login successful - role:', userRole)
 
-    // Return session data so client can set cookies
-    // Admin client doesn't set cookies automatically
-    return NextResponse.json(
+    // Create JSON response - cookies are already set by Supabase SSR via setAll callback
+    const response = NextResponse.json(
       {
         success: true,
         role: userRole,
         user_id: userId,
-        session: data.session, // Include session for client-side cookie setting
       },
       { status: 200 }
     )
+
+    // Copy cookies from supabaseResponse to our response
+    // Supabase SSR sets cookies via setAll callback, so we need to include them
+    supabaseResponse.cookies.getAll().forEach((cookie) => {
+      response.cookies.set(cookie.name, cookie.value, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        path: '/',
+      })
+    })
+
+    return response
   } catch (error) {
     const err = error as Error
     console.error('Sign in error:', err)
