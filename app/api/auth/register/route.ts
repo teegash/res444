@@ -33,27 +33,17 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Require organization_id for managers and caretakers
-    if ((role === 'manager' || role === 'caretaker') && !organization_id) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Organization is required for managers and caretakers',
-        },
-        { status: 400 }
-      )
-    }
-
-    // Require building_id for caretakers
-    if (role === 'caretaker' && !building_id) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Apartment building is required for caretakers',
-        },
-        { status: 400 }
-      )
-    }
+    // NOTE: During registration, we ONLY create:
+    // 1. User account in auth.users (via Supabase signUp)
+    // 2. User profile in user_profiles (via database trigger)
+    // 
+    // We do NOT create:
+    // - organization_members (created after login)
+    // - organizations (created after login by owners)
+    // - Any other tables
+    //
+    // organization_id and building_id are stored in user_metadata for later use
+    // but are NOT required during registration - they can be set up in forms after login
 
     // Validate role is one of the allowed values (removed tenant)
     const validRoles = ['admin', 'manager', 'caretaker']

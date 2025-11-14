@@ -456,20 +456,23 @@ export async function registerUser(input: RegisterInput): Promise<RegisterResult
     // Log the role being stored in user metadata
     console.log('Creating user with role:', input.role, 'for email:', input.email)
 
-    // Create auth user with role and building_id in metadata
-    // Also store organization_id for managers/caretakers so we can create member on first login
+    // Create auth user with metadata
+    // Metadata is used by the database trigger to create the user_profiles entry
+    // organization_id and building_id are stored in metadata for later use (after login)
+    // but are NOT used during registration - they're just stored for reference
     const userMetadata: Record<string, any> = {
       full_name: input.full_name.trim(),
       phone: input.phone.trim(),
-      role: input.role, // Store role in user metadata for later use
+      role: input.role, // Used by trigger to populate user_profiles.role
     }
     
-    // Store building_id for caretakers
+    // Store building_id for caretakers (stored in metadata for later use after login)
     if (input.building_id) {
       userMetadata.building_id = input.building_id
     }
     
-    // Store organization_id for managers/caretakers (will be used to create member on first login)
+    // Store organization_id for managers/caretakers (stored in metadata for later use after login)
+    // This is NOT used during registration - just stored for reference
     if (input.organization_id) {
       userMetadata.organization_id = input.organization_id
     }
@@ -603,43 +606,51 @@ export async function registerUser(input: RegisterInput): Promise<RegisterResult
 
     const userId = authData.user.id
     
-    // Profile is created by database trigger automatically with role from metadata
-    // Trigger populates: id, full_name (from user_metadata.full_name), phone_number (from user_metadata.phone), role (from user_metadata.role)
-    // Additional fields (national_id, address, date_of_birth) can be updated later if needed via API
-    // We don't update profile during registration to keep it fast - just user account creation
-    console.log('✓ User account created. Profile will be created by database trigger with role from metadata')
-    
-    // Organization creation is SKIPPED during registration
-    // Owners will set up their organization after email confirmation and first login
-    // This prevents Vercel API timeout issues
-    let createdOrganizationId: string | undefined = undefined
-    console.log('Organization creation skipped - will be done after first login for owners')
-
-    // Organization member creation is also SKIPPED during registration
-    // It will be created on first login by the proxy or signin API
-    // This keeps registration fast - just user account creation
-    if (input.organization_id) {
-      console.log('Organization member creation skipped - will be created on first login')
-    }
+    // ============================================================================
+    // REGISTRATION ONLY CREATES TWO TABLES:
+    // ============================================================================
+    // 1. auth.users - Created by Supabase signUp (user account)
+    // 2. user_profiles - Created by database trigger (user profile with role)
+    //
+    // The trigger automatically creates the profile with:
+    // - id (from user.id)
+    // - full_name (from user_metadata.full_name)
+    // - phone_number (from user_metadata.phone)
+    // - role (from user_metadata.role)
+    //
+    // ============================================================================
+    // ALL OTHER TABLES ARE CREATED AFTER LOGIN:
+    // ============================================================================
+    // - organization_members (created on first login for managers/caretakers)
+    // - organizations (created after login by owners via organization setup form)
+    // - Any other tables (created in subsequent forms after login)
+    //
+    // ============================================================================
+    // organization_id and building_id are stored in user_metadata for later use
+    // but are NOT used during registration - they're just stored for reference
+    // ============================================================================
+    console.log('✓ User account created in auth.users')
+    console.log('✓ Profile will be created by database trigger in user_profiles')
+    console.log('ℹ Organization/organization_member creation skipped - will be done after login')
 
     // Determine if verification email was sent
     // Supabase sends verification email automatically if email confirmation is enabled
     const verificationEmailSent = !authData.session && authData.user
 
-    // User account is created - that's the critical part!
-    // Profile is created by database trigger automatically with role from metadata
-    // Additional profile fields and organization member are updated/created asynchronously
-    // This ensures registration completes quickly (just user creation)
+    // ============================================================================
+    // REGISTRATION SUCCESS - ONLY TWO TABLES CREATED:
+    // ============================================================================
+    // 1. auth.users - User account (created by Supabase signUp)
+    // 2. user_profiles - User profile (created by database trigger)
+    //
+    // All other tables (organizations, organization_members, etc.) are created
+    // after login in subsequent forms/pages.
+    // ============================================================================
     
     console.log('✓ Registration completed successfully:')
-    console.log('  - User account created in auth.users:', userId)
-    console.log('  - Profile will be created by database trigger with role from metadata')
-    if (input.organization_id) {
-      console.log('  - Organization member will be created asynchronously')
-    }
-    if (createdOrganizationId) {
-      console.log('  - Organization created in organizations table:', createdOrganizationId)
-    }
+    console.log('  ✓ User account created in auth.users:', userId)
+    console.log('  ✓ Profile will be created by database trigger in user_profiles')
+    console.log('  ℹ Additional tables (organizations, organization_members) will be created after login')
 
     return {
       success: true,
@@ -649,9 +660,9 @@ export async function registerUser(input: RegisterInput): Promise<RegisterResult
         email: input.email.toLowerCase().trim(),
         role: input.role,
         profile_created: true, // Created by trigger
-        organization_created: !!createdOrganizationId,
-        organization_id: createdOrganizationId,
-        organization_member_created: !!input.organization_id, // Will be created asynchronously
+        organization_created: false, // Created after login
+        organization_id: undefined, // Created after login
+        organization_member_created: false, // Created after login
         verification_email_sent: verificationEmailSent,
       },
     }
