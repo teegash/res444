@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, Suspense } from 'react'
+import { useState, useEffect, Suspense, useMemo } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Eye, EyeOff, Shield, Crown, Loader2, ArrowLeft, Info, CheckCircle2 } from 'lucide-react'
@@ -8,13 +8,14 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card } from '@/components/ui/card'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { signIn } from '@/lib/auth/actions'
 import { useAuth } from '@/lib/auth/context'
+import { createClient } from '@/lib/supabase/client'
 
 function LoginForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { user, loading: authLoading } = useAuth()
+  const supabase = useMemo(() => createClient(), [])
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   
@@ -56,95 +57,71 @@ function LoginForm() {
     setIsLoading(true)
 
     try {
-      // Use API route instead of server action to get role information
-      // Login should be FAST - 8 second timeout (gives API 6s + 2s buffer)
-      console.log('Starting sign in request...')
-      const requestStartTime = Date.now()
-      
-      const controller = new AbortController()
-      const timeoutId = setTimeout(() => {
-        const elapsed = Date.now() - requestStartTime
-        console.error(`Client-side fetch timed out after ${elapsed}ms`)
-        controller.abort()
-      }, 8000) // 8 second timeout - gives API 6s + 2s buffer
-      
-      let response: Response
+      // Sign in directly via Supabase client with strict timeout
+      let timeoutId: ReturnType<typeof setTimeout> | undefined
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        timeoutId = setTimeout(() => {
+          reject(
+            new Error(
+              'Sign in request timed out. Please check your connection and try again.'
+            )
+          )
+        }, 8000)
+      })
+
+      let signInResult:
+        | Awaited<ReturnType<typeof supabase.auth.signInWithPassword>>
+        | undefined
+
       try {
-        console.log('Sending sign in request to API...')
-        response = await fetch('/api/auth/signin', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
+        signInResult = await Promise.race([
+          supabase.auth.signInWithPassword({
             email: formData.email,
             password: formData.password,
           }),
-          signal: controller.signal,
-        })
-        clearTimeout(timeoutId)
-        const elapsed = Date.now() - requestStartTime
-        console.log(`Sign in request completed in ${elapsed}ms, status:`, response.status)
-      } catch (fetchError: any) {
-        clearTimeout(timeoutId)
-        const elapsed = Date.now() - requestStartTime
-        console.error(`Sign in request failed after ${elapsed}ms:`, fetchError)
-        
-        if (fetchError.name === 'AbortError') {
-          setError('Sign in request timed out. Please check your connection and try again.')
-          setIsLoading(false)
-          return
+          timeoutPromise,
+        ])
+      } catch (raceError) {
+        setError(
+          raceError instanceof Error
+            ? raceError.message
+            : 'Sign in request failed. Please try again.'
+        )
+        setIsLoading(false)
+        return
+      } finally {
+        if (timeoutId) {
+          clearTimeout(timeoutId)
         }
-        if (fetchError.name === 'TypeError' && fetchError.message.includes('fetch')) {
-          setError('Network error. Please check your internet connection and try again.')
-          setIsLoading(false)
-          return
-        }
-        throw fetchError
       }
 
-      if (!response.ok) {
-        const errorText = await response.text()
-        let errorData
-        try {
-          errorData = JSON.parse(errorText)
-        } catch {
-          errorData = { error: 'Failed to sign in' }
-        }
-        setError(errorData.error || `Sign in failed with status ${response.status}`)
+      if (!signInResult) {
+        setError('Sign in failed. Please try again.')
         setIsLoading(false)
         return
       }
 
-      const result = await response.json()
+      const { data, error } = signInResult
 
-      if (!result.success) {
-        setError(result.error || 'Failed to sign in')
+      if (error) {
+        const errorMessage =
+          error.message || 'Failed to sign in. Please check your credentials.'
+
+        if (errorMessage.includes('Email not confirmed')) {
+          setError(
+            'Please verify your email address before logging in. Check your inbox for the verification link.'
+          )
+        } else if (errorMessage.includes('Invalid login credentials')) {
+          setError('Invalid email or password. Please try again.')
+        } else {
+          setError(errorMessage)
+        }
         setIsLoading(false)
         return
       }
 
-      // If we have a session, set it in the client
-      // Admin client doesn't set cookies automatically, so we need to do it client-side
-      if (result.session) {
-        try {
-          console.log('Setting session cookies client-side...')
-          const { createClient } = await import('@/lib/supabase/client')
-          const supabase = createClient()
-          await supabase.auth.setSession({
-            access_token: result.session.access_token,
-            refresh_token: result.session.refresh_token,
-          })
-          console.log('✓ Session set successfully')
-        } catch (sessionError: any) {
-          console.warn('Failed to set session (non-blocking):', sessionError.message)
-          // Continue anyway - user might still be authenticated via cookies
-        }
-      }
+      const userRole = data.user?.user_metadata?.role?.toLowerCase()
 
-      // Validate role matches selected login type
-      const userRole = result.role?.toLowerCase()
-      
       if (!userRole) {
         setError('Unable to determine user role. Please contact support.')
         setIsLoading(false)
@@ -152,30 +129,22 @@ function LoginForm() {
       }
 
       if (accountType === 'tenant') {
-        // Tenant tab: only tenants can login
         if (userRole !== 'tenant') {
           setError('This account is not a tenant account. Please use the Manager login tab.')
           setIsLoading(false)
           return
         }
-        // Redirect to tenant dashboard
         router.push('/dashboard/tenant')
+        router.refresh()
       } else {
-        // Manager tab: only admin, manager, and caretaker can login
         const allowedRoles = ['admin', 'manager', 'caretaker']
         if (!allowedRoles.includes(userRole)) {
           setError(`This account (${userRole}) is not authorized for manager access. Please use the Tenant login tab.`)
           setIsLoading(false)
           return
         }
-        
-        // Profile is fully populated during registration
-        // Organization member is created during registration for managers/caretakers
-        // Just redirect to dashboard - proxy will handle routing:
-        // - Admins without organization → organization setup
-        // - Managers/Caretakers → dashboard
-        // - All others → dashboard
         router.push('/dashboard')
+        router.refresh()
       }
     } catch (err) {
       setError('An unexpected error occurred')
@@ -457,4 +426,3 @@ export default function LoginPage() {
     </Suspense>
   )
 }
-
