@@ -59,16 +59,39 @@ export async function POST(request: NextRequest) {
     const userId = data.user.id
 
     // Get user's role from user_profiles (profile should be fully populated during registration)
-    // This is fast - single query, profile already exists
-    const { data: profile, error: profileError } = await supabase
-      .from('user_profiles')
-      .select('role')
-      .eq('id', userId)
-      .maybeSingle()
+    // Add timeout to prevent hanging - query should complete quickly
+    let userRole: string | null = null
+    
+    try {
+      const profileQuery = supabase
+        .from('user_profiles')
+        .select('role')
+        .eq('id', userId)
+        .maybeSingle()
+      
+      const profileTimeout = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Profile query timed out after 3 seconds')), 3000)
+      )
+      
+      const { data: profile, error: profileError } = await Promise.race([
+        profileQuery,
+        profileTimeout
+      ]) as any
+      
+      if (profileError && !profileError.message.includes('timed out')) {
+        console.warn('Profile query error (non-blocking):', profileError.message)
+      }
+      
+      userRole = profile?.role || null
+    } catch (queryError: any) {
+      console.warn('Profile query failed (non-blocking):', queryError.message)
+      // Continue with metadata fallback
+    }
 
-    // Profile should exist and have role from registration
-    // If not, something went wrong - use metadata as fallback
-    const userRole = profile?.role || data.user.user_metadata?.role || null
+    // If profile query didn't return role, use metadata as fallback
+    if (!userRole) {
+      userRole = data.user.user_metadata?.role || null
+    }
 
     if (!userRole) {
       return NextResponse.json(

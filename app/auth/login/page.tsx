@@ -57,16 +57,46 @@ function LoginForm() {
 
     try {
       // Use API route instead of server action to get role information
-      const response = await fetch('/api/auth/signin', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email: formData.email,
-          password: formData.password,
-        }),
-      })
+      // Add timeout to prevent infinite loading
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 10000) // 10 second timeout
+      
+      let response: Response
+      try {
+        response = await fetch('/api/auth/signin', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            email: formData.email,
+            password: formData.password,
+          }),
+          signal: controller.signal,
+        })
+        clearTimeout(timeoutId)
+      } catch (fetchError: any) {
+        clearTimeout(timeoutId)
+        if (fetchError.name === 'AbortError') {
+          setError('Sign in request timed out. Please check your connection and try again.')
+          setIsLoading(false)
+          return
+        }
+        throw fetchError
+      }
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        let errorData
+        try {
+          errorData = JSON.parse(errorText)
+        } catch {
+          errorData = { error: 'Failed to sign in' }
+        }
+        setError(errorData.error || `Sign in failed with status ${response.status}`)
+        setIsLoading(false)
+        return
+      }
 
       const result = await response.json()
 

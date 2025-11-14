@@ -80,36 +80,80 @@ export async function proxy(request: NextRequest) {
 
     try {
       // Get user's role from user_profiles table (much simpler!)
-      const { data: profile, error: profileError } = await supabase
-        .from('user_profiles')
-        .select('role')
-        .eq('id', user.id)
-        .maybeSingle()
-
-      // Profile should be fully populated during registration
-      // If it doesn't exist or role is missing, redirect to setup
-      if (profileError || !profile || !profile.role) {
-        console.warn('Profile missing or incomplete - redirecting to setup')
-        const url = request.nextUrl.clone()
-        url.pathname = '/dashboard/setup'
-        return NextResponse.redirect(url)
-      }
-
-      const userRole = profile.role as UserRole
-
-      // Check if admin (owner) has organization
-      if (userRole === 'admin') {
-        const { data: membership } = await supabase
-          .from('organization_members')
-          .select('organization_id')
-          .eq('user_id', user.id)
+      // Add timeout to prevent hanging - query should complete quickly
+      let userRole: UserRole | null = null
+      
+      try {
+        const profileQuery = supabase
+          .from('user_profiles')
+          .select('role')
+          .eq('id', user.id)
           .maybeSingle()
         
-        if (!membership || !membership.organization_id) {
-          // Admin without organization - redirect to organization setup
+        const profileTimeout = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Profile query timed out after 3 seconds')), 3000)
+        )
+        
+        const { data: profile, error: profileError } = await Promise.race([
+          profileQuery,
+          profileTimeout
+        ]) as any
+        
+        if (profileError && !profileError.message.includes('timed out')) {
+          console.warn('Profile query error in proxy:', profileError.message)
+        }
+        
+        if (profile?.role) {
+          userRole = profile.role as UserRole
+        }
+      } catch (queryError: any) {
+        console.warn('Profile query failed in proxy:', queryError.message)
+        // Fall back to metadata
+        userRole = (user.user_metadata?.role as UserRole) || null
+      }
+
+      // Profile should be fully populated during registration
+      // If it doesn't exist or role is missing, try metadata or redirect to setup
+      if (!userRole) {
+        // Try metadata as fallback
+        userRole = (user.user_metadata?.role as UserRole) || null
+        
+        if (!userRole) {
+          console.warn('Profile missing or incomplete - redirecting to setup')
           const url = request.nextUrl.clone()
-          url.pathname = '/dashboard/setup/organization'
+          url.pathname = '/dashboard/setup'
           return NextResponse.redirect(url)
+        }
+      }
+
+      // Check if admin (owner) has organization
+      // Add timeout to prevent hanging
+      if (userRole === 'admin') {
+        try {
+          const membershipQuery = supabase
+            .from('organization_members')
+            .select('organization_id')
+            .eq('user_id', user.id)
+            .maybeSingle()
+          
+          const membershipTimeout = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Membership query timed out after 3 seconds')), 3000)
+          )
+          
+          const { data: membership } = await Promise.race([
+            membershipQuery,
+            membershipTimeout
+          ]) as any
+          
+          if (!membership || !membership.organization_id) {
+            // Admin without organization - redirect to organization setup
+            const url = request.nextUrl.clone()
+            url.pathname = '/dashboard/setup/organization'
+            return NextResponse.redirect(url)
+          }
+        } catch (membershipError: any) {
+          console.warn('Membership query failed in proxy (non-blocking):', membershipError.message)
+          // Allow access - membership will be created later if needed
         }
       }
 
