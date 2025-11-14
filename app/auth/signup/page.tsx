@@ -427,9 +427,9 @@ export default function SignupPage() {
       })
 
       // Create AbortController for timeout
-      // Reduced to 25 seconds - registration should be fast now
+      // Reduced to 12 seconds - must complete before Vercel timeout (with buffer)
       const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), 25000) // 25 second timeout (reduced from 120s)
+      const timeoutId = setTimeout(() => controller.abort(), 12000) // 12 second timeout (Vercel limit is 10s, so 12s gives buffer)
 
       let response: Response
       try {

@@ -98,10 +98,12 @@ export async function POST(request: NextRequest) {
     })
     
     // Wrap registerUser in a timeout to ensure we always return a response
-    // Reduced timeout to 20 seconds - registration should be fast now
+    // Reduced timeout to 10 seconds - must complete before Vercel's 10s limit
+    // Note: Vercel Hobby plan has 10s limit (hard limit), Pro plan has 60s limit
+    // Supabase authenticated operations have 8s limit, so 10s gives us buffer
     const registrationPromise = registerUser(registerInput)
     const registrationTimeoutPromise = new Promise((_, reject) => 
-      setTimeout(() => reject(new Error('Registration process timed out after 20 seconds')), 20000) // Reduced from 90s to 20s
+      setTimeout(() => reject(new Error('Registration process timed out after 10 seconds')), 10000) // 10s - Vercel Hobby limit
     )
     
     let result: any

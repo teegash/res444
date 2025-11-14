@@ -435,26 +435,9 @@ export async function registerUser(input: RegisterInput): Promise<RegisterResult
       }
     }
 
-    // Check email uniqueness with timeout
-    console.log('Checking email uniqueness...')
-    try {
-      const emailCheckPromise = checkEmailExists(input.email)
-      const emailTimeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Email check timed out')), 5000)
-      )
-      
-      const emailExists = await Promise.race([emailCheckPromise, emailTimeoutPromise]) as boolean
-      
-      if (emailExists) {
-        return {
-          success: false,
-          error: 'Email already exists. Please use a different email address.',
-        }
-      }
-    } catch (emailCheckError: any) {
-      console.warn('Email check failed or timed out, continuing anyway:', emailCheckError.message)
-      // Continue with registration - email uniqueness will be checked by Supabase
-    }
+    // Skip email check - Supabase will handle duplicate email validation during signUp
+    // This saves 5 seconds and prevents unnecessary database queries
+    console.log('Skipping email check - Supabase will validate during signUp')
 
     // Create Supabase client for auth operations
     // Use admin client to avoid cookie issues in server actions
@@ -467,6 +450,7 @@ export async function registerUser(input: RegisterInput): Promise<RegisterResult
     console.log('Creating user with role:', input.role, 'for email:', input.email)
 
     // Create auth user with role and building_id in metadata
+    // Also store organization_id for managers/caretakers so we can create member on first login
     const userMetadata: Record<string, any> = {
       full_name: input.full_name.trim(),
       phone: input.phone.trim(),
@@ -476,6 +460,11 @@ export async function registerUser(input: RegisterInput): Promise<RegisterResult
     // Store building_id for caretakers
     if (input.building_id) {
       userMetadata.building_id = input.building_id
+    }
+    
+    // Store organization_id for managers/caretakers (will be used to create member on first login)
+    if (input.organization_id) {
+      userMetadata.organization_id = input.organization_id
     }
 
     console.log('Calling supabase.auth.signUp...')
@@ -499,15 +488,17 @@ export async function registerUser(input: RegisterInput): Promise<RegisterResult
         },
       })
       
-      // Reduce timeout to 15 seconds - if Supabase is slow, we'll check if user was created
+      // Reduced timeout to 8 seconds - Supabase authenticated limit is 8s
+      // Vercel Hobby plan has 10s limit, so 8s gives us buffer
+      // If it times out, we'll check if user was created anyway
       const signUpTimeoutPromise = new Promise<never>((_, reject) => 
         setTimeout(() => {
           const elapsed = Date.now() - startTime
-          reject(new Error(`Sign up timed out after ${elapsed}ms (limit: 15000ms)`))
-        }, 15000) // Reduced from 30s to 15s
+          reject(new Error(`Sign up timed out after ${elapsed}ms (limit: 8000ms - Supabase limit)`))
+        }, 8000) // Reduced to 8s to match Supabase authenticated user limit
       )
       
-      console.log('Waiting for signUp to complete (timeout: 15s)...')
+      console.log('Waiting for signUp to complete (timeout: 8s - Supabase limit)...')
       const result = await Promise.race([
         signUpPromise,
         signUpTimeoutPromise
@@ -580,37 +571,11 @@ export async function registerUser(input: RegisterInput): Promise<RegisterResult
     let profileCreated = false
     let organizationMemberCreated = false
 
-    // Create user profile - Try to create, but don't block registration if it fails
-    // Profile can be created by trigger or retried later
-    console.log('Creating user profile...')
-    try {
-      const profileResult = await Promise.race([
-        createUserProfile(
-          userId,
-          input.full_name.trim(),
-          input.phone.trim(),
-          input.national_id,
-          input.address,
-          input.date_of_birth
-        ),
-        new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Profile creation timed out after 5 seconds')), 5000) // Reduced to 5s
-        )
-      ]) as any
-      
-      if (profileResult?.success) {
-        profileCreated = true
-        console.log('✓ Profile created successfully in user_profiles table')
-      } else {
-        console.warn('⚠ Profile creation failed (non-blocking):', profileResult?.error)
-        // Don't fail registration - profile might be created by trigger or can be retried
-        // User can still log in and profile will be created on first access
-      }
-    } catch (profileError: any) {
-      console.warn('⚠ Profile creation error (non-blocking):', profileError.message)
-      // Don't fail registration - continue without profile
-      // Profile can be created later or by trigger
-    }
+    // SKIP profile creation during registration - let database trigger handle it
+    // This prevents timeout issues and ensures faster registration
+    // Profile will be created automatically by trigger when user signs up
+    console.log('Skipping profile creation - database trigger will handle it')
+    profileCreated = false // Will be created by trigger
 
     // Organization creation is SKIPPED during registration
     // Owners will set up their organization after email confirmation and first login
@@ -618,74 +583,44 @@ export async function registerUser(input: RegisterInput): Promise<RegisterResult
     let createdOrganizationId: string | undefined = undefined
     console.log('Organization creation skipped - will be done after first login for owners')
 
-    // Create organization member - Try to create, but don't block registration if it fails
-    // Member can be created later if needed
+    // SKIP organization member creation during registration - handle it after login
+    // This prevents timeout issues for managers/caretakers
+    // Member will be created when user first logs in and accesses dashboard
     if (input.organization_id || createdOrganizationId) {
-      console.log('Creating organization member...')
-      try {
-        const memberResult = await Promise.race([
-          createOrganizationMember(
-            userId,
-            input.role,
-            input.organization_id || createdOrganizationId,
-            true
-          ),
-          new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('Organization member creation timed out after 5 seconds')), 5000) // Reduced to 5s
-          )
-        ]) as any
-        
-        if (memberResult?.success) {
-          organizationMemberCreated = true
-          console.log('✓ Organization member created successfully')
-        } else {
-          console.warn('⚠ Organization member creation failed (non-blocking):', memberResult?.error)
-          // Don't fail registration - member can be created later
-        }
-      } catch (memberError: any) {
-        console.warn('⚠ Organization member creation error (non-blocking):', memberError.message)
-        // Don't fail registration - continue without member
-        // Member can be created later
-      }
+      console.log('Skipping organization member creation - will be created on first login')
+      organizationMemberCreated = false // Will be created on first login
     }
 
     // Determine if verification email was sent
     // Supabase sends verification email automatically if email confirmation is enabled
     const verificationEmailSent = !authData.session && authData.user
 
-    // User account is created - that's the critical part
-    // Profile and organization member can be created later if they failed
-    // This prevents blocking registration due to database delays
+    // User account is created - that's the critical part!
+    // Profile will be created by database trigger automatically
+    // Organization member will be created on first login by proxy
+    // This ensures registration completes quickly (2-8 seconds)
     
-    if (!profileCreated) {
-      console.warn('⚠ Profile was not created during registration - will be created on first login or by trigger')
+    console.log('✓ Registration completed successfully:')
+    console.log('  - User account created in auth.users:', userId)
+    console.log('  - Profile will be created by database trigger')
+    if (input.organization_id) {
+      console.log('  - Organization member will be created on first login')
     }
-
-    if ((input.organization_id || createdOrganizationId) && !organizationMemberCreated) {
-      console.warn('⚠ Organization member was not created during registration - can be created later')
-    }
-
-    console.log('✓ Registration completed successfully with all data saved:')
-    console.log('  - User account created in auth.users')
-    console.log('  - Profile created in user_profiles table:', profileCreated)
     if (createdOrganizationId) {
       console.log('  - Organization created in organizations table:', createdOrganizationId)
-    }
-    if (organizationMemberCreated) {
-      console.log('  - Organization member created in organization_members table')
     }
 
     return {
       success: true,
-      message: 'User created successfully with all data saved',
+      message: 'User created successfully. Profile will be created by database trigger.',
       data: {
         user_id: userId,
         email: input.email.toLowerCase().trim(),
         role: input.role,
-        profile_created: profileCreated,
+        profile_created: false, // Will be created by trigger
         organization_created: !!createdOrganizationId,
         organization_id: createdOrganizationId,
-        organization_member_created: organizationMemberCreated,
+        organization_member_created: false, // Will be created on first login
         verification_email_sent: verificationEmailSent,
       },
     }

@@ -96,6 +96,49 @@ export async function proxy(request: NextRequest) {
           return NextResponse.redirect(url)
         }
         
+        // For managers/caretakers: Try to create organization member from metadata
+        // This handles cases where registration skipped member creation
+        if ((userRole === 'manager' || userRole === 'caretaker') && user.user_metadata?.organization_id) {
+          try {
+            const { createProfileOnLogin } = await import('@/lib/auth/create-profile-on-login')
+            await createProfileOnLogin(
+              user.id,
+              {
+                full_name: user.user_metadata?.full_name,
+                phone: user.user_metadata?.phone,
+                role: userRole,
+                building_id: user.user_metadata?.building_id,
+              },
+              user.user_metadata.organization_id
+            )
+            
+            // Retry getting membership after creation
+            const { data: newMembership } = await supabase
+              .from('organization_members')
+              .select('role, organization_id')
+              .eq('user_id', user.id)
+              .maybeSingle()
+            
+            if (newMembership) {
+              // Member created successfully, continue with normal flow
+              const userRole = newMembership.role as UserRole
+              if (!roleCanAccessRoute(userRole, pathname)) {
+                const url = request.nextUrl.clone()
+                url.pathname = '/unauthorized'
+                url.searchParams.set('reason', 'insufficient_permissions')
+                url.searchParams.set('role', userRole)
+                url.searchParams.set('path', pathname)
+                return NextResponse.redirect(url)
+              }
+              supabaseResponse.headers.set('x-user-role', userRole)
+              return supabaseResponse
+            }
+          } catch (createError) {
+            console.error('Failed to create profile/member on login:', createError)
+            // Continue to redirect to setup page
+          }
+        }
+        
         // Other users without membership - redirect to setup page
         const url = request.nextUrl.clone()
         url.pathname = '/dashboard/setup'
