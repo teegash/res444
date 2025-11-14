@@ -621,7 +621,11 @@ export async function registerUser(input: RegisterInput): Promise<RegisterResult
           insertTimeoutPromise
         ]) as any
         
-        organization = insertResult.data
+        const insertedOrganization = Array.isArray(insertResult.data)
+          ? insertResult.data[0]
+          : insertResult.data
+
+        organization = insertedOrganization
         orgError = insertResult.error
         
         if (organization) {
@@ -663,9 +667,15 @@ export async function registerUser(input: RegisterInput): Promise<RegisterResult
         }
       }
 
-      if (organization) {
+      if (organization && organization.id) {
         createdOrganizationId = organization.id
         console.log('Organization created:', organization.id)
+      } else if (!createdOrganizationId) {
+        console.error('Organization creation succeeded but ID is missing in response')
+        return {
+          success: false,
+          error: 'Organization was created but ID was not returned. Please verify Supabase insert permissions.',
+        }
       }
     }
 
@@ -739,4 +749,3 @@ export async function registerUser(input: RegisterInput): Promise<RegisterResult
     }
   }
 }
-
