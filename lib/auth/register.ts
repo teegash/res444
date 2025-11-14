@@ -488,14 +488,27 @@ export async function registerUser(input: RegisterInput): Promise<RegisterResult
       },
     })
     
+    // Increase timeout for signUp as it can be slow with email verification
     const signUpTimeoutPromise = new Promise((_, reject) => 
-      setTimeout(() => reject(new Error('Sign up timed out after 15 seconds')), 15000)
+      setTimeout(() => reject(new Error('Sign up timed out after 30 seconds')), 30000)
     )
     
-    const { data: authData, error: authError } = await Promise.race([
-      signUpPromise,
-      signUpTimeoutPromise
-    ]) as any
+    let authData: any
+    let authError: any
+    
+    try {
+      const result = await Promise.race([
+        signUpPromise,
+        signUpTimeoutPromise
+      ]) as any
+      
+      authData = result.data
+      authError = result.error
+    } catch (timeoutError: any) {
+      console.error('SignUp operation timed out:', timeoutError.message)
+      authError = timeoutError
+      authData = null
+    }
     
     console.log('Sign up completed. User created:', !!authData?.user, 'Error:', !!authError)
 
@@ -532,48 +545,38 @@ export async function registerUser(input: RegisterInput): Promise<RegisterResult
 
     // Create user profile (matches your schema: phone_number, no email column)
     // Populate all available fields from registration form
+    // Make this non-blocking - don't fail registration if profile creation fails
     console.log('Creating user profile...')
-    const profilePromise = createUserProfile(
-      userId,
-      input.full_name.trim(),
-      input.phone.trim(),
-      input.national_id,
-      input.address,
-      input.date_of_birth
-    )
-    
-    const profileTimeoutPromise = new Promise((_, reject) => 
-      setTimeout(() => reject(new Error('Profile creation timed out after 15 seconds')), 15000)
-    )
-    
-    const profileResult = await Promise.race([
-      profilePromise,
-      profileTimeoutPromise
-    ]) as any
-    
-    console.log('Profile creation result:', profileResult.success ? 'success' : profileResult.error)
+    try {
+      const profilePromise = createUserProfile(
+        userId,
+        input.full_name.trim(),
+        input.phone.trim(),
+        input.national_id,
+        input.address,
+        input.date_of_birth
+      )
+      
+      const profileTimeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Profile creation timed out after 10 seconds')), 10000)
+      )
+      
+      const profileResult = await Promise.race([
+        profilePromise,
+        profileTimeoutPromise
+      ]) as any
+      
+      console.log('Profile creation result:', profileResult?.success ? 'success' : profileResult?.error)
 
-    if (profileResult.success) {
-      profileCreated = true
-    } else {
-      // If table doesn't exist, that's okay - it might be created later
-      // If other error, check if profile exists anyway (might have been created by trigger)
-      if (!profileResult.error?.includes('does not exist')) {
-        const { data: existingProfile } = await supabase
-          .from('user_profiles')
-          .select('id')
-          .eq('id', userId)
-          .maybeSingle()
-
-        if (existingProfile) {
-          profileCreated = true
-        } else {
-          console.warn('Profile creation warning:', profileResult.error)
-        }
+      if (profileResult?.success) {
+        profileCreated = true
       } else {
-        // Table doesn't exist - this is acceptable, might be created later
-        console.info('user_profiles table does not exist. Profile will be created when table is available.')
+        // Don't fail registration if profile creation fails - it can be created later
+        console.warn('Profile creation failed, but continuing with registration:', profileResult?.error)
       }
+    } catch (profileError: any) {
+      // Don't fail registration if profile creation times out or errors
+      console.warn('Profile creation error (non-blocking):', profileError.message)
     }
 
     // Create organization if provided (for owners)
@@ -613,7 +616,7 @@ export async function registerUser(input: RegisterInput): Promise<RegisterResult
           .single()
         
         const insertTimeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Organization insert timed out after 15 seconds')), 15000)
+          setTimeout(() => reject(new Error('Organization insert timed out after 20 seconds')), 20000)
         )
         
         const insertResult = await Promise.race([
