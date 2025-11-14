@@ -103,9 +103,12 @@ function LoginForm() {
           return
         }
         
-        // For admins without membership: They'll be redirected to organization setup by proxy
-        // For managers/caretakers: They should have membership created above
-        // Redirect to dashboard - proxy will handle routing
+        // Profile is fully populated during registration
+        // Organization member is created during registration for managers/caretakers
+        // Just redirect to dashboard - proxy will handle routing:
+        // - Admins without organization → organization setup
+        // - Managers/Caretakers → dashboard
+        // - All others → dashboard
         router.push('/dashboard')
       }
     } catch (err) {

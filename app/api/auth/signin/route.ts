@@ -57,77 +57,19 @@ export async function POST(request: NextRequest) {
     }
 
     const userId = data.user.id
-    const userMetadata = data.user.user_metadata || {}
-    const userRoleFromMetadata = userMetadata.role as string | undefined
 
-    // Get user's role from user_profiles (much simpler and more reliable!)
+    // Get user's role from user_profiles (profile should be fully populated during registration)
+    // This is fast - single query, profile already exists
     const { data: profile, error: profileError } = await supabase
       .from('user_profiles')
       .select('role')
       .eq('id', userId)
       .maybeSingle()
 
-    let userRole = profile?.role || userRoleFromMetadata || null
+    // Profile should exist and have role from registration
+    // If not, something went wrong - use metadata as fallback
+    const userRole = profile?.role || data.user.user_metadata?.role || null
 
-    // If profile exists but role is missing, update it from metadata
-    if (profile && !profile.role && userRoleFromMetadata) {
-      console.log('Profile exists but role is missing, updating from metadata...')
-      try {
-        const { error: updateError } = await supabase
-          .from('user_profiles')
-          .update({ role: userRoleFromMetadata })
-          .eq('id', userId)
-
-        if (!updateError) {
-          userRole = userRoleFromMetadata
-          console.log('✓ Role updated in profile:', userRole)
-        } else {
-          console.warn('⚠ Failed to update role in profile:', updateError.message)
-        }
-      } catch (updateError: any) {
-        console.warn('⚠ Error updating role in profile:', updateError.message)
-      }
-    }
-
-    // If no profile exists, create it (shouldn't happen if trigger is working, but handle it)
-    if (!profile && userRoleFromMetadata) {
-      console.log('Profile not found, creating profile with role...')
-      try {
-        const { createProfileOnLogin } = await import('@/lib/auth/create-profile-on-login')
-        const organizationId = userMetadata.organization_id as string | undefined
-        
-        await createProfileOnLogin(
-          userId,
-          {
-            full_name: userMetadata.full_name as string | undefined,
-            phone: userMetadata.phone as string | undefined,
-            role: userRoleFromMetadata,
-            building_id: userMetadata.building_id as string | undefined,
-          },
-          organizationId
-        )
-
-        // Retry getting profile after creation
-        const { data: newProfile } = await supabase
-          .from('user_profiles')
-          .select('role')
-          .eq('id', userId)
-          .maybeSingle()
-
-        if (newProfile?.role) {
-          userRole = newProfile.role
-          console.log('✓ Profile created with role:', userRole)
-        } else {
-          userRole = userRoleFromMetadata
-          console.log('⚠ Profile created but role missing, using metadata:', userRole)
-        }
-      } catch (createError: any) {
-        console.error('Error creating profile on login:', createError)
-        userRole = userRoleFromMetadata
-      }
-    }
-
-    // If no role at all, return error
     if (!userRole) {
       return NextResponse.json(
         {
@@ -137,6 +79,9 @@ export async function POST(request: NextRequest) {
         { status: 403 }
       )
     }
+
+    // Profile is already populated during registration, so login is just about getting role and redirecting
+    console.log('✓ Login successful - role from profile:', userRole)
 
     return NextResponse.json(
       {
