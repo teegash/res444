@@ -20,34 +20,51 @@ export async function POST(request: NextRequest) {
 
     console.log('Starting sign in for:', email)
     
-    // Try admin client first - it's faster (no cookies), same pattern as registration
-    // If that fails, fall back to server client
-    console.log('Creating Supabase admin client for signin...')
-    const clientStartTime = Date.now()
-    
-    // Use admin client for signin - same approach as registration (which works)
-    // Admin client doesn't use cookies() so it's much faster
-    const supabase = createAdminClient()
-    
-    const clientTime = Date.now() - clientStartTime
-    console.log(`Supabase admin client created in ${clientTime}ms`)
-    
-    // Sign in with password with timeout
-    // Vercel limit is 10s, so we use 6s timeout to be safe and get faster feedback
-    console.log('Calling signInWithPassword...')
+    // Use direct HTTP request to Supabase auth API - fastest and most reliable
+    // This avoids client creation overhead and cookie issues
+    console.log('Calling Supabase auth API directly...')
     const startTime = Date.now()
     
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+    if (!supabaseUrl || !anonKey) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Server configuration error. Please contact support.',
+        },
+        { status: 500 }
+      )
+    }
+
     let data: any
     let error: any
     
     try {
-      const signInPromise = supabase.auth.signInWithPassword({
-        email,
-        password,
+      // Direct HTTP request to Supabase auth API - fastest approach
+      const authUrl = `${supabaseUrl}/auth/v1/token?grant_type=password`
+      
+      const signInPromise = fetch(authUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': anonKey,
+          'Authorization': `Bearer ${anonKey}`,
+        },
+        body: JSON.stringify({
+          email,
+          password,
+        }),
+      }).then(async (res) => {
+        const result = await res.json()
+        if (!res.ok) {
+          return { data: null, error: result }
+        }
+        return { data: result, error: null }
       })
       
       // 6 second timeout - faster feedback if it's hanging
-      // Same approach as registration which works
       const signInTimeout = new Promise((_, reject) => 
         setTimeout(() => {
           const elapsed = Date.now() - startTime
@@ -62,13 +79,12 @@ export async function POST(request: NextRequest) {
       data = result.data
       error = result.error
       
-      console.log(`Sign in completed in ${elapsed}ms - Success:`, !!data?.session, 'Error:', !!error)
+      console.log(`Sign in completed in ${elapsed}ms - Success:`, !!data?.access_token, 'Error:', !!error)
       
       if (error) {
         console.error('Supabase signin error:', {
-          message: error.message,
+          message: error.error_description || error.message,
           status: error.status,
-          name: error.name,
         })
       }
     } catch (signInError: any) {
@@ -100,28 +116,29 @@ export async function POST(request: NextRequest) {
 
     if (error) {
       // Handle specific error cases
-      let errorMessage = error.message
+      const errorMessage = error.error_description || error.message || 'Authentication failed'
+      let userFriendlyMessage = errorMessage
       
       // If email not confirmed, provide helpful message
-      if (error.message.includes('email not confirmed') || error.message.includes('Email not confirmed')) {
-        errorMessage = 'Please verify your email address before logging in. Check your inbox for the verification link.'
+      if (errorMessage.includes('email not confirmed') || errorMessage.includes('Email not confirmed')) {
+        userFriendlyMessage = 'Please verify your email address before logging in. Check your inbox for the verification link.'
       }
       
       // If invalid credentials, provide generic message (security)
-      if (error.message.includes('Invalid login credentials') || error.message.includes('invalid')) {
-        errorMessage = 'Invalid email or password. Please check your credentials and try again.'
+      if (errorMessage.includes('Invalid login credentials') || errorMessage.includes('invalid') || errorMessage.includes('Invalid')) {
+        userFriendlyMessage = 'Invalid email or password. Please check your credentials and try again.'
       }
 
       return NextResponse.json(
         {
           success: false,
-          error: errorMessage,
+          error: userFriendlyMessage,
         },
         { status: 401 }
       )
     }
 
-    if (!data.session || !data.user) {
+    if (!data || !data.access_token || !data.user) {
       return NextResponse.json(
         {
           success: false,
@@ -132,6 +149,16 @@ export async function POST(request: NextRequest) {
     }
 
     const userId = data.user.id
+
+    // Create session object from API response
+    const session = {
+      access_token: data.access_token,
+      refresh_token: data.refresh_token,
+      expires_in: data.expires_in,
+      expires_at: data.expires_at,
+      token_type: data.token_type,
+      user: data.user,
+    }
 
     // Login should be FAST - just get role and return
     // Profile is created by trigger during registration, so it should exist
@@ -145,7 +172,8 @@ export async function POST(request: NextRequest) {
     // Only if metadata doesn't have role
     if (!userRole) {
       try {
-        const profileQuery = supabase
+        const adminSupabase = createAdminClient()
+        const profileQuery = adminSupabase
           .from('user_profiles')
           .select('role')
           .eq('id', userId)
@@ -182,14 +210,13 @@ export async function POST(request: NextRequest) {
     // Login successful - fast!
     console.log('✓ Login successful - role:', userRole)
 
-    // Admin client doesn't set cookies automatically, so return session data
-    // Client will set cookies using the session tokens
+    // Return session data - client will set cookies using the session tokens
     const response = NextResponse.json(
       {
         success: true,
         role: userRole,
         user_id: userId,
-        session: data.session, // Include session for client to set cookies
+        session: session, // Include session for client to set cookies
       },
       { status: 200 }
     )
