@@ -51,9 +51,37 @@ export async function POST(request: NextRequest) {
     // Convert file to ArrayBuffer (more efficient for large files)
     const arrayBuffer = await file.arrayBuffer()
 
-    // Upload to profile_pictures bucket (as specified)
+    // Check available buckets and determine the correct bucket name
+    const { data: buckets, error: bucketsError } = await supabase.storage.listBuckets()
+    
+    if (bucketsError) {
+      console.error('Error listing buckets:', bucketsError)
+      // Continue anyway, will try default bucket name
+    }
+    
+    const bucketNames = buckets?.map(b => b.name) || []
+    
+    // Try to find the correct bucket name (support both naming conventions)
+    let bucketName = bucketNames.find(b => b === 'profile_pictures') || 
+                     bucketNames.find(b => b === 'profile-pictures') ||
+                     'profile_pictures' // Default fallback
+
+    console.log('Available buckets:', bucketNames)
+    console.log('Using bucket:', bucketName)
+    
+    // If bucket doesn't exist in the list, provide helpful error
+    if (bucketNames.length > 0 && !bucketNames.includes(bucketName)) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: `Storage bucket "${bucketName}" not found. Available buckets: ${bucketNames.join(', ')}. Please create the bucket in Supabase Dashboard.`,
+        },
+        { status: 404 }
+      )
+    }
+
+    // Upload to profile_pictures bucket
     // Using admin client bypasses RLS and is faster
-    const bucketName = 'profile_pictures'
     const { data, error } = await supabase.storage
       .from(bucketName)
       .upload(fileName, arrayBuffer, {
@@ -64,6 +92,7 @@ export async function POST(request: NextRequest) {
 
     if (error) {
       console.error('Error uploading logo:', error)
+      console.error('Error details:', JSON.stringify(error, null, 2))
       return NextResponse.json(
         {
           success: false,

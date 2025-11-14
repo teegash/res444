@@ -289,9 +289,9 @@ export default function SignupPage() {
       const formData = new FormData()
       formData.append('file', fileToUpload)
 
-      // Add timeout to prevent hanging (reduced to 20 seconds since we're compressing)
+      // Increase timeout to 60 seconds for better reliability
       const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), 20000) // 20 second timeout
+      const timeoutId = setTimeout(() => controller.abort(), 60000) // 60 second timeout
 
       const response = await fetch('/api/storage/upload-logo', {
         method: 'POST',
@@ -302,7 +302,14 @@ export default function SignupPage() {
       clearTimeout(timeoutId)
 
       if (!response.ok) {
-        throw new Error(`Upload failed: ${response.statusText}`)
+        const errorText = await response.text()
+        let errorData
+        try {
+          errorData = JSON.parse(errorText)
+        } catch {
+          errorData = { error: errorText || response.statusText }
+        }
+        throw new Error(errorData.error || `Upload failed: ${response.statusText}`)
       }
 
       const result = await response.json()
@@ -317,10 +324,13 @@ export default function SignupPage() {
       }
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') {
-        setError('Upload timed out. Please try again with a smaller file.')
+        setError('Upload timed out. Please check your internet connection and try again.')
+      } else if (err instanceof Error) {
+        setError(err.message || 'Failed to upload logo. Please try again.')
       } else {
         setError('Failed to upload logo. Please try again.')
       }
+      console.error('Logo upload error:', err)
     } finally {
       setIsUploadingLogo(false)
     }
