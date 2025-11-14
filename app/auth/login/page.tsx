@@ -106,6 +106,23 @@ function LoginForm() {
         return
       }
 
+      // If we have a session, set it in the client
+      // Admin client doesn't set cookies automatically, so we need to do it client-side
+      if (result.session) {
+        try {
+          const { createClient } = await import('@/lib/supabase/client')
+          const supabase = createClient()
+          await supabase.auth.setSession({
+            access_token: result.session.access_token,
+            refresh_token: result.session.refresh_token,
+          })
+          console.log('✓ Session set successfully')
+        } catch (sessionError: any) {
+          console.warn('Failed to set session (non-blocking):', sessionError.message)
+          // Continue anyway - user might still be authenticated
+        }
+      }
+
       // Validate role matches selected login type
       const userRole = result.role?.toLowerCase()
       
