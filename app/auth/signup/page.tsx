@@ -10,6 +10,13 @@ import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Card } from '@/components/ui/card'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { signUp } from '@/lib/auth/actions'
 import { useAuth } from '@/lib/auth/context'
 
@@ -32,6 +39,8 @@ export default function SignupPage() {
     password: '',
     confirmPassword: '',
     userType: 'owner' as UserType,
+    organizationId: '',
+    buildingId: '',
     termsAccepted: false,
   })
 
@@ -41,12 +50,63 @@ export default function SignupPage() {
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const [showPassword, setShowPassword] = useState(false)
+  const [organizations, setOrganizations] = useState<Array<{ id: string; name: string }>>([])
+  const [buildings, setBuildings] = useState<Array<{ id: string; name: string }>>([])
+  const [loadingOrgs, setLoadingOrgs] = useState(false)
 
   useEffect(() => {
     if (!authLoading && user) {
       router.push('/dashboard')
     }
   }, [user, authLoading, router])
+
+  // Fetch organizations when manager or caretaker is selected
+  useEffect(() => {
+    if (formData.userType === 'manager' || formData.userType === 'caretaker') {
+      fetchOrganizations()
+    } else {
+      setOrganizations([])
+      setBuildings([])
+      setFormData(prev => ({ ...prev, organizationId: '', buildingId: '' }))
+    }
+  }, [formData.userType])
+
+  // Fetch buildings when organization is selected for caretaker
+  useEffect(() => {
+    if (formData.userType === 'caretaker' && formData.organizationId) {
+      fetchBuildings(formData.organizationId)
+    } else {
+      setBuildings([])
+      setFormData(prev => ({ ...prev, buildingId: '' }))
+    }
+  }, [formData.organizationId, formData.userType])
+
+  const fetchOrganizations = async () => {
+    setLoadingOrgs(true)
+    try {
+      const response = await fetch('/api/organizations/list')
+      const result = await response.json()
+      if (result.success) {
+        setOrganizations(result.data || [])
+      }
+    } catch (error) {
+      console.error('Error fetching organizations:', error)
+    } finally {
+      setLoadingOrgs(false)
+    }
+  }
+
+  const fetchBuildings = async (organizationId: string) => {
+    try {
+      const response = await fetch(`/api/buildings/list?organization_id=${organizationId}`)
+      const result = await response.json()
+      if (result.success) {
+        setBuildings(result.data || [])
+      }
+    } catch (error) {
+      console.error('Error fetching buildings:', error)
+    }
+  }
 
   // Real-time validation
   const validateEmail = (email: string) => {
@@ -133,6 +193,17 @@ export default function SignupPage() {
       newErrors.password = 'Password must be at least 8 characters'
     if (formData.password !== formData.confirmPassword)
       newErrors.confirmPassword = 'Passwords do not match'
+    
+    // Require organization for managers and caretakers
+    if ((formData.userType === 'manager' || formData.userType === 'caretaker') && !formData.organizationId) {
+      newErrors.organizationId = 'Please select an organization'
+    }
+    
+    // Require building for caretakers
+    if (formData.userType === 'caretaker' && !formData.buildingId) {
+      newErrors.buildingId = 'Please select an apartment building'
+    }
+    
     if (!formData.termsAccepted)
       newErrors.terms = 'You must accept the terms and conditions'
 
@@ -144,16 +215,90 @@ export default function SignupPage() {
       setSuccess(null)
 
       try {
-        const result = await signUp(formData.email, formData.password, {
-          fullName: formData.fullName,
-          phone: formData.phone,
+        // Map userType to role (owner -> admin, others stay the same)
+        const role = formData.userType === 'owner' ? 'admin' : formData.userType
+
+        // Validate role is one of the allowed values
+        const validRoles = ['admin', 'manager', 'caretaker', 'tenant']
+        if (!validRoles.includes(role)) {
+          setError('Invalid user type selected')
+          setIsLoading(false)
+          return
+        }
+
+        // Log the role being sent for debugging
+        console.log('Registering user with role:', role, 'from userType:', formData.userType)
+
+        // Call the registration API endpoint
+        const response = await fetch('/api/auth/register', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            email: formData.email,
+            password: formData.password,
+            full_name: formData.fullName,
+            phone: formData.phone,
+            role: role,
+            organization_id: formData.organizationId || undefined,
+            building_id: formData.buildingId || undefined, // For caretakers
+          }),
         })
 
+        const result = await response.json()
+
         if (result.success) {
-          if (result.message) {
-            setSuccess(result.message)
+          // Get role from response or fallback to form data
+          const registeredRole = result.data?.role || (formData.userType === 'owner' ? 'admin' : formData.userType)
+          const roleDisplay = registeredRole === 'admin' ? 'Admin' : registeredRole.charAt(0).toUpperCase() + registeredRole.slice(1)
+          
+          // Log the registered role for debugging
+          console.log('User registered with role:', registeredRole, 'Role confirmed in response:', result.data?.role)
+          
+          // If user was created successfully, show success message and redirect
+          if (result.data?.user_id) {
+            // Check if email verification is required
+            if (result.data?.verification_email_sent) {
+              if (formData.userType === 'owner') {
+                setSuccess(`Property Owner account created successfully! Please check your email to verify your account. After verification, you can create your organization.`)
+              } else if (formData.userType === 'manager') {
+                setSuccess(`Manager account created successfully! Please check your email to verify your account. After verification, you can access your dashboard.`)
+              } else if (formData.userType === 'caretaker') {
+                setSuccess(`Caretaker account created successfully! Please check your email to verify your account. After verification, you can access your dashboard.`)
+              } else {
+                setSuccess(`Account created successfully! Please check your email to verify your account.`)
+              }
+              setIsLoading(false)
+            } else if (formData.userType === 'owner') {
+              // Property owner - redirect to setup to create organization
+              setSuccess(`Property Owner account created successfully! Redirecting to organization setup...`)
+              setIsLoading(false)
+              setTimeout(() => {
+                router.push('/dashboard/setup')
+              }, 2000)
+            } else if (formData.userType === 'manager') {
+              // Manager - show success and redirect to dashboard
+              setSuccess(`Manager account created successfully! You have been added to the organization. Redirecting to dashboard...`)
+              setIsLoading(false)
+              setTimeout(() => {
+                router.push('/dashboard')
+              }, 2000)
+            } else if (formData.userType === 'caretaker') {
+              // Caretaker - show success and redirect to dashboard
+              setSuccess(`Caretaker account created successfully! You have been assigned to the apartment building. Redirecting to dashboard...`)
+              setIsLoading(false)
+              setTimeout(() => {
+                router.push('/dashboard')
+              }, 2000)
+            } else {
+              // For tenants, they need to be invited to an organization
+              setSuccess(`Account created successfully! Please wait for an invitation from your organization.`)
+              setIsLoading(false)
+            }
+          } else {
+            setIsLoading(false)
           }
-          // If no message, the server action will redirect
         } else {
           setError(result.error || 'Failed to create account')
           setIsLoading(false)
@@ -339,7 +484,16 @@ export default function SignupPage() {
 
           {/* User Type Selection */}
           <div className="space-y-3">
-            <Label className="text-sm font-medium">User Type</Label>
+            <div className="flex items-center justify-between">
+              <Label className="text-sm font-medium">User Type</Label>
+              {formData.userType && (
+                <span className="text-xs text-muted-foreground">
+                  Selected: <span className="font-semibold text-primary">
+                    {formData.userType === 'owner' ? 'Admin' : formData.userType.charAt(0).toUpperCase() + formData.userType.slice(1)}
+                  </span>
+                </span>
+              )}
+            </div>
             <div className="space-y-2">
               {USER_TYPES.map(({ id, label }) => (
                 <div key={id} className="flex items-center gap-3">
@@ -359,7 +513,100 @@ export default function SignupPage() {
                 </div>
               ))}
             </div>
+            <p className="text-xs text-muted-foreground">
+              Your role will be: <span className="font-semibold">
+                {formData.userType === 'owner' ? 'Admin' : formData.userType === 'manager' ? 'Manager' : formData.userType === 'caretaker' ? 'Caretaker' : 'Tenant'}
+              </span>
+            </p>
           </div>
+
+          {/* Organization Selection - Required for Manager and Caretaker */}
+          {(formData.userType === 'manager' || formData.userType === 'caretaker') && (
+            <div className="space-y-2">
+              <Label htmlFor="organizationId" className="text-sm font-medium">
+                Organization <span className="text-destructive">*</span>
+              </Label>
+              <Select
+                value={formData.organizationId}
+                onValueChange={(value) => {
+                  setFormData(prev => ({ ...prev, organizationId: value, buildingId: '' }))
+                  setErrors(prev => {
+                    const newErrors = { ...prev }
+                    delete newErrors.organizationId
+                    return newErrors
+                  })
+                }}
+                disabled={isLoading || loadingOrgs}
+              >
+                <SelectTrigger className={errors.organizationId ? 'border-destructive' : ''}>
+                  <SelectValue placeholder={loadingOrgs ? 'Loading organizations...' : 'Select an organization'} />
+                </SelectTrigger>
+                <SelectContent>
+                  {organizations.length === 0 ? (
+                    <SelectItem value="none" disabled>No organizations available</SelectItem>
+                  ) : (
+                    organizations.map((org) => (
+                      <SelectItem key={org.id} value={org.id}>
+                        {org.name}
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
+              {errors.organizationId && (
+                <p className="text-xs text-destructive">{errors.organizationId}</p>
+              )}
+              {organizations.length === 0 && !loadingOrgs && (
+                <p className="text-xs text-muted-foreground">
+                  No organizations found. Property owners must create an organization first.
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Building Selection - Required for Caretaker */}
+          {formData.userType === 'caretaker' && formData.organizationId && (
+            <div className="space-y-2">
+              <Label htmlFor="buildingId" className="text-sm font-medium">
+                Apartment Building <span className="text-destructive">*</span>
+              </Label>
+              <Select
+                value={formData.buildingId}
+                onValueChange={(value) => {
+                  setFormData(prev => ({ ...prev, buildingId: value }))
+                  setErrors(prev => {
+                    const newErrors = { ...prev }
+                    delete newErrors.buildingId
+                    return newErrors
+                  })
+                }}
+                disabled={isLoading || buildings.length === 0}
+              >
+                <SelectTrigger className={errors.buildingId ? 'border-destructive' : ''}>
+                  <SelectValue placeholder={buildings.length === 0 ? 'No buildings available' : 'Select an apartment building'} />
+                </SelectTrigger>
+                <SelectContent>
+                  {buildings.length === 0 ? (
+                    <SelectItem value="none" disabled>No buildings available for this organization</SelectItem>
+                  ) : (
+                    buildings.map((building) => (
+                      <SelectItem key={building.id} value={building.id}>
+                        {building.name}
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
+              {errors.buildingId && (
+                <p className="text-xs text-destructive">{errors.buildingId}</p>
+              )}
+              {buildings.length === 0 && formData.organizationId && (
+                <p className="text-xs text-muted-foreground">
+                  No buildings found for this organization. Please contact the property owner.
+                </p>
+              )}
+            </div>
+          )}
 
           {/* Terms & Conditions */}
           <div className="flex items-center gap-3 pt-2">

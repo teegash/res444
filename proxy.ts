@@ -68,6 +68,11 @@ export async function proxy(request: NextRequest) {
 
   // Role-based route protection for dashboard routes
   if (isProtectedPath && user) {
+    // Allow access to setup page for users without roles (new signups)
+    if (pathname === '/dashboard/setup') {
+      return supabaseResponse
+    }
+
     try {
       // Get user's role from organization_members table
       const { data: membership, error } = await supabase
@@ -79,10 +84,9 @@ export async function proxy(request: NextRequest) {
         .maybeSingle()
 
       if (error || !membership) {
-        // User has no role assigned - redirect to unauthorized
+        // User has no role assigned - redirect to setup page instead of unauthorized
         const url = request.nextUrl.clone()
-        url.pathname = '/unauthorized'
-        url.searchParams.set('reason', 'no_role')
+        url.pathname = '/dashboard/setup'
         return NextResponse.redirect(url)
       }
 

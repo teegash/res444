@@ -6,7 +6,18 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
 
     // Validate required fields
-    const { email, password, full_name, phone, role, organization_id } = body
+    const { 
+      email, 
+      password, 
+      full_name, 
+      phone, 
+      role, 
+      organization_id, 
+      building_id,
+      national_id,
+      address,
+      date_of_birth
+    } = body
 
     if (!email || !password || !full_name || !phone || !role) {
       return NextResponse.json(
@@ -18,14 +29,56 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Require organization_id for managers and caretakers
+    if ((role === 'manager' || role === 'caretaker') && !organization_id) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Organization is required for managers and caretakers',
+        },
+        { status: 400 }
+      )
+    }
+
+    // Require building_id for caretakers
+    if (role === 'caretaker' && !building_id) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Apartment building is required for caretakers',
+        },
+        { status: 400 }
+      )
+    }
+
+    // Validate role is one of the allowed values
+    const validRoles = ['admin', 'manager', 'caretaker', 'tenant']
+    const normalizedRole = role.trim().toLowerCase()
+    if (!validRoles.includes(normalizedRole)) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: `Invalid role. Role must be one of: ${validRoles.join(', ')}. Received: ${role}`,
+        },
+        { status: 400 }
+      )
+    }
+
+    // Log the role being registered for debugging
+    console.log('Registration API - Registering user with role:', normalizedRole)
+
     // Prepare registration input
     const registerInput: RegisterInput = {
       email: email.trim(),
       password,
       full_name: full_name.trim(),
       phone: phone.trim(),
-      role: role.trim().toLowerCase(),
-      organization_id: organization_id?.trim(), // Optional
+      role: normalizedRole as RegisterInput['role'],
+      organization_id: organization_id?.trim(),
+      building_id: building_id?.trim(), // For caretakers
+      national_id: national_id?.trim(), // Optional - national ID
+      address: address?.trim(), // Optional - address
+      date_of_birth: date_of_birth?.trim(), // Optional - date of birth (YYYY-MM-DD)
     }
 
     // Call registration function

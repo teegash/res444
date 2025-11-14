@@ -12,6 +12,10 @@ export interface RegisterInput {
   phone: string
   role: UserRole
   organization_id?: string // Optional - user might create/join organization later
+  building_id?: string // For caretakers - the building they'll manage
+  national_id?: string // Optional - national ID number
+  address?: string // Optional - user address
+  date_of_birth?: string // Optional - date of birth (YYYY-MM-DD format)
 }
 
 export interface RegisterResult {
@@ -21,6 +25,7 @@ export interface RegisterResult {
   data?: {
     user_id: string
     email: string
+    role: UserRole // Include role in response
     profile_created: boolean
     verification_email_sent: boolean
     organization_member_created: boolean
@@ -138,14 +143,50 @@ async function checkEmailExists(email: string): Promise<boolean> {
  * Creates user profile in user_profiles table
  * Handles the case where a database trigger might have already created the profile
  * Matches your schema: phone_number (not phone), no email column
+ * Populates all available fields from registration form
  */
 async function createUserProfile(
   userId: string,
   fullName: string,
-  phone: string
+  phone: string,
+  nationalId?: string,
+  address?: string,
+  dateOfBirth?: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
     const supabase = await createClient()
+
+    // Prepare profile data object with all available fields
+    const profileData: {
+      id: string
+      full_name: string
+      phone_number: string
+      national_id?: string
+      address?: string
+      date_of_birth?: string
+      updated_at?: string
+    } = {
+      id: userId,
+      full_name: fullName.trim(),
+      phone_number: phone.trim(),
+    }
+
+    // Add optional fields if provided
+    if (nationalId && nationalId.trim()) {
+      profileData.national_id = nationalId.trim()
+    }
+    if (address && address.trim()) {
+      profileData.address = address.trim()
+    }
+    if (dateOfBirth && dateOfBirth.trim()) {
+      // Validate date format (YYYY-MM-DD)
+      const dateRegex = /^\d{4}-\d{2}-\d{2}$/
+      if (dateRegex.test(dateOfBirth.trim())) {
+        profileData.date_of_birth = dateOfBirth.trim()
+      } else {
+        console.warn('Invalid date_of_birth format, skipping:', dateOfBirth)
+      }
+    }
 
     // First, check if profile already exists (might have been created by trigger)
     const { data: existingProfile } = await supabase
@@ -156,13 +197,13 @@ async function createUserProfile(
 
     if (existingProfile) {
       // Profile exists (likely created by trigger), update it with our data
+      const updateData = { ...profileData }
+      delete updateData.id // Don't include id in update
+      updateData.updated_at = new Date().toISOString()
+
       const { error: updateError } = await supabase
         .from('user_profiles')
-        .update({
-          full_name: fullName,
-          phone_number: phone,
-          updated_at: new Date().toISOString(),
-        })
+        .update(updateData)
         .eq('id', userId)
 
       if (updateError) {
@@ -171,6 +212,12 @@ async function createUserProfile(
           console.warn('user_profiles table does not exist. Profile creation skipped.')
           return { success: false, error: 'Table does not exist' }
         }
+        
+        // Handle unique constraint violation for national_id
+        if (updateError.code === '23505' && updateError.message.includes('national_id')) {
+          return { success: false, error: 'National ID already exists. Please use a different ID.' }
+        }
+        
         return { success: false, error: updateError.message }
       }
 
@@ -178,23 +225,24 @@ async function createUserProfile(
     }
 
     // Profile doesn't exist, create it
-    const { error } = await supabase.from('user_profiles').insert({
-      id: userId,
-      full_name: fullName,
-      phone_number: phone,
-    })
+    const { error } = await supabase.from('user_profiles').insert(profileData)
 
     if (error) {
       // If error is due to duplicate (race condition with trigger)
       if (error.code === '23505') {
+        // Check if it's a national_id duplicate
+        if (error.message.includes('national_id')) {
+          return { success: false, error: 'National ID already exists. Please use a different ID.' }
+        }
+        
         // Profile was created between our check and insert, update it
+        const updateData = { ...profileData }
+        delete updateData.id // Don't include id in update
+        updateData.updated_at = new Date().toISOString()
+        
         const { error: updateError } = await supabase
           .from('user_profiles')
-          .update({
-            full_name: fullName,
-            phone_number: phone,
-            updated_at: new Date().toISOString(),
-          })
+          .update(updateData)
           .eq('id', userId)
 
         if (updateError) {
@@ -202,6 +250,11 @@ async function createUserProfile(
         }
 
         return { success: true }
+      }
+
+      // Handle unique constraint violation for national_id
+      if (error.code === '23505' && error.message.includes('national_id')) {
+        return { success: false, error: 'National ID already exists. Please use a different ID.' }
       }
 
       // Check if table doesn't exist
@@ -349,19 +402,34 @@ export async function registerUser(input: RegisterInput): Promise<RegisterResult
     // Create Supabase client
     const supabase = await createClient()
 
-    // Create auth user
+    // Log the role being stored in user metadata
+    console.log('Creating user with role:', input.role, 'for email:', input.email)
+
+    // Create auth user with role and building_id in metadata
+    const userMetadata: Record<string, any> = {
+      full_name: input.full_name.trim(),
+      phone: input.phone.trim(),
+      role: input.role, // Store role in user metadata for later use
+    }
+    
+    // Store building_id for caretakers
+    if (input.building_id) {
+      userMetadata.building_id = input.building_id
+    }
+
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email: input.email.toLowerCase().trim(),
       password: input.password,
       options: {
         emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/auth/callback`,
-        data: {
-          full_name: input.full_name.trim(),
-          phone: input.phone.trim(),
-          role: input.role,
-        },
+        data: userMetadata,
       },
     })
+
+    // Verify role was set in metadata
+    if (authData?.user) {
+      console.log('User created. Role in metadata:', authData.user.user_metadata?.role)
+    }
 
     if (authError) {
       // Handle specific Supabase errors
@@ -390,10 +458,14 @@ export async function registerUser(input: RegisterInput): Promise<RegisterResult
     let organizationMemberCreated = false
 
     // Create user profile (matches your schema: phone_number, no email column)
+    // Populate all available fields from registration form
     const profileResult = await createUserProfile(
       userId,
       input.full_name.trim(),
-      input.phone.trim()
+      input.phone.trim(),
+      input.national_id,
+      input.address,
+      input.date_of_birth
     )
 
     if (profileResult.success) {
@@ -442,6 +514,7 @@ export async function registerUser(input: RegisterInput): Promise<RegisterResult
       data: {
         user_id: userId,
         email: input.email.toLowerCase().trim(),
+        role: input.role, // Include role in response for confirmation
         profile_created: profileCreated,
         verification_email_sent: verificationEmailSent,
         organization_member_created: organizationMemberCreated,

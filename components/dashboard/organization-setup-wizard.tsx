@@ -88,10 +88,47 @@ export function OrganizationSetupWizard() {
 
   const handleSubmit = async () => {
     setIsSubmitting(true)
-    setTimeout(() => {
-      console.log('Setup completed:', formData)
-      router.push('/dashboard')
-    }, 2000)
+    
+    try {
+      const response = await fetch('/api/organizations/create', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: formData.companyName,
+          email: formData.email,
+          phone: formData.phone,
+          registration_number: formData.registrationNumber,
+          location: formData.address,
+          description: formData.description,
+          county: formData.county,
+          address: formData.address,
+          postal_code: formData.postalCode,
+          contact_person: formData.contactPerson,
+          bank_account: formData.bankAccount,
+          payment_methods: formData.paymentMethods,
+          timezone: formData.timezone,
+          currency: formData.currency,
+        }),
+      })
+
+      const result = await response.json()
+
+      if (result.success) {
+        // Redirect to dashboard after successful organization creation
+        router.push('/dashboard')
+      } else {
+        // Handle error - you might want to show an error message
+        console.error('Failed to create organization:', result.error)
+        alert(result.error || 'Failed to create organization. Please try again.')
+        setIsSubmitting(false)
+      }
+    } catch (error) {
+      console.error('Error creating organization:', error)
+      alert('An unexpected error occurred. Please try again.')
+      setIsSubmitting(false)
+    }
   }
 
   const handleCancel = () => {
