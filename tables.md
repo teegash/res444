@@ -1,6 +1,27 @@
+create table public.user_profiles (
+  id uuid not null,
+  full_name text null,
+  phone_number text null,
+  role text null,
+  national_id text null,
+  profile_picture_url text null,
+  address text null,
+  date_of_birth date null,
+  created_at timestamp with time zone null default CURRENT_TIMESTAMP,
+  updated_at timestamp with time zone null default CURRENT_TIMESTAMP,
+  constraint user_profiles_pkey primary key (id),
+  constraint user_profiles_national_id_key unique (national_id),
+  constraint user_profiles_id_fkey foreign KEY (id) references auth.users (id) on delete CASCADE,
+  constraint user_profiles_role_check check (
+    role IS NULL OR role = ANY (
+      ARRAY['admin'::text, 'manager'::text, 'caretaker'::text, 'tenant'::text]
+    )
+  )
+) TABLESPACE pg_default;
 
+create index IF not exists idx_user_profiles_id on public.user_profiles using btree (id) TABLESPACE pg_default;
 
-
+create index IF not exists idx_user_profiles_role on public.user_profiles using btree (role) TABLESPACE pg_default;
 
 
 
@@ -164,9 +185,7 @@ create table public.reminders (
   constraint reminders_user_id_fkey foreign KEY (user_id) references auth.users (id) on delete CASCADE,
   constraint reminders_delivery_status_check check (
     (
-      delivery_status = any (
-        array['pending'::text, 'sent'::text, 'failed'::text]
-      )
+      delivery_status = any (array['pending'::text, 'sent'::text, 'failed'::text])
     )
   ),
   constraint reminders_related_entity_type_check check (
@@ -257,7 +276,6 @@ where
     (payment_method = 'mpesa'::text)
     and (verified = false)
   );
-
 
 
 
@@ -354,9 +372,7 @@ create table public.leases (
   constraint leases_unit_id_fkey foreign KEY (unit_id) references apartment_units (id) on delete CASCADE,
   constraint leases_status_check check (
     (
-      status = any (
-        array['active'::text, 'ended'::text, 'pending'::text]
-      )
+      status = any (array['active'::text, 'ended'::text, 'pending'::text])
     )
   )
 ) TABLESPACE pg_default;
@@ -503,3 +519,20 @@ create index IF not exists idx_units_building_id on public.apartment_units using
 create index IF not exists idx_units_status on public.apartment_units using btree (status) TABLESPACE pg_default;
 
 create index IF not exists idx_units_bulk_group on public.apartment_units using btree (bulk_group_id) TABLESPACE pg_default;
+
+
+create table public.apartment_buildings (
+  id uuid not null default gen_random_uuid (),
+  organization_id uuid not null,
+  name text not null,
+  location text not null,
+  total_units integer not null,
+  description text null,
+  image_url text null,
+  created_at timestamp with time zone null default CURRENT_TIMESTAMP,
+  updated_at timestamp with time zone null default CURRENT_TIMESTAMP,
+  constraint apartment_buildings_pkey primary key (id),
+  constraint apartment_buildings_organization_id_fkey foreign KEY (organization_id) references organizations (id) on delete CASCADE
+) TABLESPACE pg_default;
+
+create index IF not exists idx_buildings_org_id on public.apartment_buildings using btree (organization_id) TABLESPACE pg_default;
