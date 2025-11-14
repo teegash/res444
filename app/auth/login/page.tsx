@@ -1,0 +1,247 @@
+'use client'
+
+import { useState, useEffect, Suspense } from 'react'
+import Link from 'next/link'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { Eye, EyeOff, Shield, Crown, Loader2 } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Card } from '@/components/ui/card'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { signIn } from '@/lib/auth/actions'
+import { useAuth } from '@/lib/auth/context'
+
+function LoginForm() {
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const { user, loading: authLoading } = useAuth()
+  const [showPassword, setShowPassword] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
+  const [accountType, setAccountType] = useState<'tenant' | 'admin'>('tenant')
+  const [error, setError] = useState<string | null>(null)
+  const [formData, setFormData] = useState({
+    email: '',
+    password: '',
+  })
+
+  const redirectTo = searchParams.get('redirectTo') || '/dashboard'
+
+  useEffect(() => {
+    if (!authLoading && user) {
+      router.push(redirectTo)
+    }
+  }, [user, authLoading, router, redirectTo])
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError(null)
+    setIsLoading(true)
+
+    try {
+      const result = await signIn(formData.email, formData.password, redirectTo)
+
+      if (!result.success) {
+        setError(result.error || 'Failed to sign in')
+        setIsLoading(false)
+      }
+      // If successful, the server action will redirect
+    } catch (err) {
+      setError('An unexpected error occurred')
+      setIsLoading(false)
+    }
+  }
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target
+    setFormData((prev) => ({ ...prev, [name]: value }))
+    setError(null)
+  }
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+      </div>
+    )
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+      <Card className="w-full max-w-md bg-white shadow-xl">
+        <div className="p-8">
+          <div className="text-center mb-8">
+            <div className="flex items-center justify-center gap-2 mb-4">
+              <div className="flex items-center justify-center w-12 h-12 bg-blue-600 rounded-lg">
+                <svg
+                  className="w-7 h-7 text-white"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
+                  />
+                </svg>
+              </div>
+              <div className="text-left">
+                <h1 className="text-xl font-bold text-blue-600">RentalKenya</h1>
+                <p className="text-xs text-gray-600 font-medium">
+                  Manager Portal
+                </p>
+              </div>
+            </div>
+            <h2 className="text-2xl font-bold text-gray-900 mb-1">
+              Welcome Back
+            </h2>
+            <p className="text-sm text-gray-600">
+              Sign in to your premium account
+            </p>
+          </div>
+
+          {error && (
+            <Alert variant="destructive" className="mb-4">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+
+          <div className="mb-6">
+            <div className="flex rounded-lg border-2 border-gray-100 p-1 bg-gray-50">
+              <button
+                type="button"
+                onClick={() => setAccountType('tenant')}
+                className={`flex-1 flex items-center justify-center gap-2 py-2 px-4 rounded-md transition-all ${
+                  accountType === 'tenant'
+                    ? 'bg-white text-blue-600 shadow-sm font-medium'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                <Shield className="w-4 h-4" />
+                Tenant
+              </button>
+              <button
+                type="button"
+                onClick={() => setAccountType('admin')}
+                className={`flex-1 flex items-center justify-center gap-2 py-2 px-4 rounded-md transition-all ${
+                  accountType === 'admin'
+                    ? 'bg-white text-blue-600 shadow-sm font-medium'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                <Crown className="w-4 h-4" />
+                Manager
+              </button>
+            </div>
+          </div>
+
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="space-y-2">
+              <label
+                htmlFor="email"
+                className="text-sm font-medium text-gray-700"
+              >
+                Email
+              </label>
+              <Input
+                id="email"
+                type="email"
+                name="email"
+                placeholder="your@email.com"
+                value={formData.email}
+                onChange={handleChange}
+                required
+                disabled={isLoading}
+                className="bg-white border-gray-300 focus:border-blue-600 focus:ring-blue-600"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label
+                htmlFor="password"
+                className="text-sm font-medium text-gray-700"
+              >
+                Password
+              </label>
+              <div className="relative">
+                <Input
+                  id="password"
+                  type={showPassword ? 'text' : 'password'}
+                  name="password"
+                  placeholder="Enter your password"
+                  value={formData.password}
+                  onChange={handleChange}
+                  required
+                  disabled={isLoading}
+                  className="bg-white border-gray-300 focus:border-blue-600 focus:ring-blue-600 pr-10"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  disabled={isLoading}
+                >
+                  {showPassword ? (
+                    <EyeOff className="w-5 h-5" />
+                  ) : (
+                    <Eye className="w-5 h-5" />
+                  )}
+                </button>
+              </div>
+            </div>
+
+            <Button
+              type="submit"
+              disabled={isLoading}
+              className={`w-full text-white font-medium py-5 text-base transition-all ${
+                accountType === 'admin'
+                  ? 'bg-gradient-to-r from-orange-600 to-yellow-600 hover:from-orange-700 hover:to-yellow-700 shadow-lg shadow-orange-500/50'
+                  : 'bg-blue-600 hover:bg-blue-700'
+              }`}
+            >
+              {isLoading ? (
+                <div className="flex items-center gap-2">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Signing in...
+                </div>
+              ) : (
+                <>
+                  <Shield className="w-4 h-4 mr-2" />
+                  Sign In as {accountType === 'tenant' ? 'Tenant' : 'Manager'}
+                </>
+              )}
+            </Button>
+          </form>
+
+          <div className="text-center mt-6">
+            <p className="text-sm text-gray-600">
+              Don't have an account?{' '}
+              <Link
+                href="/auth/signup"
+                className="text-blue-600 font-semibold hover:text-blue-700 underline"
+              >
+                Sign up
+              </Link>
+            </p>
+          </div>
+        </div>
+      </Card>
+    </div>
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+          <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+        </div>
+      }
+    >
+      <LoginForm />
+    </Suspense>
+  )
+}
+
