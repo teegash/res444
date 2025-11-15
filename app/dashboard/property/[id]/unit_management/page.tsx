@@ -39,6 +39,7 @@ interface UnitFormState {
 }
 
 const STATUS_OPTIONS: UnitFormState['status'][] = ['vacant', 'occupied', 'maintenance']
+const FLOOR_NONE_VALUE = 'none'
 
 const FLOOR_OPTIONS = Array.from({ length: 33 }, (_, index) => index - 2) // -2 (Basement 2) up to 30th floor
 
@@ -179,7 +180,7 @@ export default function UnitManagementPage() {
 
   const convertUnitToForm = (unit: UnitRecord): UnitFormState => ({
     unit_number: unit.unit_number,
-    floor: unit.floor?.toString() || '',
+    floor: unit.floor === null || unit.floor === undefined ? '' : unit.floor.toString(),
     bedrooms: unit.number_of_bedrooms?.toString() || '',
     bathrooms: unit.number_of_bathrooms?.toString() || '',
     size_sqft: unit.size_sqft?.toString() || '',
@@ -468,19 +469,25 @@ export default function UnitManagementPage() {
                               <p className="text-xs text-gray-500 mb-1">Floor</p>
                               {isEditing ? (
                                 <Select
-                                  value={displayState.floor ?? ''}
-                                  onValueChange={(value) => handleEditChange(unit.id, 'floor', value)}
-                                >
-                                  <SelectTrigger>
-                                    <SelectValue placeholder="Select floor" />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="">Not set</SelectItem>
-                                    {FLOOR_OPTIONS.map((floor) => (
-                                      <SelectItem key={floor} value={String(floor)}>
-                                        {formatFloorLabel(floor)}
-                                      </SelectItem>
-                                    ))}
+                                value={displayState.floor ? displayState.floor : FLOOR_NONE_VALUE}
+                                onValueChange={(value) =>
+                                  handleEditChange(
+                                    unit.id,
+                                    'floor',
+                                    value === FLOOR_NONE_VALUE ? '' : value
+                                  )
+                                }
+                              >
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Select floor" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value={FLOOR_NONE_VALUE}>Not set</SelectItem>
+                                  {FLOOR_OPTIONS.map((floor) => (
+                                    <SelectItem key={floor} value={String(floor)}>
+                                      {formatFloorLabel(floor)}
+                                    </SelectItem>
+                                  ))}
                                   </SelectContent>
                                 </Select>
                               ) : (
@@ -629,14 +636,16 @@ export default function UnitManagementPage() {
                 <div className="space-y-2">
                   <p className="text-xs text-gray-500">Floor</p>
                   <Select
-                    value={newUnit.floor}
-                    onValueChange={(value) => setNewUnit((prev) => ({ ...prev, floor: value }))}
+                    value={newUnit.floor ? newUnit.floor : FLOOR_NONE_VALUE}
+                    onValueChange={(value) =>
+                      setNewUnit((prev) => ({ ...prev, floor: value === FLOOR_NONE_VALUE ? '' : value }))
+                    }
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Select floor" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Not set</SelectItem>
+                      <SelectItem value={FLOOR_NONE_VALUE}>Not set</SelectItem>
                       {FLOOR_OPTIONS.map((floor) => (
                         <SelectItem key={floor} value={String(floor)}>
                           {formatFloorLabel(floor)}
@@ -731,14 +740,16 @@ export default function UnitManagementPage() {
                 />
                 <div className="grid gap-4 md:grid-cols-4">
                   <Select
-                    value={bulkDefaults.floor}
-                    onValueChange={(value) => setBulkDefaults((prev) => ({ ...prev, floor: value }))}
+                    value={bulkDefaults.floor ? bulkDefaults.floor : FLOOR_NONE_VALUE}
+                    onValueChange={(value) =>
+                      setBulkDefaults((prev) => ({ ...prev, floor: value === FLOOR_NONE_VALUE ? '' : value }))
+                    }
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Floor" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Not set</SelectItem>
+                      <SelectItem value={FLOOR_NONE_VALUE}>Not set</SelectItem>
                       {FLOOR_OPTIONS.map((floor) => (
                         <SelectItem key={floor} value={String(floor)}>
                           {formatFloorLabel(floor)}
