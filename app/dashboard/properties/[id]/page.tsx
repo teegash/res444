@@ -7,6 +7,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { ArrowLeft, MapPin, Building2 } from 'lucide-react'
+import { Sidebar } from '@/components/dashboard/sidebar'
+import { Header } from '@/components/dashboard/header'
 
 interface PropertyDetail {
   id: string
@@ -22,6 +24,16 @@ interface PropertyDetail {
   updatedAt: string | null
 }
 
+interface UnitSummary {
+  id: string
+  unit_number: string
+  floor: number | null
+  number_of_bedrooms: number | null
+  number_of_bathrooms: number | null
+  size_sqft: number | null
+  status: string | null
+}
+
 export default function PropertyDetailPage() {
   const router = useRouter()
   const params = useParams<{ id: string }>()
@@ -33,6 +45,8 @@ export default function PropertyDetailPage() {
   const [property, setProperty] = useState<PropertyDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [units, setUnits] = useState<UnitSummary[]>([])
+  const [unitsLoading, setUnitsLoading] = useState(false)
 
   useEffect(() => {
     let isMounted = true
@@ -75,6 +89,37 @@ export default function PropertyDetailPage() {
     }
   }, [propertyId])
 
+  useEffect(() => {
+    let isMounted = true
+    async function loadUnits() {
+      if (!propertyId) return
+      try {
+        setUnitsLoading(true)
+        const response = await fetch(
+          `/api/properties/${propertyId}/units?buildingId=${encodeURIComponent(propertyId)}`,
+          { cache: 'no-store', credentials: 'include' }
+        )
+        const result = await response.json()
+        if (!response.ok || !result.success) {
+          throw new Error(result.error || 'Failed to load units.')
+        }
+        if (isMounted) {
+          setUnits(Array.isArray(result.data?.units) ? result.data.units : [])
+        }
+      } catch (err) {
+        console.error('[PropertyDetailPage] Units fetch failed', err)
+      } finally {
+        if (isMounted) {
+          setUnitsLoading(false)
+        }
+      }
+    }
+    loadUnits()
+    return () => {
+      isMounted = false
+    }
+  }, [propertyId])
+
   const occupancy = property?.totalUnits
     ? Math.min(100, Math.round((property.occupiedUnits / property.totalUnits) * 100))
     : 0
@@ -85,7 +130,12 @@ export default function PropertyDetailPage() {
       : '/modern-residential-building.png'
 
   return (
-    <div className="p-6 max-w-6xl mx-auto space-y-6">
+    <div className="flex min-h-screen bg-gray-50">
+      <Sidebar />
+      <div className="flex-1 flex flex-col">
+        <Header />
+        <main className="flex-1 p-6 overflow-auto">
+          <div className="max-w-6xl mx-auto space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="icon" onClick={() => router.push('/dashboard/properties')}>
@@ -222,9 +272,100 @@ export default function PropertyDetailPage() {
         </Card>
       </div>
 
+      <section className="space-y-4">
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div>
+            <h2 className="text-xl font-semibold text-gray-900">Units snapshot</h2>
+            <p className="text-sm text-muted-foreground">
+              Showing up to six units pulled directly from the units table.
+            </p>
+          </div>
+          <Button
+            variant="ghost"
+            className="text-[#4682B4]"
+            onClick={() => propertyId && router.push(`/dashboard/property/${propertyId}/unit_management`)}
+          >
+            View all units
+          </Button>
+        </div>
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {(unitsLoading ? Array.from({ length: 6 }) : units.slice(0, 6)).map((unit, index) => (
+            <Card
+              key={unit?.id ?? `placeholder-${index}`}
+              className="border border-slate-100 shadow-sm hover:shadow-md transition-shadow"
+            >
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
+                <div>
+                  <p className="text-xs text-muted-foreground">Unit</p>
+                  <h3 className="text-lg font-semibold">
+                    {unit?.unit_number || (unitsLoading ? 'Loading…' : '—')}
+                  </h3>
+                </div>
+                <Badge variant={unit?.status === 'occupied' ? 'default' : 'secondary'}>
+                  {(unit?.status || 'unknown').replace('_', ' ')}
+                </Badge>
+              </CardHeader>
+              <CardContent className="space-y-4 text-sm">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <p className="text-xs text-muted-foreground">Bedrooms</p>
+                    <p className="font-medium">{unit?.number_of_bedrooms ?? '—'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Bathrooms</p>
+                    <p className="font-medium">{unit?.number_of_bathrooms ?? '—'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Floor</p>
+                    <p className="font-medium">{unit?.floor ?? '—'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Size (sq ft)</p>
+                    <p className="font-medium">{unit?.size_sqft ?? '—'}</p>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    className="flex-1"
+                    size="sm"
+                    onClick={() =>
+                      propertyId &&
+                      router.push(`/dashboard/property/${propertyId}/unit_management`)
+                    }
+                  >
+                    Edit unit
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    className="flex-1"
+                    size="sm"
+                    disabled={(unit?.status || '').toLowerCase() !== 'vacant'}
+                    onClick={() => {
+                      if (!propertyId || !unit?.id) return
+                      const params = new URLSearchParams({
+                        propertyId,
+                        unitId: unit.id,
+                        unitNumber: unit.unit_number || '',
+                      })
+                      router.push(`/dashboard/tenants?${params.toString()}`)
+                    }}
+                  >
+                    Add tenant
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </section>
+
       {!loading && !property && !error && (
         <p className="text-sm text-muted-foreground">Property details could not be loaded.</p>
       )}
+          </div>
+        </main>
+      </div>
     </div>
   )
 }
