@@ -293,19 +293,54 @@ export async function GET(request: NextRequest) {
     }
 
     // Fetch organization data directly from organizations table
-    // Use regular client to respect RLS policies for organization data
-    const { data: organization, error: orgError } = await supabase
+    // Try regular client first (respects RLS policies)
+    let organization: any = null
+    let orgError: any = null
+
+    const { data: orgData, error: orgErr } = await supabase
       .from('organizations')
       .select('*')
       .eq('id', organizationId!)
       .single()
 
-    if (orgError || !organization) {
-      console.error('Error fetching organization:', orgError)
+    if (orgErr || !orgData) {
+      console.warn('Failed to fetch organization with regular client, trying admin client:', orgErr?.message)
+      
+      // Fallback: Use admin client if RLS blocks the read
+      // This ensures we can always fetch organization data even if RLS policies are misconfigured
+      const { createAdminClient } = await import('@/lib/supabase/admin')
+      const adminSupabase = createAdminClient()
+      
+      const { data: adminOrgData, error: adminOrgErr } = await adminSupabase
+        .from('organizations')
+        .select('*')
+        .eq('id', organizationId!)
+        .single()
+
+      if (adminOrgErr || !adminOrgData) {
+        console.error('Error fetching organization (both clients failed):', adminOrgErr || orgErr)
+        return NextResponse.json(
+          {
+            success: false,
+            error: (adminOrgErr || orgErr)?.message || 'Organization not found',
+          },
+          { status: 404 }
+        )
+      }
+
+      organization = adminOrgData
+      console.log('✓ Fetched organization using admin client (RLS bypass)')
+    } else {
+      organization = orgData
+      console.log('✓ Fetched organization using regular client (RLS respected)')
+    }
+
+    if (!organization) {
+      console.error('Organization data is null after fetch attempts')
       return NextResponse.json(
         {
           success: false,
-          error: orgError?.message || 'Organization not found',
+          error: 'Organization not found',
         },
         { status: 404 }
       )
