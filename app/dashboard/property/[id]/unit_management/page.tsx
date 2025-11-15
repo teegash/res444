@@ -18,6 +18,7 @@ interface UnitRecord {
   number_of_bedrooms: number | null
   number_of_bathrooms: number | null
   size_sqft: number | null
+  unit_price_category: string | null
   status: 'vacant' | 'occupied' | 'maintenance' | null
 }
 
@@ -35,6 +36,7 @@ interface UnitFormState {
   bedrooms: string
   bathrooms: string
   size_sqft: string
+  price_category: string
   status: 'vacant' | 'occupied' | 'maintenance'
 }
 
@@ -90,6 +92,7 @@ const defaultUnitForm: UnitFormState = {
   bedrooms: '',
   bathrooms: '',
   size_sqft: '',
+  price_category: '',
   status: 'vacant',
 }
 
@@ -178,14 +181,15 @@ export default function UnitManagementPage() {
   const maintenanceUnits = units.filter((u) => (u.status || '').toLowerCase() === 'maintenance').length
   const remainingCapacity = Math.max(0, totalUnits - units.length)
 
-  const convertUnitToForm = (unit: UnitRecord): UnitFormState => ({
-    unit_number: unit.unit_number,
-    floor: unit.floor === null || unit.floor === undefined ? '' : unit.floor.toString(),
-    bedrooms: unit.number_of_bedrooms?.toString() || '',
-    bathrooms: unit.number_of_bathrooms?.toString() || '',
-    size_sqft: unit.size_sqft?.toString() || '',
-    status: (unit.status as UnitFormState['status']) || 'vacant',
-  })
+const convertUnitToForm = (unit: UnitRecord): UnitFormState => ({
+  unit_number: unit.unit_number,
+  floor: unit.floor === null || unit.floor === undefined ? '' : unit.floor.toString(),
+  bedrooms: unit.number_of_bedrooms?.toString() || '',
+  bathrooms: unit.number_of_bathrooms?.toString() || '',
+  size_sqft: unit.size_sqft?.toString() || '',
+  price_category: unit.unit_price_category || '',
+  status: (unit.status as UnitFormState['status']) || 'vacant',
+})
 
   const startEditing = (unit: UnitRecord) => {
     setEditingUnits((prev) => ({
@@ -226,13 +230,14 @@ export default function UnitManagementPage() {
             building_id: buildingId,
             unit_id: unitId,
             updates: {
-              unit_number: payload.unit_number,
-              floor: payload.floor,
-              number_of_bedrooms: payload.bedrooms,
-              number_of_bathrooms: payload.bathrooms,
-              size_sqft: payload.size_sqft,
-              status: payload.status,
-            },
+            unit_number: payload.unit_number,
+            floor: payload.floor,
+            number_of_bedrooms: payload.bedrooms,
+            number_of_bathrooms: payload.bathrooms,
+            size_sqft: payload.size_sqft,
+            unit_price_category: payload.price_category,
+            status: payload.status,
+          },
           }),
         }
       )
@@ -281,6 +286,7 @@ export default function UnitManagementPage() {
                 number_of_bedrooms: newUnit.bedrooms,
                 number_of_bathrooms: newUnit.bathrooms,
                 size_sqft: newUnit.size_sqft,
+                unit_price_category: newUnit.price_category,
                 status: newUnit.status,
               },
             ],
@@ -343,6 +349,7 @@ export default function UnitManagementPage() {
               number_of_bedrooms: bulkDefaults.bedrooms,
               number_of_bathrooms: bulkDefaults.bathrooms,
               size_sqft: bulkDefaults.size_sqft,
+              unit_price_category: bulkDefaults.price_category,
               status: bulkDefaults.status,
             })),
           }),
@@ -453,7 +460,7 @@ export default function UnitManagementPage() {
                         key={unit.id}
                         className="rounded-lg border border-gray-200 p-4 flex flex-col md:flex-row gap-4"
                       >
-                        <div className="flex-1 grid grid-cols-1 md:grid-cols-5 gap-4">
+                        <div className="flex-1 grid grid-cols-1 md:grid-cols-6 gap-4">
                           <div>
                             <p className="text-xs text-gray-500 mb-1">Unit Number</p>
                             {isEditing ? (
@@ -528,6 +535,18 @@ export default function UnitManagementPage() {
                               />
                             ) : (
                               <p className="font-medium">{unit.size_sqft ?? '-'}</p>
+                            )}
+                          </div>
+                          <div>
+                            <p className="text-xs text-gray-500 mb-1">Price Category</p>
+                            {isEditing ? (
+                              <Input
+                                value={displayState.price_category}
+                                placeholder="KES 65,000"
+                                onChange={(e) => handleEditChange(unit.id, 'price_category', e.target.value)}
+                              />
+                            ) : (
+                              <p className="font-medium">{unit.unit_price_category ?? '—'}</p>
                             )}
                           </div>
                           <div>
@@ -682,6 +701,14 @@ export default function UnitManagementPage() {
                   />
                 </div>
                 <div className="space-y-2">
+                  <p className="text-xs text-gray-500">Price Category</p>
+                  <Input
+                    value={newUnit.price_category}
+                    onChange={(e) => setNewUnit((prev) => ({ ...prev, price_category: e.target.value }))}
+                    placeholder="KES 65,000"
+                  />
+                </div>
+                <div className="space-y-2">
                   <p className="text-xs text-gray-500">Status</p>
                   <Select
                     value={newUnit.status}
@@ -738,7 +765,7 @@ export default function UnitManagementPage() {
                   rows={4}
                   placeholder={'A-101\nA-102\nA-103'}
                 />
-                <div className="grid gap-4 md:grid-cols-4">
+                <div className="grid gap-4 md:grid-cols-5">
                   <Select
                     value={bulkDefaults.floor ? bulkDefaults.floor : FLOOR_NONE_VALUE}
                     onValueChange={(value) =>
@@ -771,6 +798,11 @@ export default function UnitManagementPage() {
                     placeholder="Size (sq ft)"
                     value={bulkDefaults.size_sqft}
                     onChange={(e) => setBulkDefaults((prev) => ({ ...prev, size_sqft: e.target.value }))}
+                  />
+                  <Input
+                    placeholder="Price Category"
+                    value={bulkDefaults.price_category}
+                    onChange={(e) => setBulkDefaults((prev) => ({ ...prev, price_category: e.target.value }))}
                   />
                 </div>
                 <div className="max-w-xs">

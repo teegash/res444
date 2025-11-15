@@ -88,7 +88,7 @@ export async function GET(
 
   const { data: units, error: unitsError } = await adminSupabase
     .from('apartment_units')
-    .select('id, unit_number, floor, number_of_bedrooms, number_of_bathrooms, size_sqft, status, created_at')
+    .select('id, unit_number, floor, number_of_bedrooms, number_of_bathrooms, size_sqft, unit_price_category, status, created_at')
     .eq('building_id', building.id)
     .order('unit_number')
 
@@ -203,6 +203,10 @@ export async function POST(
       unit.size_sqft === undefined || unit.size_sqft === null || unit.size_sqft === ''
         ? null
         : Number(unit.size_sqft),
+    unit_price_category:
+      unit.unit_price_category === undefined || unit.unit_price_category === null
+        ? null
+        : String(unit.unit_price_category || '').trim() || null,
     status: UNIT_STATUSES.includes(unit.status) ? unit.status : 'vacant',
   }))
 
@@ -216,7 +220,7 @@ export async function POST(
   const { data: createdUnits, error: insertError } = await adminSupabase
     .from('apartment_units')
     .insert(sanitizedUnits)
-    .select('id, unit_number, floor, number_of_bedrooms, number_of_bathrooms, size_sqft, status')
+    .select('id, unit_number, floor, number_of_bedrooms, number_of_bathrooms, size_sqft, unit_price_category, status')
 
   if (insertError) {
     console.error('Failed to add units', insertError)
@@ -286,6 +290,9 @@ export async function PATCH(
   }
   if (updates.status && UNIT_STATUSES.includes(updates.status)) {
     allowed.status = updates.status
+  }
+  if (updates.unit_price_category !== undefined) {
+    allowed.unit_price_category = updates.unit_price_category === '' ? null : String(updates.unit_price_category).trim()
   }
 
   if (Object.keys(allowed).length === 0) {

@@ -32,6 +32,7 @@ interface UnitSummary {
   number_of_bathrooms: number | null
   size_sqft: number | null
   status: string | null
+  unit_price_category: string | null
 }
 
 export default function PropertyDetailPage() {
@@ -288,7 +289,7 @@ export default function PropertyDetailPage() {
           <div>
             <h2 className="text-xl font-semibold text-gray-900">Units snapshot</h2>
             <p className="text-sm text-muted-foreground">
-              Showing up to six units pulled directly from the units table.
+              Showing up to eight units (vacant units first) pulled directly from the units table.
             </p>
           </div>
           <Button
@@ -334,6 +335,10 @@ export default function PropertyDetailPage() {
                     <p className="text-xs text-muted-foreground">Size (sq ft)</p>
                     <p className="font-medium">{unit?.size_sqft ?? '—'}</p>
                   </div>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Price Category</p>
+                  <p className="font-medium">{unit?.unit_price_category ?? '—'}</p>
                 </div>
                 <div className="flex gap-2">
                   <Button
