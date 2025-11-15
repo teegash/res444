@@ -31,7 +31,7 @@ interface Notification {
 }
 
 export function Header() {
-  const { user } = useAuth()
+  const { user, signOut } = useAuth()
   const [userFirstName, setUserFirstName] = useState<string | null>(null)
   const [notificationsOpen, setNotificationsOpen] = useState(false)
   const [notifications, setNotifications] = useState<Notification[]>([
@@ -97,8 +97,8 @@ export function Header() {
     setNotifications(notifications.map(n => ({ ...n, read: true })))
   }
 
-  const handleLogout = () => {
-    router.push('/auth/login')
+  const handleLogout = async () => {
+    await signOut()
   }
 
   return (

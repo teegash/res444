@@ -132,8 +132,10 @@ function Sidebar() {
     return name
   }, [organization?.name])
 
-  const handleLogout = () => {
-    router.push('/auth/login')
+  const { signOut } = useAuth()
+
+  const handleLogout = async () => {
+    await signOut()
   }
 
   const handleLockToggle = () => {
