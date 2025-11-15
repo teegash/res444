@@ -57,11 +57,24 @@ async function authorize(buildingId: string) {
   return { adminSupabase, building }
 }
 
+function sanitizeBuildingId(rawId: string | string[] | undefined) {
+  const value = Array.isArray(rawId) ? rawId[0] : rawId
+  return value ? decodeURIComponent(value).trim() : ''
+}
+
 export async function PATCH(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  const authContext = await authorize(params.id)
+  const buildingId = sanitizeBuildingId(params.id)
+  if (!buildingId) {
+    return NextResponse.json(
+      { success: false, error: 'Building ID is required.' },
+      { status: 400 }
+    )
+  }
+
+  const authContext = await authorize(buildingId)
   if ('error' in authContext && authContext.error) return authContext.error
 
   const { adminSupabase, building } = authContext

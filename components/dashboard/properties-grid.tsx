@@ -16,6 +16,16 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog'
 
+const normalizeId = (value: any) => {
+  if (typeof value === 'string') {
+    return value.trim()
+  }
+  if (value === null || value === undefined) {
+    return ''
+  }
+  return String(value)
+}
+
 interface PropertiesGridProps {
   onEdit: (property: any) => void
   onManageUnits: (property: any) => void
@@ -43,7 +53,10 @@ export function PropertiesGrid({ onEdit, onManageUnits, onView }: PropertiesGrid
   }, [previewUrl])
 
   const openUploadModal = (propertyId: string) => {
-    setActivePropertyId(propertyId)
+    const normalizedId = normalizeId(propertyId)
+    if (!normalizedId) return
+
+    setActivePropertyId(normalizedId)
     setSelectedFile(null)
     if (previewUrl) {
       URL.revokeObjectURL(previewUrl)
@@ -241,7 +254,8 @@ export function PropertiesGrid({ onEdit, onManageUnits, onView }: PropertiesGrid
   }
 
   const getImageUrl = (property: any) => {
-    return propertyImages[property.id] || property.imageUrl || '/modern-residential-building.png'
+    const normalizedId = normalizeId(property.id)
+    return propertyImages[normalizedId] || property.imageUrl || '/modern-residential-building.png'
   }
 
   return (
@@ -253,12 +267,16 @@ export function PropertiesGrid({ onEdit, onManageUnits, onView }: PropertiesGrid
         </div>
       ) : null}
       {properties.map((property) => {
+        const buildingId = normalizeId(property.id)
         const totalUnits = property.totalUnits ?? property.total ?? 0
         const occupiedUnits = property.occupiedUnits ?? property.occupied ?? 0
         const occupancyPercent = totalUnits > 0 ? Math.round((occupiedUnits / totalUnits) * 100) : 0
 
         return (
-          <Card key={property.id} className="overflow-hidden hover:shadow-lg transition-shadow">
+          <Card
+            key={buildingId || property.id}
+            className="overflow-hidden hover:shadow-lg transition-shadow"
+          >
             <div
               className="h-40 bg-muted relative group cursor-pointer"
               style={{
@@ -271,7 +289,7 @@ export function PropertiesGrid({ onEdit, onManageUnits, onView }: PropertiesGrid
                 if ((e.target as HTMLElement).closest('.image-edit-button')) {
                   return
                 }
-                onView(property.id)
+                onView(buildingId)
               }}
             >
               {/* Edit Button Overlay */}
@@ -282,12 +300,12 @@ export function PropertiesGrid({ onEdit, onManageUnits, onView }: PropertiesGrid
                   className="image-edit-button h-8 w-8 bg-black/70 hover:bg-black/90 text-white border-0 shadow-lg"
                   onClick={(e) => {
                     e.stopPropagation()
-                    openUploadModal(property.id)
+                    openUploadModal(buildingId)
                   }}
-                  disabled={uploading[property.id]}
+                  disabled={uploading[buildingId]}
                   title="Upload property image"
                 >
-                  {uploading[property.id] ? (
+                  {uploading[buildingId] ? (
                     <Loader2 className="w-4 h-4 animate-spin" />
                   ) : (
                     <Camera className="w-4 h-4" />
@@ -320,7 +338,7 @@ export function PropertiesGrid({ onEdit, onManageUnits, onView }: PropertiesGrid
                   variant="outline"
                   size="sm"
                   className="flex-1 gap-2"
-                  onClick={() => onEdit(property)}
+                  onClick={() => onEdit({ ...property, id: buildingId })}
                 >
                   <Edit2 className="w-4 h-4" />
                   Edit
@@ -329,7 +347,7 @@ export function PropertiesGrid({ onEdit, onManageUnits, onView }: PropertiesGrid
                   variant="outline"
                   size="sm"
                   className="flex-1 gap-2"
-                  onClick={() => onManageUnits(property)}
+                  onClick={() => onManageUnits({ ...property, id: buildingId })}
                 >
                   <Users className="w-4 h-4" />
                   Units
@@ -339,7 +357,7 @@ export function PropertiesGrid({ onEdit, onManageUnits, onView }: PropertiesGrid
                 variant="ghost"
                 size="sm"
                 className="w-full gap-2"
-                onClick={() => onView(property.id)}
+                onClick={() => onView(buildingId)}
               >
                 <Eye className="w-4 h-4" />
                 View Details

@@ -62,8 +62,10 @@ const cnStatus = (status: string | null | undefined) =>
 export default function UnitManagementPage() {
   const router = useRouter()
   const params = useParams<{ id: string }>()
-  const buildingIdParam = params?.id
-  const buildingId = Array.isArray(buildingIdParam) ? buildingIdParam[0] : buildingIdParam
+  const rawParam = params?.id
+  const buildingId = Array.isArray(rawParam)
+    ? decodeURIComponent(rawParam[0] || '').trim()
+    : (rawParam ? decodeURIComponent(rawParam).trim() : '')
 
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)

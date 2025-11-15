@@ -27,13 +27,18 @@ export default function PropertiesPage() {
   }
 
   const handleManageUnits = (property: any) => {
-    if (property?.id) {
-      router.push(`/dashboard/property/${property.id}/unit_management`)
+    const buildingId =
+      typeof property?.id === 'string' ? property.id.trim() : property?.id
+    if (buildingId) {
+      router.push(`/dashboard/property/${buildingId}/unit_management`)
     }
   }
 
   const handleViewProperty = (propertyId: string) => {
-    router.push(`/dashboard/properties/${propertyId}`)
+    const normalizedId = propertyId?.trim?.() ?? propertyId
+    if (normalizedId) {
+      router.push(`/dashboard/properties/${normalizedId}`)
+    }
   }
 
   return (

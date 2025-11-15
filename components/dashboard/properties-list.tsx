@@ -96,9 +96,11 @@ export function PropertiesList({ onEdit, onManageUnits, onView }: PropertiesList
                 property.totalUnits > 0
                   ? Math.round((property.occupiedUnits / property.totalUnits) * 100)
                   : 0
+              const buildingId =
+                typeof property.id === 'string' ? property.id.trim() : property.id
 
               return (
-                <TableRow key={property.id}>
+                <TableRow key={buildingId || property.id}>
                   <TableCell className="font-medium">{property.name}</TableCell>
                   <TableCell>{property.location}</TableCell>
                   <TableCell>{property.totalUnits}</TableCell>
@@ -112,7 +114,7 @@ export function PropertiesList({ onEdit, onManageUnits, onView }: PropertiesList
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => onView(property.id)}
+                      onClick={() => buildingId && onView(buildingId)}
                       title="View property details"
                     >
                       <Eye className="w-4 h-4" />
@@ -120,7 +122,7 @@ export function PropertiesList({ onEdit, onManageUnits, onView }: PropertiesList
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => onEdit(property)}
+                      onClick={() => onEdit({ ...property, id: buildingId })}
                       title="Edit property"
                     >
                       <Edit2 className="w-4 h-4" />
@@ -128,7 +130,7 @@ export function PropertiesList({ onEdit, onManageUnits, onView }: PropertiesList
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => onManageUnits(property)}
+                      onClick={() => onManageUnits({ ...property, id: buildingId })}
                       title="Manage units"
                     >
                       <Users className="w-4 h-4" />
