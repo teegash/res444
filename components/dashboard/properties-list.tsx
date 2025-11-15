@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect, useState, useMemo } from 'react'
 import {
   Table,
   TableBody,
@@ -10,37 +11,7 @@ import {
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Edit2, Users, Eye } from 'lucide-react'
-
-const properties = [
-  {
-    id: 1,
-    name: 'Alpha Complex',
-    location: 'Nairobi',
-    total: 15,
-    occupied: 12,
-    avgRevenue: 'KES 120,000',
-    status: 'Active',
-  },
-  {
-    id: 2,
-    name: 'Beta Towers',
-    location: 'Westlands',
-    total: 10,
-    occupied: 8,
-    avgRevenue: 'KES 80,000',
-    status: 'Active',
-  },
-  {
-    id: 3,
-    name: 'Gamma Heights',
-    location: 'Karen',
-    total: 20,
-    occupied: 18,
-    avgRevenue: 'KES 180,000',
-    status: 'Active',
-  },
-]
+import { Edit2, Users, Eye, Loader2 } from 'lucide-react'
 
 interface PropertiesListProps {
   onEdit: (property: any) => void
@@ -49,6 +20,41 @@ interface PropertiesListProps {
 }
 
 export function PropertiesList({ onEdit, onManageUnits, onView }: PropertiesListProps) {
+  const [properties, setProperties] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  const fetchProperties = useMemo(
+    () => async () => {
+      try {
+        setLoading(true)
+        setError(null)
+        const response = await fetch('/api/properties', {
+          credentials: 'include',
+          cache: 'no-store',
+        })
+        const result = await response.json()
+
+        if (!response.ok || !result.success) {
+          throw new Error(result.error || 'Failed to load properties')
+        }
+
+        setProperties(result.data || [])
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Unable to load properties.'
+        setError(message)
+        setProperties([])
+      } finally {
+        setLoading(false)
+      }
+    },
+    []
+  )
+
+  useEffect(() => {
+    fetchProperties()
+  }, [fetchProperties])
+
   return (
     <div className="border border-border rounded-lg overflow-hidden">
       <Table>
@@ -57,53 +63,81 @@ export function PropertiesList({ onEdit, onManageUnits, onView }: PropertiesList
             <TableHead>Building Name</TableHead>
             <TableHead>Location</TableHead>
             <TableHead>Total Units</TableHead>
-            <TableHead>Occupied</TableHead>
-            <TableHead>Avg Revenue</TableHead>
-            <TableHead>Status</TableHead>
+            <TableHead>Occupied Units</TableHead>
+            <TableHead>Occupancy</TableHead>
             <TableHead>Actions</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
-          {properties.map((property) => (
-            <TableRow key={property.id}>
-              <TableCell className="font-medium">{property.name}</TableCell>
-              <TableCell>{property.location}</TableCell>
-              <TableCell>{property.total}</TableCell>
-              <TableCell>
-                {property.occupied}/{property.total}
-              </TableCell>
-              <TableCell>{property.avgRevenue}</TableCell>
-              <TableCell>
-                <Badge className="bg-green-600">{property.status}</Badge>
-              </TableCell>
-              <TableCell className="flex gap-2">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => onView(property.id)}
-                  title="View property details"
-                >
-                  <Eye className="w-4 h-4" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => onEdit(property)}
-                  title="Edit property"
-                >
-                  <Edit2 className="w-4 h-4" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => onManageUnits(property)}
-                  title="Manage units"
-                >
-                  <Users className="w-4 h-4" />
-                </Button>
+          {loading ? (
+            <TableRow>
+              <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                <div className="flex items-center justify-center gap-3">
+                  <Loader2 className="h-5 w-5 animate-spin text-[#4682B4]" />
+                  Loading properties...
+                </div>
               </TableCell>
             </TableRow>
-          ))}
+          ) : error ? (
+            <TableRow>
+              <TableCell colSpan={7} className="text-center py-8 text-red-600">
+                {error}
+              </TableCell>
+            </TableRow>
+          ) : properties.length === 0 ? (
+            <TableRow>
+              <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                No properties found. Add your first building to get started.
+              </TableCell>
+            </TableRow>
+          ) : (
+            properties.map((property) => {
+              const occupancy =
+                property.totalUnits > 0
+                  ? Math.round((property.occupiedUnits / property.totalUnits) * 100)
+                  : 0
+
+              return (
+                <TableRow key={property.id}>
+                  <TableCell className="font-medium">{property.name}</TableCell>
+                  <TableCell>{property.location}</TableCell>
+                  <TableCell>{property.totalUnits}</TableCell>
+                  <TableCell>
+                    {property.occupiedUnits}/{property.totalUnits}
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant={occupancy >= 80 ? 'default' : 'secondary'}>{occupancy}%</Badge>
+                  </TableCell>
+                  <TableCell className="flex gap-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => onView(property.id)}
+                      title="View property details"
+                    >
+                      <Eye className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => onEdit(property)}
+                      title="Edit property"
+                    >
+                      <Edit2 className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => onManageUnits(property)}
+                      title="Manage units"
+                    >
+                      <Users className="w-4 h-4" />
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              )
+            })
+          )}
         </TableBody>
       </Table>
     </div>

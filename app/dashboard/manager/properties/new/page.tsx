@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Building2, Loader2, Plus, Trash2 } from 'lucide-react'
+import { ArrowLeft, Building2, Loader2, Plus, Trash2, CheckCircle2 } from 'lucide-react'
 import Sidebar from '@/components/dashboard/sidebar'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -17,6 +17,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog'
 const fileToBase64 = (file: File): Promise<string> =>
   new Promise((resolve, reject) => {
     const reader = new FileReader()
@@ -49,6 +57,7 @@ export default function NewPropertyPage() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
+  const [showSuccessModal, setShowSuccessModal] = useState(false)
   const [formData, setFormData] = useState({
     name: '',
     location: '',
@@ -165,7 +174,7 @@ export default function NewPropertyPage() {
       }
 
       setSuccess('Property created successfully.')
-      router.push('/dashboard/manager/properties')
+      setShowSuccessModal(true)
     } catch (err) {
       const errorMessage =
         err instanceof Error ? err.message : 'An unexpected error occurred while saving.'
@@ -437,10 +446,10 @@ export default function NewPropertyPage() {
             </CardContent>
           </Card>
 
-          <div className="flex items-center gap-3 pb-10">
-            <Button
-              type="submit"
-              className="flex-1 bg-[#4682B4] hover:bg-[#4682B4]/90"
+      <div className="flex items-center gap-3 pb-10">
+        <Button
+          type="submit"
+          className="flex-1 bg-[#4682B4] hover:bg-[#4682B4]/90"
               disabled={isSubmitting}
             >
               {isSubmitting ? (
@@ -464,6 +473,32 @@ export default function NewPropertyPage() {
           </div>
         </form>
       </div>
+
+      <Dialog open={showSuccessModal} onOpenChange={setShowSuccessModal}>
+        <DialogContent className="sm:max-w-md text-center">
+          <DialogHeader>
+            <div className="mx-auto w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mb-4">
+              <CheckCircle2 className="h-8 w-8 text-green-600" />
+            </div>
+            <DialogTitle className="text-2xl">Property Added Successfully</DialogTitle>
+            <DialogDescription className="text-base text-gray-600">
+              Your apartment building was saved. Click below to return to the properties page.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex justify-center">
+            <Button
+              onClick={() => {
+                setShowSuccessModal(false)
+                router.replace('/dashboard/properties')
+                router.refresh()
+              }}
+              className="bg-[#4682B4] hover:bg-[#375f84]"
+            >
+              View Properties
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

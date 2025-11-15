@@ -223,7 +223,7 @@ function Sidebar() {
         </div>
 
         {/* Menu Items */}
-        <nav className="flex-1 p-3 space-y-2 overflow-y-auto">
+        <nav className="flex-1 p-3 space-y-3 overflow-y-auto">
           {menuItems.map((item) => {
             const Icon = item.icon
             const isActive = pathname === item.href || pathname.startsWith(item.href + '/')
@@ -237,7 +237,7 @@ function Sidebar() {
                     isExpanded ? "justify-start px-4" : "justify-center px-0",
                     isActive 
                       ? 'bg-[#4682B4] hover:bg-[#4682B4]/90 text-white shadow-sm' 
-                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200/80'
+                      : 'text-gray-700 hover:text-gray-900 hover:bg-gray-300/70'
                   )}
                   title={!isExpanded ? item.label : undefined}
                 >
@@ -250,7 +250,7 @@ function Sidebar() {
         </nav>
 
         {/* Settings and Logout */}
-        <div className="p-3 border-t border-gray-200 space-y-2">
+        <div className="p-3 border-t border-gray-200 space-y-3">
           {/* Lock Button */}
           <Button
             variant="ghost"
@@ -259,7 +259,7 @@ function Sidebar() {
             className={cn(
               "w-full transition-all duration-200 py-3",
               isExpanded ? "justify-start" : "justify-center px-0",
-              isLocked ? "bg-blue-50 text-blue-600 hover:bg-blue-100" : "text-gray-600 hover:text-gray-900 hover:bg-gray-200/80"
+              isLocked ? "bg-blue-50 text-blue-600 hover:bg-blue-100" : "text-gray-700 hover:text-gray-900 hover:bg-gray-300/70"
             )}
             title={!isExpanded ? (isLocked ? "Unlock Sidebar" : "Lock Sidebar") : undefined}
           >
@@ -280,7 +280,7 @@ function Sidebar() {
               variant="ghost" 
               size="default" 
               className={cn(
-                "w-full transition-all duration-200 py-3 text-gray-600 hover:text-gray-900 hover:bg-gray-200/80",
+                "w-full transition-all duration-200 py-3 text-gray-700 hover:text-gray-900 hover:bg-gray-300/70",
                 isExpanded ? "justify-start" : "justify-center px-0"
               )}
               title={!isExpanded ? "Settings" : undefined}
