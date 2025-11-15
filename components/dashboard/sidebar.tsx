@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useState } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { LayoutDashboard, Building2, Users, CreditCard, Droplet, Wrench, MessageSquare, Bell, BarChart3, FileText, Settings, LogOut, Lock, Unlock } from 'lucide-react'
@@ -27,6 +27,110 @@ function Sidebar() {
   const pathname = usePathname()
   const router = useRouter()
   const { user } = useAuth()
+  const [organization, setOrganization] = useState<{
+    name: string
+    logo_url: string | null
+  } | null>(null)
+
+  // Fetch organization data
+  useEffect(() => {
+    let isMounted = true
+    let retryTimeout: NodeJS.Timeout | null = null
+
+    const fetchOrganization = async () => {
+      if (!user) {
+        return
+      }
+
+      // Small delay to ensure auth context is fully initialized
+      await new Promise(resolve => setTimeout(resolve, 100))
+
+      let retries = 0
+      const maxRetries = 3
+
+      const attemptFetch = async (): Promise<void> => {
+        if (!isMounted) return
+
+        try {
+          const response = await fetch('/api/organizations/current', {
+            cache: 'no-store',
+            credentials: 'include',
+            headers: {
+              'Cache-Control': 'no-cache, no-store, must-revalidate',
+              'Pragma': 'no-cache',
+              'Expires': '0',
+              'Content-Type': 'application/json',
+            },
+          })
+
+          // Handle 404 gracefully
+          if (response.status === 404) {
+            setOrganization(null)
+            return
+          }
+
+          if (!response.ok) {
+            if (response.status === 401) {
+              return
+            }
+            throw new Error(`API error: ${response.status}`)
+          }
+
+          const result = await response.json()
+
+          if (result.success && result.data && result.data.name) {
+            if (isMounted) {
+              setOrganization({
+                name: result.data.name,
+                logo_url: result.data.logo_url || null,
+              })
+            }
+          }
+        } catch (error) {
+          console.error(`[Sidebar] Error fetching organization (attempt ${retries + 1}):`, error)
+
+          if (retries < maxRetries) {
+            retries++
+            const delay = Math.min(1000 * Math.pow(2, retries - 1), 5000)
+            retryTimeout = setTimeout(() => {
+              if (isMounted) attemptFetch()
+            }, delay)
+          }
+        }
+      }
+
+      attemptFetch()
+
+      return () => {
+        isMounted = false
+        if (retryTimeout) clearTimeout(retryTimeout)
+      }
+    }
+
+    if (user) {
+      fetchOrganization()
+    }
+
+    return () => {
+      isMounted = false
+      if (retryTimeout) clearTimeout(retryTimeout)
+    }
+  }, [user])
+
+  // Get display name - truncate if too long
+  const displayName = useMemo(() => {
+    if (!organization?.name) {
+      return null
+    }
+
+    const name = organization.name.trim()
+    if (name.length > 18) {
+      const firstWord = name.split(/\s+/)[0]
+      return firstWord.length > 18 ? firstWord.substring(0, 18) : firstWord
+    }
+
+    return name
+  }, [organization?.name])
 
   const handleLogout = () => {
     router.push('/auth/login')
@@ -58,19 +162,59 @@ function Sidebar() {
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
       >
-        {/* RentalKenya Logo and Name */}
+        {/* Organization Logo and Name */}
         <div className="p-6 border-b border-gray-200 min-h-[88px] flex items-center">
           <div className="flex items-center gap-3 w-full">
             {/* Logo Container - Always show, size fixed at 40x40px */}
             <div className="flex items-center justify-center w-10 h-10 rounded-lg flex-shrink-0 overflow-hidden bg-gradient-to-br from-[#4682B4] to-[#5a9fd4] border border-gray-200 shadow-sm">
-              <span className="text-white font-bold text-lg">RK</span>
+              {organization?.logo_url ? (
+                <img
+                  src={organization.logo_url}
+                  alt={organization.name || 'Organization logo'}
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    console.error('[Sidebar] Logo image failed to load:', organization.logo_url)
+                    // Fallback to first letters on error
+                    const parent = e.currentTarget.parentElement
+                    if (parent && organization?.name) {
+                      const initials = organization.name
+                        .split(' ')
+                        .map(word => word.charAt(0))
+                        .join('')
+                        .substring(0, 2)
+                        .toUpperCase()
+                      parent.className = "flex items-center justify-center w-10 h-10 rounded-lg flex-shrink-0 bg-gradient-to-br from-[#4682B4] to-[#5a9fd4] border border-gray-200 shadow-sm"
+                      parent.innerHTML = `<span class="text-white font-bold text-sm">${initials}</span>`
+                    }
+                  }}
+                  onLoad={() => {
+                    console.log('[Sidebar] ✓ Logo image loaded successfully')
+                  }}
+                />
+              ) : organization?.name ? (
+                // Show first letters of organization name if no logo
+                <span className="text-white font-bold text-sm">
+                  {organization.name
+                    .split(' ')
+                    .map(word => word.charAt(0))
+                    .join('')
+                    .substring(0, 2)
+                    .toUpperCase()}
+                </span>
+              ) : (
+                // Fallback to RentalKenya logo while loading
+                <span className="text-white font-bold text-lg">RK</span>
+              )}
             </div>
             
-            {/* RentalKenya Name - Only show when expanded */}
+            {/* Organization Name - Only show when expanded */}
             {isExpanded && (
               <div className="overflow-hidden flex-1 min-w-0 max-w-[200px]">
-                <h1 className="text-lg font-bold text-[#4682B4] whitespace-nowrap">
-                  RentalKenya
+                <h1 
+                  className="text-lg font-bold text-[#4682B4] whitespace-nowrap truncate"
+                  title={organization?.name || 'RentalKenya'}
+                >
+                  {displayName || (organization?.name || 'RentalKenya')}
                 </h1>
                 <p className="text-xs text-gray-600 whitespace-nowrap">Manager Portal</p>
               </div>
