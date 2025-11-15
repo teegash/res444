@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Search, Bell, LogOut } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -33,10 +33,6 @@ interface Notification {
 
 export function Header() {
   const { user } = useAuth()
-  const [organization, setOrganization] = useState<{
-    name: string
-    logo_url: string | null
-  } | null>(null)
   const [notificationsOpen, setNotificationsOpen] = useState(false)
   const [notifications, setNotifications] = useState<Notification[]>([
     {
@@ -67,29 +63,6 @@ export function Header() {
   const unreadCount = notifications.filter(n => !n.read).length
   const router = useRouter()
 
-  // Fetch organization data
-  useEffect(() => {
-    const fetchOrganization = async () => {
-      if (!user) return
-
-      try {
-        const response = await fetch('/api/organizations/current')
-        const result = await response.json()
-
-        if (result.success && result.data) {
-          setOrganization({
-            name: result.data.name,
-            logo_url: result.data.logo_url,
-          })
-        }
-      } catch (error) {
-        console.error('Error fetching organization:', error)
-      }
-    }
-
-    fetchOrganization()
-  }, [user])
-
   const handleMarkAsRead = (id: string) => {
     setNotifications(notifications.map(n => n.id === id ? { ...n, read: true } : n))
   }
@@ -104,41 +77,6 @@ export function Header() {
 
   return (
     <header className="border-b border-border bg-card sticky top-0 z-30">
-      {/* Organization Card - Centered above search bar */}
-      {organization && (
-        <div className="flex items-center justify-center py-3 px-6 border-b border-border/50 bg-gradient-to-r from-primary/5 to-primary/10">
-          <div className="flex items-center gap-3 px-4 py-2 rounded-lg bg-card border border-border/50 shadow-sm">
-            {/* Organization Logo */}
-            <div className="flex items-center justify-center w-8 h-8 rounded-md overflow-hidden bg-gradient-to-br from-[#4682B4] to-[#5a9fd4] border border-border/50 shadow-sm flex-shrink-0">
-              {organization.logo_url ? (
-                <img
-                  src={organization.logo_url}
-                  alt={organization.name}
-                  className="w-full h-full object-cover"
-                  onError={(e) => {
-                    // Fallback to first letter on error
-                    const parent = e.currentTarget.parentElement
-                    if (parent && organization?.name) {
-                      const firstLetter = organization.name.charAt(0).toUpperCase()
-                      parent.className = "flex items-center justify-center w-8 h-8 rounded-md bg-gradient-to-br from-[#4682B4] to-[#5a9fd4] border border-border/50 shadow-sm flex-shrink-0"
-                      parent.innerHTML = `<span class="text-white font-bold text-sm">${firstLetter}</span>`
-                    }
-                  }}
-                />
-              ) : (
-                <span className="text-white font-bold text-sm">
-                  {organization.name.charAt(0).toUpperCase()}
-                </span>
-              )}
-            </div>
-            {/* Organization Name */}
-            <span className="text-sm font-semibold text-foreground whitespace-nowrap">
-              {organization.name}
-            </span>
-          </div>
-        </div>
-      )}
-
       <div className="flex items-center justify-between p-6 max-w-full w-full">
         {/* Search */}
         <div className="flex items-center flex-1 mr-6">
@@ -224,23 +162,17 @@ export function Header() {
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" className="gap-2 pl-2 pr-1">
                 <Avatar className="w-8 h-8">
-                  {organization?.logo_url ? (
-                    <AvatarImage src={organization.logo_url} alt={organization.name} />
-                  ) : (
-                    <AvatarImage src="https://api.dicebear.com/7.x/avataaars/svg?seed=Maurice" />
-                  )}
+                  <AvatarImage src="https://api.dicebear.com/7.x/avataaars/svg?seed=Maurice" />
                   <AvatarFallback>
-                    {organization?.name 
-                      ? organization.name.substring(0, 2).toUpperCase()
-                      : 'MR'}
+                    {user?.email?.substring(0, 2).toUpperCase() || 'MR'}
                   </AvatarFallback>
                 </Avatar>
                 <div className="text-left hidden sm:block">
                   <p className="text-sm font-medium">
-                    {organization?.name || user?.email?.split('@')[0] || 'User'}
+                    {user?.email?.split('@')[0] || 'User'}
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    {organization?.name ? 'Organization' : 'Manager'}
+                    Manager
                   </p>
                 </div>
               </Button>

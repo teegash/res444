@@ -119,11 +119,43 @@ function DashboardContent() {
             {/* Welcome Header */}
             <div className="flex items-center justify-between">
               <div>
-                <div className="flex items-center gap-2 mb-2">
+                <div className="flex items-center gap-3 mb-2">
                   <Crown className="w-8 h-8 text-[#4682B4]" />
                   <h1 className="text-3xl font-bold text-gray-900">
-                    Welcome back{organization?.name ? `, ${organization.name}` : ', Manager'}
+                    Welcome back, Manager
                   </h1>
+                  {/* Organization Logo and Name Box */}
+                  {organization && (
+                    <div className="flex items-center gap-2.5 ml-2 px-3 py-1.5 rounded-lg bg-white border border-gray-200 shadow-sm">
+                      {/* Logo Picture Box */}
+                      <div className="flex items-center justify-center w-10 h-10 rounded-md overflow-hidden bg-gradient-to-br from-[#4682B4] to-[#5a9fd4] border border-gray-200 shadow-sm flex-shrink-0">
+                        {organization.logo_url ? (
+                          <img
+                            src={organization.logo_url}
+                            alt={organization.name}
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              // Fallback to first letter on error
+                              const parent = e.currentTarget.parentElement
+                              if (parent && organization?.name) {
+                                const firstLetter = organization.name.charAt(0).toUpperCase()
+                                parent.className = "flex items-center justify-center w-10 h-10 rounded-md bg-gradient-to-br from-[#4682B4] to-[#5a9fd4] border border-gray-200 shadow-sm flex-shrink-0"
+                                parent.innerHTML = `<span class="text-white font-bold text-base">${firstLetter}</span>`
+                              }
+                            }}
+                          />
+                        ) : (
+                          <span className="text-white font-bold text-base">
+                            {organization.name.charAt(0).toUpperCase()}
+                          </span>
+                        )}
+                      </div>
+                      {/* Organization Name */}
+                      <span className="text-base font-semibold text-gray-900 whitespace-nowrap">
+                        {organization.name}
+                      </span>
+                    </div>
+                  )}
                 </div>
                 <p className="text-gray-600">
                   {organization?.location 
