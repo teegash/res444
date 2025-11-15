@@ -6,8 +6,13 @@ import { createAdminClient } from '@/lib/supabase/admin'
  * Get the current user's organization
  * Returns the organization data for the authenticated user
  * 
- * Note: organization_members is only used for affiliation/linking (to get organization_id)
- * All organization data is fetched directly from the organizations table
+ * Architecture:
+ * - organization_members: Junction table for affiliation/linking only
+ *   - Used to identify which organization a user belongs to (organization_id)
+ *   - Used to identify the user's role in that organization (admin, manager, caretaker, tenant)
+ *   - Does NOT contain member data (that comes from user_profiles, auth.users, etc.)
+ * - organizations: Contains organization data (name, logo, location, etc.)
+ * - user_profiles: Contains member profile data (full_name, phone, address, etc.)
  */
 export async function GET(request: NextRequest) {
   try {
@@ -29,9 +34,10 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Use admin client to get organization_id from organization_members
-    // This bypasses RLS and avoids infinite recursion issues
-    // organization_members is only used for affiliation/linking, not data fetching
+    // Get organization_id and role from organization_members (junction table)
+    // This table is ONLY for affiliation/linking - identifying which org the user belongs to and their role
+    // Member data (name, email, phone) comes from user_profiles or auth.users, not this table
+    // Use admin client to bypass RLS and avoid infinite recursion in RLS policies
     const adminSupabase = createAdminClient()
     const { data: membership, error: membershipError } = await adminSupabase
       .from('organization_members')
