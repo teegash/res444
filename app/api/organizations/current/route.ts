@@ -106,7 +106,7 @@ export async function GET(request: NextRequest) {
     }
 
     const membershipData = await membershipResponse.json()
-    console.log('Membership data from HTTP request:', membershipData)
+    console.log('Membership data from HTTP request:', JSON.stringify(membershipData, null, 2))
     const membership = Array.isArray(membershipData) && membershipData.length > 0 ? membershipData[0] : null
 
     let organizationId: string | null = null
@@ -116,17 +116,17 @@ export async function GET(request: NextRequest) {
       // Found membership record - use it
       organizationId = membership.organization_id
       userRole = membership.role
-      console.log(`Found membership: org_id=${organizationId}, role=${userRole}`)
+      console.log(`✓ Found membership: org_id=${organizationId}, role=${userRole}`)
     } else {
-      // No membership found - try fallback: check if user is admin and owns an organization directly
-      // This handles cases where organization was created but membership record failed
-      console.log(`No membership found for user: ${user.id}, checking for direct ownership...`)
+      // No membership found - try comprehensive fallback strategies
+      console.log(`⚠ No membership found for user: ${user.id} (email: ${user.email})`)
+      console.log('Attempting fallback strategies...')
       
-      const userRoleFromMetadata = user.user_metadata?.role || null
-      if (userRoleFromMetadata === 'admin') {
-        // For admins, try to find organization by email
-        const orgResponse = await fetchWithTimeout(
-          `${supabaseUrl}/rest/v1/organizations?email=eq.${encodeURIComponent(user.email || '')}&select=id&limit=1`,
+      // Strategy 1: Get user role from user_profiles or metadata
+      let userRoleFromProfile: string | null = null
+      try {
+        const profileResponse = await fetchWithTimeout(
+          `${supabaseUrl}/rest/v1/user_profiles?id=eq.${user.id}&select=role&limit=1`,
           {
             method: 'GET',
             headers: {
@@ -136,55 +136,156 @@ export async function GET(request: NextRequest) {
               'Content-Type': 'application/json',
             },
           },
-          2000,
-          'Organization fallback lookup'
+          1000,
+          'User role lookup'
         )
+        
+        if (profileResponse.ok) {
+          const profileData = await profileResponse.json()
+          userRoleFromProfile = Array.isArray(profileData) && profileData.length > 0 ? profileData[0]?.role : null
+        }
+      } catch (err) {
+        console.warn('Failed to get role from profile:', err)
+      }
+      
+      const userRoleFromMetadata = user.user_metadata?.role || null
+      const detectedRole = userRoleFromProfile || userRoleFromMetadata || 'admin'
+      console.log(`Detected user role: ${detectedRole} (from profile: ${userRoleFromProfile}, from metadata: ${userRoleFromMetadata})`)
 
-        if (orgResponse.ok) {
-          const orgData = await orgResponse.json()
-          if (Array.isArray(orgData) && orgData.length > 0) {
-            organizationId = orgData[0].id
-            userRole = 'admin'
-            console.log(`Found organization via fallback: ${organizationId}`)
-            
-            // Try to create membership record (non-blocking)
-            try {
-              await fetchWithTimeout(
-                `${supabaseUrl}/rest/v1/organization_members`,
-                {
-                  method: 'POST',
-                  headers: {
-                    apikey: serviceRoleKey,
-                    Authorization: `Bearer ${serviceRoleKey}`,
-                    Accept: 'application/json',
-                    'Content-Type': 'application/json',
-                    Prefer: 'return=representation',
-                  },
-                  body: JSON.stringify({
-                    user_id: user.id,
-                    organization_id: organizationId,
-                    role: 'admin',
-                    joined_at: new Date().toISOString(),
-                  }),
-                },
-                1000,
-                'Membership creation (fallback)'
-              )
-              console.log('Created missing membership record')
-            } catch (err) {
-              // Non-blocking - continue even if membership creation fails
-              console.warn('Failed to create membership record (non-blocking):', err)
+      // Strategy 2: For admins, try to find organization by email (exact match)
+      if (detectedRole === 'admin' && user.email) {
+        console.log(`Strategy 2: Searching for organization by email: ${user.email}`)
+        try {
+          const orgResponse = await fetchWithTimeout(
+            `${supabaseUrl}/rest/v1/organizations?email=eq.${encodeURIComponent(user.email.toLowerCase())}&select=id,name,email&limit=1`,
+            {
+              method: 'GET',
+              headers: {
+                apikey: serviceRoleKey,
+                Authorization: `Bearer ${serviceRoleKey}`,
+                Accept: 'application/json',
+                'Content-Type': 'application/json',
+              },
+            },
+            2000,
+            'Organization lookup by email'
+          )
+
+          if (orgResponse.ok) {
+            const orgData = await orgResponse.json()
+            console.log('Organization lookup by email result:', JSON.stringify(orgData, null, 2))
+            if (Array.isArray(orgData) && orgData.length > 0 && orgData[0].id) {
+              organizationId = orgData[0].id
+              userRole = 'admin'
+              console.log(`✓ Found organization via email match: ${orgData[0].id} (${orgData[0].name})`)
             }
           }
+        } catch (err) {
+          console.warn('Strategy 2 failed:', err)
+        }
+      }
+
+      // Strategy 3: If still not found and admin, check all organizations (might be created with different email)
+      if (!organizationId && detectedRole === 'admin') {
+        console.log(`Strategy 3: Searching all organizations for user ${user.id}`)
+        try {
+          // Get all organizations and see if any match the user
+          const allOrgsResponse = await fetchWithTimeout(
+            `${supabaseUrl}/rest/v1/organizations?select=id,name,email&limit=100`,
+            {
+              method: 'GET',
+              headers: {
+                apikey: serviceRoleKey,
+                Authorization: `Bearer ${serviceRoleKey}`,
+                Accept: 'application/json',
+                'Content-Type': 'application/json',
+              },
+            },
+            3000,
+            'All organizations lookup'
+          )
+
+          if (allOrgsResponse.ok) {
+            const allOrgs = await allOrgsResponse.json()
+            console.log(`Found ${Array.isArray(allOrgs) ? allOrgs.length : 0} total organizations`)
+            
+            // Try to match by email (case-insensitive)
+            if (user.email && Array.isArray(allOrgs)) {
+              const matchedOrg = allOrgs.find((org: any) => 
+                org.email && org.email.toLowerCase() === user.email!.toLowerCase()
+              )
+              
+              if (matchedOrg && matchedOrg.id) {
+                organizationId = matchedOrg.id
+                userRole = 'admin'
+                console.log(`✓ Found organization via email search: ${organizationId} (${matchedOrg.name})`)
+              } else if (allOrgs.length > 0) {
+                // Last resort: if only one org exists and user is admin, assign it
+                // This handles edge cases where email doesn't match exactly
+                if (allOrgs.length === 1) {
+                  organizationId = allOrgs[0].id
+                  userRole = 'admin'
+                  console.log(`✓ Assigned single organization to admin user: ${organizationId}`)
+                }
+              }
+            }
+          }
+        } catch (err) {
+          console.warn('Strategy 3 failed:', err)
+        }
+      }
+
+      // If we found an organization but no membership, create it
+      if (organizationId && !membership) {
+        console.log(`Creating missing membership record for org: ${organizationId}, role: ${userRole || detectedRole}`)
+        try {
+          const createMembershipResponse = await fetchWithTimeout(
+            `${supabaseUrl}/rest/v1/organization_members`,
+            {
+              method: 'POST',
+              headers: {
+                apikey: serviceRoleKey,
+                Authorization: `Bearer ${serviceRoleKey}`,
+                Accept: 'application/json',
+                'Content-Type': 'application/json',
+                Prefer: 'return=representation',
+              },
+              body: JSON.stringify({
+                user_id: user.id,
+                organization_id: organizationId,
+                role: userRole || detectedRole || 'admin',
+                joined_at: new Date().toISOString(),
+              }),
+            },
+            2000,
+            'Membership creation'
+          )
+
+          if (createMembershipResponse.ok) {
+            console.log('✓ Successfully created missing membership record')
+          } else {
+            const errorText = await createMembershipResponse.text()
+            console.warn('Failed to create membership record:', createMembershipResponse.status, errorText)
+            // Continue anyway - membership might already exist or constraint violation is ok
+          }
+        } catch (err) {
+          // Non-blocking - continue even if membership creation fails
+          console.warn('Exception creating membership record (non-blocking):', err)
         }
       }
 
       if (!organizationId) {
-        console.log(`No organization found for user: ${user.id}`)
+        console.error(`✗ All fallback strategies failed. No organization found for user: ${user.id}`)
+        console.error(`User email: ${user.email}, Role: ${detectedRole}`)
         return NextResponse.json(
           {
             success: false,
-            error: 'No organization found for this user',
+            error: 'No organization found for this user. Please create or join an organization.',
+            details: {
+              user_id: user.id,
+              email: user.email,
+              detected_role: detectedRole,
+            },
           },
           { status: 404 }
         )
