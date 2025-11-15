@@ -1,20 +1,15 @@
 'use client'
 
 import { useState } from 'react'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { PropertiesList } from '@/components/dashboard/properties-list'
 import { PropertiesGrid } from '@/components/dashboard/properties-grid'
 import { PropertiesHeader } from '@/components/dashboard/properties-header'
-import { EditPropertyModal } from '@/components/dashboard/edit-property-modal'
 import { Sidebar } from '@/components/dashboard/sidebar'
 import { Header } from '@/components/dashboard/header'
 import { useRouter } from 'next/navigation'
 
 export default function PropertiesPage() {
   const [viewType, setViewType] = useState<'grid' | 'list'>('grid')
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false)
-  const [selectedProperty, setSelectedProperty] = useState<any>(null)
   const router = useRouter()
 
   const handleAddProperty = () => {
@@ -22,8 +17,17 @@ export default function PropertiesPage() {
   }
 
   const handleEditProperty = (property: any) => {
-    setSelectedProperty(property)
-    setIsEditModalOpen(true)
+    const buildingId =
+      typeof property?.id === 'string'
+        ? property.id.trim()
+        : property?.id ?? property?.building_id ?? property?.buildingId
+
+    if (!buildingId) {
+      console.warn('[PropertiesPage] Unable to determine property id for edit action.', property)
+      return
+    }
+
+    router.push(`/dashboard/properties/${buildingId}/edit`)
   }
 
   const resolveBuildingId = (property: any) => {
@@ -80,11 +84,6 @@ export default function PropertiesPage() {
               <PropertiesList onEdit={handleEditProperty} onManageUnits={handleManageUnits} onView={handleViewProperty} />
             )}
 
-            <EditPropertyModal
-              open={isEditModalOpen}
-              onOpenChange={setIsEditModalOpen}
-              property={selectedProperty}
-            />
           </div>
         </main>
       </div>

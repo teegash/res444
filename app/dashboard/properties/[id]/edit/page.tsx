@@ -1,0 +1,454 @@
+'use client'
+
+import { useEffect, useMemo, useState } from 'react'
+import { useParams, useRouter } from 'next/navigation'
+import { Sidebar } from '@/components/dashboard/sidebar'
+import { Header } from '@/components/dashboard/header'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
+import { Label } from '@/components/ui/label'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Switch } from '@/components/ui/switch'
+import { Loader2, ArrowLeft, Save, Building2, MapPin } from 'lucide-react'
+
+interface PropertyFormState {
+  name: string
+  location: string
+  county: string
+  totalUnits: string
+  occupiedUnits: string
+  description: string
+  imageUrl: string
+  managerName: string
+  managerEmail: string
+  managerPhone: string
+  supportEmail: string
+  supportPhone: string
+  amenities: string
+  notes: string
+  publishOnline: boolean
+  autoNotify: boolean
+}
+
+const defaultForm: PropertyFormState = {
+  name: '',
+  location: '',
+  county: '',
+  totalUnits: '',
+  occupiedUnits: '',
+  description: '',
+  imageUrl: '',
+  managerName: '',
+  managerEmail: '',
+  managerPhone: '',
+  supportEmail: '',
+  supportPhone: '',
+  amenities: '',
+  notes: '',
+  publishOnline: true,
+  autoNotify: true,
+}
+
+export default function EditPropertyPage() {
+  const router = useRouter()
+  const params = useParams<{ id: string }>()
+  const propertyId = useMemo(() => {
+    const raw = Array.isArray(params?.id) ? params?.id?.[0] : params?.id
+    return raw ? decodeURIComponent(raw).trim() : ''
+  }, [params?.id])
+
+  const [form, setForm] = useState<PropertyFormState>(defaultForm)
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState<string | null>(null)
+  const [stats, setStats] = useState<{ recordedUnits: number; occupiedUnits: number } | null>(null)
+
+  useEffect(() => {
+    let isMounted = true
+
+    async function loadProperty() {
+      if (!propertyId) {
+        setLoading(false)
+        return
+      }
+
+      try {
+        setLoading(true)
+        const response = await fetch(`/api/properties/${propertyId}`, {
+          cache: 'no-store',
+          credentials: 'include',
+        })
+        const result = await response.json()
+
+        if (!response.ok || !result.success || !result.data) {
+          throw new Error(result.error || 'Failed to fetch property data')
+        }
+
+        if (isMounted) {
+          setForm((prev) => ({
+            ...prev,
+            name: result.data.name || '',
+            location: result.data.location || '',
+            county: result.data.county || '',
+            totalUnits: result.data.totalUnits?.toString() || '',
+            occupiedUnits: result.data.occupiedUnits?.toString() || '',
+            description: result.data.description || '',
+            imageUrl: result.data.imageUrl || '',
+          }))
+          setStats({
+            recordedUnits: result.data.recordedUnits || result.data.totalUnits || 0,
+            occupiedUnits: result.data.occupiedUnits || 0,
+          })
+        }
+      } catch (err) {
+        console.error('[EditPropertyPage] Failed to load property', err)
+        if (isMounted) {
+          setError(err instanceof Error ? err.message : 'Unable to load property details.')
+        }
+      } finally {
+        if (isMounted) {
+          setLoading(false)
+        }
+      }
+    }
+
+    loadProperty()
+
+    return () => {
+      isMounted = false
+    }
+  }, [propertyId])
+
+  const handleChange = (field: keyof PropertyFormState, value: string | boolean) => {
+    setForm((prev) => ({ ...prev, [field]: value }))
+    setSuccess(null)
+    setError(null)
+  }
+
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault()
+
+    if (!propertyId) {
+      setError('Missing property identifier.')
+      return
+    }
+
+    setSaving(true)
+    setError(null)
+    setSuccess(null)
+
+    try {
+      const payload: Record<string, any> = {
+        name: form.name.trim(),
+        location: form.location.trim(),
+        description: form.description.trim(),
+        image_url: form.imageUrl.trim(),
+      }
+
+      if (form.totalUnits !== '') {
+        const total = Number(form.totalUnits)
+        if (!Number.isNaN(total) && total >= 0) {
+          payload.total_units = total
+        }
+      }
+
+      const response = await fetch(`/api/properties/${propertyId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+        credentials: 'include',
+      })
+      const result = await response.json()
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || 'Failed to update property.')
+      }
+
+      setSuccess('Property details updated successfully.')
+    } catch (err) {
+      console.error('[EditPropertyPage] Update failed', err)
+      setError(err instanceof Error ? err.message : 'Failed to save changes. Please try again.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const canSave = form.name.trim().length > 0 && form.location.trim().length > 0
+
+  return (
+    <div className="flex min-h-screen bg-gray-50">
+      <Sidebar />
+      <div className="flex-1 flex flex-col">
+        <Header />
+        <main className="flex-1 p-6 overflow-auto">
+          <div className="max-w-5xl mx-auto space-y-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Button variant="ghost" size="icon" onClick={() => router.back()}>
+                  <ArrowLeft className="w-5 h-5" />
+                </Button>
+                <div>
+                  <p className="text-xs text-gray-500">Property ID</p>
+                  <h1 className="text-2xl font-bold text-gray-900">Edit Property</h1>
+                  <p className="text-sm text-muted-foreground">{propertyId || 'Draft property'}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                {loading && <Loader2 className="w-5 h-5 animate-spin text-[#4682B4]" />}
+                {propertyId && (
+                  <Button variant="outline" onClick={() => router.push(`/dashboard/properties/${propertyId}`)}>
+                    View summary
+                  </Button>
+                )}
+              </div>
+            </div>
+
+            {error && (
+              <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                {error}
+              </div>
+            )}
+            {success && (
+              <div className="rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700">
+                {success}
+              </div>
+            )}
+
+            <form className="space-y-6" onSubmit={handleSubmit}>
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Building2 className="w-5 h-5 text-[#4682B4]" /> Building Details
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div>
+                      <Label htmlFor="name">Property name *</Label>
+                      <Input
+                        id="name"
+                        placeholder="e.g. Kilimani Heights"
+                        value={form.name}
+                        onChange={(e) => handleChange('name', e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="image">Featured image URL</Label>
+                      <Input
+                        id="image"
+                        placeholder="https://example.com/image.jpg"
+                        value={form.imageUrl}
+                        onChange={(e) => handleChange('imageUrl', e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div>
+                      <Label htmlFor="location" className="flex items-center gap-1">
+                        <MapPin className="w-4 h-4 text-muted-foreground" /> Location *
+                      </Label>
+                      <Input
+                        id="location"
+                        placeholder="Neighborhood, City"
+                        value={form.location}
+                        onChange={(e) => handleChange('location', e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="county">County / Region</Label>
+                      <Input
+                        id="county"
+                        placeholder="e.g. Nairobi"
+                        value={form.county}
+                        onChange={(e) => handleChange('county', e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <Label htmlFor="description">Description</Label>
+                    <Textarea
+                      id="description"
+                      rows={4}
+                      placeholder="Highlight amenities, neighbourhood insights, or property history."
+                      value={form.description}
+                      onChange={(e) => handleChange('description', e.target.value)}
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>Capacity & Occupancy</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid gap-4 md:grid-cols-3">
+                    <div>
+                      <Label htmlFor="totalUnits">Total units *</Label>
+                      <Input
+                        id="totalUnits"
+                        type="number"
+                        min={0}
+                        value={form.totalUnits}
+                        onChange={(e) => handleChange('totalUnits', e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="occupiedUnits">Occupied units (read only)</Label>
+                      <Input
+                        id="occupiedUnits"
+                        type="number"
+                        min={0}
+                        readOnly
+                        className="bg-muted"
+                        value={stats?.occupiedUnits ?? Number(form.occupiedUnits || 0)}
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-sm">Automation</Label>
+                      <div className="flex items-center justify-between rounded-lg border p-3">
+                        <div>
+                          <p className="text-sm font-medium">Vacancy alerts</p>
+                          <p className="text-xs text-muted-foreground">Notify team when occupancy changes</p>
+                        </div>
+                        <Switch
+                          checked={form.autoNotify}
+                          onCheckedChange={(checked) => handleChange('autoNotify', checked)}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>Contacts & Ownership</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid gap-4 md:grid-cols-3">
+                    <div>
+                      <Label htmlFor="managerName">Property manager</Label>
+                      <Input
+                        id="managerName"
+                        placeholder="Jane Manager"
+                        value={form.managerName}
+                        onChange={(e) => handleChange('managerName', e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="managerPhone">Manager phone</Label>
+                      <Input
+                        id="managerPhone"
+                        placeholder="+254712345678"
+                        value={form.managerPhone}
+                        onChange={(e) => handleChange('managerPhone', e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="managerEmail">Manager email</Label>
+                      <Input
+                        id="managerEmail"
+                        type="email"
+                        placeholder="manager@example.com"
+                        value={form.managerEmail}
+                        onChange={(e) => handleChange('managerEmail', e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div>
+                      <Label htmlFor="supportEmail">Support email</Label>
+                      <Input
+                        id="supportEmail"
+                        type="email"
+                        placeholder="support@example.com"
+                        value={form.supportEmail}
+                        onChange={(e) => handleChange('supportEmail', e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="supportPhone">Support phone</Label>
+                      <Input
+                        id="supportPhone"
+                        placeholder="+254700000000"
+                        value={form.supportPhone}
+                        onChange={(e) => handleChange('supportPhone', e.target.value)}
+                      />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>Additional Details</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div>
+                    <Label htmlFor="amenities">Amenities & notes</Label>
+                    <Textarea
+                      id="amenities"
+                      rows={3}
+                      placeholder="Parking, swimming pool, generator, CCTV, gym..."
+                      value={form.amenities}
+                      onChange={(e) => handleChange('amenities', e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="notes">Internal notes</Label>
+                    <Textarea
+                      id="notes"
+                      rows={3}
+                      placeholder="Visible only to your team."
+                      value={form.notes}
+                      onChange={(e) => handleChange('notes', e.target.value)}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between rounded-lg border p-3">
+                    <div>
+                      <p className="text-sm font-medium">Publish to tenant portal</p>
+                      <p className="text-xs text-muted-foreground">Show listing to prospective tenants</p>
+                    </div>
+                    <Switch
+                      checked={form.publishOnline}
+                      onCheckedChange={(checked) => handleChange('publishOnline', checked)}
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+
+              <div className="flex items-center justify-end gap-3 pt-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => router.push('/dashboard/properties')}
+                  disabled={saving}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  className="bg-[#4682B4] hover:bg-[#3b6a91] gap-2"
+                  disabled={!canSave || saving}
+                >
+                  {saving ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" /> Saving...
+                    </>
+                  ) : (
+                    <>
+                      <Save className="w-4 h-4" /> Save changes
+                    </>
+                  )}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </main>
+      </div>
+    </div>
+  )
+}
