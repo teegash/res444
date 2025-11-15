@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button'
 import Link from 'next/link'
 import { Line, LineChart, Bar, BarChart, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell, Pie, PieChart } from 'recharts'
 import { OrganizationSetupModal } from '@/components/dashboard/organization-setup-modal'
+import { useAuth } from '@/lib/auth/context'
 
 const revenueData = [
   { month: 'Jul', revenue: 800000, expenses: 520000 },
@@ -53,6 +54,43 @@ function DashboardContent() {
   const pathname = usePathname()
   const setupParam = searchParams.get('setup')
   const [showSetupModal, setShowSetupModal] = useState(setupParam === '1')
+  const { user } = useAuth()
+  const [organization, setOrganization] = useState<{
+    id: string
+    name: string
+    email: string
+    phone: string | null
+    location: string | null
+    registration_number: string | null
+    logo_url: string | null
+    user_role: string
+  } | null>(null)
+  const [loadingOrg, setLoadingOrg] = useState(true)
+
+  // Fetch organization data
+  useEffect(() => {
+    const fetchOrganization = async () => {
+      if (!user) {
+        setLoadingOrg(false)
+        return
+      }
+
+      try {
+        const response = await fetch('/api/organizations/current')
+        const result = await response.json()
+
+        if (result.success && result.data) {
+          setOrganization(result.data)
+        }
+      } catch (error) {
+        console.error('Error fetching organization:', error)
+      } finally {
+        setLoadingOrg(false)
+      }
+    }
+
+    fetchOrganization()
+  }, [user])
 
   useEffect(() => {
     setShowSetupModal(setupParam === '1')
@@ -83,9 +121,21 @@ function DashboardContent() {
               <div>
                 <div className="flex items-center gap-2 mb-2">
                   <Crown className="w-8 h-8 text-[#4682B4]" />
-                  <h1 className="text-3xl font-bold text-gray-900">Welcome back, Manager</h1>
+                  <h1 className="text-3xl font-bold text-gray-900">
+                    Welcome back{organization?.name ? `, ${organization.name}` : ', Manager'}
+                  </h1>
                 </div>
-                <p className="text-gray-600">Here's what's happening with your premium properties today.</p>
+                <p className="text-gray-600">
+                  {organization?.location 
+                    ? `Here's what's happening at ${organization.location} today.`
+                    : "Here's what's happening with your premium properties today."}
+                </p>
+                {organization && (
+                  <div className="mt-2 flex items-center gap-4 text-sm text-gray-500">
+                    {organization.email && <span>📧 {organization.email}</span>}
+                    {organization.phone && <span>📞 {organization.phone}</span>}
+                  </div>
+                )}
               </div>
               <Link href="/dashboard/properties/new">
                 <Button className="bg-[#4682B4] hover:bg-[#4682B4]/90">

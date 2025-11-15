@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Search, Bell, LogOut } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -20,6 +20,7 @@ import {
 } from '@/components/ui/sheet'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
+import { useAuth } from '@/lib/auth/context'
 
 interface Notification {
   id: string
@@ -31,6 +32,11 @@ interface Notification {
 }
 
 export function Header() {
+  const { user } = useAuth()
+  const [organization, setOrganization] = useState<{
+    name: string
+    logo_url: string | null
+  } | null>(null)
   const [notificationsOpen, setNotificationsOpen] = useState(false)
   const [notifications, setNotifications] = useState<Notification[]>([
     {
@@ -60,6 +66,29 @@ export function Header() {
   ])
   const unreadCount = notifications.filter(n => !n.read).length
   const router = useRouter()
+
+  // Fetch organization data
+  useEffect(() => {
+    const fetchOrganization = async () => {
+      if (!user) return
+
+      try {
+        const response = await fetch('/api/organizations/current')
+        const result = await response.json()
+
+        if (result.success && result.data) {
+          setOrganization({
+            name: result.data.name,
+            logo_url: result.data.logo_url,
+          })
+        }
+      } catch (error) {
+        console.error('Error fetching organization:', error)
+      }
+    }
+
+    fetchOrganization()
+  }, [user])
 
   const handleMarkAsRead = (id: string) => {
     setNotifications(notifications.map(n => n.id === id ? { ...n, read: true } : n))
@@ -160,12 +189,24 @@ export function Header() {
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" className="gap-2 pl-2 pr-1">
                 <Avatar className="w-8 h-8">
-                  <AvatarImage src="https://api.dicebear.com/7.x/avataaars/svg?seed=Maurice" />
-                  <AvatarFallback>MR</AvatarFallback>
+                  {organization?.logo_url ? (
+                    <AvatarImage src={organization.logo_url} alt={organization.name} />
+                  ) : (
+                    <AvatarImage src="https://api.dicebear.com/7.x/avataaars/svg?seed=Maurice" />
+                  )}
+                  <AvatarFallback>
+                    {organization?.name 
+                      ? organization.name.substring(0, 2).toUpperCase()
+                      : 'MR'}
+                  </AvatarFallback>
                 </Avatar>
                 <div className="text-left hidden sm:block">
-                  <p className="text-sm font-medium">Maurice Robbins</p>
-                  <p className="text-xs text-muted-foreground">Manager</p>
+                  <p className="text-sm font-medium">
+                    {organization?.name || user?.email?.split('@')[0] || 'User'}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {organization?.name ? 'Organization' : 'Manager'}
+                  </p>
                 </div>
               </Button>
             </DropdownMenuTrigger>

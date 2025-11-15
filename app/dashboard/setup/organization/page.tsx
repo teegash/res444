@@ -233,10 +233,11 @@ export default function OrganizationSetupPage() {
 
       setSuccess('Organization created successfully! Redirecting to dashboard...')
       
-      // Redirect to dashboard after 2 seconds
+      // Redirect to dashboard immediately using window.location for full page reload
+      // This ensures the proxy recognizes the new organization membership
       setTimeout(() => {
-        router.push('/dashboard')
-      }, 2000)
+        window.location.href = '/dashboard'
+      }, 1500)
     } catch (err) {
       console.error('Organization creation error:', err)
       setIsLoading(false)
