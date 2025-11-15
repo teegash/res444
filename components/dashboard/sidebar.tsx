@@ -104,40 +104,43 @@ function Sidebar() {
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
       >
-        {/* Logo */}
+        {/* Organization Logo and Name */}
         <div className="p-6 border-b border-gray-200 min-h-[88px] flex items-center">
-          <div className="flex items-center gap-2">
-            {organization?.logo_url ? (
-              <div className="flex items-center justify-center w-10 h-10 rounded-lg flex-shrink-0 overflow-hidden bg-gray-100 border border-gray-200">
+          <div className="flex items-center gap-3 w-full">
+            {/* Logo Container - Always show, size fixed at 40x40px */}
+            <div className="flex items-center justify-center w-10 h-10 rounded-lg flex-shrink-0 overflow-hidden bg-gradient-to-br from-[#4682B4] to-[#5a9fd4] border border-gray-200 shadow-sm">
+              {organization?.logo_url ? (
                 <img
                   src={organization.logo_url}
                   alt={organization.name || 'Organization logo'}
                   className="w-full h-full object-cover"
                   onError={(e) => {
                     console.error('Failed to load organization logo:', organization.logo_url)
-                    // Fallback to icon on error
+                    // On error, show first letter fallback
                     const parent = e.currentTarget.parentElement
-                    if (parent) {
-                      parent.innerHTML = `
-                        <svg class="w-6 h-6 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                        </svg>
-                      `
+                    if (parent && organization?.name) {
+                      const firstLetter = organization.name.charAt(0).toUpperCase()
+                      parent.className = "flex items-center justify-center w-10 h-10 rounded-lg flex-shrink-0 bg-gradient-to-br from-[#4682B4] to-[#5a9fd4] border border-gray-200 shadow-sm"
+                      parent.innerHTML = `<span class="text-white font-bold text-lg">${firstLetter}</span>`
                     }
                   }}
                 />
-              </div>
-            ) : (
-              <div className="flex items-center justify-center w-10 h-10 bg-[#4682B4] rounded-lg flex-shrink-0">
-                <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                </svg>
-              </div>
-            )}
+              ) : organization?.name ? (
+                // Show first letter of organization name if no logo
+                <span className="text-white font-bold text-lg">
+                  {organization.name.charAt(0).toUpperCase()}
+                </span>
+              ) : (
+                // Fallback while loading or no organization
+                <span className="text-white font-bold text-lg">?</span>
+              )}
+            </div>
+            
+            {/* Organization Name - Only show when expanded */}
             {isExpanded && (
               <div className="overflow-hidden flex-1 min-w-0">
                 <h1 className="text-lg font-bold text-[#4682B4] whitespace-nowrap truncate">
-                  {organization?.name || 'RentalKenya'}
+                  {organization?.name || 'Loading...'}
                 </h1>
                 <p className="text-xs text-gray-600 whitespace-nowrap">Manager Portal</p>
               </div>
