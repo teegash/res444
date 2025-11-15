@@ -62,15 +62,19 @@ export default function OrganizationSetupPage() {
     }
 
     // Check if user already has an organization - if so, redirect to dashboard
+    // This runs on every render to catch cases where organization was created
     const checkOrganization = async () => {
       if (!user?.id) return
 
       try {
-        const response = await fetch('/api/organizations/current')
+        const response = await fetch('/api/organizations/current', {
+          cache: 'no-store', // Don't cache this request
+        })
         const result = await response.json()
 
         if (result.success && result.data) {
-          // User already has an organization, redirect to dashboard
+          // User already has an organization, redirect to dashboard immediately
+          console.log('Organization found, redirecting to dashboard')
           window.location.href = '/dashboard'
         }
       } catch (error) {

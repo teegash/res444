@@ -153,27 +153,37 @@ export async function proxy(request: NextRequest) {
           // If query timed out, allow access (membership might exist but query was slow)
           if (!membership || !membership.organization_id) {
             // Admin without organization - redirect to organization setup
-            // But allow access to setup page itself
-            // Also, if user has org_created param, they just created org - allow access to dashboard
-            const orgCreated = request.nextUrl.searchParams.get('org_created')
-            if (pathname !== '/dashboard/setup/organization' && !orgCreated) {
+            // But only if they're NOT already on the dashboard or other protected routes
+            // Allow access to dashboard if query might have failed (member might exist)
+            if (pathname === '/dashboard/setup/organization') {
+              // Already on setup page, allow access
+              return supabaseResponse
+            }
+            // If trying to access dashboard, allow it (membership might exist but query was slow)
+            // Only redirect to setup if accessing other routes
+            if (pathname !== '/dashboard' && !pathname.startsWith('/dashboard/')) {
+              // Redirect to organization setup
               const url = request.nextUrl.clone()
               url.pathname = '/dashboard/setup/organization'
               return NextResponse.redirect(url)
             }
-            // If org_created param exists, allow dashboard access (org was just created)
+            // If on dashboard, allow access - don't redirect to setup
+            // The setup page itself will check and redirect if needed
           }
+          // If membership exists, allow dashboard access
         } catch (membershipError: any) {
           // Membership query failed or timed out
-          // If user has org_created param, they just created org - allow dashboard access
-          const orgCreated = request.nextUrl.searchParams.get('org_created')
-          if (orgCreated) {
-            // User just created organization, allow access to dashboard
-            // Don't redirect to setup
-            console.log('Membership query failed but org_created param present, allowing dashboard access')
-          } else if (pathname !== '/dashboard' && !pathname.startsWith('/dashboard/')) {
-            // Only redirect if we're not already on a dashboard page
-            // This allows dashboard access even if membership query fails
+          // Be permissive: allow dashboard access since membership likely exists
+          // Don't redirect to setup on query failures - only redirect if we're certain there's no membership
+          if (pathname === '/dashboard/setup/organization') {
+            // On setup page, allow access (setup page will check if org exists)
+            return supabaseResponse
+          }
+          // For dashboard and other routes, allow access
+          // Membership query failure doesn't mean membership doesn't exist
+          // Only redirect if user explicitly tries to access a non-dashboard route
+          if (pathname !== '/dashboard' && !pathname.startsWith('/dashboard/')) {
+            // Not a dashboard route, but allow anyway to avoid blocking legitimate access
             console.warn('Membership query failed, allowing access:', membershipError.message)
           }
         }
