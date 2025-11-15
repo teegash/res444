@@ -123,15 +123,29 @@ function LoginForm() {
         return
       }
 
+      // Set session first - this is critical for authentication
       if (result.session) {
         try {
-          await supabase.auth.setSession({
+          console.log('Setting session in client...')
+          const sessionResult = await supabase.auth.setSession({
             access_token: result.session.access_token,
             refresh_token: result.session.refresh_token,
           })
+          console.log('Session set successfully:', !!sessionResult.data.session)
+          
+          // Wait a moment for session to be fully set
+          await new Promise(resolve => setTimeout(resolve, 100))
         } catch (sessionError: any) {
-          console.warn('Failed to set session (non-blocking):', sessionError.message)
+          console.error('Failed to set session:', sessionError.message)
+          setError('Failed to set authentication session. Please try again.')
+          setIsLoading(false)
+          return
         }
+      } else {
+        console.error('No session data in signin response')
+        setError('Authentication failed - no session received.')
+        setIsLoading(false)
+        return
       }
 
       const userRole = result.role?.toLowerCase()
@@ -142,12 +156,16 @@ function LoginForm() {
         return
       }
 
+      console.log('Signin successful, role:', userRole, 'redirecting...')
+
+      // Redirect based on role - proxy will handle organization setup if needed
       if (accountType === 'tenant') {
         if (userRole !== 'tenant') {
           setError('This account is not a tenant account. Please use the Manager login tab.')
           setIsLoading(false)
           return
         }
+        console.log('Redirecting tenant to /dashboard/tenant')
         router.push('/dashboard/tenant')
         router.refresh()
       } else {
@@ -158,13 +176,14 @@ function LoginForm() {
           return
         }
 
-        if (result.needsOrganizationSetup) {
-          router.push('/dashboard?setup=1')
-        } else {
-          router.push('/dashboard')
-        }
+        // For admins/managers/caretakers - proxy will redirect to setup if needed
+        // Otherwise go to dashboard
+        console.log('Redirecting manager/admin to /dashboard')
+        router.push('/dashboard')
         router.refresh()
       }
+      
+      setIsLoading(false)
     } catch (err) {
       setError('An unexpected error occurred')
       setIsLoading(false)

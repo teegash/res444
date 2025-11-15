@@ -51,7 +51,7 @@ export async function generateInvoicesForMonth(month: string) {
 
 // Example 3: Get pending invoices for a lease
 export async function getPendingInvoices(leaseId: string) {
-  const response = await fetch(`/api/invoices/${leaseId}/pending`, {
+  const response = await fetch(`/api/invoices/by-lease/${leaseId}/pending`, {
     method: 'GET',
   })
 
