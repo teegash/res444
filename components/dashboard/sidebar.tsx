@@ -35,17 +35,36 @@ function Sidebar() {
   // Fetch organization data
   useEffect(() => {
     const fetchOrganization = async () => {
-      if (!user) return
+      if (!user) {
+        console.log('No user, skipping organization fetch')
+        return
+      }
 
       try {
-        const response = await fetch('/api/organizations/current')
+        console.log('Fetching organization data for user:', user.id)
+        const response = await fetch('/api/organizations/current', {
+          cache: 'no-store',
+          headers: {
+            'Cache-Control': 'no-cache',
+          },
+        })
+        
+        if (!response.ok) {
+          console.error('Failed to fetch organization:', response.status, response.statusText)
+          return
+        }
+
         const result = await response.json()
+        console.log('Organization fetch result:', result)
 
         if (result.success && result.data) {
+          console.log('Setting organization:', result.data.name, result.data.logo_url)
           setOrganization({
             name: result.data.name,
             logo_url: result.data.logo_url,
           })
+        } else {
+          console.log('No organization data in result:', result)
         }
       } catch (error) {
         console.error('Error fetching organization:', error)
@@ -89,11 +108,23 @@ function Sidebar() {
         <div className="p-6 border-b border-gray-200 min-h-[88px] flex items-center">
           <div className="flex items-center gap-2">
             {organization?.logo_url ? (
-              <div className="flex items-center justify-center w-10 h-10 rounded-lg flex-shrink-0 overflow-hidden bg-gray-100">
+              <div className="flex items-center justify-center w-10 h-10 rounded-lg flex-shrink-0 overflow-hidden bg-gray-100 border border-gray-200">
                 <img
                   src={organization.logo_url}
-                  alt={organization.name}
+                  alt={organization.name || 'Organization logo'}
                   className="w-full h-full object-cover"
+                  onError={(e) => {
+                    console.error('Failed to load organization logo:', organization.logo_url)
+                    // Fallback to icon on error
+                    const parent = e.currentTarget.parentElement
+                    if (parent) {
+                      parent.innerHTML = `
+                        <svg class="w-6 h-6 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                        </svg>
+                      `
+                    }
+                  }}
                 />
               </div>
             ) : (
@@ -104,8 +135,8 @@ function Sidebar() {
               </div>
             )}
             {isExpanded && (
-              <div className="overflow-hidden">
-                <h1 className="text-lg font-bold text-[#4682B4] whitespace-nowrap">
+              <div className="overflow-hidden flex-1 min-w-0">
+                <h1 className="text-lg font-bold text-[#4682B4] whitespace-nowrap truncate">
                   {organization?.name || 'RentalKenya'}
                 </h1>
                 <p className="text-xs text-gray-600 whitespace-nowrap">Manager Portal</p>
