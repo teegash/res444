@@ -56,6 +56,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [router, supabase])
 
   const signOut = async () => {
+    try {
+      await fetch('/api/auth/signout', { method: 'POST', credentials: 'include' })
+    } catch (err) {
+      console.error('[AuthContext] Failed to sign out via API', err)
+    }
+
     await supabase.auth.signOut()
     setUser(null)
     setSession(null)
@@ -92,4 +98,3 @@ export function useAuth() {
   }
   return context
 }
-
