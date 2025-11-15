@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { cookies } from 'next/headers'
+import { createServerClient } from '@supabase/ssr'
 
 async function fetchWithTimeout(
   url: string,
@@ -130,57 +132,36 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    let data: any
-    let error: any
-    const startTime = Date.now()
-
-    try {
-      const authUrl = `${supabaseUrl}/auth/v1/token?grant_type=password`
-      console.log('Calling Supabase auth API directly with 5s timeout...')
-      const response = await fetchWithTimeout(
-        authUrl,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            apikey: anonKey,
-            Authorization: `Bearer ${anonKey}`,
-          },
-          body: JSON.stringify({
-            email,
-            password,
-          }),
+    const cookieStore = cookies()
+    const supabase = createServerClient(supabaseUrl, anonKey, {
+      cookies: {
+        getAll() {
+          return cookieStore.getAll()
         },
-        5000,
-        'Sign in'
-      )
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value, options }) =>
+            cookieStore.set(name, value, options)
+          )
+        },
+      },
+    })
 
-      const elapsed = Date.now() - startTime
-      const result = await response.json()
+    const signInPromise = supabase.auth.signInWithPassword({
+      email: email.toLowerCase().trim(),
+      password,
+    })
 
-      if (!response.ok) {
-        error = result
-      } else {
-        data = result
-      }
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('Sign in timed out after 4500ms')), 4500)
+    )
 
-      console.log(`Sign in completed in ${elapsed}ms - Success:`, !!data?.access_token, 'Error:', !!error)
-
-      if (error) {
-        console.error('Supabase signin error:', {
-          message: error.error_description || error.message,
-          status: error.status,
-        })
-      }
+    let signInResult: Awaited<ReturnType<typeof supabase.auth.signInWithPassword>>
+    try {
+      signInResult = (await Promise.race([signInPromise, timeoutPromise])) as Awaited<
+        ReturnType<typeof supabase.auth.signInWithPassword>
+      >
     } catch (signInError: any) {
-      const elapsed = Date.now() - startTime
-      console.error(`Sign in failed after ${elapsed}ms:`, signInError.message)
-      console.error('Sign in error details:', {
-        name: signInError.name,
-        message: signInError.message,
-        stack: signInError.stack?.substring(0, 500), // Limit stack trace
-      })
-      
+      console.error('Sign in failed:', signInError.message)
       if (signInError.message.includes('timed out')) {
         return NextResponse.json(
           {
@@ -199,18 +180,18 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    if (error) {
-      // Handle specific error cases
-      const errorMessage = error.error_description || error.message || 'Authentication failed'
+    const { data: authData, error: authError } = signInResult
+
+    if (authError) {
+      const errorMessage = authError.message || 'Authentication failed'
       let userFriendlyMessage = errorMessage
-      
-      // If email not confirmed, provide helpful message
-      if (errorMessage.includes('email not confirmed') || errorMessage.includes('Email not confirmed')) {
-        userFriendlyMessage = 'Please verify your email address before logging in. Check your inbox for the verification link.'
+
+      if (errorMessage.toLowerCase().includes('email not confirmed')) {
+        userFriendlyMessage =
+          'Please verify your email address before logging in. Check your inbox for the verification link.'
       }
-      
-      // If invalid credentials, provide generic message (security)
-      if (errorMessage.includes('Invalid login credentials') || errorMessage.includes('invalid') || errorMessage.includes('Invalid')) {
+
+      if (errorMessage.toLowerCase().includes('invalid')) {
         userFriendlyMessage = 'Invalid email or password. Please check your credentials and try again.'
       }
 
@@ -223,7 +204,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    if (!data || !data.access_token || !data.user) {
+    if (!authData.session || !authData.user) {
       return NextResponse.json(
         {
           success: false,
@@ -233,16 +214,16 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const userId = data.user.id
+    const userId = authData.user.id
 
     // Create session object from API response
     const session = {
-      access_token: data.access_token,
-      refresh_token: data.refresh_token,
-      expires_in: data.expires_in,
-      expires_at: data.expires_at,
-      token_type: data.token_type,
-      user: data.user,
+      access_token: authData.session.access_token,
+      refresh_token: authData.session.refresh_token,
+      expires_in: authData.session.expires_in,
+      expires_at: authData.session.expires_at,
+      token_type: authData.session.token_type,
+      user: authData.user,
     }
 
     // Login should be FAST - just get role and return
@@ -251,7 +232,7 @@ export async function POST(request: NextRequest) {
     // Login completes in < 1 second this way
     
     // Try to get role from metadata first (fastest - no database query)
-    let userRole: string | null = data.user.user_metadata?.role || null
+    let userRole: string | null = authData.user.user_metadata?.role || null
 
     // Fallback to profile table via REST (service role) with strict timeout
     if (!userRole) {

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, Suspense, useMemo } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Eye, EyeOff, Shield, Crown, Loader2, ArrowLeft, Info, CheckCircle2 } from 'lucide-react'
@@ -9,13 +9,11 @@ import { Input } from '@/components/ui/input'
 import { Card } from '@/components/ui/card'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { useAuth } from '@/lib/auth/context'
-import { createClient } from '@/lib/supabase/client'
 
 function LoginForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { user, loading: authLoading } = useAuth()
-  const supabase = useMemo(() => createClient(), [])
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   
@@ -65,7 +63,7 @@ function LoginForm() {
         const elapsed = Date.now() - requestStartTime
         console.error(`Client-side fetch timed out after ${elapsed}ms`)
         controller.abort()
-      }, 9500) // Slightly under Vercel's 10s limit
+      }, 4500)
 
       let response: Response
       try {
@@ -123,39 +121,6 @@ function LoginForm() {
         return
       }
 
-      // Set session first - this is critical for authentication
-      if (result.session) {
-        try {
-          console.log('Setting session in client...')
-          const sessionResult = await supabase.auth.setSession({
-            access_token: result.session.access_token,
-            refresh_token: result.session.refresh_token,
-          })
-          
-          if (!sessionResult.data.session) {
-            throw new Error('Failed to set session - no session returned')
-          }
-          
-          console.log('✓ Session set successfully')
-          
-          // Trigger auth state change manually to update context
-          window.dispatchEvent(new Event('storage'))
-          
-          // Wait for auth context to update
-          await new Promise(resolve => setTimeout(resolve, 300))
-        } catch (sessionError: any) {
-          console.error('Failed to set session:', sessionError.message)
-          setError('Failed to set authentication session. Please try again.')
-          setIsLoading(false)
-          return
-        }
-      } else {
-        console.error('No session data in signin response')
-        setError('Authentication failed - no session received.')
-        setIsLoading(false)
-        return
-      }
-
       const userRole = result.role?.toLowerCase()
 
       if (!userRole) {
@@ -166,17 +131,13 @@ function LoginForm() {
 
       console.log('✓ Signin successful, role:', userRole)
 
-      // Clear loading state before redirect
       setIsLoading(false)
-      
-      // Redirect based on role - proxy will handle organization setup if needed
+
       if (accountType === 'tenant') {
         if (userRole !== 'tenant') {
           setError('This account is not a tenant account. Please use the Manager login tab.')
           return
         }
-        console.log('→ Redirecting tenant to /dashboard/tenant')
-        // Use window.location for reliable redirect
         window.location.href = '/dashboard/tenant'
       } else {
         const allowedRoles = ['admin', 'manager', 'caretaker']
@@ -185,10 +146,8 @@ function LoginForm() {
           return
         }
 
-        // For admins/managers/caretakers - proxy will redirect to setup if needed
-        console.log('→ Redirecting manager/admin to /dashboard')
-        // Use window.location for reliable redirect
-        window.location.href = '/dashboard'
+        const destination = result.needsOrganizationSetup ? '/dashboard?setup=1' : '/dashboard'
+        window.location.href = destination
       }
     } catch (err) {
       setError('An unexpected error occurred')
