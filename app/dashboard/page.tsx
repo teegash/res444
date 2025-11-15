@@ -76,14 +76,37 @@ function DashboardContent() {
       }
 
       try {
-        const response = await fetch('/api/organizations/current')
+        const response = await fetch('/api/organizations/current', {
+          credentials: 'include',
+        })
+        
+        // Handle 404 gracefully - it just means user doesn't have an organization yet
+        if (response.status === 404) {
+          // No organization found - this is expected for new users
+          setOrganization(null)
+          setLoadingOrg(false)
+          return
+        }
+
+        if (!response.ok) {
+          // Only log non-404 errors
+          console.error('Error fetching organization:', response.status, response.statusText)
+          setLoadingOrg(false)
+          return
+        }
+
         const result = await response.json()
 
         if (result.success && result.data) {
           setOrganization(result.data)
+        } else {
+          // No organization data - set to null gracefully
+          setOrganization(null)
         }
       } catch (error) {
+        // Network errors or other exceptions
         console.error('Error fetching organization:', error)
+        setOrganization(null)
       } finally {
         setLoadingOrg(false)
       }
