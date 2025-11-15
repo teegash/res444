@@ -6,7 +6,6 @@ import { Input } from '@/components/ui/input'
 import { PropertiesList } from '@/components/dashboard/properties-list'
 import { PropertiesGrid } from '@/components/dashboard/properties-grid'
 import { PropertiesHeader } from '@/components/dashboard/properties-header'
-import { AddPropertyModal } from '@/components/dashboard/add-property-modal'
 import { EditPropertyModal } from '@/components/dashboard/edit-property-modal'
 import { ManageUnitsModal } from '@/components/dashboard/manage-units-modal'
 import { Sidebar } from '@/components/dashboard/sidebar'
@@ -15,11 +14,14 @@ import { useRouter } from 'next/navigation'
 
 export default function PropertiesPage() {
   const [viewType, setViewType] = useState<'grid' | 'list'>('grid')
-  const [isAddModalOpen, setIsAddModalOpen] = useState(false)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [isUnitsModalOpen, setIsUnitsModalOpen] = useState(false)
   const [selectedProperty, setSelectedProperty] = useState<any>(null)
   const router = useRouter()
+
+  const handleAddProperty = () => {
+    router.push('/dashboard/properties/new')
+  }
 
   const handleEditProperty = (property: any) => {
     setSelectedProperty(property)
@@ -47,7 +49,7 @@ export default function PropertiesPage() {
             <PropertiesHeader
               viewType={viewType}
               setViewType={setViewType}
-              onAddProperty={() => setIsAddModalOpen(true)}
+              onAddProperty={handleAddProperty}
             />
 
             {viewType === 'grid' ? (
@@ -56,7 +58,6 @@ export default function PropertiesPage() {
               <PropertiesList onEdit={handleEditProperty} onManageUnits={handleManageUnits} onView={handleViewProperty} />
             )}
 
-            <AddPropertyModal open={isAddModalOpen} onOpenChange={setIsAddModalOpen} />
             <EditPropertyModal
               open={isEditModalOpen}
               onOpenChange={setIsEditModalOpen}
