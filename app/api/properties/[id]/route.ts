@@ -97,6 +97,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
       occupiedUnits: occupiedUnitsCount || 0,
       description: building.description,
       imageUrl: building.image_url,
+      organizationId: building.organization_id,
       county: null,
       createdAt: building.created_at,
       updatedAt: building.updated_at,

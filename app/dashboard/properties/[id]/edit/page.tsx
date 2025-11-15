@@ -64,6 +64,11 @@ export default function EditPropertyPage() {
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const [stats, setStats] = useState<{ recordedUnits: number; occupiedUnits: number } | null>(null)
+  const [meta, setMeta] = useState<{ organizationId: string; createdAt: string; updatedAt: string }>({
+    organizationId: '',
+    createdAt: '',
+    updatedAt: '',
+  })
 
   useEffect(() => {
     let isMounted = true
@@ -103,6 +108,11 @@ export default function EditPropertyPage() {
           setStats({
             recordedUnits: result.data.recordedUnits || result.data.totalUnits || 0,
             occupiedUnits: result.data.occupiedUnits || 0,
+          })
+          setMeta({
+            organizationId: result.data.organizationId || '',
+            createdAt: result.data.createdAt || '',
+            updatedAt: result.data.updatedAt || '',
           })
         }
       } catch (err) {
@@ -299,7 +309,7 @@ export default function EditPropertyPage() {
                       />
                     </div>
                     <div>
-                      <Label htmlFor="occupiedUnits">Occupied units (read only)</Label>
+                      <Label htmlFor="occupiedUnits">Occupied units (system)</Label>
                       <Input
                         id="occupiedUnits"
                         type="number"
@@ -310,22 +320,33 @@ export default function EditPropertyPage() {
                       />
                     </div>
                     <div>
-                      <Label className="text-sm">Automation</Label>
-                      <div className="flex items-center justify-between rounded-lg border p-3">
-                        <div>
-                          <p className="text-sm font-medium">Vacancy alerts</p>
-                          <p className="text-xs text-muted-foreground">Notify team when occupancy changes</p>
-                        </div>
-                        <Switch
-                          checked={form.autoNotify}
-                          onCheckedChange={(checked) => handleChange('autoNotify', checked)}
-                        />
+                      <Label htmlFor="recordedUnits">Recorded units (system)</Label>
+                      <Input
+                        id="recordedUnits"
+                        type="number"
+                        readOnly
+                        className="bg-muted"
+                        value={stats?.recordedUnits ?? Number(form.totalUnits || 0)}
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <Label className="text-sm">Automation</Label>
+                    <div className="flex items-center justify-between rounded-lg border p-3">
+                      <div>
+                        <p className="text-sm font-medium">Vacancy alerts</p>
+                        <p className="text-xs text-muted-foreground">Notify team when occupancy changes</p>
                       </div>
+                      <Switch
+                        checked={form.autoNotify}
+                        onCheckedChange={(checked) => handleChange('autoNotify', checked)}
+                      />
                     </div>
                   </div>
                 </CardContent>
               </Card>
 
+              {/*
               <Card>
                 <CardHeader>
                   <CardTitle>Contacts & Ownership</CardTitle>
@@ -384,41 +405,53 @@ export default function EditPropertyPage() {
                   </div>
                 </CardContent>
               </Card>
+              */}
 
               <Card>
                 <CardHeader>
                   <CardTitle>Additional Details</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div>
-                    <Label htmlFor="amenities">Amenities & notes</Label>
-                    <Textarea
-                      id="amenities"
-                      rows={3}
-                      placeholder="Parking, swimming pool, generator, CCTV, gym..."
-                      value={form.amenities}
-                      onChange={(e) => handleChange('amenities', e.target.value)}
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="notes">Internal notes</Label>
-                    <Textarea
-                      id="notes"
-                      rows={3}
-                      placeholder="Visible only to your team."
-                      value={form.notes}
-                      onChange={(e) => handleChange('notes', e.target.value)}
-                    />
-                  </div>
-                  <div className="flex items-center justify-between rounded-lg border p-3">
+                  <div className="grid gap-4 md:grid-cols-2">
                     <div>
-                      <p className="text-sm font-medium">Publish to tenant portal</p>
-                      <p className="text-xs text-muted-foreground">Show listing to prospective tenants</p>
+                      <Label htmlFor="organizationId">Organization ID</Label>
+                      <Input
+                        id="organizationId"
+                        value={meta.organizationId || '—'}
+                        readOnly
+                        className="bg-muted"
+                      />
                     </div>
-                    <Switch
-                      checked={form.publishOnline}
-                      onCheckedChange={(checked) => handleChange('publishOnline', checked)}
-                    />
+                    <div>
+                      <Label htmlFor="createdAt">Created</Label>
+                      <Input
+                        id="createdAt"
+                        value={meta.createdAt ? new Date(meta.createdAt).toLocaleString() : '—'}
+                        readOnly
+                        className="bg-muted"
+                      />
+                    </div>
+                  </div>
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div>
+                      <Label htmlFor="updatedAt">Last updated</Label>
+                      <Input
+                        id="updatedAt"
+                        value={meta.updatedAt ? new Date(meta.updatedAt).toLocaleString() : '—'}
+                        readOnly
+                        className="bg-muted"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="image-preview">Image preview</Label>
+                      <div className="rounded-lg border bg-muted overflow-hidden h-32 flex items-center justify-center">
+                        {form.imageUrl ? (
+                          <img src={form.imageUrl} alt="Property" className="object-cover h-full w-full" />
+                        ) : (
+                          <p className="text-xs text-muted-foreground">No image provided</p>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
