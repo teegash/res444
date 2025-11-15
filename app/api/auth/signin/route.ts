@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
 import { createServerClient } from '@supabase/ssr'
 
 async function fetchWithTimeout(
@@ -132,16 +131,21 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const cookieStore = cookies()
+    const responseCookies: {
+      name: string
+      value: string
+      options?: Parameters<typeof NextResponse.prototype.cookies.set>[2]
+    }[] = []
+
     const supabase = createServerClient(supabaseUrl, anonKey, {
       cookies: {
         getAll() {
-          return cookieStore.getAll()
+          return request.cookies.getAll()
         },
         setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) =>
-            cookieStore.set(name, value, options)
-          )
+          cookiesToSet.forEach(({ name, value, options }) => {
+            responseCookies.push({ name, value, options })
+          })
         },
       },
     })
@@ -270,6 +274,10 @@ export async function POST(request: NextRequest) {
       },
       { status: 200 }
     )
+
+    responseCookies.forEach(({ name, value, options }) => {
+      response.cookies.set(name, value, options)
+    })
 
     return response
   } catch (error) {
