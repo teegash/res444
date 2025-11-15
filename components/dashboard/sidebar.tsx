@@ -34,6 +34,9 @@ function Sidebar() {
 
   // Fetch organization data
   useEffect(() => {
+    let isMounted = true
+    let retryTimeout: NodeJS.Timeout | null = null
+
     const fetchOrganization = async () => {
       if (!user) {
         // User not loaded yet - this is expected, wait for user to load
@@ -45,68 +48,147 @@ function Sidebar() {
 
       // Retry logic with exponential backoff
       let retries = 0
-      const maxRetries = 3
+      const maxRetries = 5 // Increased retries
       
       const attemptFetch = async (): Promise<void> => {
+        if (!isMounted) return
+
         try {
-          console.log(`Fetching organization data for user: ${user.id} (attempt ${retries + 1})`)
+          console.log(`[Sidebar] Fetching organization data for user: ${user.id} (attempt ${retries + 1}/${maxRetries})`)
           const response = await fetch('/api/organizations/current', {
             cache: 'no-store',
             credentials: 'include', // Include cookies for auth
             headers: {
-              'Cache-Control': 'no-cache',
+              'Cache-Control': 'no-cache, no-store, must-revalidate',
+              'Pragma': 'no-cache',
+              'Expires': '0',
               'Content-Type': 'application/json',
             },
           })
           
           const result = await response.json()
-          console.log('Organization fetch result:', { status: response.status, result })
+          console.log('[Sidebar] Organization fetch result:', { 
+            status: response.status, 
+            success: result.success,
+            hasData: !!result.data,
+            orgName: result.data?.name,
+            orgLogo: result.data?.logo_url ? 'present' : 'missing'
+          })
 
           if (!response.ok) {
             if (response.status === 401) {
-              console.error('Unauthorized - user not authenticated')
+              console.error('[Sidebar] Unauthorized - user not authenticated')
               return
             }
             if (response.status === 404) {
-              console.warn('No organization found for user - API tried fallback but still no org')
-              // Don't retry on 404 - user might not have org yet or fallback didn't find it
+              console.warn('[Sidebar] No organization found for user - API tried fallback but still no org')
+              // Retry on 404 - might be a timing issue
+              if (retries < maxRetries) {
+                retries++
+                const delay = Math.min(1000 * Math.pow(2, retries - 1), 8000) // Up to 8s
+                console.log(`[Sidebar] Retrying in ${delay}ms... (404 might be temporary)`)
+                retryTimeout = setTimeout(() => {
+                  if (isMounted) attemptFetch()
+                }, delay)
+                return
+              }
+              // After max retries, show "Setup Organization"
+              if (isMounted) {
+                setOrganization(null)
+              }
               return
             }
             // For other errors, retry
             throw new Error(`API error: ${response.status} - ${result.error || response.statusText}`)
           }
 
-          if (result.success && result.data) {
-            console.log('Setting organization:', result.data.name, result.data.logo_url)
-            setOrganization({
+          if (result.success && result.data && result.data.name) {
+            console.log('[Sidebar] ✓ Setting organization:', {
               name: result.data.name,
-              logo_url: result.data.logo_url || null,
+              logo: result.data.logo_url ? 'present' : 'missing',
+              id: result.data.id
             })
+            if (isMounted) {
+              setOrganization({
+                name: result.data.name,
+                logo_url: result.data.logo_url || null,
+              })
+            }
           } else {
-            console.warn('No organization data in result:', result)
+            console.warn('[Sidebar] ✗ No organization data in result:', result)
+            // Retry if data is missing but response was ok
+            if (retries < maxRetries && response.ok) {
+              retries++
+              const delay = Math.min(1000 * Math.pow(2, retries - 1), 8000)
+              console.log(`[Sidebar] Retrying in ${delay}ms... (missing data)`)
+              retryTimeout = setTimeout(() => {
+                if (isMounted) attemptFetch()
+              }, delay)
+              return
+            }
           }
         } catch (error) {
-          console.error(`Error fetching organization (attempt ${retries + 1}):`, error)
+          console.error(`[Sidebar] Error fetching organization (attempt ${retries + 1}):`, error)
           
           // Retry with exponential backoff
           if (retries < maxRetries) {
             retries++
-            const delay = Math.min(1000 * Math.pow(2, retries - 1), 5000) // 1s, 2s, 4s max
-            console.log(`Retrying in ${delay}ms...`)
-            await new Promise(resolve => setTimeout(resolve, delay))
-            return attemptFetch()
+            const delay = Math.min(1000 * Math.pow(2, retries - 1), 8000) // 1s, 2s, 4s, 8s max
+            console.log(`[Sidebar] Retrying in ${delay}ms...`)
+            retryTimeout = setTimeout(() => {
+              if (isMounted) attemptFetch()
+            }, delay)
           } else {
-            console.error('Max retries reached, giving up')
+            console.error('[Sidebar] Max retries reached, giving up')
+            if (isMounted) {
+              setOrganization(null)
+            }
           }
         }
       }
 
       attemptFetch()
+
+      // Also set up periodic refresh every 3 seconds for first 30 seconds (in case org was just created)
+      let refreshCount = 0
+      const maxRefreshAttempts = 10 // 10 attempts * 3 seconds = 30 seconds
+      
+      const refreshInterval = setInterval(() => {
+        if (!isMounted) {
+          clearInterval(refreshInterval)
+          return
+        }
+        
+        refreshCount++
+        if (refreshCount > maxRefreshAttempts) {
+          clearInterval(refreshInterval)
+          return
+        }
+
+        // Check current state and retry if no org
+        setOrganization((currentOrg) => {
+          if (!currentOrg && user) {
+            console.log(`[Sidebar] Periodic refresh ${refreshCount}/${maxRefreshAttempts}: Checking for organization...`)
+            attemptFetch()
+          }
+          return currentOrg // Don't change state here, just trigger fetch
+        })
+      }, 3000)
+
+      return () => {
+        isMounted = false
+        if (retryTimeout) clearTimeout(retryTimeout)
+        clearInterval(refreshInterval)
+      }
     }
 
     // Only fetch when user is loaded
     if (user) {
       fetchOrganization()
+    }
+
+    return () => {
+      // Cleanup handled by fetchOrganization return
     }
   }, [user])
 
@@ -197,7 +279,7 @@ function Sidebar() {
                   className="text-lg font-bold text-[#4682B4] whitespace-nowrap truncate"
                   title={organization?.name || ''} // Show full name on hover
                 >
-                  {displayName || (organization ? 'Organization' : 'Setup Organization')}
+                  {organization?.name ? (displayName || organization.name) : 'Setup Organization'}
                 </h1>
                 <p className="text-xs text-gray-600 whitespace-nowrap">Manager Portal</p>
               </div>
