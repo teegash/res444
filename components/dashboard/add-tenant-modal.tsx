@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -16,9 +16,17 @@ import {
 import { Card, CardContent } from '@/components/ui/card'
 import { Lock, Info } from 'lucide-react'
 
+interface TenantPrefill {
+  propertyId?: string | null
+  propertyName?: string | null
+  unitId?: string | null
+  unitNumber?: string | null
+}
+
 interface AddTenantModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
+  prefill?: TenantPrefill | null
 }
 
 interface TenantForm {
@@ -49,7 +57,66 @@ interface UnitData {
   sqft: number
 }
 
-export function AddTenantModal({ open, onOpenChange }: AddTenantModalProps) {
+const DEFAULT_PROPERTIES: PropertyData[] = [
+  { id: '1', name: 'Alpha Complex' },
+  { id: '2', name: 'Beta Towers' },
+  { id: '3', name: 'Gamma Heights' },
+]
+
+const DEFAULT_UNITS_BY_PROPERTY: Record<string, UnitData[]> = {
+  '1': [
+    {
+      id: '1',
+      number: 'Unit 101',
+      building: 'Alpha Complex',
+      property: '1',
+      price: 10000,
+      bedrooms: 2,
+      bathrooms: 1,
+      floor: '1st',
+      sqft: 900,
+    },
+    {
+      id: '2',
+      number: 'Unit 102',
+      building: 'Alpha Complex',
+      property: '1',
+      price: 10000,
+      bedrooms: 2,
+      bathrooms: 1,
+      floor: '1st',
+      sqft: 900,
+    },
+  ],
+  '2': [
+    {
+      id: '3',
+      number: 'Unit 205',
+      building: 'Beta Towers',
+      property: '2',
+      price: 25000,
+      bedrooms: 3,
+      bathrooms: 2,
+      floor: '2nd',
+      sqft: 1400,
+    },
+  ],
+  '3': [
+    {
+      id: '4',
+      number: 'Unit 301',
+      building: 'Gamma Heights',
+      property: '3',
+      price: 15000,
+      bedrooms: 2,
+      bathrooms: 2,
+      floor: '3rd',
+      sqft: 1100,
+    },
+  ],
+}
+
+export function AddTenantModal({ open, onOpenChange, prefill }: AddTenantModalProps) {
   const [form, setForm] = useState<TenantForm>({
     fullName: '',
     email: '',
@@ -64,64 +131,40 @@ export function AddTenantModal({ open, onOpenChange }: AddTenantModalProps) {
   const [selectedUnit, setSelectedUnit] = useState<UnitData | null>(null)
   const [loading, setLoading] = useState(false)
 
-  const properties: PropertyData[] = [
-    { id: '1', name: 'Alpha Complex' },
-    { id: '2', name: 'Beta Towers' },
-    { id: '3', name: 'Gamma Heights' },
-  ]
+  const properties = useMemo(() => {
+    const list = [...DEFAULT_PROPERTIES]
+    if (prefill?.propertyId && !list.some((p) => p.id === prefill.propertyId)) {
+      list.push({ id: prefill.propertyId, name: prefill.propertyName || 'Selected Property' })
+    }
+    return list
+  }, [prefill?.propertyId, prefill?.propertyName])
 
-  const unitsByProperty: Record<string, UnitData[]> = {
-    '1': [
-      {
-        id: '1',
-        number: 'Unit 101',
-        building: 'Alpha Complex',
-        property: '1',
-        price: 10000,
-        bedrooms: 2,
-        bathrooms: 1,
-        floor: '1st',
-        sqft: 900,
-      },
-      {
-        id: '2',
-        number: 'Unit 102',
-        building: 'Alpha Complex',
-        property: '1',
-        price: 10000,
-        bedrooms: 2,
-        bathrooms: 1,
-        floor: '1st',
-        sqft: 900,
-      },
-    ],
-    '2': [
-      {
-        id: '3',
-        number: 'Unit 205',
-        building: 'Beta Towers',
-        property: '2',
-        price: 25000,
-        bedrooms: 3,
-        bathrooms: 2,
-        floor: '2nd',
-        sqft: 1400,
-      },
-    ],
-    '3': [
-      {
-        id: '4',
-        number: 'Unit 301',
-        building: 'Gamma Heights',
-        property: '3',
-        price: 15000,
-        bedrooms: 2,
-        bathrooms: 2,
-        floor: '3rd',
-        sqft: 1100,
-      },
-    ],
-  }
+  const unitsByProperty = useMemo(() => {
+    const clone: Record<string, UnitData[]> = {}
+    Object.entries(DEFAULT_UNITS_BY_PROPERTY).forEach(([key, units]) => {
+      clone[key] = [...units]
+    })
+
+    if (prefill?.propertyId && prefill?.unitId) {
+      const units = clone[prefill.propertyId] || []
+      if (!units.some((unit) => unit.id === prefill.unitId)) {
+        units.push({
+          id: prefill.unitId,
+          number: prefill.unitNumber || 'Selected Unit',
+          building: prefill.propertyName || 'Selected Property',
+          property: prefill.propertyId,
+          price: 0,
+          bedrooms: 0,
+          bathrooms: 0,
+          floor: '-',
+          sqft: 0,
+        })
+        clone[prefill.propertyId] = units
+      }
+    }
+
+    return clone
+  }, [prefill?.propertyId, prefill?.propertyName, prefill?.unitId, prefill?.unitNumber])
 
   const handlePropertyChange = (propertyId: string) => {
     setForm({ ...form, propertyId, unitId: null })
@@ -129,18 +172,27 @@ export function AddTenantModal({ open, onOpenChange }: AddTenantModalProps) {
   }
 
   const handleUnitChange = (unitId: string) => {
-    const unit = selectedUnit ? unitsByProperty[form.propertyId!]?.find(u => u.id === unitId) : null
     if (form.propertyId) {
-      const foundUnit = unitsByProperty[form.propertyId].find(u => u.id === unitId)
-      setSelectedUnit(foundUnit || null)
+      const foundUnit = unitsByProperty[form.propertyId]?.find((u) => u.id === unitId) || null
+      setSelectedUnit(foundUnit)
       setForm({ ...form, unitId })
     }
   }
 
-  const leaseStartDate = new Date().toISOString().split('T')[0]
-  const leaseEndDate = new Date(new Date().setFullYear(new Date().getFullYear() + 1))
-    .toISOString()
-    .split('T')[0]
+  useEffect(() => {
+    if (!prefill) return
+
+    setForm((prev) => ({
+      ...prev,
+      propertyId: prefill.propertyId ?? prev.propertyId,
+      unitId: prefill.unitId ?? prev.unitId,
+    }))
+
+    if (prefill.propertyId && prefill.unitId) {
+      const unit = unitsByProperty[prefill.propertyId]?.find((u) => u.id === prefill.unitId) || null
+      setSelectedUnit(unit)
+    }
+  }, [prefill, unitsByProperty])
 
   const handleSubmit = async () => {
     setLoading(true)
@@ -161,6 +213,16 @@ export function AddTenantModal({ open, onOpenChange }: AddTenantModalProps) {
         </DialogHeader>
 
         <div className="space-y-6">
+          {prefill?.unitId && (
+            <Card className="border-blue-100 bg-blue-50">
+              <CardContent className="py-4 text-sm text-blue-900">
+                Assigning tenant to <span className="font-semibold">{prefill.unitNumber || 'Selected Unit'}</span>
+                {prefill.propertyName && (
+                  <> in <span className="font-semibold">{prefill.propertyName}</span></>
+                )}
+              </CardContent>
+            </Card>
+          )}
           {/* Section 1: Tenant Information */}
           <div className="space-y-4">
             <h3 className="font-semibold">Tenant Information</h3>

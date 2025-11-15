@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Card } from '@/components/ui/card'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Loader2, Pencil, Save, X, Plus, ArrowLeft } from 'lucide-react'
+import { Loader2, Pencil, Save, X, Plus, ArrowLeft, UserPlus } from 'lucide-react'
 
 interface UnitRecord {
   id: string
@@ -39,6 +39,49 @@ interface UnitFormState {
 }
 
 const STATUS_OPTIONS: UnitFormState['status'][] = ['vacant', 'occupied', 'maintenance']
+
+const FLOOR_OPTIONS = Array.from({ length: 33 }, (_, index) => index - 2) // -2 (Basement 2) up to 30th floor
+
+const formatFloorLabel = (value: number) => {
+  if (value === 0) return 'Ground (0)'
+  if (value === -1) return 'Basement (-1)'
+  if (value === -2) return 'Basement (-2)'
+  if (value === 1) return '1st Floor'
+  if (value === 2) return '2nd Floor'
+  if (value === 3) return '3rd Floor'
+  return `${value}th Floor`
+}
+
+const expandUnitEntries = (entries: string[]) => {
+  const expanded: string[] = []
+
+  for (const entry of entries) {
+    const rangeMatch = entry.match(/^(.+?)(\d+)\s*(?:\.{2}|-)\s*(.+?)(\d+)$/)
+
+    if (rangeMatch) {
+      const [, prefixA, startDigits, prefixB, endDigits] = rangeMatch
+      if (prefixA.trim() !== prefixB.trim()) {
+        return { units: [], error: 'Range prefixes must match (e.g., A-101..A-110).' }
+      }
+
+      const start = Number(startDigits)
+      const end = Number(endDigits)
+      if (Number.isNaN(start) || Number.isNaN(end)) {
+        return { units: [], error: 'Range boundaries must be numbers (e.g., 101..110).' }
+      }
+
+      const step = start <= end ? 1 : -1
+      const pad = Math.max(startDigits.length, endDigits.length)
+      for (let current = start; step > 0 ? current <= end : current >= end; current += step) {
+        expanded.push(`${prefixA}${String(current).padStart(pad, '0')}`)
+      }
+    } else {
+      expanded.push(entry)
+    }
+  }
+
+  return { units: expanded }
+}
 
 const defaultUnitForm: UnitFormState = {
   unit_number: '',
@@ -262,17 +305,24 @@ export default function UnitManagementPage() {
     if (!buildingId) return
     setBulkError(null)
 
-    const unitNumbers = bulkInput
+    const rawEntries = bulkInput
       .split(/\n|,/)
       .map((value) => value.trim())
       .filter(Boolean)
 
-    if (unitNumbers.length === 0) {
+    if (rawEntries.length === 0) {
       setBulkError('Please enter at least one unit number.')
       return
     }
 
-    if (unitNumbers.length > remainingCapacity) {
+    const { units: expandedUnits, error: rangeError } = expandUnitEntries(rawEntries)
+
+    if (rangeError) {
+      setBulkError(rangeError)
+      return
+    }
+
+    if (expandedUnits.length > remainingCapacity) {
       setBulkError(`You can only add ${remainingCapacity} more unit${remainingCapacity === 1 ? '' : 's'}.`)
       return
     }
@@ -286,7 +336,7 @@ export default function UnitManagementPage() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             building_id: buildingId,
-            units: unitNumbers.map((unitNumber) => ({
+            units: expandedUnits.map((unitNumber) => ({
               unit_number: unitNumber,
               floor: bulkDefaults.floor,
               number_of_bedrooms: bulkDefaults.bedrooms,
@@ -310,6 +360,21 @@ export default function UnitManagementPage() {
     } finally {
       setBulkAdding(false)
     }
+  }
+
+  const handleAssignTenant = (unit: UnitRecord) => {
+    if (!buildingId) return
+    const params = new URLSearchParams({
+      propertyId: buildingId,
+      unitId: unit.id,
+    })
+    if (building?.name) {
+      params.set('propertyName', building.name)
+    }
+    if (unit.unit_number) {
+      params.set('unitNumber', unit.unit_number)
+    }
+    router.push(`/dashboard/tenants?${params.toString()}`)
   }
 
   const sortedLogs = useMemo(() => data?.bulk_logs || [], [data?.bulk_logs])
@@ -399,17 +464,33 @@ export default function UnitManagementPage() {
                               <p className="font-semibold">{unit.unit_number}</p>
                             )}
                           </div>
-                          <div>
-                            <p className="text-xs text-gray-500 mb-1">Floor</p>
-                            {isEditing ? (
-                              <Input
-                                value={displayState.floor}
-                                onChange={(e) => handleEditChange(unit.id, 'floor', e.target.value)}
-                              />
-                            ) : (
-                              <p className="font-medium">{unit.floor ?? '-'}</p>
-                            )}
-                          </div>
+                            <div>
+                              <p className="text-xs text-gray-500 mb-1">Floor</p>
+                              {isEditing ? (
+                                <Select
+                                  value={displayState.floor ?? ''}
+                                  onValueChange={(value) => handleEditChange(unit.id, 'floor', value)}
+                                >
+                                  <SelectTrigger>
+                                    <SelectValue placeholder="Select floor" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="">Not set</SelectItem>
+                                    {FLOOR_OPTIONS.map((floor) => (
+                                      <SelectItem key={floor} value={String(floor)}>
+                                        {formatFloorLabel(floor)}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              ) : (
+                                <p className="font-medium">
+                                  {unit.floor === null || unit.floor === undefined
+                                    ? '-'
+                                    : formatFloorLabel(unit.floor)}
+                                </p>
+                              )}
+                            </div>
                           <div>
                             <p className="text-xs text-gray-500 mb-1">Bedrooms / Bathrooms</p>
                             {isEditing ? (
@@ -498,14 +579,26 @@ export default function UnitManagementPage() {
                               </Button>
                             </>
                           ) : (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => startEditing(unit)}
-                              className="gap-2"
-                            >
-                              <Pencil className="w-4 h-4" /> Edit
-                            </Button>
+                            <>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => startEditing(unit)}
+                                className="gap-2"
+                              >
+                                <Pencil className="w-4 h-4" /> Edit
+                              </Button>
+                              {(unit.status || '').toLowerCase() === 'vacant' && (
+                                <Button
+                                  variant="secondary"
+                                  size="sm"
+                                  onClick={() => handleAssignTenant(unit)}
+                                  className="gap-2"
+                                >
+                                  <UserPlus className="w-4 h-4" /> Assign Tenant
+                                </Button>
+                              )}
+                            </>
                           )}
                         </div>
                       </div>
@@ -535,12 +628,22 @@ export default function UnitManagementPage() {
                 </div>
                 <div className="space-y-2">
                   <p className="text-xs text-gray-500">Floor</p>
-                  <Input
+                  <Select
                     value={newUnit.floor}
-                    onChange={(e) => setNewUnit((prev) => ({ ...prev, floor: e.target.value }))}
-                    placeholder="1"
-                    type="number"
-                  />
+                    onValueChange={(value) => setNewUnit((prev) => ({ ...prev, floor: value }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select floor" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">Not set</SelectItem>
+                      {FLOOR_OPTIONS.map((floor) => (
+                        <SelectItem key={floor} value={String(floor)}>
+                          {formatFloorLabel(floor)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="space-y-2">
                   <p className="text-xs text-gray-500">Bedrooms</p>
@@ -614,7 +717,8 @@ export default function UnitManagementPage() {
                 <div>
                   <h2 className="text-lg font-semibold">Bulk Add Units</h2>
                   <p className="text-sm text-gray-500">
-                    Paste unit numbers separated by commas or line breaks.
+                    Paste unit numbers separated by commas or line breaks. Use ranges like{' '}
+                    <span className="font-medium">A-101..A-110</span> to auto-generate sequences.
                   </p>
                 </div>
               </div>
@@ -626,11 +730,22 @@ export default function UnitManagementPage() {
                   placeholder={'A-101\nA-102\nA-103'}
                 />
                 <div className="grid gap-4 md:grid-cols-4">
-                  <Input
-                    placeholder="Floor"
+                  <Select
                     value={bulkDefaults.floor}
-                    onChange={(e) => setBulkDefaults((prev) => ({ ...prev, floor: e.target.value }))}
-                  />
+                    onValueChange={(value) => setBulkDefaults((prev) => ({ ...prev, floor: value }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Floor" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">Not set</SelectItem>
+                      {FLOOR_OPTIONS.map((floor) => (
+                        <SelectItem key={floor} value={String(floor)}>
+                          {formatFloorLabel(floor)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   <Input
                     placeholder="Bedrooms"
                     value={bulkDefaults.bedrooms}
