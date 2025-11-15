@@ -36,9 +36,12 @@ function Sidebar() {
   useEffect(() => {
     const fetchOrganization = async () => {
       if (!user) {
-        console.log('No user, skipping organization fetch')
+        // User not loaded yet - this is expected, wait for user to load
         return
       }
+
+      // Small delay to ensure auth context is fully initialized
+      await new Promise(resolve => setTimeout(resolve, 100))
 
       // Retry logic with exponential backoff
       let retries = 0
@@ -65,8 +68,8 @@ function Sidebar() {
               return
             }
             if (response.status === 404) {
-              console.warn('No organization found for user')
-              // Don't retry on 404 - user might not have org yet
+              console.warn('No organization found for user - API tried fallback but still no org')
+              // Don't retry on 404 - user might not have org yet or fallback didn't find it
               return
             }
             // For other errors, retry
@@ -101,7 +104,10 @@ function Sidebar() {
       attemptFetch()
     }
 
-    fetchOrganization()
+    // Only fetch when user is loaded
+    if (user) {
+      fetchOrganization()
+    }
   }, [user])
 
   const handleLogout = () => {

@@ -106,17 +106,89 @@ export async function GET(request: NextRequest) {
     }
 
     const membershipData = await membershipResponse.json()
+    console.log('Membership data from HTTP request:', membershipData)
     const membership = Array.isArray(membershipData) && membershipData.length > 0 ? membershipData[0] : null
 
-    if (!membership || !membership.organization_id) {
-      console.log(`No organization membership found for user: ${user.id}`)
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'No organization found for this user',
-        },
-        { status: 404 }
-      )
+    let organizationId: string | null = null
+    let userRole: string | null = null
+
+    if (membership && membership.organization_id) {
+      // Found membership record - use it
+      organizationId = membership.organization_id
+      userRole = membership.role
+      console.log(`Found membership: org_id=${organizationId}, role=${userRole}`)
+    } else {
+      // No membership found - try fallback: check if user is admin and owns an organization directly
+      // This handles cases where organization was created but membership record failed
+      console.log(`No membership found for user: ${user.id}, checking for direct ownership...`)
+      
+      const userRoleFromMetadata = user.user_metadata?.role || null
+      if (userRoleFromMetadata === 'admin') {
+        // For admins, try to find organization by email
+        const orgResponse = await fetchWithTimeout(
+          `${supabaseUrl}/rest/v1/organizations?email=eq.${encodeURIComponent(user.email || '')}&select=id&limit=1`,
+          {
+            method: 'GET',
+            headers: {
+              apikey: serviceRoleKey,
+              Authorization: `Bearer ${serviceRoleKey}`,
+              Accept: 'application/json',
+              'Content-Type': 'application/json',
+            },
+          },
+          2000,
+          'Organization fallback lookup'
+        )
+
+        if (orgResponse.ok) {
+          const orgData = await orgResponse.json()
+          if (Array.isArray(orgData) && orgData.length > 0) {
+            organizationId = orgData[0].id
+            userRole = 'admin'
+            console.log(`Found organization via fallback: ${organizationId}`)
+            
+            // Try to create membership record (non-blocking)
+            try {
+              await fetchWithTimeout(
+                `${supabaseUrl}/rest/v1/organization_members`,
+                {
+                  method: 'POST',
+                  headers: {
+                    apikey: serviceRoleKey,
+                    Authorization: `Bearer ${serviceRoleKey}`,
+                    Accept: 'application/json',
+                    'Content-Type': 'application/json',
+                    Prefer: 'return=representation',
+                  },
+                  body: JSON.stringify({
+                    user_id: user.id,
+                    organization_id: organizationId,
+                    role: 'admin',
+                    joined_at: new Date().toISOString(),
+                  }),
+                },
+                1000,
+                'Membership creation (fallback)'
+              )
+              console.log('Created missing membership record')
+            } catch (err) {
+              // Non-blocking - continue even if membership creation fails
+              console.warn('Failed to create membership record (non-blocking):', err)
+            }
+          }
+        }
+      }
+
+      if (!organizationId) {
+        console.log(`No organization found for user: ${user.id}`)
+        return NextResponse.json(
+          {
+            success: false,
+            error: 'No organization found for this user',
+          },
+          { status: 404 }
+        )
+      }
     }
 
     // Fetch organization data directly from organizations table
@@ -124,7 +196,7 @@ export async function GET(request: NextRequest) {
     const { data: organization, error: orgError } = await supabase
       .from('organizations')
       .select('*')
-      .eq('id', membership.organization_id)
+      .eq('id', organizationId!)
       .single()
 
     if (orgError || !organization) {
@@ -143,7 +215,7 @@ export async function GET(request: NextRequest) {
         success: true,
         data: {
           ...organization,
-          user_role: membership.role,
+          user_role: userRole || 'admin',
         },
       },
       { status: 200 }
