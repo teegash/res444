@@ -28,11 +28,11 @@ export default function PropertiesPage() {
 
   const handleManageUnits = (property: any) => {
     if (property?.id) {
-      router.push(`/dashboard/manager/properties/${property.id}/units`)
+      router.push(`/dashboard/property/${property.id}/unit_management`)
     }
   }
 
-  const handleViewProperty = (propertyId: number) => {
+  const handleViewProperty = (propertyId: string) => {
     router.push(`/dashboard/properties/${propertyId}`)
   }
 

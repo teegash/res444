@@ -16,7 +16,7 @@ import { Edit2, Users, Eye, Loader2 } from 'lucide-react'
 interface PropertiesListProps {
   onEdit: (property: any) => void
   onManageUnits: (property: any) => void
-  onView: (id: number) => void
+  onView: (id: string) => void
 }
 
 export function PropertiesList({ onEdit, onManageUnits, onView }: PropertiesListProps) {

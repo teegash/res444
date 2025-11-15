@@ -19,16 +19,16 @@ import {
 interface PropertiesGridProps {
   onEdit: (property: any) => void
   onManageUnits: (property: any) => void
-  onView: (id: number) => void
+  onView: (id: string) => void
 }
 
 export function PropertiesGrid({ onEdit, onManageUnits, onView }: PropertiesGridProps) {
   const [properties, setProperties] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
-  const [uploading, setUploading] = useState<{ [key: number]: boolean }>({})
-  const [propertyImages, setPropertyImages] = useState<{ [key: number]: string }>({})
+  const [uploading, setUploading] = useState<Record<string, boolean>>({})
+  const [propertyImages, setPropertyImages] = useState<Record<string, string>>({})
   const [isUploadOpen, setIsUploadOpen] = useState(false)
-  const [activePropertyId, setActivePropertyId] = useState<number | null>(null)
+  const [activePropertyId, setActivePropertyId] = useState<string | null>(null)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const [uploadError, setUploadError] = useState<string | null>(null)
@@ -42,7 +42,7 @@ export function PropertiesGrid({ onEdit, onManageUnits, onView }: PropertiesGrid
     }
   }, [previewUrl])
 
-  const openUploadModal = (propertyId: number) => {
+  const openUploadModal = (propertyId: string) => {
     setActivePropertyId(propertyId)
     setSelectedFile(null)
     if (previewUrl) {
@@ -140,7 +140,7 @@ export function PropertiesGrid({ onEdit, onManageUnits, onView }: PropertiesGrid
     fetchProperties()
   }, [fetchProperties])
 
-  const uploadImage = async (propertyId: number, file: File) => {
+  const uploadImage = async (propertyId: string, file: File) => {
     const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp']
     if (!allowedTypes.includes(file.type)) {
       setUploadError('Invalid file type. Only JPEG, PNG, and WebP images are allowed.')
@@ -252,96 +252,102 @@ export function PropertiesGrid({ onEdit, onManageUnits, onView }: PropertiesGrid
           <p>Loading properties...</p>
         </div>
       ) : null}
-      {properties.map((property) => (
-        <Card key={property.id} className="overflow-hidden hover:shadow-lg transition-shadow">
-          <div
-            className="h-40 bg-muted relative group cursor-pointer"
-            style={{
-              backgroundImage: `url('${getImageUrl(property)}')`,
-              backgroundSize: 'cover',
-              backgroundPosition: 'center',
-            }}
-            onClick={(e) => {
-              // Don't navigate if clicking the edit button
-              if ((e.target as HTMLElement).closest('.image-edit-button')) {
-                return
-              }
-              onView(property.id)
-            }}
-          >
-            {/* Edit Button Overlay */}
-            <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-              <Button
-                size="icon"
-                variant="secondary"
-                className="image-edit-button h-8 w-8 bg-black/70 hover:bg-black/90 text-white border-0 shadow-lg"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  openUploadModal(property.id)
-                }}
-                disabled={uploading[property.id]}
-                title="Upload property image"
-              >
-                {uploading[property.id] ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Camera className="w-4 h-4" />
-                )}
-              </Button>
-            </div>
-          </div>
-          <CardHeader className="pb-3">
-            <div className="flex items-start justify-between">
-              <div>
-                <h3 className="font-semibold text-lg">{property.name}</h3>
-                <p className="text-sm text-muted-foreground">{property.location}</p>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <Badge className="bg-green-600">Active</Badge>
-            <div>
-              <div className="flex justify-between text-sm mb-2">
-                <span className="font-medium">Occupancy</span>
-                <span>{property.occupied}/{property.total} Units</span>
-              </div>
-              <Progress value={(property.occupied / property.total) * 100} />
-              <p className="text-xs text-muted-foreground mt-1">
-                {Math.round((property.occupied / property.total) * 100)}% occupied
-              </p>
-            </div>
-            <div className="flex gap-2 pt-2">
-              <Button
-                variant="outline"
-                size="sm"
-                className="flex-1 gap-2"
-                onClick={() => onEdit(property)}
-              >
-                <Edit2 className="w-4 h-4" />
-                Edit
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                className="flex-1 gap-2"
-                onClick={() => onManageUnits(property)}
-              >
-                <Users className="w-4 h-4" />
-                Units
-              </Button>
-            </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="w-full gap-2"
-              onClick={() => onView(property.id)}
+      {properties.map((property) => {
+        const totalUnits = property.totalUnits ?? property.total ?? 0
+        const occupiedUnits = property.occupiedUnits ?? property.occupied ?? 0
+        const occupancyPercent = totalUnits > 0 ? Math.round((occupiedUnits / totalUnits) * 100) : 0
+
+        return (
+          <Card key={property.id} className="overflow-hidden hover:shadow-lg transition-shadow">
+            <div
+              className="h-40 bg-muted relative group cursor-pointer"
+              style={{
+                backgroundImage: `url('${getImageUrl(property)}')`,
+                backgroundSize: 'cover',
+                backgroundPosition: 'center',
+              }}
+              onClick={(e) => {
+                // Don't navigate if clicking the edit button
+                if ((e.target as HTMLElement).closest('.image-edit-button')) {
+                  return
+                }
+                onView(property.id)
+              }}
             >
-              <Eye className="w-4 h-4" />
-              View Details
-            </Button>
-          </CardContent>
-        </Card>
-      ))}
+              {/* Edit Button Overlay */}
+              <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                <Button
+                  size="icon"
+                  variant="secondary"
+                  className="image-edit-button h-8 w-8 bg-black/70 hover:bg-black/90 text-white border-0 shadow-lg"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    openUploadModal(property.id)
+                  }}
+                  disabled={uploading[property.id]}
+                  title="Upload property image"
+                >
+                  {uploading[property.id] ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Camera className="w-4 h-4" />
+                  )}
+                </Button>
+              </div>
+            </div>
+            <CardHeader className="pb-3">
+              <div className="flex items-start justify-between">
+                <div>
+                  <h3 className="font-semibold text-lg">{property.name}</h3>
+                  <p className="text-sm text-muted-foreground">{property.location}</p>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <Badge className="bg-green-600">Active</Badge>
+              <div>
+                <div className="flex justify-between text-sm mb-2">
+                  <span className="font-medium">Occupancy</span>
+                  <span>
+                    {occupiedUnits}/{totalUnits} Units
+                  </span>
+                </div>
+                <Progress value={totalUnits > 0 ? (occupiedUnits / totalUnits) * 100 : 0} />
+                <p className="text-xs text-muted-foreground mt-1">{occupancyPercent}% occupied</p>
+              </div>
+              <div className="flex gap-2 pt-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="flex-1 gap-2"
+                  onClick={() => onEdit(property)}
+                >
+                  <Edit2 className="w-4 h-4" />
+                  Edit
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="flex-1 gap-2"
+                  onClick={() => onManageUnits(property)}
+                >
+                  <Users className="w-4 h-4" />
+                  Units
+                </Button>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="w-full gap-2"
+                onClick={() => onView(property.id)}
+              >
+                <Eye className="w-4 h-4" />
+                View Details
+              </Button>
+            </CardContent>
+          </Card>
+        )
+      })}
 
       <Dialog open={isUploadOpen} onOpenChange={(open) => !open && closeUploadModal()}>
         <DialogContent className="sm:max-w-md">

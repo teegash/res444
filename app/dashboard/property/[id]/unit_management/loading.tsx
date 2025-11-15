@@ -2,6 +2,6 @@
 
 import { LoadingScreen } from '@/components/ui/loading-screen'
 
-export default function UnitsLoading() {
+export default function UnitManagementLoading() {
   return <LoadingScreen />
 }
