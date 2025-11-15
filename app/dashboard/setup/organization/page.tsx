@@ -54,10 +54,33 @@ export default function OrganizationSetupPage() {
     }
   }, [user])
 
-  // Redirect if not authenticated
+  // Redirect if not authenticated or if organization already exists
   useEffect(() => {
     if (!authLoading && !user) {
       router.push('/auth/login')
+      return
+    }
+
+    // Check if user already has an organization - if so, redirect to dashboard
+    const checkOrganization = async () => {
+      if (!user?.id) return
+
+      try {
+        const response = await fetch('/api/organizations/current')
+        const result = await response.json()
+
+        if (result.success && result.data) {
+          // User already has an organization, redirect to dashboard
+          window.location.href = '/dashboard'
+        }
+      } catch (error) {
+        // Ignore errors - user might not have organization yet
+        console.log('No organization found, allowing setup')
+      }
+    }
+
+    if (user && !authLoading) {
+      checkOrganization()
     }
   }, [user, authLoading, router])
 
@@ -233,11 +256,12 @@ export default function OrganizationSetupPage() {
 
       setSuccess('Organization created successfully! Redirecting to dashboard...')
       
-      // Redirect to dashboard immediately using window.location for full page reload
+      // Force immediate redirect using window.location for full page reload
+      // Add timestamp to bypass any caching issues
       // This ensures the proxy recognizes the new organization membership
       setTimeout(() => {
-        window.location.href = '/dashboard'
-      }, 1500)
+        window.location.href = '/dashboard?org_created=' + Date.now()
+      }, 1000)
     } catch (err) {
       console.error('Organization creation error:', err)
       setIsLoading(false)

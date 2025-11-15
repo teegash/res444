@@ -74,7 +74,18 @@ export async function proxy(request: NextRequest) {
   // Role-based route protection for dashboard routes
   if (isProtectedPath && user) {
     // Allow access to setup page for users without roles or organizations
+    // But if user is trying to access /dashboard, check if they have organization first
     if (pathname === '/dashboard/setup' || pathname === '/dashboard/setup/organization') {
+      // If user has org_created query param, they just created an organization
+      // Allow a moment for the database to catch up, then redirect to dashboard
+      const orgCreated = request.nextUrl.searchParams.get('org_created')
+      if (orgCreated) {
+        // User just created organization, redirect to dashboard
+        const url = request.nextUrl.clone()
+        url.pathname = '/dashboard'
+        url.searchParams.delete('org_created')
+        return NextResponse.redirect(url)
+      }
       return supabaseResponse
     }
 
@@ -119,7 +130,7 @@ export async function proxy(request: NextRequest) {
       }
 
       // Check if admin (owner) has organization
-      // Use very short timeout - proxy should be fast!
+      // Use slightly longer timeout to allow for recently created memberships
       if (userRole === 'admin') {
         try {
           const membershipQuery = supabase
@@ -128,9 +139,9 @@ export async function proxy(request: NextRequest) {
             .eq('user_id', user.id)
             .maybeSingle()
           
-          // Very short timeout - 1 second max (proxy should be fast!)
+          // Slightly longer timeout to catch newly created memberships (2 seconds)
           const membershipTimeout = new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('Membership query timed out')), 1000)
+            setTimeout(() => reject(new Error('Membership query timed out')), 2000)
           )
           
           const { data: membership } = await Promise.race([
@@ -138,15 +149,33 @@ export async function proxy(request: NextRequest) {
             membershipTimeout
           ]) as any
           
+          // Only redirect to setup if we have a definitive "no membership" result
+          // If query timed out, allow access (membership might exist but query was slow)
           if (!membership || !membership.organization_id) {
             // Admin without organization - redirect to organization setup
-            const url = request.nextUrl.clone()
-            url.pathname = '/dashboard/setup/organization'
-            return NextResponse.redirect(url)
+            // But allow access to setup page itself
+            // Also, if user has org_created param, they just created org - allow access to dashboard
+            const orgCreated = request.nextUrl.searchParams.get('org_created')
+            if (pathname !== '/dashboard/setup/organization' && !orgCreated) {
+              const url = request.nextUrl.clone()
+              url.pathname = '/dashboard/setup/organization'
+              return NextResponse.redirect(url)
+            }
+            // If org_created param exists, allow dashboard access (org was just created)
           }
         } catch (membershipError: any) {
-          // Membership query failed - allow access, will be created later if needed
-          // Don't log or wait - just continue
+          // Membership query failed or timed out
+          // If user has org_created param, they just created org - allow dashboard access
+          const orgCreated = request.nextUrl.searchParams.get('org_created')
+          if (orgCreated) {
+            // User just created organization, allow access to dashboard
+            // Don't redirect to setup
+            console.log('Membership query failed but org_created param present, allowing dashboard access')
+          } else if (pathname !== '/dashboard' && !pathname.startsWith('/dashboard/')) {
+            // Only redirect if we're not already on a dashboard page
+            // This allows dashboard access even if membership query fails
+            console.warn('Membership query failed, allowing access:', membershipError.message)
+          }
         }
       }
 
