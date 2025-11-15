@@ -33,7 +33,19 @@ export async function GET(request: NextRequest) {
       .limit(1)
       .maybeSingle()
 
-    if (membershipError || !membership) {
+    if (membershipError) {
+      console.error('Error fetching organization membership:', membershipError)
+      return NextResponse.json(
+        {
+          success: false,
+          error: membershipError.message || 'Failed to fetch organization membership',
+        },
+        { status: 500 }
+      )
+    }
+
+    if (!membership) {
+      console.log(`No organization membership found for user: ${user.id}`)
       return NextResponse.json(
         {
           success: false,

@@ -40,35 +40,65 @@ function Sidebar() {
         return
       }
 
-      try {
-        console.log('Fetching organization data for user:', user.id)
-        const response = await fetch('/api/organizations/current', {
-          cache: 'no-store',
-          headers: {
-            'Cache-Control': 'no-cache',
-          },
-        })
-        
-        if (!response.ok) {
-          console.error('Failed to fetch organization:', response.status, response.statusText)
-          return
-        }
-
-        const result = await response.json()
-        console.log('Organization fetch result:', result)
-
-        if (result.success && result.data) {
-          console.log('Setting organization:', result.data.name, result.data.logo_url)
-          setOrganization({
-            name: result.data.name,
-            logo_url: result.data.logo_url,
+      // Retry logic with exponential backoff
+      let retries = 0
+      const maxRetries = 3
+      
+      const attemptFetch = async (): Promise<void> => {
+        try {
+          console.log(`Fetching organization data for user: ${user.id} (attempt ${retries + 1})`)
+          const response = await fetch('/api/organizations/current', {
+            cache: 'no-store',
+            credentials: 'include', // Include cookies for auth
+            headers: {
+              'Cache-Control': 'no-cache',
+              'Content-Type': 'application/json',
+            },
           })
-        } else {
-          console.log('No organization data in result:', result)
+          
+          const result = await response.json()
+          console.log('Organization fetch result:', { status: response.status, result })
+
+          if (!response.ok) {
+            if (response.status === 401) {
+              console.error('Unauthorized - user not authenticated')
+              return
+            }
+            if (response.status === 404) {
+              console.warn('No organization found for user')
+              // Don't retry on 404 - user might not have org yet
+              return
+            }
+            // For other errors, retry
+            throw new Error(`API error: ${response.status} - ${result.error || response.statusText}`)
+          }
+
+          if (result.success && result.data) {
+            console.log('Setting organization:', result.data.name, result.data.logo_url)
+            setOrganization({
+              name: result.data.name,
+              logo_url: result.data.logo_url || null,
+            })
+          } else {
+            console.warn('No organization data in result:', result)
+          }
+        } catch (error) {
+          console.error(`Error fetching organization (attempt ${retries + 1}):`, error)
+          
+          // Retry with exponential backoff
+          if (retries < maxRetries) {
+            retries++
+            const delay = Math.min(1000 * Math.pow(2, retries - 1), 5000) // 1s, 2s, 4s max
+            console.log(`Retrying in ${delay}ms...`)
+            await new Promise(resolve => setTimeout(resolve, delay))
+            return attemptFetch()
+          } else {
+            console.error('Max retries reached, giving up')
+          }
         }
-      } catch (error) {
-        console.error('Error fetching organization:', error)
       }
+
+      attemptFetch()
     }
 
     fetchOrganization()
@@ -140,7 +170,7 @@ function Sidebar() {
             {isExpanded && (
               <div className="overflow-hidden flex-1 min-w-0">
                 <h1 className="text-lg font-bold text-[#4682B4] whitespace-nowrap truncate">
-                  {organization?.name || 'Loading...'}
+                  {organization?.name || 'Setup Organization'}
                 </h1>
                 <p className="text-xs text-gray-600 whitespace-nowrap">Manager Portal</p>
               </div>
