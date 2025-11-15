@@ -71,18 +71,32 @@ function DashboardContent() {
   useEffect(() => {
     const fetchOrganization = async () => {
       if (!user) {
+        console.log('[Dashboard] No user, skipping organization fetch')
         setLoadingOrg(false)
         return
       }
 
+      console.log('[Dashboard] Fetching organization for user:', user.id, user.email)
+
       try {
         const response = await fetch('/api/organizations/current', {
           credentials: 'include',
+          cache: 'no-store',
+          headers: {
+            'Cache-Control': 'no-cache',
+          },
         })
         
+        console.log('[Dashboard] Organization fetch response:', {
+          status: response.status,
+          ok: response.ok,
+          statusText: response.statusText,
+        })
+
         // Handle 404 gracefully - it just means user doesn't have an organization yet
         if (response.status === 404) {
           // No organization found - this is expected for new users
+          console.log('[Dashboard] No organization found (404) - user may need to create one')
           setOrganization(null)
           setLoadingOrg(false)
           return
@@ -90,29 +104,49 @@ function DashboardContent() {
 
         if (!response.ok) {
           // Only log non-404 errors
-          console.error('Error fetching organization:', response.status, response.statusText)
+          console.error('[Dashboard] Error fetching organization:', response.status, response.statusText)
+          const errorText = await response.text()
+          console.error('[Dashboard] Error response body:', errorText)
           setLoadingOrg(false)
           return
         }
 
         const result = await response.json()
+        console.log('[Dashboard] Organization fetch result:', {
+          success: result.success,
+          hasData: !!result.data,
+          orgName: result.data?.name,
+          orgLogo: result.data?.logo_url ? 'present' : 'missing',
+          orgId: result.data?.id,
+        })
 
         if (result.success && result.data) {
+          console.log('[Dashboard] ✓ Setting organization:', {
+            name: result.data.name,
+            logo_url: result.data.logo_url,
+            id: result.data.id,
+          })
           setOrganization(result.data)
         } else {
           // No organization data - set to null gracefully
+          console.warn('[Dashboard] ✗ No organization data in result:', result)
           setOrganization(null)
         }
       } catch (error) {
         // Network errors or other exceptions
-        console.error('Error fetching organization:', error)
+        console.error('[Dashboard] Exception fetching organization:', error)
         setOrganization(null)
       } finally {
         setLoadingOrg(false)
       }
     }
 
-    fetchOrganization()
+    // Add a small delay to ensure user is fully loaded
+    const timeoutId = setTimeout(() => {
+      fetchOrganization()
+    }, 100)
+
+    return () => clearTimeout(timeoutId)
   }, [user])
 
   useEffect(() => {
