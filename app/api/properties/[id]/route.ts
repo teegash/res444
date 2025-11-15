@@ -57,7 +57,9 @@ async function authorize(buildingId: string) {
 }
 
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
-  const buildingId = sanitizeBuildingId(params.id)
+  const url = new URL(request.url)
+  const queryId = url.searchParams.get('buildingId')
+  const buildingId = sanitizeBuildingId(params.id) || sanitizeBuildingId(queryId)
   if (!buildingId) {
     return NextResponse.json({ success: false, error: 'Building ID is required.' }, { status: 400 })
   }
@@ -104,7 +106,13 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
 }
 
 export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
-  const buildingId = sanitizeBuildingId(params.id)
+  const url = new URL(request.url)
+  const queryId = url.searchParams.get('buildingId')
+  const body = await request.json().catch(() => ({}))
+  const buildingId =
+    sanitizeBuildingId(params.id) ||
+    sanitizeBuildingId(queryId) ||
+    sanitizeBuildingId(body?.building_id)
   if (!buildingId) {
     return NextResponse.json({ success: false, error: 'Building ID is required.' }, { status: 400 })
   }
@@ -113,8 +121,6 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
   if ('error' in authContext && authContext.error) return authContext.error
 
   const { adminSupabase, building } = authContext
-
-  const body = await request.json()
   const updates: Record<string, any> = {}
 
   if (typeof body.name === 'string') {

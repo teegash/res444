@@ -76,10 +76,13 @@ export default function EditPropertyPage() {
 
       try {
         setLoading(true)
-        const response = await fetch(`/api/properties/${propertyId}`, {
-          cache: 'no-store',
-          credentials: 'include',
-        })
+        const response = await fetch(
+          `/api/properties/${propertyId}?buildingId=${encodeURIComponent(propertyId)}`,
+          {
+            cache: 'no-store',
+            credentials: 'include',
+          }
+        )
         const result = await response.json()
 
         if (!response.ok || !result.success || !result.data) {
@@ -154,10 +157,10 @@ export default function EditPropertyPage() {
         }
       }
 
-      const response = await fetch(`/api/properties/${propertyId}`, {
+      const response = await fetch(`/api/properties/${propertyId}?buildingId=${encodeURIComponent(propertyId)}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({ ...payload, building_id: propertyId }),
         credentials: 'include',
       })
       const result = await response.json()
