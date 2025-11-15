@@ -165,14 +165,14 @@ function Sidebar() {
           return
         }
 
-        // Check current state and retry if no org
-        setOrganization((currentOrg) => {
-          if (!currentOrg && user) {
-            console.log(`[Sidebar] Periodic refresh ${refreshCount}/${maxRefreshAttempts}: Checking for organization...`)
-            attemptFetch()
-          }
-          return currentOrg // Don't change state here, just trigger fetch
-        })
+        // Only retry if organization is still null (not set yet)
+        // We'll check this by trying to fetch again - the fetch function will check isMounted
+        if (user) {
+          console.log(`[Sidebar] Periodic refresh ${refreshCount}/${maxRefreshAttempts}: Checking for organization...`)
+          // Reset retries for periodic refresh
+          retries = 0
+          attemptFetch()
+        }
       }, 3000)
 
       return () => {
