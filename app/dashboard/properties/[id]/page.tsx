@@ -129,6 +129,17 @@ export default function PropertyDetailPage() {
       ? property.imageUrl
       : '/modern-residential-building.png'
 
+  const prioritizedUnits = useMemo(() => {
+    if (!units.length) return []
+    const vacant = units.filter((unit) => (unit.status || '').toLowerCase() === 'vacant')
+    const others = units.filter((unit) => (unit.status || '').toLowerCase() !== 'vacant')
+    return [...vacant, ...others]
+  }, [units])
+
+  const displayedUnits = unitsLoading
+    ? Array.from({ length: 8 })
+    : prioritizedUnits.slice(0, 8)
+
   return (
     <div className="flex min-h-screen bg-gray-50">
       <Sidebar />
@@ -288,8 +299,8 @@ export default function PropertyDetailPage() {
             View all units
           </Button>
         </div>
-        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-6">
-          {(unitsLoading ? Array.from({ length: 6 }) : units).map((unit, index) => (
+        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 xl:grid-cols-4">
+          {displayedUnits.map((unit, index) => (
             <Card
               key={unit?.id ?? `placeholder-${index}`}
               className="border border-slate-100 shadow-sm hover:shadow-md transition-shadow"

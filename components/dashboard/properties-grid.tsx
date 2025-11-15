@@ -296,12 +296,7 @@ export function PropertiesGrid({ onEdit, onManageUnits, onView }: PropertiesGrid
             className="overflow-hidden hover:shadow-lg transition-shadow"
           >
             <div
-              className="h-40 bg-muted relative group cursor-pointer"
-              style={{
-                backgroundImage: `url('${getImageUrl(property)}')`,
-                backgroundSize: 'cover',
-                backgroundPosition: 'center',
-              }}
+              className="relative h-48 group cursor-pointer"
               onClick={(e) => {
                 // Don't navigate if clicking the edit button
                 if ((e.target as HTMLElement).closest('.image-edit-button')) {
@@ -310,8 +305,14 @@ export function PropertiesGrid({ onEdit, onManageUnits, onView }: PropertiesGrid
                 onView(buildingId)
               }}
             >
+              <img
+                src={getImageUrl(property)}
+                alt={property.name}
+                className="absolute inset-0 h-full w-full object-cover"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-black/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
               {/* Edit Button Overlay */}
-              <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+              <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity">
                 <Button
                   size="icon"
                   variant="secondary"
