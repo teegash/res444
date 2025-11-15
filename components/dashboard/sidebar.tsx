@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useState, useEffect, useMemo } from 'react'
+import { useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { LayoutDashboard, Building2, Users, CreditCard, Droplet, Wrench, MessageSquare, Bell, BarChart3, FileText, Settings, LogOut, Lock, Unlock } from 'lucide-react'
@@ -27,170 +27,6 @@ function Sidebar() {
   const pathname = usePathname()
   const router = useRouter()
   const { user } = useAuth()
-  const [organization, setOrganization] = useState<{
-    name: string
-    logo_url: string | null
-  } | null>(null)
-
-  // Fetch organization data
-  useEffect(() => {
-    let isMounted = true
-    let retryTimeout: NodeJS.Timeout | null = null
-
-    const fetchOrganization = async () => {
-      if (!user) {
-        // User not loaded yet - this is expected, wait for user to load
-        return
-      }
-
-      // Small delay to ensure auth context is fully initialized
-      await new Promise(resolve => setTimeout(resolve, 100))
-
-      // Retry logic with exponential backoff
-      let retries = 0
-      const maxRetries = 5 // Increased retries
-      
-      const attemptFetch = async (): Promise<void> => {
-        if (!isMounted) return
-
-        try {
-          console.log(`[Sidebar] Fetching organization data for user: ${user.id} (attempt ${retries + 1}/${maxRetries})`)
-          const response = await fetch('/api/organizations/current', {
-            cache: 'no-store',
-            credentials: 'include', // Include cookies for auth
-            headers: {
-              'Cache-Control': 'no-cache, no-store, must-revalidate',
-              'Pragma': 'no-cache',
-              'Expires': '0',
-              'Content-Type': 'application/json',
-            },
-          })
-          
-          const result = await response.json()
-          console.log('[Sidebar] Organization fetch result:', { 
-            status: response.status, 
-            success: result.success,
-            hasData: !!result.data,
-            orgName: result.data?.name,
-            orgLogo: result.data?.logo_url ? 'present' : 'missing'
-          })
-
-          if (!response.ok) {
-            if (response.status === 401) {
-              console.error('[Sidebar] Unauthorized - user not authenticated')
-              return
-            }
-            if (response.status === 404) {
-              console.warn('[Sidebar] No organization found for user - API tried fallback but still no org')
-              // Retry on 404 - might be a timing issue
-              if (retries < maxRetries) {
-                retries++
-                const delay = Math.min(1000 * Math.pow(2, retries - 1), 8000) // Up to 8s
-                console.log(`[Sidebar] Retrying in ${delay}ms... (404 might be temporary)`)
-                retryTimeout = setTimeout(() => {
-                  if (isMounted) attemptFetch()
-                }, delay)
-                return
-              }
-              // After max retries, show "Setup Organization"
-              if (isMounted) {
-                setOrganization(null)
-              }
-              return
-            }
-            // For other errors, retry
-            throw new Error(`API error: ${response.status} - ${result.error || response.statusText}`)
-          }
-
-          if (result.success && result.data && result.data.name) {
-            console.log('[Sidebar] ✓ Setting organization:', {
-              name: result.data.name,
-              logo: result.data.logo_url ? 'present' : 'missing',
-              id: result.data.id
-            })
-            if (isMounted) {
-              setOrganization({
-                name: result.data.name,
-                logo_url: result.data.logo_url || null,
-              })
-            }
-          } else {
-            console.warn('[Sidebar] ✗ No organization data in result:', result)
-            // Retry if data is missing but response was ok
-            if (retries < maxRetries && response.ok) {
-              retries++
-              const delay = Math.min(1000 * Math.pow(2, retries - 1), 8000)
-              console.log(`[Sidebar] Retrying in ${delay}ms... (missing data)`)
-              retryTimeout = setTimeout(() => {
-                if (isMounted) attemptFetch()
-              }, delay)
-              return
-            }
-          }
-        } catch (error) {
-          console.error(`[Sidebar] Error fetching organization (attempt ${retries + 1}):`, error)
-          
-          // Retry with exponential backoff
-          if (retries < maxRetries) {
-            retries++
-            const delay = Math.min(1000 * Math.pow(2, retries - 1), 8000) // 1s, 2s, 4s, 8s max
-            console.log(`[Sidebar] Retrying in ${delay}ms...`)
-            retryTimeout = setTimeout(() => {
-              if (isMounted) attemptFetch()
-            }, delay)
-          } else {
-            console.error('[Sidebar] Max retries reached, giving up')
-            if (isMounted) {
-              setOrganization(null)
-            }
-          }
-        }
-      }
-
-      attemptFetch()
-
-      // Also set up periodic refresh every 3 seconds for first 30 seconds (in case org was just created)
-      let refreshCount = 0
-      const maxRefreshAttempts = 10 // 10 attempts * 3 seconds = 30 seconds
-      
-      const refreshInterval = setInterval(() => {
-        if (!isMounted) {
-          clearInterval(refreshInterval)
-          return
-        }
-        
-        refreshCount++
-        if (refreshCount > maxRefreshAttempts) {
-          clearInterval(refreshInterval)
-          return
-        }
-
-        // Only retry if organization is still null (not set yet)
-        // We'll check this by trying to fetch again - the fetch function will check isMounted
-        if (user) {
-          console.log(`[Sidebar] Periodic refresh ${refreshCount}/${maxRefreshAttempts}: Checking for organization...`)
-          // Reset retries for periodic refresh
-          retries = 0
-          attemptFetch()
-        }
-      }, 3000)
-
-      return () => {
-        isMounted = false
-        if (retryTimeout) clearTimeout(retryTimeout)
-        clearInterval(refreshInterval)
-      }
-    }
-
-    // Only fetch when user is loaded
-    if (user) {
-      fetchOrganization()
-    }
-
-    return () => {
-      // Cleanup handled by fetchOrganization return
-    }
-  }, [user])
 
   const handleLogout = () => {
     router.push('/auth/login')
@@ -212,24 +48,6 @@ function Sidebar() {
     }
   }
 
-  // Get display name - show only first word if name is too long to avoid overflow
-  const displayName = useMemo(() => {
-    if (!organization?.name) {
-      return null
-    }
-    
-    // If name is longer than 15 characters, take only the first word
-    // This prevents names like "Very Long Organization Name Ltd" from overflowing
-    const name = organization.name.trim()
-    if (name.length > 15) {
-      const firstWord = name.split(/\s+/)[0]
-      // If first word is still too long, truncate it
-      return firstWord.length > 15 ? firstWord.substring(0, 15) : firstWord
-    }
-    
-    return name
-  }, [organization?.name])
-
   return (
     <>
       <aside 
@@ -240,46 +58,19 @@ function Sidebar() {
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
       >
-        {/* Organization Logo and Name */}
+        {/* RentalKenya Logo and Name */}
         <div className="p-6 border-b border-gray-200 min-h-[88px] flex items-center">
           <div className="flex items-center gap-3 w-full">
             {/* Logo Container - Always show, size fixed at 40x40px */}
             <div className="flex items-center justify-center w-10 h-10 rounded-lg flex-shrink-0 overflow-hidden bg-gradient-to-br from-[#4682B4] to-[#5a9fd4] border border-gray-200 shadow-sm">
-              {organization?.logo_url ? (
-                <img
-                  src={organization.logo_url}
-                  alt={organization.name || 'Organization logo'}
-                  className="w-full h-full object-cover"
-                  onError={(e) => {
-                    console.error('Failed to load organization logo:', organization.logo_url)
-                    // On error, show first letter fallback
-                    const parent = e.currentTarget.parentElement
-                    if (parent && organization?.name) {
-                      const firstLetter = organization.name.charAt(0).toUpperCase()
-                      parent.className = "flex items-center justify-center w-10 h-10 rounded-lg flex-shrink-0 bg-gradient-to-br from-[#4682B4] to-[#5a9fd4] border border-gray-200 shadow-sm"
-                      parent.innerHTML = `<span class="text-white font-bold text-lg">${firstLetter}</span>`
-                    }
-                  }}
-                />
-              ) : organization?.name ? (
-                // Show first letter of organization name if no logo
-                <span className="text-white font-bold text-lg">
-                  {organization.name.charAt(0).toUpperCase()}
-                </span>
-              ) : (
-                // Fallback while loading or no organization
-                <span className="text-white font-bold text-lg">?</span>
-              )}
+              <span className="text-white font-bold text-lg">RK</span>
             </div>
             
-            {/* Organization Name - Only show when expanded */}
+            {/* RentalKenya Name - Only show when expanded */}
             {isExpanded && (
               <div className="overflow-hidden flex-1 min-w-0 max-w-[200px]">
-                <h1 
-                  className="text-lg font-bold text-[#4682B4] whitespace-nowrap truncate"
-                  title={organization?.name || ''} // Show full name on hover
-                >
-                  {organization?.name ? (displayName || organization.name) : 'Setup Organization'}
+                <h1 className="text-lg font-bold text-[#4682B4] whitespace-nowrap">
+                  RentalKenya
                 </h1>
                 <p className="text-xs text-gray-600 whitespace-nowrap">Manager Portal</p>
               </div>

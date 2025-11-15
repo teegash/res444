@@ -104,6 +104,41 @@ export function Header() {
 
   return (
     <header className="border-b border-border bg-card sticky top-0 z-30">
+      {/* Organization Card - Centered above search bar */}
+      {organization && (
+        <div className="flex items-center justify-center py-3 px-6 border-b border-border/50 bg-gradient-to-r from-primary/5 to-primary/10">
+          <div className="flex items-center gap-3 px-4 py-2 rounded-lg bg-card border border-border/50 shadow-sm">
+            {/* Organization Logo */}
+            <div className="flex items-center justify-center w-8 h-8 rounded-md overflow-hidden bg-gradient-to-br from-[#4682B4] to-[#5a9fd4] border border-border/50 shadow-sm flex-shrink-0">
+              {organization.logo_url ? (
+                <img
+                  src={organization.logo_url}
+                  alt={organization.name}
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    // Fallback to first letter on error
+                    const parent = e.currentTarget.parentElement
+                    if (parent && organization?.name) {
+                      const firstLetter = organization.name.charAt(0).toUpperCase()
+                      parent.className = "flex items-center justify-center w-8 h-8 rounded-md bg-gradient-to-br from-[#4682B4] to-[#5a9fd4] border border-border/50 shadow-sm flex-shrink-0"
+                      parent.innerHTML = `<span class="text-white font-bold text-sm">${firstLetter}</span>`
+                    }
+                  }}
+                />
+              ) : (
+                <span className="text-white font-bold text-sm">
+                  {organization.name.charAt(0).toUpperCase()}
+                </span>
+              )}
+            </div>
+            {/* Organization Name */}
+            <span className="text-sm font-semibold text-foreground whitespace-nowrap">
+              {organization.name}
+            </span>
+          </div>
+        </div>
+      )}
+
       <div className="flex items-center justify-between p-6 max-w-full w-full">
         {/* Search */}
         <div className="flex items-center flex-1 mr-6">
