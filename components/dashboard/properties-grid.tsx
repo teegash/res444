@@ -172,7 +172,7 @@ export function PropertiesGrid({ onEdit, onManageUnits, onView }: PropertiesGrid
 
       const bucketName = 'profile-pictures'
 
-      const { data, error } = await supabase.storage
+      const { error: uploadError } = await supabase.storage
         .from(bucketName)
         .upload(fileName, fileToUpload, {
           contentType: fileToUpload.type,
@@ -180,20 +180,24 @@ export function PropertiesGrid({ onEdit, onManageUnits, onView }: PropertiesGrid
           upsert: false,
         })
 
-      if (error) {
-        console.error('Storage upload error:', error)
-        throw new Error(error.message)
+      if (uploadError) {
+        console.error('Storage upload error:', uploadError)
+        throw new Error(uploadError.message)
       }
 
       const { data: urlData } = supabase.storage.from(bucketName).getPublicUrl(fileName)
 
-      const { error: updateError } = await supabase
-        .from('apartment_buildings')
-        .update({ image_url: urlData.publicUrl })
-        .eq('id', propertyId)
+      const response = await fetch(`/api/properties/${propertyId}/image`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ image_url: urlData.publicUrl }),
+      })
 
-      if (updateError) {
-        throw updateError
+      const result = await response.json()
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || 'Failed to update property image.')
       }
 
       setPropertyImages((prev) => ({ ...prev, [propertyId]: urlData.publicUrl }))

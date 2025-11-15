@@ -223,7 +223,7 @@ function Sidebar() {
         </div>
 
         {/* Menu Items */}
-        <nav className="flex-1 p-3 space-y-3 overflow-y-auto">
+        <nav className="flex-1 p-4 space-y-3 overflow-y-auto">
           {menuItems.map((item) => {
             const Icon = item.icon
             const isActive = pathname === item.href || pathname.startsWith(item.href + '/')
@@ -233,11 +233,11 @@ function Sidebar() {
                   variant={isActive ? 'default' : 'ghost'}
                   size="default"
                   className={cn(
-                    "w-full transition-all duration-200 rounded-lg py-3",
-                    isExpanded ? "justify-start px-4" : "justify-center px-0",
+                    "w-full transition-all duration-200 rounded-lg py-3 px-4",
+                    isExpanded ? "justify-start" : "justify-center",
                     isActive 
                       ? 'bg-[#4682B4] hover:bg-[#4682B4]/90 text-white shadow-sm' 
-                      : 'text-gray-700 hover:text-gray-900 hover:bg-gray-300/70'
+                      : 'text-gray-700 hover:text-gray-900 hover:bg-gray-200/70'
                   )}
                   title={!isExpanded ? item.label : undefined}
                 >
@@ -250,15 +250,15 @@ function Sidebar() {
         </nav>
 
         {/* Settings and Logout */}
-        <div className="p-3 border-t border-gray-200 space-y-3">
+        <div className="p-4 border-t border-gray-200 space-y-3">
           {/* Lock Button */}
           <Button
             variant="ghost"
             size="default"
             onClick={handleLockToggle}
             className={cn(
-              "w-full transition-all duration-200 py-3",
-              isExpanded ? "justify-start" : "justify-center px-0",
+              "w-full transition-all duration-200 py-3 px-4",
+              isExpanded ? "justify-start" : "justify-center",
               isLocked ? "bg-blue-50 text-blue-600 hover:bg-blue-100" : "text-gray-700 hover:text-gray-900 hover:bg-gray-300/70"
             )}
             title={!isExpanded ? (isLocked ? "Unlock Sidebar" : "Lock Sidebar") : undefined}
@@ -280,8 +280,8 @@ function Sidebar() {
               variant="ghost" 
               size="default" 
               className={cn(
-                "w-full transition-all duration-200 py-3 text-gray-700 hover:text-gray-900 hover:bg-gray-300/70",
-                isExpanded ? "justify-start" : "justify-center px-0"
+                "w-full transition-all duration-200 py-3 px-4 text-gray-700 hover:text-gray-900 hover:bg-gray-300/70",
+                isExpanded ? "justify-start" : "justify-center"
               )}
               title={!isExpanded ? "Settings" : undefined}
             >
@@ -293,8 +293,8 @@ function Sidebar() {
             variant="ghost"
             size="default"
             className={cn(
-              "w-full py-3 text-red-600 hover:text-red-700 hover:bg-red-50 transition-all duration-200",
-              isExpanded ? "justify-start" : "justify-center px-0"
+              "w-full py-3 px-4 text-red-600 hover:text-red-700 hover:bg-red-50 transition-all duration-200",
+              isExpanded ? "justify-start" : "justify-center"
             )}
             onClick={handleLogout}
             title={!isExpanded ? "Logout" : undefined}
