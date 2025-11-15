@@ -7,7 +7,6 @@ import { PropertiesList } from '@/components/dashboard/properties-list'
 import { PropertiesGrid } from '@/components/dashboard/properties-grid'
 import { PropertiesHeader } from '@/components/dashboard/properties-header'
 import { EditPropertyModal } from '@/components/dashboard/edit-property-modal'
-import { ManageUnitsModal } from '@/components/dashboard/manage-units-modal'
 import { Sidebar } from '@/components/dashboard/sidebar'
 import { Header } from '@/components/dashboard/header'
 import { useRouter } from 'next/navigation'
@@ -15,7 +14,6 @@ import { useRouter } from 'next/navigation'
 export default function PropertiesPage() {
   const [viewType, setViewType] = useState<'grid' | 'list'>('grid')
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
-  const [isUnitsModalOpen, setIsUnitsModalOpen] = useState(false)
   const [selectedProperty, setSelectedProperty] = useState<any>(null)
   const router = useRouter()
 
@@ -29,8 +27,9 @@ export default function PropertiesPage() {
   }
 
   const handleManageUnits = (property: any) => {
-    setSelectedProperty(property)
-    setIsUnitsModalOpen(true)
+    if (property?.id) {
+      router.push(`/dashboard/manager/properties/${property.id}/units`)
+    }
   }
 
   const handleViewProperty = (propertyId: number) => {
@@ -61,11 +60,6 @@ export default function PropertiesPage() {
             <EditPropertyModal
               open={isEditModalOpen}
               onOpenChange={setIsEditModalOpen}
-              property={selectedProperty}
-            />
-            <ManageUnitsModal
-              open={isUnitsModalOpen}
-              onOpenChange={setIsUnitsModalOpen}
               property={selectedProperty}
             />
           </div>
