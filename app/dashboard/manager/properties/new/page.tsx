@@ -1,378 +1,468 @@
 'use client'
 
-import { ArrowLeft, Building2, Plus, X, Upload, ImageIcon } from 'lucide-react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { ArrowLeft, Building2, Loader2, Plus, Trash2 } from 'lucide-react'
+import Sidebar from '@/components/dashboard/sidebar'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Checkbox } from '@/components/ui/checkbox'
-import Sidebar from '@/components/dashboard/sidebar'
+import { Textarea } from '@/components/ui/textarea'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+const fileToBase64 = (file: File): Promise<string> =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => {
+      const result = reader.result as string | null
+      if (!result) {
+        reject(new Error('Failed to read file'))
+        return
+      }
+      const base64 = result.split(',')[1]
+      resolve(base64)
+    }
+    reader.onerror = () => reject(new Error('Failed to read file'))
+    reader.readAsDataURL(file)
+  })
+
+type UnitFormState = {
+  unit_number: string
+  floor: string
+  bedrooms: string
+  bathrooms: string
+  size_sqft: string
+  status: 'vacant' | 'occupied' | 'maintenance'
+}
+
+const STATUS_OPTIONS: UnitFormState['status'][] = ['vacant', 'occupied', 'maintenance']
 
 export default function NewPropertyPage() {
-  const [units, setUnits] = useState([{ number: 'A-101', type: '', size: '', rent: '' }])
-  const [images, setImages] = useState<string[]>([])
+  const router = useRouter()
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState<string | null>(null)
+  const [formData, setFormData] = useState({
+    name: '',
+    location: '',
+    totalUnits: '',
+    description: '',
+    imageUrl: '',
+  })
+  const [imageFile, setImageFile] = useState<File | null>(null)
+  const [imagePreview, setImagePreview] = useState<string | null>(null)
 
-  const addUnit = () => {
-    setUnits([...units, { number: '', type: '', size: '', rent: '' }])
-  }
-
-  const removeUnit = (index: number) => {
-    setUnits(units.filter((_, i) => i !== index))
-  }
-
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files
-    if (files) {
-      const newImages = Array.from(files).map(file => URL.createObjectURL(file))
-      setImages([...images, ...newImages])
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      setImageFile(file)
+      const previewUrl = URL.createObjectURL(file)
+      setImagePreview(previewUrl)
+      setFormData((prev) => ({
+        ...prev,
+        imageUrl: '',
+      }))
     }
   }
 
-  const removeImage = (index: number) => {
-    setImages(images.filter((_, i) => i !== index))
+  useEffect(() => {
+    return () => {
+      if (imagePreview) {
+        URL.revokeObjectURL(imagePreview)
+      }
+    }
+  }, [imagePreview])
+
+  const [units, setUnits] = useState<UnitFormState[]>([
+    { unit_number: '', floor: '', bedrooms: '', bathrooms: '', size_sqft: '', status: 'vacant' },
+  ])
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target
+    setFormData((prev) => ({ ...prev, [name]: value }))
+    setError(null)
+  }
+
+  const handleUnitChange = (
+    index: number,
+    field: keyof UnitFormState,
+    value: string | UnitFormState['status']
+  ) => {
+    setUnits((prev) =>
+      prev.map((unit, i) =>
+        i === index
+          ? {
+              ...unit,
+              [field]: value,
+            }
+          : unit
+      )
+    )
+  }
+
+  const addUnit = () => {
+    setUnits((prev) => [
+      ...prev,
+      { unit_number: '', floor: '', bedrooms: '', bathrooms: '', size_sqft: '', status: 'vacant' },
+    ])
+  }
+
+  const removeUnit = (index: number) => {
+    setUnits((prev) => prev.filter((_, i) => i !== index))
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+
+    if (!formData.name.trim() || !formData.location.trim() || !formData.totalUnits.trim()) {
+      setError('Property name, location, and total units are required.')
+      return
+    }
+
+    setIsSubmitting(true)
+    setError(null)
+    setSuccess(null)
+
+    try {
+      const payload = {
+        name: formData.name.trim(),
+        location: formData.location.trim(),
+        total_units: Number(formData.totalUnits),
+        description: formData.description.trim() || null,
+        image_url: formData.imageUrl.trim() || null,
+        image_file: imageFile ? await fileToBase64(imageFile) : null,
+        units: units
+          .filter((unit) => unit.unit_number.trim().length > 0)
+          .map((unit) => ({
+            unit_number: unit.unit_number.trim(),
+            floor: unit.floor ? Number(unit.floor) : null,
+            number_of_bedrooms: unit.bedrooms ? Number(unit.bedrooms) : null,
+            number_of_bathrooms: unit.bathrooms ? Number(unit.bathrooms) : null,
+            size_sqft: unit.size_sqft ? Number(unit.size_sqft) : null,
+            status: unit.status,
+          })),
+      }
+
+      const response = await fetch('/api/properties/create', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      })
+
+      const result = await response.json()
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || 'Failed to save property.')
+      }
+
+      setSuccess('Property created successfully.')
+      router.push('/dashboard/manager/properties')
+    } catch (err) {
+      const errorMessage =
+        err instanceof Error ? err.message : 'An unexpected error occurred while saving.'
+      setError(errorMessage)
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   return (
     <div className="flex min-h-screen bg-gray-50">
       <Sidebar />
-      
       <div className="flex-1 ml-16">
-        <div className="max-w-4xl mx-auto p-4 md:p-6 lg:p-8 space-y-6">
-          <div className="flex items-center gap-4 mb-6">
-            <Link href="/dashboard/properties">
-              <Button variant="ghost" size="sm">
-                <ArrowLeft className="h-4 w-4 mr-2" />
-                Back to Properties
-              </Button>
-            </Link>
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-green-100 rounded-lg">
-                <Building2 className="h-5 w-5 text-green-600" />
+        <form
+          onSubmit={handleSubmit}
+          className="max-w-4xl mx-auto p-4 md:p-6 lg:p-8 space-y-6"
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <Link href="/dashboard/manager/properties">
+                <Button variant="ghost" size="sm">
+                  <ArrowLeft className="h-4 w-4 mr-2" />
+                  Back to Properties
+                </Button>
+              </Link>
+              <div className="flex items-center gap-2">
+                <div className="p-2 bg-green-100 rounded-lg">
+                  <Building2 className="h-5 w-5 text-green-600" />
+                </div>
+                <div>
+                  <h1 className="text-2xl font-bold">Add Apartment Building</h1>
+                  <p className="text-sm text-gray-600">
+                    Save the building and optionally pre-create units.
+                  </p>
+                </div>
               </div>
-              <h1 className="text-2xl font-bold">Add New Property</h1>
             </div>
+            {isSubmitting && <Loader2 className="h-5 w-5 animate-spin text-[#4682B4]" />}
           </div>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Property Images</CardTitle>
-              <CardDescription>Upload photos of your property (max 10 images)</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                {images.map((image, index) => (
-                  <div key={index} className="relative group">
-                    <img 
-                      src={image || "/placeholder.svg"} 
-                      alt={`Property ${index + 1}`} 
-                      className="w-full h-32 object-cover rounded-lg border-2 border-gray-200"
-                    />
-                    <button
-                      onClick={() => removeImage(index)}
-                      className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                  </div>
-                ))}
-                {images.length < 10 && (
-                  <label className="flex flex-col items-center justify-center h-32 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-[#4682B4] hover:bg-blue-50 transition-colors">
-                    <Upload className="h-8 w-8 text-gray-400 mb-2" />
-                    <span className="text-sm text-gray-500">Upload Image</span>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      multiple
-                      onChange={handleImageUpload}
-                      className="hidden"
-                    />
-                  </label>
-                )}
-              </div>
-              {images.length === 0 && (
-                <div className="flex items-center justify-center h-40 border-2 border-dashed border-gray-300 rounded-lg">
-                  <div className="text-center">
-                    <ImageIcon className="h-12 w-12 text-gray-400 mx-auto mb-2" />
-                    <p className="text-sm text-gray-500">No images uploaded yet</p>
-                    <p className="text-xs text-gray-400 mt-1">Click the upload button to add images</p>
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+          {error && (
+            <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+              {error}
+            </div>
+          )}
 
-          {/* Basic Information */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Basic Information</CardTitle>
-              <CardDescription>Enter the basic details of your property</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
+          {success && (
+            <div className="rounded-md border border-green-200 bg-green-50 p-3 text-sm text-green-700">
+              {success}
+            </div>
+          )}
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Building Details</CardTitle>
+            <CardDescription>Provide information that maps to apartment_buildings.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label className="text-sm font-medium text-gray-700">Featured Image</Label>
+              <div className="flex flex-col md:flex-row gap-4">
+                <div
+                  className="w-full md:w-1/2 h-48 rounded-lg border border-dashed border-gray-300 flex items-center justify-center cursor-pointer hover:border-[#4682B4] hover:bg-blue-50 transition-colors"
+                  onClick={() => document.getElementById('imageUploader')?.click()}
+                >
+                  {imagePreview ? (
+                    <img src={imagePreview} alt="Preview" className="w-full h-full object-cover rounded-lg" />
+                  ) : (
+                    <p className="text-sm text-gray-500">Click to upload image</p>
+                  )}
+                  <input
+                    id="imageUploader"
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    className="hidden"
+                    onChange={handleImageChange}
+                  />
+                </div>
+                <div className="w-full md:w-1/2 space-y-2">
+                  <Label htmlFor="image-url">Image URL (optional)</Label>
+                  <Input
+                    id="image-url"
+                    name="imageUrl"
+                    placeholder="https://..."
+                    value={formData.imageUrl}
+                    onChange={handleInputChange}
+                    disabled={!!imageFile}
+                  />
+                  <p className="text-xs text-gray-500">
+                    {imageFile
+                      ? 'Uploaded file will be used. Remove it if you prefer using a URL.'
+                      : 'Provide a public URL or upload an image.'}
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                  <Label htmlFor="name">Building Name *</Label>
+                  <Input
+                    id="name"
+                    name="name"
+                    placeholder="e.g., Kilimani Heights"
+                    value={formData.name}
+                    onChange={handleInputChange}
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="location">Location *</Label>
+                  <Input
+                    id="location"
+                    name="location"
+                    placeholder="Kilimani, Nairobi"
+                    value={formData.location}
+                    onChange={handleInputChange}
+                    required
+                  />
+                </div>
+              </div>
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
-                  <Label htmlFor="property-name">Property Name</Label>
-                  <Input id="property-name" placeholder="e.g., Kilimani Heights" />
+                  <Label htmlFor="totalUnits">Total Units *</Label>
+                  <Input
+                    id="totalUnits"
+                    name="totalUnits"
+                    type="number"
+                    min={1}
+                    placeholder="e.g., 24"
+                    value={formData.totalUnits}
+                    onChange={handleInputChange}
+                    required
+                  />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="property-type">Property Type</Label>
-                  <Select>
-                    <SelectTrigger id="property-type">
-                      <SelectValue placeholder="Select property type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="apartment">Apartment Building</SelectItem>
-                      <SelectItem value="house">Single House</SelectItem>
-                      <SelectItem value="villa">Villa</SelectItem>
-                      <SelectItem value="commercial">Commercial</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <Label htmlFor="imageUrl">Featured Image URL (optional)</Label>
+                  <Input
+                    id="imageUrl"
+                    name="imageUrl"
+                    placeholder="https://..."
+                    value={formData.imageUrl}
+                    onChange={handleInputChange}
+                  />
                 </div>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="description">Property Description</Label>
-                <Textarea 
-                  id="description" 
-                  placeholder="Describe your property, its features, and amenities..."
-                  rows={3}
+                <Label htmlFor="description">Description</Label>
+                <Textarea
+                  id="description"
+                  name="description"
+                  placeholder="Short summary of the building, amenities, or surrounding area..."
+                  rows={4}
+                  value={formData.description}
+                  onChange={handleInputChange}
                 />
               </div>
             </CardContent>
           </Card>
 
-          {/* Location Details */}
           <Card>
             <CardHeader>
-              <div className="flex items-center gap-2">
-                <span className="text-lg">📍</span>
-                <CardTitle>Location Details</CardTitle>
-              </div>
-              <CardDescription>Provide the property location information</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="county">County</Label>
-                  <Select>
-                    <SelectTrigger id="county">
-                      <SelectValue placeholder="Select county" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="nairobi">Nairobi</SelectItem>
-                      <SelectItem value="mombasa">Mombasa</SelectItem>
-                      <SelectItem value="kisumu">Kisumu</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="area">Area/Neighborhood</Label>
-                  <Select>
-                    <SelectTrigger id="area">
-                      <SelectValue placeholder="Select area" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="kilimani">Kilimani</SelectItem>
-                      <SelectItem value="westlands">Westlands</SelectItem>
-                      <SelectItem value="karen">Karen</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="street">Street Address</Label>
-                <Input id="street" placeholder="Enter the full street address" />
-              </div>
-              <div className="grid gap-4 md:grid-cols-3">
-                <div className="space-y-2">
-                  <Label htmlFor="latitude">Latitude (Optional)</Label>
-                  <Input id="latitude" placeholder="-1.2921" />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="longitude">Longitude (Optional)</Label>
-                  <Input id="longitude" placeholder="36.8219" />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="postal">Postal Code</Label>
-                  <Input id="postal" placeholder="00100" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Property Features & Amenities */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Property Features & Amenities</CardTitle>
-              <CardDescription>Select the features and amenities available</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid gap-4 md:grid-cols-3">
-                {[
-                  'Parking', 'Security Guard', 'CCTV', 'Swimming Pool', 'Gym', 'Elevator',
-                  'Generator', 'Water Backup', 'Garden', 'Playground', 'Balcony', 'Pet Friendly',
-                  'Laundry', 'Terrace', 'Furnished', 'WiFi', 'Storage', 'Air Conditioning'
-                ].map((amenity) => (
-                  <div key={amenity} className="flex items-center space-x-2">
-                    <Checkbox id={amenity.toLowerCase().replace(' ', '-')} />
-                    <Label 
-                      htmlFor={amenity.toLowerCase().replace(' ', '-')} 
-                      className="text-sm cursor-pointer"
-                    >
-                      {amenity}
-                    </Label>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Units Configuration */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Units Configuration</CardTitle>
-              <CardDescription>Add the units available in this property</CardDescription>
+              <CardTitle>Units (Optional)</CardTitle>
+              <CardDescription>
+                These map to apartment_units. Add at least one with a number and status to create it
+                now. You can always add or edit units later.
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               {units.map((unit, index) => (
-                <div key={index} className="p-4 border rounded-lg space-y-4">
+                <div key={index} className="rounded-lg border p-4 space-y-4">
                   <div className="flex items-center justify-between">
-                    <h4 className="font-medium">Unit {index + 1}</h4>
+                    <h4 className="font-semibold text-gray-900">Unit {index + 1}</h4>
                     {units.length > 1 && (
                       <Button
                         variant="ghost"
                         size="sm"
+                        type="button"
                         onClick={() => removeUnit(index)}
                       >
-                        <X className="h-4 w-4" />
+                        <Trash2 className="h-4 w-4 text-red-500" />
                       </Button>
                     )}
                   </div>
+
                   <div className="grid gap-4 md:grid-cols-2">
                     <div className="space-y-2">
-                      <Label>Unit Number</Label>
-                      <Input placeholder="A-101" value={unit.number} />
+                      <Label>Unit Number *</Label>
+                      <Input
+                        placeholder="A-101"
+                        value={unit.unit_number}
+                        onChange={(e) => handleUnitChange(index, 'unit_number', e.target.value)}
+                      />
                     </div>
                     <div className="space-y-2">
-                      <Label>Unit Type</Label>
-                      <Select>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Type" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="studio">Studio</SelectItem>
-                          <SelectItem value="1br">1 Bedroom</SelectItem>
-                          <SelectItem value="2br">2 Bedroom</SelectItem>
-                          <SelectItem value="3br">3 Bedroom</SelectItem>
-                        </SelectContent>
-                      </Select>
+                      <Label>Floor</Label>
+                      <Input
+                        placeholder="1"
+                        type="number"
+                        value={unit.floor}
+                        onChange={(e) => handleUnitChange(index, 'floor', e.target.value)}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid gap-4 md:grid-cols-3">
+                    <div className="space-y-2">
+                      <Label>Bedrooms</Label>
+                      <Input
+                        type="number"
+                        min={0}
+                        placeholder="2"
+                        value={unit.bedrooms}
+                        onChange={(e) => handleUnitChange(index, 'bedrooms', e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Bathrooms</Label>
+                      <Input
+                        type="number"
+                        min={0}
+                        placeholder="1"
+                        value={unit.bathrooms}
+                        onChange={(e) => handleUnitChange(index, 'bathrooms', e.target.value)}
+                      />
                     </div>
                     <div className="space-y-2">
                       <Label>Size (sq ft)</Label>
-                      <Input placeholder="800" type="number" value={unit.size} />
+                      <Input
+                        type="number"
+                        min={0}
+                        placeholder="850"
+                        value={unit.size_sqft}
+                        onChange={(e) => handleUnitChange(index, 'size_sqft', e.target.value)}
+                      />
                     </div>
-                    <div className="space-y-2">
-                      <Label>Monthly Rent (KES)</Label>
-                      <Input placeholder="45000" type="number" value={unit.rent} />
-                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Status</Label>
+                    <Select
+                      value={unit.status}
+                      onValueChange={(value: UnitFormState['status']) =>
+                        handleUnitChange(index, 'status', value)
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select status" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {STATUS_OPTIONS.map((status) => (
+                          <SelectItem key={status} value={status}>
+                            {status.charAt(0).toUpperCase() + status.slice(1)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
               ))}
-              <Button variant="outline" onClick={addUnit} className="w-full">
-                <Plus className="h-4 w-4 mr-2" />
-                Add Another Unit
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full"
+                onClick={addUnit}
+              >
+                <Plus className="mr-2 h-4 w-4" />
+                Add another unit
               </Button>
             </CardContent>
           </Card>
 
-          {/* Management Details */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Management Details</CardTitle>
-              <CardDescription>Property management and contact information</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="manager-name">Property Manager Name</Label>
-                  <Input id="manager-name" placeholder="Jane Wanjiku" />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="manager-phone">Manager Phone</Label>
-                  <Input id="manager-phone" placeholder="254712345678" />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="manager-email">Manager Email</Label>
-                  <Input id="manager-email" type="email" placeholder="jane@property.com" />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="emergency">Emergency Contact</Label>
-                  <Input id="emergency" placeholder="254712345679" />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="office-hours">Office Hours</Label>
-                <Input id="office-hours" placeholder="Monday - Friday: 8 AM - 5 PM" />
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Financial Settings */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Financial Settings</CardTitle>
-              <CardDescription>Set up payment and financial preferences</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="deposit">Security Deposit Amount (KES)</Label>
-                  <Input id="deposit" placeholder="90000" type="number" />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="late-fee">Late Payment Fee (%)</Label>
-                  <Input id="late-fee" placeholder="5" type="number" />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="grace">Grace Period (Days)</Label>
-                  <Input id="grace" placeholder="5" type="number" />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="due-date">Rent Due Date</Label>
-                  <Select>
-                    <SelectTrigger id="due-date">
-                      <SelectValue placeholder="Select date" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {[...Array(28)].map((_, i) => (
-                        <SelectItem key={i + 1} value={String(i + 1)}>
-                          {i + 1}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              <div className="flex items-center space-x-2">
-                <Checkbox id="utilities" />
-                <Label htmlFor="utilities" className="cursor-pointer">
-                  Utilities included in rent
-                </Label>
-              </div>
-            </CardContent>
-          </Card>
-
-          <div className="flex gap-3 pb-8">
-            <Button className="flex-1 bg-[#4682B4] hover:bg-[#4682B4]/90" size="lg">
-              Save Property
+          <div className="flex items-center gap-3 pb-10">
+            <Button
+              type="submit"
+              className="flex-1 bg-[#4682B4] hover:bg-[#4682B4]/90"
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                'Save Property'
+              )}
             </Button>
-            <Button variant="outline" size="lg">
-              Save as Draft
+            <Button
+              type="button"
+              variant="outline"
+              className="flex-1"
+              onClick={() => router.push('/dashboard/manager/properties')}
+              disabled={isSubmitting}
+            >
+              Cancel
             </Button>
           </div>
-        </div>
+        </form>
       </div>
     </div>
   )

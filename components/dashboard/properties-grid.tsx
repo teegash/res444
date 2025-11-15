@@ -1,39 +1,20 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
-import { Edit2, Users, Eye, Camera, Loader2, X } from 'lucide-react'
+import { Edit2, Users, Eye, Camera, Loader2, Upload } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
-
-const properties = [
-  {
-    id: 1,
-    name: 'Alpha Complex',
-    location: 'Nairobi',
-    occupied: 12,
-    total: 15,
-    image: '/modern-residential-building.png',
-  },
-  {
-    id: 2,
-    name: 'Beta Towers',
-    location: 'Westlands',
-    occupied: 8,
-    total: 10,
-    image: '/modern-apartment-complex.png',
-  },
-  {
-    id: 3,
-    name: 'Gamma Heights',
-    location: 'Karen',
-    occupied: 18,
-    total: 20,
-    image: '/modern-building.png',
-  },
-]
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog'
 
 interface PropertiesGridProps {
   onEdit: (property: any) => void
@@ -42,9 +23,46 @@ interface PropertiesGridProps {
 }
 
 export function PropertiesGrid({ onEdit, onManageUnits, onView }: PropertiesGridProps) {
+  const [properties, setProperties] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState<{ [key: number]: boolean }>({})
   const [propertyImages, setPropertyImages] = useState<{ [key: number]: string }>({})
-  const fileInputRefs = useRef<{ [key: number]: HTMLInputElement | null }>({})
+  const [isUploadOpen, setIsUploadOpen] = useState(false)
+  const [activePropertyId, setActivePropertyId] = useState<number | null>(null)
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+  const [uploadError, setUploadError] = useState<string | null>(null)
+  const filePickerRef = useRef<HTMLInputElement | null>(null)
+
+  useEffect(() => {
+    return () => {
+      if (previewUrl) {
+        URL.revokeObjectURL(previewUrl)
+      }
+    }
+  }, [previewUrl])
+
+  const openUploadModal = (propertyId: number) => {
+    setActivePropertyId(propertyId)
+    setSelectedFile(null)
+    if (previewUrl) {
+      URL.revokeObjectURL(previewUrl)
+      setPreviewUrl(null)
+    }
+    setUploadError(null)
+    setIsUploadOpen(true)
+  }
+
+  const closeUploadModal = () => {
+    if (previewUrl) {
+      URL.revokeObjectURL(previewUrl)
+    }
+    setPreviewUrl(null)
+    setSelectedFile(null)
+    setActivePropertyId(null)
+    setUploadError(null)
+    setIsUploadOpen(false)
+  }
 
   // Compress image if needed
   const compressImage = (file: File, maxWidth: number = 1200, quality: number = 0.8): Promise<File> => {
@@ -97,20 +115,42 @@ export function PropertiesGrid({ onEdit, onManageUnits, onView }: PropertiesGrid
     })
   }
 
-  const handleImageUpload = async (propertyId: number, e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
+  const fetchProperties = useCallback(async () => {
+    try {
+      setLoading(true)
+      const response = await fetch('/api/properties', {
+        credentials: 'include',
+        cache: 'no-store',
+      })
+      const result = await response.json()
+      if (response.ok && result.success) {
+        setProperties(result.data || [])
+      } else {
+        throw new Error(result.error || 'Failed to load properties')
+      }
+    } catch (error) {
+      console.error('Failed to fetch properties:', error)
+      setProperties([])
+    } finally {
+      setLoading(false)
+    }
+  }, [])
 
+  useEffect(() => {
+    fetchProperties()
+  }, [fetchProperties])
+
+  const uploadImage = async (propertyId: number, file: File) => {
     const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp']
     if (!allowedTypes.includes(file.type)) {
-      alert('Invalid file type. Only JPEG, PNG, and WebP images are allowed.')
-      return
+      setUploadError('Invalid file type. Only JPEG, PNG, and WebP images are allowed.')
+      throw new Error('Invalid file type')
     }
 
     const maxSize = 5 * 1024 * 1024 // 5MB
     if (file.size > maxSize) {
-      alert('File size exceeds 5MB limit')
-      return
+      setUploadError('File size exceeds 5MB limit.')
+      throw new Error('File too large')
     }
 
     setUploading((prev) => ({ ...prev, [propertyId]: true }))
@@ -142,36 +182,72 @@ export function PropertiesGrid({ onEdit, onManageUnits, onView }: PropertiesGrid
 
       if (error) {
         console.error('Storage upload error:', error)
-        alert('Failed to upload image. Please try again.')
-        return
+        throw new Error(error.message)
       }
 
       const { data: urlData } = supabase.storage.from(bucketName).getPublicUrl(fileName)
 
-      // Update the property image in state
-      setPropertyImages((prev) => ({ ...prev, [propertyId]: urlData.publicUrl }))
+      const { error: updateError } = await supabase
+        .from('apartment_buildings')
+        .update({ image_url: urlData.publicUrl })
+        .eq('id', propertyId)
 
-      // TODO: Update the property image URL in the database via API
-      // This would typically involve calling an API endpoint to update the property record
-      console.log('Image uploaded successfully:', urlData.publicUrl)
+      if (updateError) {
+        throw updateError
+      }
+
+      setPropertyImages((prev) => ({ ...prev, [propertyId]: urlData.publicUrl }))
+      await fetchProperties()
     } catch (err: any) {
       console.error('Image upload failed:', err)
-      alert('Failed to upload image. Please try again.')
+      throw err
     } finally {
       setUploading((prev) => ({ ...prev, [propertyId]: false }))
-      // Reset file input
-      if (fileInputRefs.current[propertyId]) {
-        fileInputRefs.current[propertyId]!.value = ''
-      }
     }
   }
 
-  const getImageUrl = (property: typeof properties[0]) => {
-    return propertyImages[property.id] || property.image
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) {
+      return
+    }
+
+    if (previewUrl) {
+      URL.revokeObjectURL(previewUrl)
+    }
+
+    setSelectedFile(file)
+    setPreviewUrl(URL.createObjectURL(file))
+    setUploadError(null)
+  }
+
+  const handleUploadSubmit = async () => {
+    if (!activePropertyId || !selectedFile) {
+      setUploadError('Please select an image first.')
+      return
+    }
+
+    setUploadError(null)
+    try {
+      await uploadImage(activePropertyId, selectedFile)
+      closeUploadModal()
+    } catch (error: any) {
+      setUploadError(error?.message || 'Failed to upload image. Please try again.')
+    }
+  }
+
+  const getImageUrl = (property: any) => {
+    return propertyImages[property.id] || property.imageUrl || '/modern-residential-building.png'
   }
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      {loading && properties.length === 0 ? (
+        <div className="col-span-full flex flex-col items-center justify-center py-16 text-center text-gray-500">
+          <Loader2 className="h-8 w-8 animate-spin mb-3 text-[#4682B4]" />
+          <p>Loading properties...</p>
+        </div>
+      ) : null}
       {properties.map((property) => (
         <Card key={property.id} className="overflow-hidden hover:shadow-lg transition-shadow">
           <div
@@ -191,21 +267,13 @@ export function PropertiesGrid({ onEdit, onManageUnits, onView }: PropertiesGrid
           >
             {/* Edit Button Overlay */}
             <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-              <input
-                ref={(el) => (fileInputRefs.current[property.id] = el)}
-                type="file"
-                accept="image/jpeg,image/jpg,image/png,image/webp"
-                className="hidden"
-                onChange={(e) => handleImageUpload(property.id, e)}
-                disabled={uploading[property.id]}
-              />
               <Button
                 size="icon"
                 variant="secondary"
                 className="image-edit-button h-8 w-8 bg-black/70 hover:bg-black/90 text-white border-0 shadow-lg"
                 onClick={(e) => {
                   e.stopPropagation()
-                  fileInputRefs.current[property.id]?.click()
+                  openUploadModal(property.id)
                 }}
                 disabled={uploading[property.id]}
                 title="Upload property image"
@@ -270,6 +338,79 @@ export function PropertiesGrid({ onEdit, onManageUnits, onView }: PropertiesGrid
           </CardContent>
         </Card>
       ))}
+
+      <Dialog open={isUploadOpen} onOpenChange={(open) => !open && closeUploadModal()}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Update Property Image</DialogTitle>
+            <DialogDescription>
+              Click the area below to select a new image. Supported formats: JPG, PNG, WebP (max 5MB).
+            </DialogDescription>
+          </DialogHeader>
+          <div>
+            <input
+              ref={filePickerRef}
+              type="file"
+              accept="image/jpeg,image/jpg,image/png,image/webp"
+              className="hidden"
+              onChange={handleFileSelect}
+              disabled={activePropertyId ? uploading[activePropertyId] : false}
+            />
+            <div
+              className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center cursor-pointer hover:border-[#4682B4] hover:bg-blue-50 transition-colors"
+              onClick={() => filePickerRef.current?.click()}
+            >
+              {previewUrl ? (
+                <div className="space-y-3">
+                  <img src={previewUrl} alt="Preview" className="mx-auto h-32 w-full object-cover rounded-md" />
+                  <p className="text-sm text-gray-600">{selectedFile?.name}</p>
+                  <p className="text-xs text-gray-500">Click to change</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <div className="mx-auto h-12 w-12 rounded-full bg-blue-100 flex items-center justify-center">
+                    <Upload className="h-6 w-6 text-blue-600" />
+                  </div>
+                  <p className="font-medium text-gray-900">Click to upload</p>
+                  <p className="text-sm text-gray-500">PNG, JPG, WebP up to 5MB</p>
+                </div>
+              )}
+            </div>
+            {uploadError && (
+              <p className="mt-3 text-sm text-red-600">
+                {uploadError}
+              </p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={closeUploadModal}
+              disabled={activePropertyId ? uploading[activePropertyId] : false}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={handleUploadSubmit}
+              disabled={
+                !selectedFile || (activePropertyId ? uploading[activePropertyId] : false)
+              }
+              className="bg-[#4682B4] hover:bg-[#375f84]"
+            >
+              {activePropertyId && uploading[activePropertyId] ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Uploading...
+                </>
+              ) : (
+                'Upload'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
