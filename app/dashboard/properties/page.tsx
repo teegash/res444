@@ -26,19 +26,37 @@ export default function PropertiesPage() {
     setIsEditModalOpen(true)
   }
 
-  const handleManageUnits = (property: any) => {
-    const buildingId =
-      typeof property?.id === 'string' ? property.id.trim() : property?.id
-    if (buildingId) {
-      router.push(`/dashboard/property/${buildingId}/unit_management`)
+  const resolveBuildingId = (property: any) => {
+    const raw =
+      property?.id ??
+      property?.building_id ??
+      property?.buildingId ??
+      property?.apartment_building_id
+    if (typeof raw === 'string') {
+      return raw.trim()
     }
+    if (raw === null || raw === undefined) {
+      return ''
+    }
+    return String(raw)
+  }
+
+  const handleManageUnits = (property: any) => {
+    const buildingId = resolveBuildingId(property)
+    if (!buildingId) {
+      console.warn('[PropertiesPage] Missing building id for manage units:', property)
+      return
+    }
+    router.push(`/dashboard/property/${buildingId}/unit_management`)
   }
 
   const handleViewProperty = (propertyId: string) => {
-    const normalizedId = propertyId?.trim?.() ?? propertyId
-    if (normalizedId) {
-      router.push(`/dashboard/properties/${normalizedId}`)
+    const normalizedId = (propertyId?.trim?.() ?? `${propertyId}`).trim()
+    if (!normalizedId) {
+      console.warn('[PropertiesPage] Missing property id for view:', propertyId)
+      return
     }
+    router.push(`/dashboard/properties/${normalizedId}`)
   }
 
   return (

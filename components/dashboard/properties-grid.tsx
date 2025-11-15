@@ -254,7 +254,12 @@ export function PropertiesGrid({ onEdit, onManageUnits, onView }: PropertiesGrid
   }
 
   const getImageUrl = (property: any) => {
-    const normalizedId = normalizeId(property.id)
+    const normalizedId = normalizeId(
+      property?.id ??
+      property?.building_id ??
+      property?.buildingId ??
+      property?.apartment_building_id
+    )
     return propertyImages[normalizedId] || property.imageUrl || '/modern-residential-building.png'
   }
 
@@ -267,7 +272,17 @@ export function PropertiesGrid({ onEdit, onManageUnits, onView }: PropertiesGrid
         </div>
       ) : null}
       {properties.map((property) => {
-        const buildingId = normalizeId(property.id)
+        const buildingId =
+          normalizeId(
+            property?.id ??
+            property?.building_id ??
+            property?.buildingId ??
+            property?.apartment_building_id
+          )
+        if (!buildingId) {
+          console.warn('[PropertiesGrid] Missing building id in property payload', property)
+          return null
+        }
         const totalUnits = property.totalUnits ?? property.total ?? 0
         const occupiedUnits = property.occupiedUnits ?? property.occupied ?? 0
         const occupancyPercent = totalUnits > 0 ? Math.round((occupiedUnits / totalUnits) * 100) : 0

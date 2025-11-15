@@ -96,8 +96,22 @@ export function PropertiesList({ onEdit, onManageUnits, onView }: PropertiesList
                 property.totalUnits > 0
                   ? Math.round((property.occupiedUnits / property.totalUnits) * 100)
                   : 0
+              const buildingIdRaw =
+                property?.id ??
+                property?.building_id ??
+                property?.buildingId ??
+                property?.apartment_building_id
               const buildingId =
-                typeof property.id === 'string' ? property.id.trim() : property.id
+                typeof buildingIdRaw === 'string'
+                  ? buildingIdRaw.trim()
+                  : buildingIdRaw === null || buildingIdRaw === undefined
+                    ? ''
+                    : String(buildingIdRaw)
+
+              if (!buildingId) {
+                console.warn('[PropertiesList] Missing building id for row', property)
+                return null
+              }
 
               return (
                 <TableRow key={buildingId || property.id}>
