@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { createAdminClient } from '@/lib/supabase/admin'
 
 /**
  * Get the current user's organization
@@ -14,6 +13,33 @@ import { createAdminClient } from '@/lib/supabase/admin'
  * - organizations: Contains organization data (name, logo, location, etc.)
  * - user_profiles: Contains member profile data (full_name, phone, address, etc.)
  */
+async function fetchWithTimeout(
+  url: string,
+  options: RequestInit,
+  timeoutMs: number,
+  label: string
+) {
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => {
+    controller.abort()
+  }, timeoutMs)
+
+  try {
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal,
+    })
+    return response
+  } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw new Error(`${label} timed out after ${timeoutMs}ms`)
+    }
+    throw error
+  } finally {
+    clearTimeout(timeoutId)
+  }
+}
+
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient()
@@ -34,28 +60,53 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Get organization_id and role from organization_members (junction table)
-    // This table is ONLY for affiliation/linking - identifying which org the user belongs to and their role
+    // Get organization_id and role from organization_members using direct HTTP request
+    // This bypasses RLS completely and avoids infinite recursion in RLS policies
+    // organization_members is ONLY for affiliation/linking - identifying which org the user belongs to and their role
     // Member data (name, email, phone) comes from user_profiles or auth.users, not this table
-    // Use admin client to bypass RLS and avoid infinite recursion in RLS policies
-    const adminSupabase = createAdminClient()
-    const { data: membership, error: membershipError } = await adminSupabase
-      .from('organization_members')
-      .select('organization_id, role')
-      .eq('user_id', user.id)
-      .limit(1)
-      .maybeSingle()
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
-    if (membershipError) {
-      console.error('Error fetching organization membership:', membershipError)
+    if (!supabaseUrl || !serviceRoleKey) {
       return NextResponse.json(
         {
           success: false,
-          error: membershipError.message || 'Failed to fetch organization membership',
+          error: 'Server configuration error',
         },
         { status: 500 }
       )
     }
+
+    // Direct HTTP request to Supabase REST API with service role key to bypass RLS
+    const membershipResponse = await fetchWithTimeout(
+      `${supabaseUrl}/rest/v1/organization_members?user_id=eq.${user.id}&select=organization_id,role&limit=1`,
+      {
+        method: 'GET',
+        headers: {
+          apikey: serviceRoleKey,
+          Authorization: `Bearer ${serviceRoleKey}`,
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+          Prefer: 'return=representation',
+        },
+      },
+      2000,
+      'Organization membership lookup'
+    )
+
+    if (!membershipResponse.ok) {
+      console.error('Error fetching organization membership:', membershipResponse.status, membershipResponse.statusText)
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Failed to fetch organization membership',
+        },
+        { status: 500 }
+      )
+    }
+
+    const membershipData = await membershipResponse.json()
+    const membership = Array.isArray(membershipData) && membershipData.length > 0 ? membershipData[0] : null
 
     if (!membership || !membership.organization_id) {
       console.log(`No organization membership found for user: ${user.id}`)
