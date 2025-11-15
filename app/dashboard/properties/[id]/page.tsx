@@ -288,8 +288,8 @@ export default function PropertyDetailPage() {
             View all units
           </Button>
         </div>
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {(unitsLoading ? Array.from({ length: 6 }) : units.slice(0, 6)).map((unit, index) => (
+        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-6">
+          {(unitsLoading ? Array.from({ length: 6 }) : units).map((unit, index) => (
             <Card
               key={unit?.id ?? `placeholder-${index}`}
               className="border border-slate-100 shadow-sm hover:shadow-md transition-shadow"

@@ -223,7 +223,7 @@ function Sidebar() {
         </div>
 
         {/* Menu Items */}
-        <nav className="flex-1 p-4 space-y-3 overflow-y-auto">
+        <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
           {menuItems.map((item) => {
             const Icon = item.icon
             const isActive = pathname === item.href || pathname.startsWith(item.href + '/')
@@ -233,12 +233,12 @@ function Sidebar() {
                   variant={isActive ? 'default' : 'ghost'}
                   size="default"
                   className={cn(
-                "w-full transition-all duration-200 rounded-lg py-2 px-4",
-                isExpanded ? "justify-start" : "justify-center",
-                isActive 
-                  ? 'bg-[#4682B4] hover:bg-[#4682B4]/90 text-white shadow-sm' 
-                  : 'text-gray-700 hover:text-gray-900 hover:bg-gray-200/70'
-              )}
+                    "w-full transition-all duration-200 rounded-xl py-3 px-4 my-1 shadow-sm",
+                    isExpanded ? "justify-start" : "justify-center",
+                    isActive 
+                      ? 'bg-[#4682B4] hover:bg-[#3b6a91] text-white shadow-md' 
+                      : 'text-gray-700 hover:text-gray-900 hover:bg-gray-200/70'
+                  )}
                   title={!isExpanded ? item.label : undefined}
                 >
                   <Icon className={cn("w-5 h-5", isExpanded && "mr-3")} />
