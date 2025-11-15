@@ -26,16 +26,16 @@ export function AddPropertyModal({ open, onOpenChange }: AddPropertyModalProps) 
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Add New Property</DialogTitle>
+          <DialogTitle className="text-2xl font-bold">Add New Property</DialogTitle>
         </DialogHeader>
 
         {step === 'info' ? (
-          <div className="space-y-6">
+          <div className="space-y-6 py-2">
             {/* Building Information */}
             <div className="space-y-4">
-              <h3 className="font-semibold">Building Information</h3>
+              <h3 className="text-lg font-semibold text-gray-900 border-b border-gray-200 pb-2">Building Information</h3>
               <div>
                 <Label htmlFor="building-name">Building Name *</Label>
                 <Input id="building-name" placeholder="e.g., Alpha Complex" />
@@ -75,23 +75,25 @@ export function AddPropertyModal({ open, onOpenChange }: AddPropertyModalProps) 
               </div>
             </div>
 
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => onOpenChange(false)}>
+            <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
+              <Button variant="outline" onClick={() => onOpenChange(false)} className="min-w-[100px]">
                 Cancel
               </Button>
-              <Button onClick={() => setStep('units')}>Next: Add Units</Button>
+              <Button onClick={() => setStep('units')} className="min-w-[140px] bg-[#4682B4] hover:bg-[#4682B4]/90">
+                Next: Add Units
+              </Button>
             </div>
           </div>
         ) : (
-          <div className="space-y-6">
+          <div className="space-y-6 py-2">
             <BulkUnitCreation />
-            <div className="flex justify-between gap-2">
-              <Button variant="outline" onClick={() => setStep('info')}>
+            <div className="flex justify-between gap-3 pt-4 border-t border-gray-200">
+              <Button variant="outline" onClick={() => setStep('info')} className="min-w-[100px]">
                 Back
               </Button>
-              <div className="flex gap-2">
-                <Button variant="outline">Save as Draft</Button>
-                <Button>Create Property & Units</Button>
+              <div className="flex gap-3">
+                <Button variant="outline" className="min-w-[130px]">Save as Draft</Button>
+                <Button className="min-w-[180px] bg-[#4682B4] hover:bg-[#4682B4]/90">Create Property & Units</Button>
               </div>
             </div>
           </div>
