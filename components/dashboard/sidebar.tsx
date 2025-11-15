@@ -233,9 +233,11 @@ function Sidebar() {
                   variant={isActive ? 'default' : 'ghost'}
                   size="default"
                   className={cn(
-                    "w-full transition-all duration-200",
-                    isExpanded ? "justify-start" : "justify-center px-0",
-                    isActive ? 'bg-[#4682B4] hover:bg-[#4682B4]/90' : ''
+                    "w-full transition-all duration-200 rounded-lg",
+                    isExpanded ? "justify-start px-4 py-2.5" : "justify-center px-0 py-2.5",
+                    isActive 
+                      ? 'bg-[#4682B4] hover:bg-[#4682B4]/90 text-white shadow-sm' 
+                      : 'hover:bg-gray-100 hover:text-gray-900'
                   )}
                   title={!isExpanded ? item.label : undefined}
                 >
