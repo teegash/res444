@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { LayoutDashboard, Building2, Users, CreditCard, Droplet, Wrench, MessageSquare, Bell, BarChart3, FileText, Settings, LogOut, Lock, Unlock } from 'lucide-react'
@@ -124,6 +124,24 @@ function Sidebar() {
     }
   }
 
+  // Get display name - show only first word if name is too long to avoid overflow
+  const displayName = useMemo(() => {
+    if (!organization?.name) {
+      return null
+    }
+    
+    // If name is longer than 15 characters, take only the first word
+    // This prevents names like "Very Long Organization Name Ltd" from overflowing
+    const name = organization.name.trim()
+    if (name.length > 15) {
+      const firstWord = name.split(/\s+/)[0]
+      // If first word is still too long, truncate it
+      return firstWord.length > 15 ? firstWord.substring(0, 15) : firstWord
+    }
+    
+    return name
+  }, [organization?.name])
+
   return (
     <>
       <aside 
@@ -168,9 +186,12 @@ function Sidebar() {
             
             {/* Organization Name - Only show when expanded */}
             {isExpanded && (
-              <div className="overflow-hidden flex-1 min-w-0">
-                <h1 className="text-lg font-bold text-[#4682B4] whitespace-nowrap truncate">
-                  {organization?.name || 'Setup Organization'}
+              <div className="overflow-hidden flex-1 min-w-0 max-w-[200px]">
+                <h1 
+                  className="text-lg font-bold text-[#4682B4] whitespace-nowrap truncate"
+                  title={organization?.name || ''} // Show full name on hover
+                >
+                  {displayName || (organization ? 'Organization' : 'Setup Organization')}
                 </h1>
                 <p className="text-xs text-gray-600 whitespace-nowrap">Manager Portal</p>
               </div>
