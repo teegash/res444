@@ -181,47 +181,6 @@ function DashboardContent() {
                   <h1 className="text-3xl font-bold text-gray-900">
                     Welcome back, Manager
                   </h1>
-                  {/* Organization Logo and Name Box */}
-                  {loadingOrg ? (
-                    <div className="flex items-center gap-2.5 ml-2 px-3 py-1.5 rounded-lg bg-white border border-gray-200 shadow-sm">
-                      <div className="w-10 h-10 rounded-md bg-gray-100 animate-pulse" />
-                      <div className="h-4 w-24 bg-gray-100 rounded animate-pulse" />
-                    </div>
-                  ) : organization ? (
-                    <div className="flex items-center gap-2.5 ml-2 px-3 py-1.5 rounded-lg bg-white border border-gray-200 shadow-sm">
-                      {/* Logo Picture Box */}
-                      <div className="flex items-center justify-center w-10 h-10 rounded-md overflow-hidden bg-gradient-to-br from-[#4682B4] to-[#5a9fd4] border border-gray-200 shadow-sm flex-shrink-0">
-                        {organization.logo_url ? (
-                          <img
-                            src={organization.logo_url}
-                            alt={organization.name || 'Organization logo'}
-                            className="w-full h-full object-cover"
-                            onError={(e) => {
-                              console.error('[Dashboard] Logo image failed to load:', organization.logo_url)
-                              // Fallback to first letter on error
-                              const parent = e.currentTarget.parentElement
-                              if (parent && organization?.name) {
-                                const firstLetter = organization.name.charAt(0).toUpperCase()
-                                parent.className = "flex items-center justify-center w-10 h-10 rounded-md bg-gradient-to-br from-[#4682B4] to-[#5a9fd4] border border-gray-200 shadow-sm flex-shrink-0"
-                                parent.innerHTML = `<span class="text-white font-bold text-base">${firstLetter}</span>`
-                              }
-                            }}
-                            onLoad={() => {
-                              console.log('[Dashboard] ✓ Logo image loaded successfully:', organization.logo_url)
-                            }}
-                          />
-                        ) : (
-                          <span className="text-white font-bold text-base">
-                            {organization.name?.charAt(0).toUpperCase() || 'O'}
-                          </span>
-                        )}
-                      </div>
-                      {/* Organization Name */}
-                      <span className="text-base font-semibold text-gray-900 whitespace-nowrap">
-                        {organization.name || 'Organization'}
-                      </span>
-                    </div>
-                  ) : null}
                 </div>
                 <p className="text-gray-600">
                   {organization?.location 

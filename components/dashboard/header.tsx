@@ -1,8 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { Search, Bell, LogOut } from 'lucide-react'
+import { Search, Bell, LogOut, User } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -18,7 +18,6 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { useAuth } from '@/lib/auth/context'
 
@@ -33,6 +32,7 @@ interface Notification {
 
 export function Header() {
   const { user } = useAuth()
+  const [userFirstName, setUserFirstName] = useState<string | null>(null)
   const [notificationsOpen, setNotificationsOpen] = useState(false)
   const [notifications, setNotifications] = useState<Notification[]>([
     {
@@ -62,6 +62,32 @@ export function Header() {
   ])
   const unreadCount = notifications.filter(n => !n.read).length
   const router = useRouter()
+
+  // Fetch user's first name from profile
+  useEffect(() => {
+    const fetchUserFirstName = async () => {
+      if (!user?.id) return
+
+      try {
+        const response = await fetch(`/api/user/profile?userId=${user.id}`, {
+          credentials: 'include',
+        })
+
+        if (response.ok) {
+          const result = await response.json()
+          if (result.success && result.data?.full_name) {
+            // Extract first name from full_name
+            const firstName = result.data.full_name.split(' ')[0]
+            setUserFirstName(firstName)
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching user profile:', error)
+      }
+    }
+
+    fetchUserFirstName()
+  }, [user])
 
   const handleMarkAsRead = (id: string) => {
     setNotifications(notifications.map(n => n.id === id ? { ...n, read: true } : n))
@@ -161,15 +187,12 @@ export function Header() {
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" className="gap-2 pl-2 pr-1">
-                <Avatar className="w-8 h-8">
-                  <AvatarImage src="https://api.dicebear.com/7.x/avataaars/svg?seed=Maurice" />
-                  <AvatarFallback>
-                    {user?.email?.substring(0, 2).toUpperCase() || 'MR'}
-                  </AvatarFallback>
-                </Avatar>
+                <div className="w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center border border-gray-200 dark:border-gray-700">
+                  <User className="w-4 h-4 text-gray-600 dark:text-gray-400" />
+                </div>
                 <div className="text-left hidden sm:block">
                   <p className="text-sm font-medium">
-                    {user?.email?.split('@')[0] || 'User'}
+                    {userFirstName || user?.email?.split('@')[0] || 'User'}
                   </p>
                   <p className="text-xs text-muted-foreground">
                     Manager
