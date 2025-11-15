@@ -200,13 +200,16 @@ export function PropertiesGrid({ onEdit, onManageUnits, onView }: PropertiesGrid
 
       const { data: urlData } = supabase.storage.from(bucketName).getPublicUrl(fileName)
 
-      const response = await fetch(`/api/properties/${propertyId}/image`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ image_url: urlData.publicUrl }),
-      })
+      const response = await fetch(
+        `/api/properties/${propertyId}/image?buildingId=${encodeURIComponent(propertyId)}`,
+        {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ image_url: urlData.publicUrl, building_id: propertyId }),
+        }
+      )
 
       const result = await response.json()
       if (!response.ok || !result.success) {

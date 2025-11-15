@@ -57,16 +57,24 @@ async function authorize(buildingId: string) {
   return { adminSupabase, building }
 }
 
-function sanitizeBuildingId(rawId: string | string[] | undefined) {
+function sanitizeBuildingId(rawId: string | string[] | null | undefined) {
   const value = Array.isArray(rawId) ? rawId[0] : rawId
-  return value ? decodeURIComponent(value).trim() : ''
+  return value ? decodeURIComponent(String(value)).trim() : ''
 }
 
 export async function PATCH(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  const buildingId = sanitizeBuildingId(params.id)
+  const url = new URL(request.url)
+  const queryId = url.searchParams.get('buildingId')
+  const body = await request.json().catch(() => ({}))
+
+  const buildingId =
+    sanitizeBuildingId(params.id) ||
+    sanitizeBuildingId(queryId) ||
+    sanitizeBuildingId(body?.building_id)
+
   if (!buildingId) {
     return NextResponse.json(
       { success: false, error: 'Building ID is required.' },
@@ -78,7 +86,6 @@ export async function PATCH(
   if ('error' in authContext && authContext.error) return authContext.error
 
   const { adminSupabase, building } = authContext
-  const body = await request.json()
   const imageUrl = typeof body?.image_url === 'string' ? body.image_url.trim() : ''
 
   if (!imageUrl) {

@@ -101,10 +101,13 @@ export default function UnitManagementPage() {
     try {
       setLoading(true)
       setError(null)
-      const response = await fetch(`/api/properties/${buildingId}/units`, {
-        credentials: 'include',
-        cache: 'no-store',
-      })
+      const response = await fetch(
+        `/api/properties/${buildingId}/units?buildingId=${encodeURIComponent(buildingId)}`,
+        {
+          credentials: 'include',
+          cache: 'no-store',
+        }
+      )
       const result = await response.json()
       if (!response.ok || !result.success) {
         throw new Error(result.error || 'Failed to load units.')
@@ -170,21 +173,25 @@ export default function UnitManagementPage() {
     if (!payload || !buildingId) return
     try {
       setSavingUnitId(unitId)
-      const response = await fetch(`/api/properties/${buildingId}/units`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          unit_id: unitId,
-          updates: {
-            unit_number: payload.unit_number,
-            floor: payload.floor,
-            number_of_bedrooms: payload.bedrooms,
-            number_of_bathrooms: payload.bathrooms,
-            size_sqft: payload.size_sqft,
-            status: payload.status,
-          },
-        }),
-      })
+      const response = await fetch(
+        `/api/properties/${buildingId}/units?buildingId=${encodeURIComponent(buildingId)}`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            building_id: buildingId,
+            unit_id: unitId,
+            updates: {
+              unit_number: payload.unit_number,
+              floor: payload.floor,
+              number_of_bedrooms: payload.bedrooms,
+              number_of_bathrooms: payload.bathrooms,
+              size_sqft: payload.size_sqft,
+              status: payload.status,
+            },
+          }),
+        }
+      )
       const result = await response.json()
       if (!response.ok || !result.success) {
         throw new Error(result.error || 'Failed to update unit.')
@@ -216,22 +223,26 @@ export default function UnitManagementPage() {
 
     try {
       setAddingUnit(true)
-      const response = await fetch(`/api/properties/${buildingId}/units`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          units: [
-            {
-              unit_number: newUnit.unit_number,
-              floor: newUnit.floor,
-              number_of_bedrooms: newUnit.bedrooms,
-              number_of_bathrooms: newUnit.bathrooms,
-              size_sqft: newUnit.size_sqft,
-              status: newUnit.status,
-            },
-          ],
-        }),
-      })
+      const response = await fetch(
+        `/api/properties/${buildingId}/units?buildingId=${encodeURIComponent(buildingId)}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            building_id: buildingId,
+            units: [
+              {
+                unit_number: newUnit.unit_number,
+                floor: newUnit.floor,
+                number_of_bedrooms: newUnit.bedrooms,
+                number_of_bathrooms: newUnit.bathrooms,
+                size_sqft: newUnit.size_sqft,
+                status: newUnit.status,
+              },
+            ],
+          }),
+        }
+      )
       const result = await response.json()
       if (!response.ok || !result.success) {
         throw new Error(result.error || 'Failed to add unit.')
@@ -268,20 +279,24 @@ export default function UnitManagementPage() {
 
     try {
       setBulkAdding(true)
-      const response = await fetch(`/api/properties/${buildingId}/units`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          units: unitNumbers.map((unitNumber) => ({
-            unit_number: unitNumber,
-            floor: bulkDefaults.floor,
-            number_of_bedrooms: bulkDefaults.bedrooms,
-            number_of_bathrooms: bulkDefaults.bathrooms,
-            size_sqft: bulkDefaults.size_sqft,
-            status: bulkDefaults.status,
-          })),
-        }),
-      })
+      const response = await fetch(
+        `/api/properties/${buildingId}/units?buildingId=${encodeURIComponent(buildingId)}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            building_id: buildingId,
+            units: unitNumbers.map((unitNumber) => ({
+              unit_number: unitNumber,
+              floor: bulkDefaults.floor,
+              number_of_bedrooms: bulkDefaults.bedrooms,
+              number_of_bathrooms: bulkDefaults.bathrooms,
+              size_sqft: bulkDefaults.size_sqft,
+              status: bulkDefaults.status,
+            })),
+          }),
+        }
+      )
       const result = await response.json()
       if (!response.ok || !result.success) {
         throw new Error(result.error || 'Failed to add units.')
