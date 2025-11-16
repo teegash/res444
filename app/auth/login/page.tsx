@@ -33,6 +33,7 @@ function LoginForm() {
   const redirectTo = searchParams.get('redirectTo') || '/dashboard'
   const registered = searchParams.get('registered') === 'true'
   const registeredEmail = searchParams.get('email')
+  const inviteEmail = searchParams.get('email')
 
   // Update account type when tab parameter changes
   useEffect(() => {
@@ -42,6 +43,12 @@ function LoginForm() {
       setAccountType('tenant')
     }
   }, [tabParam])
+
+  useEffect(() => {
+    if (inviteEmail) {
+      setFormData((prev) => ({ ...prev, email: inviteEmail }))
+    }
+  }, [inviteEmail])
 
   useEffect(() => {
     if (!authLoading && user) {
