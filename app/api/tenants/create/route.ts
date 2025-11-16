@@ -162,14 +162,6 @@ export async function POST(request: NextRequest) {
       })
     } catch (emailError) {
       console.error('[TenantCreate] credential email failed', emailError)
-      const message =
-        emailError instanceof Error
-          ? emailError.message
-          : 'Failed to send tenant credential email.'
-      return NextResponse.json(
-        { success: false, error: message },
-        { status: 500 }
-      )
     }
 
     return NextResponse.json({ success: true, data: { email } })
