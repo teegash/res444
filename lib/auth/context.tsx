@@ -44,7 +44,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setLoading(false)
 
       if (event === 'SIGNED_OUT') {
-        router.push('/auth/login')
+        const publicRoutes = ['/auth', '/tenant/set-password']
+        const currentPath = typeof window !== 'undefined' ? window.location.pathname : ''
+        const isPublic = publicRoutes.some((route) => currentPath.startsWith(route))
+        if (!isPublic) {
+          router.push('/auth/login')
+        }
       } else if (event === 'SIGNED_IN') {
         router.refresh()
       }
