@@ -29,8 +29,9 @@ interface TenantInfo {
 }
 
 export default function ManagerTenantMessagesPage() {
-  const params = useParams<{ tenantId: string }>()
-  const tenantId = params?.tenantId
+  const params = useParams()
+  const tenantIdParam = params?.tenantId
+  const tenantId = Array.isArray(tenantIdParam) ? tenantIdParam[0] : tenantIdParam
   const router = useRouter()
   const supabase = useMemo(() => createClient(), [])
   const { user } = useAuth()
@@ -137,6 +138,22 @@ export default function ManagerTenantMessagesPage() {
     } finally {
       setSending(false)
     }
+  }
+
+  if (!tenantId) {
+    return (
+      <div className="min-h-screen bg-gray-50 p-6">
+        <div className="max-w-4xl mx-auto">
+          <Button variant="ghost" size="sm" onClick={() => router.push('/dashboard/tenants')}>
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back to tenants
+          </Button>
+          <p className="mt-6 text-sm text-muted-foreground">
+            Tenant information was not provided. Please return to the tenant list and open the chat again.
+          </p>
+        </div>
+      </div>
+    )
   }
 
   return (

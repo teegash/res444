@@ -11,7 +11,7 @@ interface RouteParams {
 const MANAGER_ROLES = new Set(['admin', 'manager', 'caretaker'])
 
 export async function GET(request: NextRequest, { params }: RouteParams) {
-  const tenantId = params.id
+  const tenantId = params.id || request.nextUrl.searchParams.get('tenantId') || ''
 
   if (!tenantId) {
     return NextResponse.json({ success: false, error: 'Tenant id is required.' }, { status: 400 })

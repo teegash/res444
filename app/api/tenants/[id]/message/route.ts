@@ -9,7 +9,7 @@ interface RouteParams {
 }
 
 export async function POST(request: NextRequest, { params }: RouteParams) {
-  const tenantId = params.id
+  const tenantId = params.id || request.nextUrl.searchParams.get('tenantId') || ''
 
   if (!tenantId) {
     return NextResponse.json({ success: false, error: 'Tenant id is required.' }, { status: 400 })
