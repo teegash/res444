@@ -76,7 +76,7 @@ export async function GET() {
           )
         `
         )
-        .eq('status', 'active')
+        .in('status', ['active', 'pending'])
         .in('tenant_user_id', tenantIds)
         .order('start_date', { ascending: false })
 
