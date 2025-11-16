@@ -10,61 +10,23 @@ export async function GET() {
       minimumFractionDigits: 0,
     })
 
-    const { data: leases, error: leaseError } = await adminSupabase
-      .from('leases')
+    const { data: profiles, error: profileError } = await adminSupabase
+      .from('user_profiles')
       .select(
-        `
-        id,
-        tenant_user_id,
-        status,
-        start_date,
-        end_date,
-        monthly_rent,
-        deposit_amount,
-        created_at,
-        unit:apartment_units (
-          id,
-          unit_number,
-          unit_price_category,
-          building:apartment_buildings (
-            id,
-            name,
-            location
-          )
-        )
-      `
+        'id, full_name, phone_number, national_id, profile_picture_url, address, date_of_birth, created_at, role'
       )
-      .eq('status', 'active')
-      .order('start_date', { ascending: false })
+      .eq('role', 'tenant')
+      .order('created_at', { ascending: false })
 
-    if (leaseError) {
-      throw leaseError
+    if (profileError) {
+      throw profileError
     }
 
-    if (!leases || leases.length === 0) {
+    if (!profiles || profiles.length === 0) {
       return NextResponse.json({ success: true, data: [] })
     }
 
-    const tenantIds = Array.from(
-      new Set(
-        leases
-          .map((lease) => lease.tenant_user_id)
-          .filter((id): id is string => typeof id === 'string' && id.length > 0)
-      )
-    )
-
-    let profiles: any[] = []
-    if (tenantIds.length > 0) {
-      const { data, error } = await adminSupabase
-        .from('user_profiles')
-        .select('id, full_name, phone_number, national_id, profile_picture_url, address, date_of_birth, created_at, updated_at')
-        .in('id', tenantIds)
-
-      if (error) {
-        throw error
-      }
-      profiles = data || []
-    }
+    const tenantIds = profiles.map((profile) => profile.id).filter(Boolean)
 
     let authUsers: any[] = []
     if (tenantIds.length > 0) {
@@ -77,6 +39,41 @@ export async function GET() {
         throw error
       }
       authUsers = data || []
+    }
+
+    let leases: any[] = []
+    if (tenantIds.length > 0) {
+      const { data, error } = await adminSupabase
+        .from('leases')
+        .select(
+          `
+          id,
+          tenant_user_id,
+          status,
+          start_date,
+          end_date,
+          monthly_rent,
+          deposit_amount,
+          unit:apartment_units (
+            id,
+            unit_number,
+            unit_price_category,
+            building:apartment_buildings (
+              id,
+              name,
+              location
+            )
+          )
+        `
+        )
+        .eq('status', 'active')
+        .in('tenant_user_id', tenantIds)
+        .order('start_date', { ascending: false })
+
+      if (error) {
+        throw error
+      }
+      leases = data || []
     }
 
     let payments: any[] = []
@@ -93,8 +90,15 @@ export async function GET() {
       payments = data || []
     }
 
-    const profileMap = new Map((profiles || []).map((profile: any) => [profile.id, profile]))
     const authMap = new Map((authUsers || []).map((user: any) => [user.id, user]))
+    const leaseMap = new Map<string, any>()
+    for (const lease of leases) {
+      if (!lease?.tenant_user_id) continue
+      if (!leaseMap.has(lease.tenant_user_id)) {
+        leaseMap.set(lease.tenant_user_id, lease)
+      }
+    }
+
     const paymentAggregates = new Map<
       string,
       {
@@ -104,9 +108,8 @@ export async function GET() {
         hasUnverified: boolean
       }
     >()
-
     const now = Date.now()
-    const lookbackMs = 1000 * 60 * 60 * 24 * 45 // roughly 1.5 months
+    const lookbackMs = 1000 * 60 * 60 * 24 * 45
 
     for (const payment of payments) {
       const tenantId = payment.tenant_user_id
@@ -189,35 +192,41 @@ export async function GET() {
       }
     }
 
-    const payload = leases.map((lease: any) => {
-      const profile = profileMap.get(lease.tenant_user_id)
-      const authUser = authMap.get(lease.tenant_user_id)
-      const unit = lease.unit || null
+    const payload = profiles.map((profile: any) => {
+      const authUser = authMap.get(profile.id)
+      const lease = leaseMap.get(profile.id) || null
+      const unit = lease?.unit || null
       const building = unit?.building || null
       const monthlyRentValue =
-        lease.monthly_rent !== null && lease.monthly_rent !== undefined
+        lease?.monthly_rent !== null && lease?.monthly_rent !== undefined
           ? Number(lease.monthly_rent)
           : null
       const depositAmountValue =
-        lease.deposit_amount !== null && lease.deposit_amount !== undefined
+        lease?.deposit_amount !== null && lease?.deposit_amount !== undefined
           ? Number(lease.deposit_amount)
           : null
-      const paymentStatus = resolvePaymentStatus(lease.tenant_user_id, monthlyRentValue)
+      const paymentStatus = lease
+        ? resolvePaymentStatus(profile.id, monthlyRentValue)
+        : {
+            status: 'Setup Pending',
+            detail: 'Lease details will appear once assigned to a unit.',
+            latestPaymentDate: null,
+          }
 
       return {
-        lease_id: lease.id,
-        tenant_user_id: lease.tenant_user_id,
-        full_name: profile?.full_name || 'Tenant',
-        phone_number: profile?.phone_number || '',
-        national_id: profile?.national_id || '',
-        profile_picture_url: profile?.profile_picture_url || null,
-        address: profile?.address || '',
-        date_of_birth: profile?.date_of_birth || null,
+        lease_id: lease?.id || null,
+        tenant_user_id: profile.id,
+        full_name: profile.full_name || 'Tenant',
+        phone_number: profile.phone_number || '',
+        national_id: profile.national_id || '',
+        profile_picture_url: profile.profile_picture_url || null,
+        address: profile.address || '',
+        date_of_birth: profile.date_of_birth || null,
         email: authUser?.email || '',
-        created_at: profile?.created_at || authUser?.created_at || null,
-        lease_status: lease.status || 'active',
-        lease_start_date: lease.start_date || null,
-        lease_end_date: lease.end_date || null,
+        created_at: profile.created_at || authUser?.created_at || null,
+        lease_status: lease?.status || 'unassigned',
+        lease_start_date: lease?.start_date || null,
+        lease_end_date: lease?.end_date || null,
         monthly_rent: monthlyRentValue,
         deposit_amount: depositAmountValue,
         unit: unit

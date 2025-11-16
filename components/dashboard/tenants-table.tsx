@@ -41,7 +41,7 @@ import { Loader2, MoreVertical, Copy, Phone } from 'lucide-react'
 import { Separator } from '@/components/ui/separator'
 
 type TenantRecord = {
-  lease_id: string
+  lease_id: string | null
   tenant_user_id: string
   full_name: string
   email: string
@@ -101,6 +101,8 @@ const leaseBadgeClass = (status: string) => {
       return 'bg-green-50 text-green-700 border-green-200'
     case 'pending':
       return 'bg-amber-50 text-amber-700 border-amber-200'
+    case 'unassigned':
+      return 'bg-slate-50 text-slate-600 border-slate-200'
     default:
       return 'bg-slate-50 text-slate-700 border-slate-200'
   }
@@ -112,6 +114,7 @@ const paymentBadgeVariant = (status: string) => {
       return 'default' as const
     case 'pending':
     case 'pending_setup':
+    case 'setup pending':
     case 'pending verification':
     case 'partial':
       return 'outline' as const

@@ -1,20 +1,75 @@
 'use client'
 
+import { useCallback, useEffect, useState } from 'react'
 import { TenantHeader } from '@/components/dashboard/tenant/tenant-header'
 import { TenantInfoCards } from '@/components/dashboard/tenant/tenant-info-cards'
 import { TenantQuickActions } from '@/components/dashboard/tenant/tenant-quick-actions'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Calendar, Bell, TrendingUp, Clock, CheckCircle2, AlertCircle } from 'lucide-react'
 import Link from 'next/link'
 
+type TenantSummary = {
+  profile: {
+    full_name: string | null
+    phone_number: string | null
+    profile_picture_url: string | null
+    address: string | null
+  } | null
+  lease: {
+    id: string
+    status: string | null
+    start_date: string | null
+    end_date: string | null
+    monthly_rent: number | null
+    unit_number: string | null
+    unit_label: string | null
+    property_name: string | null
+    property_location: string | null
+    unit_price_text: string | null
+  } | null
+} | null
+
 export default function TenantDashboard() {
+  const [summary, setSummary] = useState<TenantSummary>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  const fetchSummary = useCallback(async () => {
+    try {
+      setLoading(true)
+      setError(null)
+      const response = await fetch('/api/tenant/summary', { cache: 'no-store' })
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}))
+        throw new Error(payload.error || 'Failed to load tenant info.')
+      }
+      const payload = await response.json()
+      setSummary(payload.data || null)
+    } catch (err) {
+      console.error('[TenantDashboard] summary fetch failed', err)
+      setError(err instanceof Error ? err.message : 'Unable to load tenant info.')
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    fetchSummary()
+  }, [fetchSummary])
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-blue-50/30 via-white to-orange-50/20">
       <div className="max-w-7xl mx-auto p-4 md:p-6 lg:p-8 space-y-6">
-        <TenantHeader />
-        <TenantInfoCards />
+        {error && (
+          <Alert variant="destructive">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+        <TenantHeader summary={summary} onProfileUpdated={fetchSummary} loading={loading} />
+        <TenantInfoCards summary={summary} loading={loading} />
         <TenantQuickActions />
         
         <div className="grid gap-6 md:grid-cols-3 mt-8">
