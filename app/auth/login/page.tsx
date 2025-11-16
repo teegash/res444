@@ -30,7 +30,7 @@ function LoginForm() {
     password: '',
   })
 
-  const redirectTo = searchParams.get('redirectTo') || '/dashboard'
+  const redirectTo = searchParams.get('redirectTo')
   const registered = searchParams.get('registered') === 'true'
   const registeredEmail = searchParams.get('email')
   const inviteEmail = searchParams.get('email')
@@ -51,7 +51,7 @@ function LoginForm() {
   }, [inviteEmail])
 
   useEffect(() => {
-    if (!authLoading && user) {
+    if (!authLoading && user && redirectTo) {
       router.push(redirectTo)
     }
   }, [user, authLoading, router, redirectTo])
