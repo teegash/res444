@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
@@ -30,8 +30,11 @@ interface TenantInfo {
 
 export default function ManagerTenantMessagesPage() {
   const params = useParams()
+  const searchParams = useSearchParams()
   const tenantIdParam = params?.tenantId
-  const tenantId = Array.isArray(tenantIdParam) ? tenantIdParam[0] : tenantIdParam
+  const tenantIdQuery = searchParams?.get('tenantId')
+  const tenantIdValue = Array.isArray(tenantIdParam) ? tenantIdParam[0] : tenantIdParam
+  const tenantId = tenantIdValue || tenantIdQuery || ''
   const router = useRouter()
   const supabase = useMemo(() => createClient(), [])
   const { user } = useAuth()

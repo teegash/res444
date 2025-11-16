@@ -459,7 +459,9 @@ export function TenantsTable({ searchQuery = '' }: TenantsTableProps) {
                         tenant={tenant}
                         onEdit={setEditTenant}
                         onOpenChat={(selected) =>
-                          router.push(`/dashboard/tenants/${selected.tenant_user_id}/messages`)
+                          router.push(
+                            `/dashboard/tenants/${selected.tenant_user_id}/messages?tenantId=${selected.tenant_user_id}`
+                          )
                         }
                         onRemove={setTenantToDelete}
                       />
