@@ -15,7 +15,7 @@ export async function POST(request: NextRequest) {
       email,
       phone_number,
       national_id,
-      profile_picture_url,
+      profile_picture_file,
       address,
       date_of_birth,
       unit_id,
@@ -67,16 +67,46 @@ export async function POST(request: NextRequest) {
 
     const tenantUserId = inviteData.user.id
 
-    const { error: profileError } = await adminSupabase.from('user_profiles').insert({
+    let uploadedProfileUrl: string | null = null
+
+    if (typeof profile_picture_file === 'string' && profile_picture_file.startsWith('data:')) {
+      const matches = profile_picture_file.match(/^data:(.+);base64,(.+)$/)
+      if (matches) {
+        const [, mimeType, base64Data] = matches
+        const fileBuffer = Buffer.from(base64Data, 'base64')
+        const extension = mimeType.split('/')[1] || 'jpg'
+        const filePath = `tenant-profiles/${tenantUserId}-${Date.now()}.${extension}`
+        const { error: uploadError } = await adminSupabase.storage
+          .from('profile-pictures')
+          .upload(filePath, fileBuffer, {
+            contentType: mimeType,
+            cacheControl: '3600',
+            upsert: false,
+          })
+        if (uploadError) {
+          console.error('[TenantCreate] profile upload failed', uploadError)
+          return NextResponse.json(
+            { success: false, error: uploadError.message || 'Failed to upload profile picture.' },
+            { status: 500 }
+          )
+        }
+        const { data: publicUrlData } = adminSupabase.storage
+          .from('profile-pictures')
+          .getPublicUrl(filePath)
+        uploadedProfileUrl = publicUrlData?.publicUrl || null
+      }
+    }
+
+    const { error: profileError } = await adminSupabase.from('user_profiles').upsert({
       id: tenantUserId,
       full_name,
       phone_number,
       national_id,
-      profile_picture_url: profile_picture_url || null,
+      profile_picture_url: uploadedProfileUrl,
       address: address || null,
       date_of_birth: date_of_birth || null,
       role: 'tenant',
-    })
+    }, { onConflict: 'id' })
 
     if (profileError) {
       console.error('[TenantCreate] profile insert failed', profileError)

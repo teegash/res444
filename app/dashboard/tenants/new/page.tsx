@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Sidebar } from '@/components/dashboard/sidebar'
 import { Header } from '@/components/dashboard/header'
@@ -17,7 +17,6 @@ interface TenantForm {
   email: string
   phone: string
   nationalId: string
-  profilePictureUrl: string
   address: string
   dateOfBirth: string
 }
@@ -27,7 +26,6 @@ const defaultForm: TenantForm = {
   email: '',
   phone: '',
   nationalId: '',
-  profilePictureUrl: '',
   address: '',
   dateOfBirth: '',
 }
@@ -58,6 +56,9 @@ export default function NewTenantPage() {
   const [unitsLoading, setUnitsLoading] = useState(false)
   const [selectedProperty, setSelectedProperty] = useState('')
   const [selectedUnit, setSelectedUnit] = useState('')
+  const [profileFile, setProfileFile] = useState<File | null>(null)
+  const [profilePreview, setProfilePreview] = useState<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
 
   const handleChange = (field: keyof TenantForm, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }))
@@ -70,6 +71,14 @@ export default function NewTenantPage() {
     form.email.trim() &&
     form.nationalId.trim() &&
     form.phone.trim()
+
+  useEffect(() => {
+    return () => {
+      if (profilePreview) {
+        URL.revokeObjectURL(profilePreview)
+      }
+    }
+  }, [profilePreview])
 
   useEffect(() => {
     let active = true
@@ -146,6 +155,23 @@ export default function NewTenantPage() {
     await fetchUnits(propertyId)
   }
 
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    if (!file.type.startsWith('image/')) {
+      setError('Please select a valid image file (PNG, JPG, or WebP).')
+      return
+    }
+
+    if (profilePreview) {
+      URL.revokeObjectURL(profilePreview)
+    }
+
+    setProfileFile(file)
+    setProfilePreview(URL.createObjectURL(file))
+  }
+
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault()
     if (!canSave) {
@@ -158,6 +184,22 @@ export default function NewTenantPage() {
     setSuccess(null)
 
     try {
+      let profilePictureBase64: string | null = null
+      if (profileFile) {
+        profilePictureBase64 = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader()
+          reader.onload = () => {
+            if (typeof reader.result === 'string') {
+              resolve(reader.result)
+            } else {
+              reject(new Error('Failed to read profile image.'))
+            }
+          }
+          reader.onerror = () => reject(new Error('Failed to read profile image.'))
+          reader.readAsDataURL(profileFile)
+        })
+      }
+
       const response = await fetch('/api/tenants/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -166,7 +208,7 @@ export default function NewTenantPage() {
           email: form.email,
           phone_number: form.phone,
           national_id: form.nationalId,
-          profile_picture_url: form.profilePictureUrl,
+          profile_picture_file: profilePictureBase64,
           address: form.address,
           date_of_birth: form.dateOfBirth,
           unit_id: selectedUnit || null,
@@ -183,6 +225,11 @@ export default function NewTenantPage() {
       setSelectedProperty('')
       setSelectedUnit('')
       setUnits([])
+      setProfileFile(null)
+      if (profilePreview) {
+        URL.revokeObjectURL(profilePreview)
+      }
+      setProfilePreview(null)
     } catch (err) {
       console.error('[NewTenantPage] Failed to create tenant', err)
       setError(err instanceof Error ? err.message : 'Unexpected error occurred.')
@@ -276,12 +323,30 @@ export default function NewTenantPage() {
                     </div>
                   </div>
                   <div>
-                    <Label htmlFor="profilePicture">Profile picture URL</Label>
+                    <Label>Profile picture</Label>
+                    <div
+                      className="mt-2 border-2 border-dashed border-gray-300 rounded-xl h-48 flex flex-col items-center justify-center text-sm text-muted-foreground cursor-pointer hover:border-[#4682B4]"
+                      onClick={() => fileInputRef.current?.click()}
+                    >
+                      {profilePreview ? (
+                        <img
+                          src={profilePreview}
+                          alt="Profile preview"
+                          className="h-full w-full object-cover rounded-lg"
+                        />
+                      ) : (
+                        <>
+                          <p>Click to upload</p>
+                          <p className="text-xs">PNG, JPG, WebP up to 5MB</p>
+                        </>
+                      )}
+                    </div>
                     <Input
-                      id="profilePicture"
-                      value={form.profilePictureUrl}
-                      onChange={(e) => handleChange('profilePictureUrl', e.target.value)}
-                      placeholder="https://..."
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp"
+                      className="hidden"
+                      onChange={handleFileChange}
                     />
                   </div>
                 </CardContent>
