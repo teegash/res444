@@ -32,6 +32,9 @@ const defaultForm: TenantForm = {
   dateOfBirth: '',
 }
 
+const PROPERTY_NONE_VALUE = 'none'
+const UNIT_NONE_VALUE = 'none'
+
 interface PropertyOption {
   id: string
   name: string
@@ -312,15 +315,15 @@ export default function NewTenantPage() {
                     <div>
                       <Label>Assign to Property (optional)</Label>
                       <Select
-                        value={selectedProperty}
-                        onValueChange={handlePropertySelect}
+                        value={selectedProperty || PROPERTY_NONE_VALUE}
+                        onValueChange={(value) => handlePropertySelect(value === PROPERTY_NONE_VALUE ? '' : value)}
                         disabled={propertiesLoading}
                       >
                         <SelectTrigger className="mt-1">
                           <SelectValue placeholder={propertiesLoading ? 'Loading...' : 'Select property'} />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="">Do not assign</SelectItem>
+                          <SelectItem value={PROPERTY_NONE_VALUE}>Do not assign</SelectItem>
                           {properties.map((property) => (
                             <SelectItem key={property.id} value={property.id}>
                               {property.name}
@@ -332,8 +335,8 @@ export default function NewTenantPage() {
                     <div>
                       <Label>Assign to Unit (optional)</Label>
                       <Select
-                        value={selectedUnit}
-                        onValueChange={setSelectedUnit}
+                        value={selectedUnit || UNIT_NONE_VALUE}
+                        onValueChange={(value) => setSelectedUnit(value === UNIT_NONE_VALUE ? '' : value)}
                         disabled={!selectedProperty || unitsLoading || units.length === 0}
                       >
                         <SelectTrigger className="mt-1">
@@ -350,7 +353,7 @@ export default function NewTenantPage() {
                           />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="">Do not assign</SelectItem>
+                          <SelectItem value={UNIT_NONE_VALUE}>Do not assign</SelectItem>
                           {units
                             .sort((a, b) => {
                               const av = a.status.toLowerCase() === 'vacant' ? 0 : 1
