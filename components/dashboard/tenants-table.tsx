@@ -176,6 +176,7 @@ export function TenantsTable({ searchQuery = '' }: TenantsTableProps) {
     date_of_birth: '',
   })
   const [savingEdit, setSavingEdit] = useState(false)
+  const [editSuccess, setEditSuccess] = useState<string | null>(null)
 
   const [tenantToDelete, setTenantToDelete] = useState<TenantRecord | null>(null)
   const [removingTenant, setRemovingTenant] = useState(false)
@@ -215,6 +216,7 @@ export function TenantsTable({ searchQuery = '' }: TenantsTableProps) {
           ? new Date(editTenant.date_of_birth).toISOString().split('T')[0]
           : '',
       })
+      setEditSuccess(null)
     }
   }, [editTenant])
 
@@ -314,9 +316,12 @@ export function TenantsTable({ searchQuery = '' }: TenantsTableProps) {
         throw new Error(errorPayload.error || 'Failed to update tenant.')
       }
 
-      toast({ title: 'Tenant updated', description: 'The tenant details were saved successfully.' })
-      setEditTenant(null)
-      setRefreshIndex((index) => index + 1)
+      setEditSuccess('Tenant details updated successfully.')
+      setTimeout(() => {
+        setEditTenant(null)
+        setEditSuccess(null)
+        setRefreshIndex((index) => index + 1)
+      }, 1200)
     } catch (saveError) {
       toast({
         title: 'Update failed',
@@ -531,13 +536,9 @@ export function TenantsTable({ searchQuery = '' }: TenantsTableProps) {
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <Label>Deliver to</Label>
-              <Input value={messageTenant?.email || 'Tenant portal user'} disabled />
-            </div>
-            <div>
               <Label>Message</Label>
               <Textarea
-                rows={5}
+                rows={7}
                 value={messageContent}
                 onChange={(event) => setMessageContent(event.target.value)}
                 placeholder="Share important updates, payment reminders, or welcome messages."
@@ -558,7 +559,15 @@ export function TenantsTable({ searchQuery = '' }: TenantsTableProps) {
       </Dialog>
 
       {/* Edit tenant modal */}
-      <Dialog open={!!editTenant} onOpenChange={(open) => !open && setEditTenant(null)}>
+      <Dialog
+        open={!!editTenant}
+        onOpenChange={(open) => {
+          if (!open) {
+            setEditTenant(null)
+            setEditSuccess(null)
+          }
+        }}
+      >
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>Edit tenant details</DialogTitle>
@@ -629,6 +638,11 @@ export function TenantsTable({ searchQuery = '' }: TenantsTableProps) {
               />
             </div>
           </div>
+          {editSuccess && (
+            <Alert>
+              <AlertDescription>{editSuccess}</AlertDescription>
+            </Alert>
+          )}
           <DialogFooter>
             <Button
               onClick={handleSaveEdit}
