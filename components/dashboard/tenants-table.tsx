@@ -34,11 +34,11 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { useToast } from '@/components/ui/use-toast'
 import { Loader2, MoreVertical, Copy, Phone } from 'lucide-react'
 import { Separator } from '@/components/ui/separator'
+import { useRouter } from 'next/navigation'
 
 type TenantRecord = {
   lease_id: string | null
@@ -126,12 +126,12 @@ const paymentBadgeVariant = (status: string) => {
 function TenantActions({
   tenant,
   onEdit,
-  onSendMessage,
+  onOpenChat,
   onRemove,
 }: {
   tenant: TenantRecord
   onEdit: (tenant: TenantRecord) => void
-  onSendMessage: (tenant: TenantRecord) => void
+  onOpenChat: (tenant: TenantRecord) => void
   onRemove: (tenant: TenantRecord) => void
 }) {
   return (
@@ -143,7 +143,7 @@ function TenantActions({
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         <DropdownMenuItem onClick={() => onEdit(tenant)}>Edit</DropdownMenuItem>
-        <DropdownMenuItem onClick={() => onSendMessage(tenant)}>Send Message</DropdownMenuItem>
+        <DropdownMenuItem onClick={() => onOpenChat(tenant)}>Open Chat</DropdownMenuItem>
         <DropdownMenuItem
           onClick={() => onRemove(tenant)}
           className="text-destructive focus:text-destructive"
@@ -157,14 +157,11 @@ function TenantActions({
 
 export function TenantsTable({ searchQuery = '' }: TenantsTableProps) {
   const { toast } = useToast()
+  const router = useRouter()
   const [tenants, setTenants] = useState<TenantRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [refreshIndex, setRefreshIndex] = useState(0)
-
-  const [messageTenant, setMessageTenant] = useState<TenantRecord | null>(null)
-  const [messageContent, setMessageContent] = useState('')
-  const [sendingMessage, setSendingMessage] = useState(false)
 
   const [editTenant, setEditTenant] = useState<TenantRecord | null>(null)
   const [editForm, setEditForm] = useState({
@@ -220,12 +217,6 @@ export function TenantsTable({ searchQuery = '' }: TenantsTableProps) {
     }
   }, [editTenant])
 
-  useEffect(() => {
-    if (messageTenant) {
-      setMessageContent('')
-    }
-  }, [messageTenant])
-
   const filteredTenants = useMemo(() => {
     const query = searchQuery.trim().toLowerCase()
     if (!query) return tenants
@@ -250,52 +241,6 @@ export function TenantsTable({ searchQuery = '' }: TenantsTableProps) {
         description: value,
       })
     })
-  }
-
-  const handleSendMessage = async () => {
-    if (!messageTenant) {
-      return
-    }
-    if (!messageContent.trim()) {
-      toast({
-        title: 'Message required',
-        description: 'Please enter a message before sending.',
-        variant: 'destructive',
-      })
-      return
-    }
-
-    try {
-      setSendingMessage(true)
-      const response = await fetch(`/api/tenants/${messageTenant.tenant_user_id}/message`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          message: messageContent.trim(),
-          lease_id: messageTenant.lease_id,
-        }),
-      })
-
-      if (!response.ok) {
-        const payload = await response.json().catch(() => ({}))
-        throw new Error(payload.error || 'Failed to send message.')
-      }
-
-      toast({
-        title: 'Message sent',
-        description: `Delivered to ${messageTenant.full_name}'s tenant portal.`,
-      })
-      setMessageTenant(null)
-    } catch (sendError) {
-      toast({
-        title: 'Unable to send message',
-        description:
-          sendError instanceof Error ? sendError.message : 'Please try again in a few moments.',
-        variant: 'destructive',
-      })
-    } finally {
-      setSendingMessage(false)
-    }
   }
 
   const handleSaveEdit = async () => {
@@ -513,7 +458,9 @@ export function TenantsTable({ searchQuery = '' }: TenantsTableProps) {
                       <TenantActions
                         tenant={tenant}
                         onEdit={setEditTenant}
-                        onSendMessage={setMessageTenant}
+                        onOpenChat={(selected) =>
+                          router.push(`/dashboard/tenants/${selected.tenant_user_id}/messages`)
+                        }
                         onRemove={setTenantToDelete}
                       />
                     </TableCell>
@@ -525,38 +472,6 @@ export function TenantsTable({ searchQuery = '' }: TenantsTableProps) {
       </div>
 
       {/* Send message modal */}
-      <Dialog open={!!messageTenant} onOpenChange={(open) => !open && setMessageTenant(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Message {messageTenant?.full_name}</DialogTitle>
-            <DialogDescription>
-              Send an in-app message to the tenant. They will see it instantly in their portal and receive
-              a notification.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <Label>Message</Label>
-              <Textarea
-                rows={7}
-                value={messageContent}
-                onChange={(event) => setMessageContent(event.target.value)}
-                placeholder="Share important updates, payment reminders, or welcome messages."
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button
-              onClick={handleSendMessage}
-              disabled={sendingMessage || !messageContent.trim()}
-              className="bg-[#4682B4] hover:bg-[#3a6c93]"
-            >
-              {sendingMessage ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-              Send message
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {/* Edit tenant modal */}
       <Dialog

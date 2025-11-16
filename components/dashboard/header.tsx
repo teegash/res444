@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { Search, Bell, LogOut, User } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -20,47 +20,34 @@ import {
 } from '@/components/ui/sheet'
 import { Badge } from '@/components/ui/badge'
 import { useAuth } from '@/lib/auth/context'
+import { createClient } from '@/lib/supabase/client'
 
-interface Notification {
+interface NotificationItem {
   id: string
-  title: string
-  description: string
-  timestamp: string
-  type: 'info' | 'warning' | 'success' | 'error'
+  message_text: string
+  created_at: string
   read: boolean
+}
+
+function formatRelative(dateString: string) {
+  const date = new Date(dateString)
+  const diff = Date.now() - date.getTime()
+  const minutes = Math.floor(diff / 60000)
+  if (minutes < 1) return 'Just now'
+  if (minutes < 60) return `${minutes} min ago`
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return `${hours} hr${hours > 1 ? 's' : ''} ago`
+  const days = Math.floor(hours / 24)
+  return `${days} day${days > 1 ? 's' : ''} ago`
 }
 
 export function Header() {
   const { user, signOut } = useAuth()
+  const supabase = useMemo(() => createClient(), [])
   const [userFirstName, setUserFirstName] = useState<string | null>(null)
   const [notificationsOpen, setNotificationsOpen] = useState(false)
-  const [notifications, setNotifications] = useState<Notification[]>([
-    {
-      id: '1',
-      title: 'Payment Received',
-      description: 'John Doe paid KES 10,000 for Unit 101',
-      timestamp: '2 minutes ago',
-      type: 'success',
-      read: false,
-    },
-    {
-      id: '2',
-      title: 'Maintenance Request',
-      description: 'New maintenance request for Unit 205',
-      timestamp: '1 hour ago',
-      type: 'info',
-      read: false,
-    },
-    {
-      id: '3',
-      title: 'Lease Expiring',
-      description: 'Jane Smith lease expires in 15 days',
-      timestamp: '3 hours ago',
-      type: 'warning',
-      read: false,
-    },
-  ])
-  const unreadCount = notifications.filter(n => !n.read).length
+  const [notifications, setNotifications] = useState<NotificationItem[]>([])
+  const unreadCount = notifications.filter((n) => !n.read).length
   const router = useRouter()
 
   // Fetch user's first name from profile
@@ -89,12 +76,72 @@ export function Header() {
     fetchUserFirstName()
   }, [user])
 
-  const handleMarkAsRead = (id: string) => {
-    setNotifications(notifications.map(n => n.id === id ? { ...n, read: true } : n))
+  const fetchNotifications = useCallback(async () => {
+    try {
+      const response = await fetch('/api/manager/notifications', { cache: 'no-store' })
+      if (!response.ok) {
+        throw new Error('Failed to fetch notifications.')
+      }
+      const payload = await response.json()
+      setNotifications(payload.data || [])
+    } catch (error) {
+      console.error('[Header] notifications fetch failed', error)
+    }
+  }, [])
+
+  useEffect(() => {
+    fetchNotifications()
+  }, [fetchNotifications])
+
+  useEffect(() => {
+    if (!user?.id) return
+    const channel = supabase
+      .channel(`manager-notifications-${user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'communications',
+          filter: `recipient_user_id=eq.${user.id}`,
+        },
+        () => {
+          fetchNotifications()
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [fetchNotifications, supabase, user?.id])
+
+  const handleMarkAsRead = async (id: string) => {
+    try {
+      await fetch('/api/manager/notifications', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: [id] }),
+      })
+      fetchNotifications()
+    } catch (error) {
+      console.error('[Header] mark notification failed', error)
+    }
   }
 
-  const handleMarkAllAsRead = () => {
-    setNotifications(notifications.map(n => ({ ...n, read: true })))
+  const handleMarkAllAsRead = async () => {
+    const unreadIds = notifications.filter((n) => !n.read).map((n) => n.id)
+    if (unreadIds.length === 0) return
+    try {
+      await fetch('/api/manager/notifications', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: unreadIds }),
+      })
+      fetchNotifications()
+    } catch (error) {
+      console.error('[Header] mark all notifications failed', error)
+    }
   }
 
   const handleLogout = async () => {
@@ -164,9 +211,9 @@ export function Header() {
                     >
                       <div className="flex items-start justify-between gap-2">
                         <div className="flex-1">
-                          <p className="font-medium text-sm">{notification.title}</p>
+                          <p className="font-medium text-sm">New tenant message</p>
                           <p className="text-xs text-muted-foreground mt-1">
-                            {notification.description}
+                            {notification.message_text}
                           </p>
                         </div>
                         {!notification.read && (
@@ -174,7 +221,7 @@ export function Header() {
                         )}
                       </div>
                       <p className="text-xs text-muted-foreground mt-2">
-                        {notification.timestamp}
+                        {notification.created_at ? formatRelative(notification.created_at) : ''}
                       </p>
                     </div>
                   ))
