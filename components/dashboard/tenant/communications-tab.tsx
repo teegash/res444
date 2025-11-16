@@ -1,23 +1,143 @@
 'use client'
 
-import { useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { format } from 'date-fns'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
-import { Input } from '@/components/ui/input'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import { Send, Paperclip, Smile } from 'lucide-react'
+import { Send, Loader2 } from 'lucide-react'
+import { useToast } from '@/components/ui/use-toast'
+import { useAuth } from '@/lib/auth/context'
+import { createClient } from '@/lib/supabase/client'
 
-const messages = [
-  { id: 1, sender: 'Manager', senderInitials: 'MG', content: 'Hi John, just confirming you received the lease document.', date: '2024-02-01', time: '10:30 AM', isManager: true },
-  { id: 2, sender: 'You', senderInitials: 'JD', content: 'Yes, I received it. Thank you!', date: '2024-02-01', time: '10:45 AM', isManager: false },
-  { id: 3, sender: 'Manager', senderInitials: 'MG', content: 'Great! Let me know if you have any questions.', date: '2024-02-01', time: '11:00 AM', isManager: true },
-  { id: 4, sender: 'Manager', senderInitials: 'MG', content: 'Also, please remember rent is due on the 1st of next month.', date: '2024-02-01', time: '11:05 AM', isManager: true },
-  { id: 5, sender: 'You', senderInitials: 'JD', content: 'Understood, I will make the payment on time.', date: '2024-02-01', time: '2:30 PM', isManager: false },
-]
+interface CommunicationMessage {
+  id: string
+  sender_user_id: string
+  recipient_user_id: string | null
+  message_text: string
+  read: boolean
+  created_at: string
+  sender_name?: string
+}
 
 export function CommunicationsTab() {
+  const { user } = useAuth()
+  const { toast } = useToast()
+  const supabase = useMemo(() => createClient(), [])
   const [newMessage, setNewMessage] = useState('')
+  const [messages, setMessages] = useState<CommunicationMessage[]>([])
+  const [loading, setLoading] = useState(true)
+  const [sending, setSending] = useState(false)
+
+  const fetchMessages = useCallback(async () => {
+    if (!user?.id) return
+    try {
+      setLoading(true)
+      const response = await fetch('/api/tenant/messages', { cache: 'no-store' })
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}))
+        throw new Error(payload.error || 'Failed to load messages.')
+      }
+      const payload = await response.json()
+      setMessages(payload.data || [])
+
+      const unreadForTenant = (payload.data || [])
+        .filter((msg: CommunicationMessage) => !msg.read && msg.recipient_user_id === user.id)
+        .map((msg: CommunicationMessage) => msg.id)
+      if (unreadForTenant.length > 0) {
+        await fetch('/api/tenant/notifications', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ids: unreadForTenant }),
+        })
+      }
+    } catch (error) {
+      console.error('[CommunicationsTab] load failed', error)
+      toast({
+        title: 'Unable to load messages',
+        description: error instanceof Error ? error.message : 'Please try again later.',
+        variant: 'destructive',
+      })
+    } finally {
+      setLoading(false)
+    }
+  }, [toast, user?.id])
+
+  useEffect(() => {
+    fetchMessages()
+  }, [fetchMessages])
+
+  useEffect(() => {
+    if (!user?.id) return
+    const channel = supabase
+      .channel(`tenant-communications-${user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'communications',
+          filter: `recipient_user_id=eq.${user.id}`,
+        },
+        (payload) => {
+          setMessages((existing) => [...existing, payload.new as CommunicationMessage])
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [supabase, user?.id])
+
+  const handleSendMessage = async () => {
+    if (!newMessage.trim()) {
+      toast({
+        title: 'Message required',
+        description: 'Please enter a message before sending.',
+        variant: 'destructive',
+      })
+      return
+    }
+    try {
+      setSending(true)
+      const response = await fetch('/api/tenant/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: newMessage.trim() }),
+      })
+
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}))
+        throw new Error(payload.error || 'Failed to send message.')
+      }
+
+      const payload = await response.json()
+      setMessages((existing) => [...existing, payload.data])
+      setNewMessage('')
+      toast({
+        title: 'Message sent',
+        description: 'We will get back to you shortly.',
+      })
+    } catch (error) {
+      toast({
+        title: 'Unable to send message',
+        description: error instanceof Error ? error.message : 'Please try again in a few minutes.',
+        variant: 'destructive',
+      })
+    } finally {
+      setSending(false)
+    }
+  }
+
+  const formattedMessages = messages.map((message) => ({
+    ...message,
+    isTenant: message.sender_user_id === user?.id,
+    timestamp: message.created_at
+      ? format(new Date(message.created_at), 'MMM d, yyyy • h:mm a')
+      : '',
+  }))
 
   return (
     <div className="space-y-4 mt-6">
@@ -25,76 +145,94 @@ export function CommunicationsTab() {
         <CardHeader className="border-b bg-muted/30">
           <div className="flex items-center gap-3">
             <Avatar className="h-10 w-10 bg-primary">
-              <AvatarFallback className="text-primary-foreground font-semibold">MG</AvatarFallback>
+              <AvatarFallback className="text-primary-foreground font-semibold">
+                {user?.email?.[0]?.toUpperCase() || 'Y'}
+              </AvatarFallback>
             </Avatar>
             <div>
-              <CardTitle className="text-base">Property Manager</CardTitle>
-              <CardDescription className="text-xs">Usually replies within minutes</CardDescription>
+              <CardTitle className="text-base">Property Messaging</CardTitle>
+              <CardDescription className="text-xs">
+                Communicate with your property manager in real time
+              </CardDescription>
             </div>
           </div>
         </CardHeader>
-        
+
         <CardContent className="flex-1 overflow-y-auto p-6 space-y-4">
-          {messages.map((message) => (
-            <div
-              key={message.id}
-              className={`flex gap-3 ${message.isManager ? 'justify-start' : 'justify-end'}`}
-            >
-              {message.isManager && (
-                <Avatar className="h-8 w-8 bg-primary shrink-0">
-                  <AvatarFallback className="text-primary-foreground text-xs font-semibold">
-                    {message.senderInitials}
-                  </AvatarFallback>
-                </Avatar>
-              )}
-              
-              <div className={`flex flex-col max-w-[70%] ${message.isManager ? 'items-start' : 'items-end'}`}>
+          {loading ? (
+            <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Loading conversation…
+            </div>
+          ) : formattedMessages.length === 0 ? (
+            <p className="text-center text-sm text-muted-foreground">
+              No messages yet. Start a conversation with your property team.
+            </p>
+          ) : (
+            formattedMessages.map((message) => (
+              <div
+                key={message.id}
+                className={`flex gap-3 ${message.isTenant ? 'justify-end' : 'justify-start'}`}
+              >
+                {!message.isTenant && (
+                  <Avatar className="h-8 w-8 bg-primary shrink-0">
+                    <AvatarFallback className="text-primary-foreground text-xs font-semibold">
+                      {(message.sender_name || 'PM')
+                        .split(' ')
+                        .map((chunk) => chunk[0])
+                        .join('')
+                        .slice(0, 2)
+                        .toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                )}
+
                 <div
-                  className={`px-4 py-3 rounded-2xl ${
-                    message.isManager
-                      ? 'bg-muted text-foreground rounded-tl-sm'
-                      : 'bg-primary text-primary-foreground rounded-tr-sm'
+                  className={`flex flex-col max-w-[70%] ${
+                    message.isTenant ? 'items-end' : 'items-start'
                   }`}
                 >
-                  <p className="text-sm leading-relaxed">{message.content}</p>
+                  <div
+                    className={`px-4 py-3 rounded-2xl ${
+                      message.isTenant
+                        ? 'bg-primary text-primary-foreground rounded-tr-sm'
+                        : 'bg-muted text-foreground rounded-tl-sm'
+                    }`}
+                  >
+                    <p className="text-sm leading-relaxed whitespace-pre-line">
+                      {message.message_text}
+                    </p>
+                  </div>
+                  <span className="text-xs text-muted-foreground mt-1 px-1">{message.timestamp}</span>
                 </div>
-                <span className="text-xs text-muted-foreground mt-1 px-1">
-                  {message.time}
-                </span>
-              </div>
 
-              {!message.isManager && (
-                <Avatar className="h-8 w-8 bg-accent shrink-0">
-                  <AvatarFallback className="text-accent-foreground text-xs font-semibold">
-                    {message.senderInitials}
-                  </AvatarFallback>
-                </Avatar>
-              )}
-            </div>
-          ))}
+                {message.isTenant && (
+                  <Avatar className="h-8 w-8 bg-accent shrink-0">
+                    <AvatarFallback className="text-accent-foreground text-xs font-semibold">
+                      {user?.email?.[0]?.toUpperCase() || 'Y'}
+                    </AvatarFallback>
+                  </Avatar>
+                )}
+              </div>
+            ))
+          )}
         </CardContent>
 
         <div className="border-t p-4 bg-muted/20">
           <div className="flex items-end gap-2">
-            <div className="flex-1 flex flex-col gap-2">
-              <Textarea 
-                placeholder="Type your message..." 
-                value={newMessage}
-                onChange={(e) => setNewMessage(e.target.value)}
-                rows={2}
-                className="resize-none"
-              />
-              <div className="flex gap-2">
-                <Button variant="ghost" size="sm" className="h-8 px-2">
-                  <Paperclip className="h-4 w-4" />
-                </Button>
-                <Button variant="ghost" size="sm" className="h-8 px-2">
-                  <Smile className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-            <Button className="bg-primary hover:bg-primary/90 h-10 px-6 gap-2">
-              <Send className="h-4 w-4" />
+            <Textarea
+              placeholder="Type your message..."
+              value={newMessage}
+              onChange={(e) => setNewMessage(e.target.value)}
+              rows={2}
+              className="resize-none"
+            />
+            <Button
+              className="bg-primary hover:bg-primary/90 h-10 px-6 gap-2"
+              onClick={handleSendMessage}
+              disabled={sending}
+            >
+              {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
               Send
             </Button>
           </div>

@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { TenantsTable } from '@/components/dashboard/tenants-table'
@@ -10,6 +11,7 @@ import { useRouter } from 'next/navigation'
 
 export default function TenantsPage() {
   const router = useRouter()
+  const [searchTerm, setSearchTerm] = useState('')
 
   return (
     <div className="flex min-h-screen bg-gray-50">
@@ -23,7 +25,11 @@ export default function TenantsPage() {
 
               <div className="flex items-center justify-between">
                 <div className="flex-1">
-                  <Input placeholder="Search by name, email, or phone..." />
+                  <Input
+                    placeholder="Search by name, email, phone, or unit..."
+                    value={searchTerm}
+                    onChange={(event) => setSearchTerm(event.target.value)}
+                  />
                 </div>
                 <Button
                   onClick={() => router.push('/dashboard/tenants/new')}
@@ -35,7 +41,7 @@ export default function TenantsPage() {
               </div>
             </div>
 
-            <TenantsTable />
+            <TenantsTable searchQuery={searchTerm} />
           </div>
         </main>
       </div>
