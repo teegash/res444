@@ -26,8 +26,9 @@ export default function TenantSetPasswordPage() {
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault()
+
     if (!tokenHash || !emailParam) {
-      setError('This invitation link is invalid or has already been used.')
+      setError('This invitation link is invalid or has expired.')
       return
     }
     if (password.length < 8) {
@@ -41,16 +42,21 @@ export default function TenantSetPasswordPage() {
 
     setError(null)
     setSubmitting(true)
+
     try {
       const { error: verifyError } = await supabase.auth.verifyOtp({
         type: 'signup',
         token_hash: tokenHash,
         email: emailParam,
-        password,
       })
 
       if (verifyError) {
         throw verifyError
+      }
+
+      const { error: updateError } = await supabase.auth.updateUser({ password })
+      if (updateError) {
+        throw updateError
       }
 
       setSuccess('Password set successfully. Redirecting to login…')
@@ -59,7 +65,7 @@ export default function TenantSetPasswordPage() {
       }, 1500)
     } catch (err) {
       console.error('[TenantSetPassword] verifyOtp error:', err)
-      setError(err instanceof Error ? err.message : 'Unable to set password. Try requesting a new invite.')
+      setError(err instanceof Error ? err.message : 'Unable to set password. Please request a new invitation.')
     } finally {
       setSubmitting(false)
     }
@@ -73,7 +79,7 @@ export default function TenantSetPasswordPage() {
         </CardHeader>
         <CardContent>
           <p className="text-sm text-muted-foreground mb-6 text-center">
-            Enter a password for <span className="font-semibold">{emailParam || 'your account'}</span> to finish activating your tenant portal.
+            Set a password for <span className="font-semibold">{emailParam || 'your account'}</span> to finish activating your tenant portal.
           </p>
           <form className="space-y-4" onSubmit={handleSubmit}>
             <div>
