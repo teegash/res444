@@ -151,6 +151,19 @@ export async function POST(request: NextRequest) {
           { status: 500 }
         )
       }
+
+      const { error: unitStatusError } = await adminSupabase
+        .from('apartment_units')
+        .update({ status: 'occupied' })
+        .eq('id', unit_id)
+
+      if (unitStatusError) {
+        console.error('[TenantCreate] failed to update unit status', unitStatusError)
+        return NextResponse.json(
+          { success: false, error: unitStatusError.message || 'Failed to update unit status.' },
+          { status: 500 }
+        )
+      }
     }
 
     try {
