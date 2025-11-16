@@ -5,7 +5,9 @@ import { createAdminClient } from '@/lib/supabase/admin'
 const SITE_URL =
   process.env.NEXT_PUBLIC_SITE_URL ||
   (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : '')
-const redirectUrl = SITE_URL ? `${SITE_URL.replace(/\/$/, '')}/tenant/welcome` : undefined
+
+const buildRedirectUrl = (email: string) =>
+  SITE_URL ? `${SITE_URL.replace(/\/$/, '')}/tenant/set-password?email=${encodeURIComponent(email)}` : undefined
 
 export async function POST(request: NextRequest) {
   try {
@@ -57,7 +59,7 @@ export async function POST(request: NextRequest) {
       email,
       {
         data: { role: 'tenant' },
-        redirectTo: redirectUrl,
+        redirectTo: buildRedirectUrl(email),
       }
     )
 
