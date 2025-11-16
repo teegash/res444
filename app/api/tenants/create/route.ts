@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { sendTenantCredentialsEmail } from '@/lib/email/sendTenantCredentials'
 
 export async function POST(request: NextRequest) {
   try {
@@ -153,17 +154,11 @@ export async function POST(request: NextRequest) {
     }
 
     try {
-      await fetch('https://bqcqacqchyrjckrapcar.supabase.co/functions/v1/clever-service', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
-        },
-        body: JSON.stringify({
-          email,
-          password: generatedPassword,
-          full_name,
-        }),
+      await sendTenantCredentialsEmail({
+        tenantName: full_name,
+        tenantEmail: email,
+        generatedPassword,
+        loginPath: '/auth/login',
       })
     } catch (emailError) {
       console.error('[TenantCreate] credential email failed', emailError)
