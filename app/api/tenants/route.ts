@@ -28,17 +28,27 @@ export async function GET() {
 
     const tenantIds = profiles.map((profile) => profile.id).filter(Boolean)
 
-    let authUsers: any[] = []
+    const authMap = new Map<string, { email: string | null; created_at: string | null }>()
     if (tenantIds.length > 0) {
-      const { data, error } = await adminSupabase
-        .from('auth.users')
-        .select('id, email, created_at')
-        .in('id', tenantIds)
+      const authResults = await Promise.all(
+        tenantIds.map(async (tenantId) => {
+          const { data, error } = await adminSupabase.auth.admin.getUserById(tenantId)
+          if (error) {
+            console.error('[Tenants.GET] Failed to fetch auth user', tenantId, error)
+            return null
+          }
+          return data?.user || null
+        })
+      )
 
-      if (error) {
-        throw error
+      for (const user of authResults) {
+        if (user) {
+          authMap.set(user.id, {
+            email: user.email || '',
+            created_at: user.created_at || null,
+          })
+        }
       }
-      authUsers = data || []
     }
 
     let leases: any[] = []
@@ -90,7 +100,6 @@ export async function GET() {
       payments = data || []
     }
 
-    const authMap = new Map((authUsers || []).map((user: any) => [user.id, user]))
     const leaseMap = new Map<string, any>()
     for (const lease of leases) {
       if (!lease?.tenant_user_id) continue
