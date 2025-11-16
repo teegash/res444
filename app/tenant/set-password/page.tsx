@@ -30,7 +30,7 @@ export default function TenantSetPasswordPage() {
       setError('This invitation link is invalid or has already been used.')
       return
     }
-    if (!password || password.length < 8) {
+    if (password.length < 8) {
       setError('Password must be at least 8 characters long.')
       return
     }
@@ -81,9 +81,8 @@ export default function TenantSetPasswordPage() {
               <Input value={emailParam} disabled className="bg-muted" />
             </div>
             <div>
-              <Label htmlFor="password">Password</Label>
+              <Label>Password</Label>
               <Input
-                id="password"
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -92,9 +91,8 @@ export default function TenantSetPasswordPage() {
               />
             </div>
             <div>
-              <Label htmlFor="confirmPassword">Confirm password</Label>
+              <Label>Confirm password</Label>
               <Input
-                id="confirmPassword"
                 type="password"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
