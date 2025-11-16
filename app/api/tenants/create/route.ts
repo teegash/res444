@@ -2,13 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 
-const SITE_URL =
-  process.env.NEXT_PUBLIC_SITE_URL ||
-  (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : '')
-
-const buildRedirectUrl = (email: string) =>
-  SITE_URL ? `${SITE_URL.replace(/\/$/, '')}/tenant/set-password?email=${encodeURIComponent(email)}` : undefined
-
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json().catch(() => ({}))
@@ -55,19 +48,20 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const { data: inviteData, error: inviteError } = await adminSupabase.auth.admin.inviteUserByEmail(
+    const firstName = full_name.split(/\s+/)[0] || 'Tenant'
+    const generatedPassword = `${firstName}Pass@123`
+    const { data: createdUser, error: createUserError } = await adminSupabase.auth.admin.createUser({
       email,
-      {
-        data: { role: 'tenant' },
-        redirectTo: buildRedirectUrl(email),
-      }
-    )
+      password: generatedPassword,
+      email_confirm: true,
+      user_metadata: { role: 'tenant' },
+    })
 
-    if (inviteError || !inviteData?.user?.id) {
-      throw inviteError || new Error('Failed to send tenant invite.')
+    if (createUserError || !createdUser?.user?.id) {
+      throw createUserError || new Error('Failed to create tenant user.')
     }
 
-    const tenantUserId = inviteData.user.id
+    const tenantUserId = createdUser.user.id
 
     let uploadedProfileUrl: string | null = null
 
@@ -158,7 +152,24 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    return NextResponse.json({ success: true })
+    try {
+      await fetch('https://bqcqacqchyrjckrapcar.supabase.co/functions/v1/clever-service', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
+        },
+        body: JSON.stringify({
+          email,
+          password: generatedPassword,
+          full_name,
+        }),
+      })
+    } catch (emailError) {
+      console.error('[TenantCreate] credential email failed', emailError)
+    }
+
+    return NextResponse.json({ success: true, data: { email } })
   } catch (error) {
     console.error('[TenantCreate] Unexpected error:', error)
     return NextResponse.json(
