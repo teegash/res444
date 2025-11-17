@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { format } from 'date-fns'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -29,6 +29,7 @@ export function CommunicationsTab() {
   const [messages, setMessages] = useState<CommunicationMessage[]>([])
   const [loading, setLoading] = useState(true)
   const [sending, setSending] = useState(false)
+  const bottomRef = useRef<HTMLDivElement | null>(null)
 
   const fetchMessages = useCallback(async () => {
     if (!user?.id) return
@@ -67,6 +68,13 @@ export function CommunicationsTab() {
   useEffect(() => {
     fetchMessages()
   }, [fetchMessages])
+
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+    }, 100)
+    return () => clearTimeout(timeout)
+  }, [messages, loading])
 
   useEffect(() => {
     if (!user?.id) return
@@ -237,6 +245,8 @@ export function CommunicationsTab() {
             </Button>
           </div>
         </div>
+
+        <div ref={bottomRef} />
       </Card>
     </div>
   )

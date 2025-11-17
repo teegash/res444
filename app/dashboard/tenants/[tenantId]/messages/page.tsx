@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -46,6 +46,7 @@ export default function ManagerTenantMessagesPage() {
   const [loading, setLoading] = useState(true)
   const [sending, setSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const bottomRef = useRef<HTMLDivElement | null>(null)
 
   const fetchConversation = async () => {
     if (!tenantId) return
@@ -73,6 +74,13 @@ export default function ManagerTenantMessagesPage() {
   useEffect(() => {
     fetchConversation()
   }, [tenantId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+    }, 100)
+    return () => clearTimeout(timeout)
+  }, [messages, loading])
 
   useEffect(() => {
     if (!tenantId || !user?.id) return
@@ -254,6 +262,7 @@ export default function ManagerTenantMessagesPage() {
                 </Button>
               </div>
             </div>
+            <div ref={bottomRef} />
           </CardContent>
         </Card>
       </div>
