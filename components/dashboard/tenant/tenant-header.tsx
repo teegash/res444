@@ -151,8 +151,14 @@ export function TenantHeader({ summary, loading, onProfileUpdated }: TenantHeade
         setNotifications((current) => current.filter((item) => item.id !== notification.id))
       }
       setSheetOpen(false)
-      if (notification.related_entity_type === 'payment' && notification.related_entity_id) {
-        router.push(`/dashboard/tenant/invoices/${notification.related_entity_id}`)
+      const invoiceId =
+        notification.related_entity_id &&
+        notification.related_entity_id !== 'null' &&
+        notification.related_entity_id !== 'undefined'
+          ? notification.related_entity_id
+          : null
+      if (notification.related_entity_type === 'payment' && invoiceId) {
+        router.push(`/dashboard/tenant/invoices/${invoiceId}`)
       } else {
         router.push('/dashboard/tenant/messages')
       }

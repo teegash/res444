@@ -198,7 +198,7 @@ export function getAfricasTalkingConfig(): AfricasTalkingConfig {
   return {
     apiKey,
     username,
-    senderId,
+    senderId: environment === 'production' ? senderId : undefined,
     environment,
   }
 }
