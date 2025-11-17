@@ -2,11 +2,11 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import { ArrowLeft, Send, Loader2 } from 'lucide-react'
+import { ArrowLeft, Send, Loader2, MessageSquare, Phone } from 'lucide-react'
 import { useToast } from '@/components/ui/use-toast'
 import { createClient } from '@/lib/supabase/client'
 import { useAuth } from '@/lib/auth/context'
@@ -176,14 +176,19 @@ export default function ManagerTenantMessagesPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-blue-50/40 via-white to-gray-50 p-6">
-      <div className="max-w-4xl mx-auto space-y-4">
-        <div className="flex items-center gap-3">
+    <div className="min-h-screen bg-gradient-to-b from-blue-50/30 via-white to-white">
+      <div className="max-w-6xl mx-auto p-4 md:p-6 lg:p-8 space-y-6">
+        <div className="flex items-center gap-4">
           <Button variant="ghost" size="sm" onClick={() => router.push('/dashboard/tenants')}>
             <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to tenants
+            Back
           </Button>
-          <h1 className="text-2xl font-bold">Chat with {tenant?.full_name || 'tenant'}</h1>
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-blue-100 rounded-lg">
+              <Send className="h-4 w-4 text-blue-600" />
+            </div>
+            <h1 className="text-2xl font-bold">Messages</h1>
+          </div>
         </div>
 
         {error && (
@@ -192,82 +197,133 @@ export default function ManagerTenantMessagesPage() {
           </div>
         )}
 
-        <Card className="h-[600px] flex flex-col">
-          <CardHeader className="border-b bg-muted/30">
-            <CardTitle className="text-base flex items-center gap-3">
-              <Avatar className="h-10 w-10">
-                {tenant?.profile_picture_url ? (
-                  <img src={tenant.profile_picture_url} alt={tenant.full_name || ''} />
-                ) : (
-                  <AvatarFallback>
-                    {(tenant?.full_name || 'TN')
-                      .split(' ')
-                      .map((chunk) => chunk[0])
-                      .join('')
-                      .slice(0, 2)
-                      .toUpperCase()}
-                  </AvatarFallback>
-                )}
-              </Avatar>
-              <div>
-                <p className="font-semibold">{tenant?.full_name || 'Tenant'}</p>
-                <p className="text-xs text-muted-foreground">
-                  {tenant?.unit_label || tenant?.email || tenant?.phone_number || ''}
-                </p>
-              </div>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="flex-1 flex flex-col p-0">
-            <div className="flex-1 overflow-y-auto space-y-4 p-6">
-              {loading ? (
-                <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Loading conversation…
-                </div>
-              ) : messages.length === 0 ? (
-                <p className="text-center text-sm text-muted-foreground">
-                  No messages yet. Start the conversation below.
-                </p>
-              ) : (
-                messages.map((message) => {
-                  const isManager = message.sender_user_id === user?.id
-                  return (
-                    <div key={message.id} className={`flex ${isManager ? 'justify-end' : 'justify-start'}`}>
-                      <div
-                        className={`max-w-[70%] rounded-2xl px-4 py-2 text-sm ${
-                          isManager
-                            ? 'bg-primary text-primary-foreground rounded-tr-sm'
-                            : 'bg-muted text-foreground rounded-tl-sm'
-                        }`}
-                      >
-                        <p className="whitespace-pre-line">{message.message_text}</p>
-                        <span className="block text-[10px] text-muted-foreground mt-1">
-                          {new Date(message.created_at).toLocaleString()}
-                        </span>
-                      </div>
+        <div className="grid gap-6 lg:grid-cols-3">
+          <div className="lg:col-span-2">
+            <Card className="h-[600px] flex flex-col">
+              <CardHeader className="border-b bg-muted/30">
+                <CardTitle className="text-base flex items-center gap-3">
+                  <Avatar className="h-10 w-10">
+                    {tenant?.profile_picture_url ? (
+                      <img src={tenant.profile_picture_url} alt={tenant.full_name || ''} />
+                    ) : (
+                      <AvatarFallback>
+                        {(tenant?.full_name || 'TN')
+                          .split(' ')
+                          .map((chunk) => chunk[0])
+                          .join('')
+                          .slice(0, 2)
+                          .toUpperCase()}
+                      </AvatarFallback>
+                    )}
+                  </Avatar>
+                  <div>
+                    <p className="font-semibold">{tenant?.full_name || 'Tenant'}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {tenant?.unit_label || tenant?.email || tenant?.phone_number || ''}
+                    </p>
+                  </div>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="flex-1 flex flex-col p-0">
+                <div className="flex-1 overflow-y-auto space-y-4 p-6">
+                  {loading ? (
+                    <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Loading conversation…
                     </div>
-                  )
-                })
-              )}
-              <div ref={bottomRef} />
-            </div>
-            <div className="border-t p-4 bg-muted/20">
-              <div className="flex items-end gap-2">
-                <Textarea
-                  value={newMessage}
-                  onChange={(event) => setNewMessage(event.target.value)}
-                  placeholder="Type your message..."
-                  rows={2}
-                  className="flex-1 resize-none"
-                />
-                <Button className="bg-primary hover:bg-primary/90 h-11 px-6 gap-2" onClick={handleSend} disabled={sending}>
-                  {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                  Send
-                </Button>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+                  ) : messages.length === 0 ? (
+                    <p className="text-center text-sm text-muted-foreground">
+                      No messages yet. Start the conversation below.
+                    </p>
+                  ) : (
+                    messages.map((message) => {
+                      const isManager = message.sender_user_id === user?.id
+                      return (
+                        <div key={message.id} className={`flex ${isManager ? 'justify-end' : 'justify-start'}`}>
+                          <div
+                            className={`max-w-[70%] rounded-2xl px-4 py-2 text-sm ${
+                              isManager
+                                ? 'bg-primary text-primary-foreground rounded-tr-sm'
+                                : 'bg-muted text-foreground rounded-tl-sm'
+                            }`}
+                          >
+                            <p className="whitespace-pre-line">{message.message_text}</p>
+                            <span className="block text-[10px] text-muted-foreground mt-1">
+                              {new Date(message.created_at).toLocaleString()}
+                            </span>
+                          </div>
+                        </div>
+                      )
+                    })
+                  )}
+                  <div ref={bottomRef} />
+                </div>
+                <div className="border-t p-4 bg-muted/20">
+                  <div className="flex items-end gap-2">
+                    <Textarea
+                      value={newMessage}
+                      onChange={(event) => setNewMessage(event.target.value)}
+                      placeholder="Type your message..."
+                      rows={2}
+                      className="flex-1 resize-none"
+                    />
+                    <Button
+                      className="bg-primary hover:bg-primary/90 h-11 px-6 gap-2"
+                      onClick={handleSend}
+                      disabled={sending}
+                    >
+                      {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                      Send
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Quick Contact</CardTitle>
+                <CardDescription className="text-xs">Need immediate assistance?</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="p-4 border rounded-lg hover:bg-accent/50 transition-colors">
+                  <div className="flex items-center gap-3 mb-2">
+                    <Phone className="h-4 w-4 text-green-600" />
+                    <p className="font-medium text-sm">Emergency Contact</p>
+                  </div>
+                  <p className="text-xs text-muted-foreground mb-2">For urgent issues after hours</p>
+                  <Button variant="outline" size="sm" className="w-full">
+                    Call: +254 712 345 678
+                  </Button>
+                </div>
+
+                <div className="p-4 border rounded-lg hover:bg-accent/50 transition-colors">
+                  <div className="flex items-center gap-3 mb-2">
+                    <MessageSquare className="h-4 w-4 text-blue-600" />
+                    <p className="font-medium text-sm">Property Manager</p>
+                  </div>
+                  <p className="text-xs text-muted-foreground mb-2">{tenant?.full_name || 'Tenant contact'}</p>
+                  <Button variant="outline" size="sm" className="w-full mb-2">
+                    Call: +254 712 345 679
+                  </Button>
+                </div>
+
+                <div className="p-4 border rounded-lg hover:bg-accent/50 transition-colors">
+                  <div className="flex items-center gap-3 mb-2">
+                    <Phone className="h-4 w-4 text-orange-600" />
+                    <p className="font-medium text-sm">Maintenance Team</p>
+                  </div>
+                  <p className="text-xs text-muted-foreground mb-2">For maintenance requests</p>
+                  <Button variant="outline" size="sm" className="w-full">
+                    Call: +254 712 345 680
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
       </div>
     </div>
   )
