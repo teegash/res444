@@ -178,17 +178,17 @@ export default function ManagerTenantMessagesPage() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-blue-50/30 via-white to-white">
       <div className="max-w-6xl mx-auto p-4 md:p-6 lg:p-8 space-y-6">
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" size="sm" onClick={() => router.push('/dashboard/tenants')}>
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back
-          </Button>
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-blue-100 rounded-lg">
-              <Send className="h-4 w-4 text-blue-600" />
+          <div className="flex items-center gap-4">
+            <Button variant="ghost" size="sm" onClick={() => router.push('/dashboard/tenants')}>
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back
+            </Button>
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-blue-100 rounded-lg">
+                <MessageSquare className="h-5 w-5 text-blue-600" />
+              </div>
+              <h1 className="text-2xl font-bold">Messages</h1>
             </div>
-            <h1 className="text-2xl font-bold">Messages</h1>
-          </div>
         </div>
 
         {error && (
@@ -199,10 +199,10 @@ export default function ManagerTenantMessagesPage() {
 
         <div className="grid gap-6 lg:grid-cols-3">
           <div className="lg:col-span-2">
-            <Card className="h-[600px] flex flex-col">
-              <CardHeader className="border-b bg-muted/30">
-                <CardTitle className="text-base flex items-center gap-3">
-                  <Avatar className="h-10 w-10">
+            <Card className="h-[600px] flex flex-col border border-slate-200">
+              <CardHeader className="border-b bg-white">
+                <div className="flex items-center gap-3">
+                  <Avatar className="h-12 w-12 border border-slate-200">
                     {tenant?.profile_picture_url ? (
                       <img src={tenant.profile_picture_url} alt={tenant.full_name || ''} />
                     ) : (
@@ -216,16 +216,16 @@ export default function ManagerTenantMessagesPage() {
                       </AvatarFallback>
                     )}
                   </Avatar>
-                  <div>
-                    <p className="font-semibold">{tenant?.full_name || 'Tenant'}</p>
+                  <div className="flex flex-col">
+                    <p className="font-semibold text-lg">{tenant?.full_name || 'Tenant'}</p>
                     <p className="text-xs text-muted-foreground">
                       {tenant?.unit_label || tenant?.email || tenant?.phone_number || ''}
                     </p>
                   </div>
-                </CardTitle>
+                </div>
               </CardHeader>
               <CardContent className="flex-1 flex flex-col p-0">
-                <div className="flex-1 overflow-y-auto space-y-4 p-6">
+                <div className="flex-1 overflow-y-auto space-y-4 p-6 bg-slate-50/60">
                   {loading ? (
                     <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
                       <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -244,7 +244,7 @@ export default function ManagerTenantMessagesPage() {
                             className={`max-w-[70%] rounded-2xl px-4 py-2 text-sm ${
                               isManager
                                 ? 'bg-primary text-primary-foreground rounded-tr-sm'
-                                : 'bg-muted text-foreground rounded-tl-sm'
+                                : 'bg-white text-foreground rounded-tl-sm border border-slate-200'
                             }`}
                           >
                             <p className="whitespace-pre-line">{message.message_text}</p>
@@ -258,17 +258,17 @@ export default function ManagerTenantMessagesPage() {
                   )}
                   <div ref={bottomRef} />
                 </div>
-                <div className="border-t p-4 bg-muted/20">
+                <div className="border-t p-4 bg-white">
                   <div className="flex items-end gap-2">
                     <Textarea
                       value={newMessage}
                       onChange={(event) => setNewMessage(event.target.value)}
                       placeholder="Type your message..."
                       rows={2}
-                      className="flex-1 resize-none"
+                      className="flex-1 resize-none bg-slate-50"
                     />
                     <Button
-                      className="bg-primary hover:bg-primary/90 h-11 px-6 gap-2"
+                      className="bg-primary hover:bg-primary/90 h-11 px-6 gap-2 rounded-xl"
                       onClick={handleSend}
                       disabled={sending}
                     >
