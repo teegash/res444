@@ -72,6 +72,7 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
       id: invoice.id,
       amount: invoice.amount,
       status: invoice.status,
+      is_paid: invoice.status === 'paid',
       description: invoice.description,
       invoice_type: invoice.invoice_type,
       due_date: invoice.due_date,

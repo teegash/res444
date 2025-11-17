@@ -1,325 +1,269 @@
 'use client'
 
-import { useState } from 'react'
-import { ArrowLeft, Upload, CheckCircle2, AlertCircle } from 'lucide-react'
-import Link from 'next/link'
+import { useMemo, useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { ArrowLeft, CheckCircle2, CreditCard, Smartphone, UploadCloud } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Textarea } from '@/components/ui/textarea'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { useToast } from '@/components/ui/use-toast'
 
-export default function PaymentPage() {
-  const [selectedMethod, setSelectedMethod] = useState('mpesa')
-  const [phoneNumber, setPhoneNumber] = useState('254712345678')
-  const [uploadedFile, setUploadedFile] = useState<File | null>(null)
-  
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      setUploadedFile(e.target.files[0])
+const statusTone: Record<string, string> = {
+  unpaid: 'bg-red-100 text-red-700',
+  overdue: 'bg-orange-100 text-orange-700',
+}
+
+export default function TenantPaymentPortal() {
+  const router = useRouter()
+  const { toast } = useToast()
+  const searchParams = useSearchParams()
+
+  const invoiceAmount = Number(searchParams?.get('amount') || 1870)
+  const invoiceStatus = searchParams?.get('status') || 'unpaid'
+  const invoiceMonth = searchParams?.get('period') || 'November 2025'
+  const propertyName = searchParams?.get('property') || 'Cedar Ridge Apartments'
+  const unitLabel = searchParams?.get('unit') || 'B-402'
+
+  const [paymentMethod, setPaymentMethod] = useState<'mpesa' | 'card' | 'bank'>('mpesa')
+  const [mpesaNumber, setMpesaNumber] = useState('')
+  const [cardDetails, setCardDetails] = useState({ name: '', number: '', expiry: '', cvv: '' })
+  const [depositSnapshot, setDepositSnapshot] = useState<File | null>(null)
+  const [depositNotes, setDepositNotes] = useState('')
+
+  const formattedAmount = useMemo(
+    () =>
+      `KES ${invoiceAmount.toLocaleString('en-KE', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      })}`,
+    [invoiceAmount]
+  )
+
+  const handleDepositUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (file) {
+      setDepositSnapshot(file)
     }
   }
 
+  const handleConfirm = () => {
+    const methodMap = {
+      mpesa: 'M-Pesa STK push (coming soon)',
+      card: 'Visa / Mastercard checkout (coming soon)',
+      bank: 'Manual bank transfer with deposit slip',
+    }
+
+    toast({
+      title: 'Payment action recorded',
+      description: `You selected ${methodMap[paymentMethod]}. We'll activate this workflow shortly.`,
+    })
+  }
+
   return (
-    <div className="min-h-screen bg-gradient-to-b from-green-50/30 via-white to-white">
-      <div className="max-w-3xl mx-auto p-4 md:p-6 lg:p-8 space-y-6">
-        <div className="flex items-center gap-4 mb-6">
-          <Link href="/dashboard/tenant">
-            <Button variant="ghost" size="sm">
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Back to Dashboard
-            </Button>
-          </Link>
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-green-100 rounded-lg">
-              <span className="text-xl">💳</span>
-            </div>
-            <h1 className="text-2xl font-bold">Make Payment</h1>
+    <div className="min-h-screen bg-gradient-to-b from-slate-50 via-white to-white py-10">
+      <div className="max-w-5xl mx-auto px-4 space-y-6">
+        <div className="flex items-center gap-4">
+          <Button variant="ghost" size="sm" onClick={() => router.back()} className="gap-2">
+            <ArrowLeft className="h-4 w-4" /> Back to dashboard
+          </Button>
+          <div>
+            <p className="text-xs text-muted-foreground">Invoice for {invoiceMonth}</p>
+            <h1 className="text-3xl font-bold">Secure Payment</h1>
           </div>
+          <Badge className={`ml-auto capitalize ${statusTone[invoiceStatus] || 'bg-slate-100 text-slate-700'}`}>
+            {invoiceStatus}
+          </Badge>
         </div>
 
-        {/* Payment Summary */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Payment Summary</CardTitle>
-            <CardDescription>Review your payment details</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid md:grid-cols-2 gap-4">
-              <div>
-                <p className="text-sm text-muted-foreground mb-1">Tenant:</p>
-                <p className="font-semibold">John Kamau</p>
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground mb-1">Property:</p>
-                <p className="font-semibold">Kilimani Heights</p>
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground mb-1">Unit:</p>
-                <p className="font-semibold">A-101</p>
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground mb-1">Payment For:</p>
-                <p className="font-semibold">January 2025</p>
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground mb-1">Due Date:</p>
-                <p className="font-semibold">January 1, 2025</p>
-              </div>
-            </div>
-            <div className="pt-4 border-t">
-              <div className="flex items-center justify-between">
-                <p className="text-lg font-semibold">Total Amount:</p>
-                <p className="text-3xl font-bold text-green-600">KES 45,000</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Payment Method */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Payment Method</CardTitle>
-            <CardDescription>Choose your preferred payment method</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <RadioGroup value={selectedMethod} onValueChange={setSelectedMethod} className="space-y-3">
-              <div className="flex items-center space-x-3 p-4 border-2 rounded-lg hover:bg-accent/50 transition-colors cursor-pointer border-green-500 bg-green-50">
-                <RadioGroupItem value="mpesa" id="mpesa" />
-                <Label htmlFor="mpesa" className="flex-1 cursor-pointer">
-                  <div className="flex items-center gap-3">
-                    <span className="text-2xl">📱</span>
-                    <div>
-                      <p className="font-semibold">M-Pesa</p>
-                      <p className="text-xs text-muted-foreground">Pay using your M-Pesa mobile money</p>
-                    </div>
-                  </div>
-                </Label>
-              </div>
-
-              <div className="flex items-center space-x-3 p-4 border rounded-lg hover:bg-accent/50 transition-colors cursor-pointer">
-                <RadioGroupItem value="bank" id="bank" />
-                <Label htmlFor="bank" className="flex-1 cursor-pointer">
-                  <div className="flex items-center gap-3">
-                    <span className="text-2xl">🏦</span>
-                    <div>
-                      <p className="font-semibold">Bank Transfer</p>
-                      <p className="text-xs text-muted-foreground">Direct bank transfer</p>
-                    </div>
-                  </div>
-                </Label>
-              </div>
-
-              <div className="flex items-center space-x-3 p-4 border rounded-lg hover:bg-accent/50 transition-colors cursor-pointer">
-                <RadioGroupItem value="card" id="card" />
-                <Label htmlFor="card" className="flex-1 cursor-pointer">
-                  <div className="flex items-center gap-3">
-                    <span className="text-2xl">💳</span>
-                    <div>
-                      <p className="font-semibold">Credit/Debit Card</p>
-                      <p className="text-xs text-muted-foreground">Pay with Visa or Mastercard</p>
-                    </div>
-                  </div>
-                </Label>
-              </div>
-            </RadioGroup>
-          </CardContent>
-        </Card>
-
-        {/* M-Pesa Payment Details */}
-        {selectedMethod === 'mpesa' && (
-          <Card className="border-green-200 bg-green-50/30">
+        <div className="grid lg:grid-cols-[2fr,3fr] gap-6">
+          <Card className="shadow-md border-blue-100">
             <CardHeader>
-              <CardTitle>M-Pesa Payment Details</CardTitle>
-              <CardDescription>Enter your M-Pesa phone number</CardDescription>
+              <CardTitle>Invoice Summary</CardTitle>
+              <CardDescription>Review the bill before you pay.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <Alert>
-                <AlertCircle className="h-4 w-4" />
-                <AlertDescription>
-                  You will receive an M-Pesa prompt on your phone to complete the payment
+              <div className="space-y-2">
+                <p className="text-xs uppercase text-muted-foreground">Amount due</p>
+                <p className="text-4xl font-semibold text-[#4682B4]">{formattedAmount}</p>
+              </div>
+              <div className="grid gap-3 text-sm">
+                <div className="flex justify-between border rounded-xl px-4 py-3 bg-blue-50/60">
+                  <span className="text-muted-foreground">Property</span>
+                  <span className="font-medium">{propertyName}</span>
+                </div>
+                <div className="flex justify-between border rounded-xl px-4 py-3">
+                  <span className="text-muted-foreground">Unit</span>
+                  <span className="font-medium">{unitLabel}</span>
+                </div>
+                <div className="flex justify-between border rounded-xl px-4 py-3">
+                  <span className="text-muted-foreground">Billing period</span>
+                  <span className="font-medium">{invoiceMonth}</span>
+                </div>
+              </div>
+              <Alert className="bg-slate-50 border-slate-200">
+                <AlertDescription className="text-xs text-muted-foreground">
+                  We will integrate live payment rails soon. For now, choose your preferred option to keep a record and follow the instructions provided.
                 </AlertDescription>
               </Alert>
-              
-              <div className="space-y-2">
-                <Label htmlFor="phone">Phone Number</Label>
-                <Input
-                  id="phone"
-                  type="tel"
-                  placeholder="254712345678"
-                  value={phoneNumber}
-                  onChange={(e) => setPhoneNumber(e.target.value)}
-                />
-                <p className="text-xs text-muted-foreground">You will receive a prompt on your phone to complete the payment</p>
-              </div>
-              <div className="bg-green-100 p-4 rounded-lg">
-                <p className="text-sm font-medium mb-2">How to pay:</p>
-                <ol className="text-xs space-y-1 list-decimal list-inside text-muted-foreground">
-                  <li>Enter your M-Pesa registered phone number</li>
-                  <li>Click &quot;Pay Now&quot; below</li>
-                  <li>You&apos;ll receive an STK push on your phone</li>
-                  <li>Enter your M-Pesa PIN to complete the payment</li>
-                </ol>
-              </div>
             </CardContent>
           </Card>
-        )}
 
-        {/* Bank Transfer Details */}
-        {selectedMethod === 'bank' && (
-          <Card className="border-blue-200 bg-blue-50/30">
+          <Card className="shadow-md">
             <CardHeader>
-              <CardTitle>Bank Transfer Details</CardTitle>
-              <CardDescription>Use these details to make your bank transfer</CardDescription>
+              <CardTitle>Choose payment method</CardTitle>
+              <CardDescription>Switch between Mpesa, card, or bank transfer.</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <Alert>
-                <AlertCircle className="h-4 w-4" />
-                <AlertDescription>
-                  Transfer to our bank account and upload the deposit slip for verification. Your payment will be confirmed within 24 hours.
-                </AlertDescription>
-              </Alert>
-              
-              <div className="space-y-3">
-                <div className="flex justify-between items-center p-3 bg-white rounded border">
-                  <span className="text-sm text-muted-foreground">Bank Name:</span>
-                  <span className="font-semibold">Equity Bank</span>
-                </div>
-                <div className="flex justify-between items-center p-3 bg-white rounded border">
-                  <span className="text-sm text-muted-foreground">Account Name:</span>
-                  <span className="font-semibold">RentMaster Ltd</span>
-                </div>
-                <div className="flex justify-between items-center p-3 bg-white rounded border">
-                  <span className="text-sm text-muted-foreground">Account Number:</span>
-                  <span className="font-semibold">0123456789</span>
-                </div>
-                <div className="flex justify-between items-center p-3 bg-white rounded border">
-                  <span className="text-sm text-muted-foreground">Reference:</span>
-                  <span className="font-semibold">UNIT-A101-JAN2025</span>
-                </div>
-              </div>
-              
-              <div className="space-y-2 pt-4 border-t">
-                <Label htmlFor="depositSlip">Upload Deposit Slip *</Label>
-                <div className="border-2 border-dashed rounded-lg p-6 text-center hover:border-blue-400 transition-colors">
-                  <Upload className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
-                  <p className="text-sm text-muted-foreground mb-2">
-                    {uploadedFile ? (
-                      <span className="text-green-600 font-medium flex items-center justify-center gap-2">
-                        <CheckCircle2 className="h-4 w-4" />
-                        {uploadedFile.name}
-                      </span>
-                    ) : (
-                      'Click to upload or drag and drop'
-                    )}
-                  </p>
-                  <Input 
-                    id="depositSlip"
-                    type="file" 
-                    accept="image/*,.pdf"
-                    className="hidden"
-                    onChange={handleFileUpload}
-                  />
-                  <Label htmlFor="depositSlip">
-                    <Button variant="outline" type="button" asChild>
-                      <span>Choose File</span>
-                    </Button>
+            <CardContent className="space-y-5">
+              <RadioGroup value={paymentMethod} onValueChange={(value) => setPaymentMethod(value as 'mpesa' | 'card' | 'bank')} className="space-y-3">
+                <div className={`flex items-center gap-3 rounded-2xl border px-4 py-3 cursor-pointer transition ${paymentMethod === 'mpesa' ? 'border-[#4682B4] bg-[#e8f1fb]' : 'border-slate-200'}`}>
+                  <RadioGroupItem value="mpesa" id="mpesa-option" />
+                  <Label htmlFor="mpesa-option" className="flex-1 cursor-pointer">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 rounded-full bg-white shadow">
+                        <Smartphone className="h-5 w-5 text-[#4682B4]" />
+                      </div>
+                      <div>
+                        <p className="font-semibold">M-Pesa (STK push)</p>
+                        <p className="text-xs text-muted-foreground">Receive a prompt on your phone to approve payment.</p>
+                      </div>
+                    </div>
                   </Label>
-                  <p className="text-xs text-muted-foreground mt-2">
-                    Supported formats: JPG, PNG, PDF (Max 5MB)
-                  </p>
                 </div>
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="transactionRef">Transaction Reference (Optional)</Label>
-                <Input 
-                  id="transactionRef" 
-                  placeholder="Enter bank transaction reference number"
-                />
-              </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="notes">Additional Notes (Optional)</Label>
-                <Textarea 
-                  id="notes" 
-                  placeholder="Any additional information about your payment"
-                  rows={3}
-                />
-              </div>
+                <div className={`flex items-center gap-3 rounded-2xl border px-4 py-3 cursor-pointer transition ${paymentMethod === 'card' ? 'border-[#4682B4] bg-[#e8f1fb]' : 'border-slate-200'}`}>
+                  <RadioGroupItem value="card" id="card-option" />
+                  <Label htmlFor="card-option" className="flex-1 cursor-pointer">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 rounded-full bg-white shadow">
+                        <CreditCard className="h-5 w-5 text-[#4682B4]" />
+                      </div>
+                      <div>
+                        <p className="font-semibold">Visa / Mastercard</p>
+                        <p className="text-xs text-muted-foreground">Secure checkout powered by our payment gateway.</p>
+                      </div>
+                    </div>
+                  </Label>
+                </div>
+
+                <div className={`flex items-center gap-3 rounded-2xl border px-4 py-3 cursor-pointer transition ${paymentMethod === 'bank' ? 'border-[#4682B4] bg-[#e8f1fb]' : 'border-slate-200'}`}>
+                  <RadioGroupItem value="bank" id="bank-option" />
+                  <Label htmlFor="bank-option" className="flex-1 cursor-pointer">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 rounded-full bg-white shadow">
+                        <UploadCloud className="h-5 w-5 text-[#4682B4]" />
+                      </div>
+                      <div>
+                        <p className="font-semibold">Bank transfer / slip upload</p>
+                        <p className="text-xs text-muted-foreground">Transfer to our account and upload proof of payment.</p>
+                      </div>
+                    </div>
+                  </Label>
+                </div>
+              </RadioGroup>
+
+              {paymentMethod === 'mpesa' && (
+                <div className="space-y-3 rounded-2xl border bg-green-50/50 p-4">
+                  <h3 className="text-sm font-semibold flex items-center gap-2">
+                    <Smartphone className="h-4 w-4 text-green-600" /> Mpesa details (coming soon)
+                  </h3>
+                  <div className="space-y-2">
+                    <Label htmlFor="mpesa-number">M-Pesa phone number</Label>
+                    <Input
+                      id="mpesa-number"
+                      type="tel"
+                      placeholder="2547XXXXXXXX"
+                      value={mpesaNumber}
+                      onChange={(event) => setMpesaNumber(event.target.value)}
+                    />
+                    <p className="text-xs text-muted-foreground">We will send an STK push to this number once Daraja integration is live.</p>
+                  </div>
+                </div>
+              )}
+
+              {paymentMethod === 'card' && (
+                <div className="space-y-3 rounded-2xl border bg-blue-50/50 p-4">
+                  <h3 className="text-sm font-semibold flex items-center gap-2">
+                    <CreditCard className="h-4 w-4 text-blue-600" /> Card checkout (coming soon)
+                  </h3>
+                  <div className="space-y-2">
+                    <Label htmlFor="card-name">Card holder</Label>
+                    <Input
+                      id="card-name"
+                      placeholder="Full name on card"
+                      value={cardDetails.name}
+                      onChange={(event) => setCardDetails((prev) => ({ ...prev, name: event.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="card-number">Card number</Label>
+                    <Input
+                      id="card-number"
+                      placeholder="1234 5678 9012 3456"
+                      value={cardDetails.number}
+                      onChange={(event) => setCardDetails((prev) => ({ ...prev, number: event.target.value }))}
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <Label htmlFor="card-expiry">Expiry</Label>
+                      <Input
+                        id="card-expiry"
+                        placeholder="MM/YY"
+                        value={cardDetails.expiry}
+                        onChange={(event) => setCardDetails((prev) => ({ ...prev, expiry: event.target.value }))}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="card-cvv">CVV</Label>
+                      <Input
+                        id="card-cvv"
+                        placeholder="123"
+                        value={cardDetails.cvv}
+                        onChange={(event) => setCardDetails((prev) => ({ ...prev, cvv: event.target.value }))}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {paymentMethod === 'bank' && (
+                <div className="space-y-4 rounded-2xl border bg-slate-50 p-4">
+                  <div>
+                    <h3 className="text-sm font-semibold">Bank deposit instructions</h3>
+                    <p className="text-xs text-muted-foreground">Transfer to Equity Bank • Acc Name: RentMaster Ltd • Acc No: 0123456789 • Ref: {unitLabel}-{invoiceMonth.replace(' ', '')}</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="deposit-upload">Upload deposit slip</Label>
+                    <Input id="deposit-upload" type="file" accept="image/*,application/pdf" onChange={handleDepositUpload} />
+                    {depositSnapshot && (
+                      <p className="text-xs text-muted-foreground">Uploaded: {depositSnapshot.name}</p>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="deposit-notes">Additional notes</Label>
+                    <Textarea
+                      id="deposit-notes"
+                      rows={3}
+                      placeholder="Add any additional information about your transfer..."
+                      value={depositNotes}
+                      onChange={(event) => setDepositNotes(event.target.value)}
+                    />
+                  </div>
+                </div>
+              )}
+
+              <Button onClick={handleConfirm} className="w-full gap-2 bg-[#4682B4] hover:bg-[#3b6c99]">
+                <CheckCircle2 className="h-5 w-5" />
+                Confirm payment option
+              </Button>
             </CardContent>
           </Card>
-        )}
-
-        {/* Card Payment Details */}
-        {selectedMethod === 'card' && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Card Payment Details</CardTitle>
-              <CardDescription>Enter your card information</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="cardNumber">Card Number</Label>
-                <Input id="cardNumber" placeholder="1234 5678 9012 3456" />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="expiry">Expiry Date</Label>
-                  <Input id="expiry" placeholder="MM/YY" />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="cvv">CVV</Label>
-                  <Input id="cvv" placeholder="123" type="password" maxLength={3} />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="cardName">Cardholder Name</Label>
-                <Input id="cardName" placeholder="JOHN KAMAU" />
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Action Buttons */}
-        <div className="flex gap-4">
-          <Button variant="outline" className="flex-1" asChild>
-            <Link href="/dashboard/tenant">Cancel</Link>
-          </Button>
-          <Button 
-            className="flex-1 bg-green-600 hover:bg-green-700"
-            disabled={selectedMethod === 'bank' && !uploadedFile}
-          >
-            {selectedMethod === 'bank' ? (
-              <>
-                <Upload className="h-4 w-4 mr-2" />
-                Submit for Verification
-              </>
-            ) : (
-              <>Pay Now - KES 45,000</>
-            )}
-          </Button>
         </div>
-        
-        {/* Help Section */}
-        {selectedMethod === 'bank' && (
-          <Card className="bg-blue-50 border-blue-200">
-            <CardContent className="p-4">
-              <h4 className="font-medium mb-2 flex items-center gap-2">
-                <AlertCircle className="h-4 w-4" />
-                Important Information
-              </h4>
-              <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
-                <li>Ensure you use the correct reference code when making the transfer</li>
-                <li>Upload a clear photo or scan of your deposit slip</li>
-                <li>Your payment will be verified by the caretaker or manager</li>
-                <li>You will receive a confirmation once payment is approved</li>
-              </ul>
-            </CardContent>
-          </Card>
-        )}
       </div>
     </div>
   )

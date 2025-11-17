@@ -159,7 +159,7 @@ export async function POST(request: NextRequest) {
     await adminSupabase.from('communications').insert({
       sender_user_id: user.id,
       recipient_user_id: tenantUserId,
-      related_entity_type: 'water_bill',
+      related_entity_type: 'payment',
       related_entity_id: invoice.id,
       message_text: `A new water bill (${invoiceRef}) for ${propertyName || 'your unit'} is due on ${dueDateDisplay}.`,
       message_type: 'in_app',
@@ -171,7 +171,7 @@ export async function POST(request: NextRequest) {
       message,
       senderUserId: user.id,
       recipientUserId: tenantUserId,
-      relatedEntityType: 'water_bill',
+      relatedEntityType: 'payment',
       relatedEntityId: invoice.id,
     })
 

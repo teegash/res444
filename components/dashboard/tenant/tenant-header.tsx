@@ -151,7 +151,7 @@ export function TenantHeader({ summary, loading, onProfileUpdated }: TenantHeade
         setNotifications((current) => current.filter((item) => item.id !== notification.id))
       }
       setSheetOpen(false)
-      if (notification.related_entity_type === 'water_bill' && notification.related_entity_id) {
+      if (notification.related_entity_type === 'payment' && notification.related_entity_id) {
         router.push(`/dashboard/tenant/invoices/${notification.related_entity_id}`)
       } else {
         router.push('/dashboard/tenant/messages')

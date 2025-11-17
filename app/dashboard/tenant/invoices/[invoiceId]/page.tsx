@@ -15,6 +15,7 @@ interface InvoiceDetail {
   id: string
   amount: number
   status: string | null
+  is_paid?: boolean
   description: string | null
   invoice_type: string | null
   due_date: string | null
@@ -133,8 +134,8 @@ export default function TenantInvoicePaymentPage() {
             <p className="text-xs text-muted-foreground">Invoice #{invoice.id.slice(0, 8)}</p>
             <h1 className="text-2xl font-bold">Pay Water Bill</h1>
           </div>
-          <Badge className={`ml-auto capitalize ${statusVariant[invoice.status || ''] || 'bg-slate-100 text-slate-600'}`}>
-            {invoice.status || 'unpaid'}
+          <Badge className={`ml-auto ${invoice.is_paid ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+            {invoice.is_paid ? 'true' : 'false'}
           </Badge>
         </div>
 
@@ -168,6 +169,10 @@ export default function TenantInvoicePaymentPage() {
               <p className="text-sm text-muted-foreground">
                 {invoice.description || 'Water consumption invoice'}
               </p>
+            </div>
+            <div className="flex items-center gap-3 text-sm">
+              <span className="text-muted-foreground">Payment status flag</span>
+              <Badge variant={invoice.is_paid ? 'default' : 'outline'}>{invoice.is_paid ? 'true' : 'false'}</Badge>
             </div>
           </CardContent>
         </Card>
