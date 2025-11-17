@@ -38,7 +38,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { useToast } from '@/components/ui/use-toast'
 import { Loader2, MoreVertical, Copy, Phone } from 'lucide-react'
 import { Separator } from '@/components/ui/separator'
-import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 
 type TenantRecord = {
   lease_id: string | null
@@ -126,12 +126,10 @@ const paymentBadgeVariant = (status: string) => {
 function TenantActions({
   tenant,
   onEdit,
-  onOpenChat,
   onRemove,
 }: {
   tenant: TenantRecord
   onEdit: (tenant: TenantRecord) => void
-  onOpenChat: (tenant: TenantRecord) => void
   onRemove: (tenant: TenantRecord) => void
 }) {
   return (
@@ -143,7 +141,9 @@ function TenantActions({
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         <DropdownMenuItem onClick={() => onEdit(tenant)}>Edit</DropdownMenuItem>
-        <DropdownMenuItem onClick={() => onOpenChat(tenant)}>Open Chat</DropdownMenuItem>
+        <DropdownMenuItem asChild>
+          <Link href={`/dashboard/tenants/${tenant.tenant_user_id}/messages`}>Open Chat</Link>
+        </DropdownMenuItem>
         <DropdownMenuItem
           onClick={() => onRemove(tenant)}
           className="text-destructive focus:text-destructive"
@@ -157,7 +157,6 @@ function TenantActions({
 
 export function TenantsTable({ searchQuery = '' }: TenantsTableProps) {
   const { toast } = useToast()
-  const router = useRouter()
   const [tenants, setTenants] = useState<TenantRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -455,16 +454,7 @@ export function TenantsTable({ searchQuery = '' }: TenantsTableProps) {
                       {formatDisplayDate(tenant.lease_start_date)}
                     </TableCell>
                     <TableCell className="text-right">
-                      <TenantActions
-                        tenant={tenant}
-                        onEdit={setEditTenant}
-                        onOpenChat={(selected) =>
-                          router.push(
-                            `/dashboard/tenants/${selected.tenant_user_id}/messages?tenantId=${selected.tenant_user_id}`
-                          )
-                        }
-                        onRemove={setTenantToDelete}
-                      />
+                      <TenantActions tenant={tenant} onEdit={setEditTenant} onRemove={setTenantToDelete} />
                     </TableCell>
                   </TableRow>
                 ))}
