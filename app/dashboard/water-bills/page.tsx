@@ -346,7 +346,6 @@ export default function WaterBillsPage() {
                       setSelectedUnit('')
                       setPreviousReading('')
                       setCurrentReading('')
-                      setContactPhone('')
                     }}
                   >
                     <SelectTrigger id="property" className="h-12">
@@ -534,7 +533,6 @@ export default function WaterBillsPage() {
                     setCurrentReading('')
                     setPricePerUnit('85')
                     setNotes('')
-                    setContactPhone('')
                   }}
                 >
                   Clear Form
