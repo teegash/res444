@@ -517,7 +517,7 @@ export async function markOverdueInvoices(): Promise<{
     const today = new Date()
     today.setHours(0, 0, 0, 0)
 
-    // Get all unpaid/partially_paid invoices past due date
+    // Get all unpaid invoices past due date
     const { data: overdueInvoices, error } = await supabase
       .from('invoices')
       .select('id')

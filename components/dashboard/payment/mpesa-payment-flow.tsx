@@ -14,7 +14,6 @@ export function MPesaPaymentFlow() {
   const [phoneNumber, setPhoneNumber] = useState('+254712345678')
   const [isProcessing, setIsProcessing] = useState(false)
   const [paymentSuccess, setPaymentSuccess] = useState(false)
-  const [partialAmount, setPartialAmount] = useState('')
 
   const handleSendSTK = () => {
     setIsProcessing(true)
@@ -97,16 +96,6 @@ export function MPesaPaymentFlow() {
             <div className="bg-muted p-4 rounded-lg text-center">
               <p className="text-sm text-muted-foreground mb-2">Payment Amount</p>
               <p className="text-3xl font-bold text-primary">KES 18,500</p>
-            </div>
-            <div className="space-y-2">
-              <Label>Pay Different Amount (Optional)</Label>
-              <Input
-                type="number"
-                placeholder="Leave empty for full amount"
-                value={partialAmount}
-                onChange={(e) => setPartialAmount(e.target.value)}
-              />
-              <p className="text-xs text-muted-foreground">You can pay a partial amount if needed</p>
             </div>
             <Button className="w-full" onClick={() => setStep(2)}>
               Continue

@@ -14,7 +14,7 @@ import { ArrowLeft, Loader2, Smartphone, CreditCard } from 'lucide-react'
 interface InvoiceDetail {
   id: string
   amount: number
-  status: string | null
+  status: boolean | null
   is_paid?: boolean
   description: string | null
   invoice_type: string | null
@@ -29,13 +29,6 @@ interface InvoiceDetail {
     name: string | null
     location: string | null
   } | null
-}
-
-const statusVariant: Record<string, string> = {
-  unpaid: 'bg-red-100 text-red-700',
-  paid: 'bg-green-100 text-green-700',
-  partially_paid: 'bg-amber-100 text-amber-700',
-  overdue: 'bg-destructive/20 text-destructive',
 }
 
 export default function TenantInvoicePaymentPage() {

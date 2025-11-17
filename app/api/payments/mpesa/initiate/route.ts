@@ -133,13 +133,22 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // 7. Check if amount is valid (can be partial payment)
-    const invoiceAmount = parseFloat(invoice.amount.toString())
-    if (body.amount > invoiceAmount) {
+    if (invoice.status) {
       return NextResponse.json(
         {
           success: false,
-          error: `Payment amount (KES ${body.amount}) cannot exceed invoice amount (KES ${invoiceAmount})`,
+          error: 'This invoice is already marked as paid.',
+        },
+        { status: 400 }
+      )
+    }
+
+    const invoiceAmount = parseFloat(invoice.amount.toString())
+    if (body.amount !== invoiceAmount) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: `Payment amount must match the invoice amount (KES ${invoiceAmount}).`,
         },
         { status: 400 }
       )
@@ -267,4 +276,3 @@ export async function GET() {
     { status: 405 }
   )
 }
-

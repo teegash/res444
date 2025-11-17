@@ -14,6 +14,7 @@ import {
   WaterUsageMetrics,
   TenantReliability,
 } from './calculations'
+import { invoiceStatusToBoolean, isInvoiceOverdue } from '@/lib/invoices/status-utils'
 
 export type ReportType =
   | 'monthly'
@@ -68,7 +69,6 @@ export interface FinancialReport {
     total: number
     byStatus: {
       unpaid: number
-      partiallyPaid: number
       overdue: number
     }
     byBuilding: Array<{
@@ -292,11 +292,10 @@ export async function generateFinancialReport(
       )
     `
     )
-    .in('status', ['unpaid', 'partially_paid', 'overdue'])
+    .eq('status', false)
 
   const outstandingByStatus = {
     unpaid: 0,
-    partiallyPaid: 0,
     overdue: 0,
   }
 
@@ -315,12 +314,11 @@ export async function generateFinancialReport(
 
       const amount = parseFloat(invoice.amount.toString())
 
-      if (invoice.status === 'unpaid') {
-        outstandingByStatus.unpaid += amount
-      } else if (invoice.status === 'partially_paid') {
-        outstandingByStatus.partiallyPaid += amount
-      } else if (invoice.status === 'overdue') {
+      const overdue = isInvoiceOverdue(invoice.status, invoice.due_date)
+      if (overdue) {
         outstandingByStatus.overdue += amount
+      } else {
+        outstandingByStatus.unpaid += amount
       }
 
       // Group by building
@@ -548,7 +546,7 @@ export async function generateRevenueReport(
       }
 
       const data = buildingRevenue.get(building.id)!
-      if (invoice.status === 'paid' || invoice.payment_date) {
+      if (invoiceStatusToBoolean(invoice.status) || invoice.payment_date) {
         data.revenue += parseFloat(invoice.amount.toString())
       }
       data.units.add(unit?.id)
@@ -933,4 +931,3 @@ export async function generateRentCollectionReport(
     overdue: overdue.slice(0, 100), // Top 100 overdue
   }
 }
-

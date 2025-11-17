@@ -61,7 +61,7 @@ export async function GET(
       .from('invoices')
       .select('*')
       .eq('lease_id', leaseId)
-      .in('status', ['unpaid', 'partially_paid', 'overdue'])
+      .eq('status', false)
       .order('due_date', { ascending: true })
 
     if (invoicesError) {
@@ -121,4 +121,3 @@ export async function GET(
     )
   }
 }
-

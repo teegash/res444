@@ -301,7 +301,7 @@ async function verifyPayment(
         await updateInvoiceStatus(invoice.id)
 
         // If invoice is fully paid, send SMS
-        if (invoiceStatus === 'paid') {
+        if (invoiceStatus) {
           await sendPaymentConfirmationSMS(
             payment.tenant_user_id,
             parseFloat(payment.amount_paid.toString()),
@@ -515,4 +515,3 @@ export async function autoVerifyMpesaPayments(): Promise<AutoVerifyResult> {
     }
   }
 }
-

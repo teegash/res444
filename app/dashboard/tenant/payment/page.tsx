@@ -13,18 +13,14 @@ import { Textarea } from '@/components/ui/textarea'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { useToast } from '@/components/ui/use-toast'
 
-const statusTone: Record<string, string> = {
-  unpaid: 'bg-red-100 text-red-700',
-  overdue: 'bg-orange-100 text-orange-700',
-}
-
 export default function TenantPaymentPortal() {
   const router = useRouter()
   const { toast } = useToast()
   const searchParams = useSearchParams()
 
   const invoiceAmount = Number(searchParams?.get('amount') || 1870)
-  const invoiceStatus = searchParams?.get('status') || 'unpaid'
+  const invoiceStatusParam = searchParams?.get('status')
+  const isInvoicePaid = invoiceStatusParam === 'true'
   const invoiceMonth = searchParams?.get('period') || 'November 2025'
   const propertyName = searchParams?.get('property') || 'Cedar Ridge Apartments'
   const unitLabel = searchParams?.get('unit') || 'B-402'
@@ -75,8 +71,8 @@ export default function TenantPaymentPortal() {
             <p className="text-xs text-muted-foreground">Invoice for {invoiceMonth}</p>
             <h1 className="text-3xl font-bold">Secure Payment</h1>
           </div>
-          <Badge className={`ml-auto capitalize ${statusTone[invoiceStatus] || 'bg-slate-100 text-slate-700'}`}>
-            {invoiceStatus}
+          <Badge className={`ml-auto ${isInvoicePaid ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+            {isInvoicePaid ? 'Paid' : 'Unpaid'}
           </Badge>
         </div>
 

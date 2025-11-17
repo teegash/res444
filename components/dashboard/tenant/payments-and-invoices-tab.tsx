@@ -6,9 +6,9 @@ import { Button } from '@/components/ui/button'
 import { FileDown, CreditCard, CheckCircle, Calendar } from 'lucide-react'
 
 const invoices = [
-  { id: 'INV-2024-02', month: 'February 2024', amount: 18500, dueDate: '2024-02-01', status: 'Due Soon', type: 'Rent' },
-  { id: 'INV-2024-01', month: 'January 2024', amount: 18500, dueDate: '2024-01-01', status: 'Paid', type: 'Rent' },
-  { id: 'INV-2023-12', month: 'December 2023', amount: 18500, dueDate: '2023-12-01', status: 'Paid', type: 'Rent' },
+  { id: 'INV-2024-02', month: 'February 2024', amount: 18500, dueDate: '2024-02-01', paid: false, type: 'Rent' },
+  { id: 'INV-2024-01', month: 'January 2024', amount: 18500, dueDate: '2024-01-01', paid: true, type: 'Rent' },
+  { id: 'INV-2023-12', month: 'December 2023', amount: 18500, dueDate: '2023-12-01', paid: true, type: 'Rent' },
 ]
 
 const paymentHistory = [
@@ -67,14 +67,14 @@ export function PaymentsAndInvoicesTab() {
                   </div>
                   <p className="text-sm text-muted-foreground">Due: {invoice.dueDate}</p>
                 </div>
-                <div className="text-right flex items-center gap-4">
-                  <div>
-                    <p className="text-lg font-bold text-primary">KES {invoice.amount.toLocaleString()}</p>
-                    <Badge variant={invoice.status === 'Paid' ? 'default' : 'secondary'} className={invoice.status === 'Paid' ? 'bg-green-600' : ''}>
-                      {invoice.status}
-                    </Badge>
-                  </div>
-                  {invoice.status !== 'Paid' && (
+                  <div className="text-right flex items-center gap-4">
+                    <div>
+                      <p className="text-lg font-bold text-primary">KES {invoice.amount.toLocaleString()}</p>
+                      <Badge variant={invoice.paid ? 'default' : 'secondary'} className={invoice.paid ? 'bg-green-600' : ''}>
+                        {invoice.paid ? 'Paid' : 'Unpaid'}
+                      </Badge>
+                    </div>
+                  { !invoice.paid && (
                     <Button size="sm" className="bg-primary hover:bg-primary/90 gap-2">
                       <CreditCard className="h-4 w-4" />
                       Pay Now

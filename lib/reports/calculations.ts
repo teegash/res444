@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { invoiceStatusToBoolean } from '@/lib/invoices/status-utils'
 
 export interface RevenueMetrics {
   totalRevenue: number
@@ -10,7 +11,6 @@ export interface RevenueMetrics {
   collectionRate: number
   totalInvoiced: number
   totalPaid: number
-  partiallyPaid: number
 }
 
 export interface OccupancyMetrics {
@@ -94,7 +94,6 @@ export async function calculateRevenueMetrics(
         collectionRate: 0,
         totalInvoiced: 0,
         totalPaid: 0,
-        partiallyPaid: 0,
       }
     }
 
@@ -108,10 +107,26 @@ export async function calculateRevenueMetrics(
 
     let totalInvoiced = 0
     let totalPaid = 0
-    let partiallyPaid = 0
     let rentRevenue = 0
     let waterRevenue = 0
     let outstandingAmount = 0
+
+    const invoiceIds = orgInvoices.map((inv) => inv.id)
+    let paymentMap = new Map<string, number>()
+    if (invoiceIds.length > 0) {
+      const { data: payments } = await supabase
+        .from('payments')
+        .select('invoice_id, amount_paid')
+        .eq('verified', true)
+        .in('invoice_id', invoiceIds)
+
+      paymentMap = new Map()
+      for (const payment of payments || []) {
+        const key = payment.invoice_id
+        const amountPaid = parseFloat(payment.amount_paid.toString())
+        paymentMap.set(key, (paymentMap.get(key) || 0) + amountPaid)
+      }
+    }
 
     for (const invoice of orgInvoices) {
       const amount = parseFloat(invoice.amount.toString())
@@ -123,29 +138,14 @@ export async function calculateRevenueMetrics(
         waterRevenue += amount
       }
 
-      if (invoice.status === 'paid') {
-        totalPaid += amount
-      } else if (invoice.status === 'partially_paid') {
-        partiallyPaid += amount
-        // Get actual paid amount from payments
-        const { data: payments } = await supabase
-          .from('payments')
-          .select('amount_paid')
-          .eq('invoice_id', invoice.id)
-          .eq('verified', true)
+      const paidAmount = paymentMap.get(invoice.id) || 0
+      const isPaid = invoiceStatusToBoolean(invoice.status) || paidAmount >= amount
 
-        if (payments) {
-          const paidAmount = payments.reduce(
-            (sum, p) => sum + parseFloat(p.amount_paid.toString()),
-            0
-          )
-          totalPaid += paidAmount
-          outstandingAmount += amount - paidAmount
-        } else {
-          outstandingAmount += amount
-        }
+      if (isPaid) {
+        totalPaid += amount
       } else {
-        outstandingAmount += amount
+        totalPaid += paidAmount
+        outstandingAmount += Math.max(amount - paidAmount, 0)
       }
     }
 
@@ -161,7 +161,6 @@ export async function calculateRevenueMetrics(
       collectionRate: Math.round(collectionRate * 100) / 100,
       totalInvoiced,
       totalPaid,
-      partiallyPaid,
     }
   } catch (error) {
     console.error('Error calculating revenue metrics:', error)
@@ -522,7 +521,7 @@ export async function calculateTenantReliability(
       let delayedPaymentsCount = 0
 
       for (const invoice of invoices) {
-        if (invoice.status === 'paid' || invoice.status === 'partially_paid') {
+        if (invoiceStatusToBoolean(invoice.status)) {
           paidInvoices++
 
           if (invoice.payment_date && invoice.due_date) {
@@ -621,6 +620,23 @@ export async function calculateMonthlyRevenue(
       return []
     }
 
+    const invoiceIds = invoices.map((inv) => inv.id)
+    let paymentMap = new Map<string, number>()
+    if (invoiceIds.length > 0) {
+      const { data: payments } = await supabase
+        .from('payments')
+        .select('invoice_id, amount_paid')
+        .eq('verified', true)
+        .in('invoice_id', invoiceIds)
+
+      paymentMap = new Map()
+      for (const payment of payments || []) {
+        const key = payment.invoice_id
+        const amountPaid = parseFloat(payment.amount_paid.toString())
+        paymentMap.set(key, (paymentMap.get(key) || 0) + amountPaid)
+      }
+    }
+
     // Filter and group by month
     const monthlyData = new Map<
       string,
@@ -661,30 +677,14 @@ export async function calculateMonthlyRevenue(
         data.water += amount
       }
 
-      if (invoice.status === 'paid') {
+      const paidAmount = paymentMap.get(invoice.id) || 0
+      const invoicePaid = invoiceStatusToBoolean(invoice.status) || paidAmount >= amount
+
+      if (invoicePaid) {
         data.paid += amount
       } else {
-        // Get actual paid amount for partially paid
-        if (invoice.status === 'partially_paid') {
-          const { data: payments } = await supabase
-            .from('payments')
-            .select('amount_paid')
-            .eq('invoice_id', invoice.id)
-            .eq('verified', true)
-
-          if (payments) {
-            const paidAmount = payments.reduce(
-              (sum, p) => sum + parseFloat(p.amount_paid.toString()),
-              0
-            )
-            data.paid += paidAmount
-            data.outstanding += amount - paidAmount
-          } else {
-            data.outstanding += amount
-          }
-        } else {
-          data.outstanding += amount
-        }
+        data.paid += paidAmount
+        data.outstanding += Math.max(amount - paidAmount, 0)
       }
     }
 
@@ -704,4 +704,3 @@ export async function calculateMonthlyRevenue(
     throw error
   }
 }
-
