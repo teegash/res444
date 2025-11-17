@@ -49,7 +49,6 @@ export default function WaterBillsPage() {
   const [sendingInvoice, setSendingInvoice] = useState(false)
   const [downloading, setDownloading] = useState(false)
   const [invoiceSent, setInvoiceSent] = useState(false)
-  const [contactPhone, setContactPhone] = useState('')
 
   const resetForm = () => {
     setSelectedProperty('')
@@ -59,7 +58,6 @@ export default function WaterBillsPage() {
     setPricePerUnit('85')
     setNotes('')
     setInvoiceSent(false)
-    setContactPhone('')
   }
 
   useEffect(() => {
@@ -113,7 +111,6 @@ export default function WaterBillsPage() {
     } else {
       setPreviousReading('')
     }
-    setContactPhone(unit?.tenant?.phone || '')
   }
 
   const handleSendInvoice = async () => {
@@ -125,11 +122,10 @@ export default function WaterBillsPage() {
       })
       return
     }
-    const trimmedPhone = contactPhone.trim()
-    if (!trimmedPhone) {
+    if (!selectedUnitData.tenant?.phone) {
       toast({
         title: 'Missing phone number',
-        description: 'Provide a phone number (e.g., +254707694388 for sandbox testing).',
+        description: 'This tenant does not have a phone number on file.',
         variant: 'destructive',
       })
       return
@@ -146,7 +142,7 @@ export default function WaterBillsPage() {
           propertyName: selectedPropertyData?.name,
           unitNumber: selectedUnitData.unit_number,
           tenantName: selectedUnitData.tenant?.name,
-          tenantPhone: trimmedPhone,
+          tenantPhone: selectedUnitData.tenant?.phone,
           unitsConsumed,
           pricePerUnit: Number(pricePerUnit),
           totalAmount,
@@ -403,17 +399,10 @@ export default function WaterBillsPage() {
                       </div>
                     </div>
                     <div>
-                      <Label className="text-xs text-muted-foreground">Phone Number (editable)</Label>
-                      <Input
-                        type="tel"
-                        className="mt-1"
-                        placeholder="+2547XXXXXXXX"
-                        value={contactPhone}
-                        onChange={(e) => setContactPhone(e.target.value)}
-                      />
-                      <p className="text-[11px] text-muted-foreground mt-1">
-                        Enter the sandbox number you registered (e.g., +254707694388).
-                      </p>
+                      <Label className="text-xs text-muted-foreground">Phone Number</Label>
+                      <div className="mt-1 p-3 bg-white border rounded-md">
+                        {selectedUnitData.tenant?.phone || 'Not available'}
+                      </div>
                     </div>
                   </div>
                 </div>
