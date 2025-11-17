@@ -125,7 +125,9 @@ export function Header() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ ids: [notification.id] }),
         })
-        fetchNotifications()
+        setNotifications((current) => current.filter((item) => item.id !== notification.id))
+      } else {
+        setNotifications((current) => current.filter((item) => item.id !== notification.id))
       }
       setNotificationsOpen(false)
       router.push(`/dashboard/tenants/${notification.sender_user_id}/messages?tenantId=${notification.sender_user_id}`)

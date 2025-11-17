@@ -143,7 +143,9 @@ export function TenantHeader({ summary, loading, onProfileUpdated }: TenantHeade
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ ids: [notification.id] }),
         })
-        fetchNotifications()
+        setNotifications((current) => current.filter((item) => item.id !== notification.id))
+      } else {
+        setNotifications((current) => current.filter((item) => item.id !== notification.id))
       }
       setSheetOpen(false)
       router.push('/dashboard/tenant/messages')
