@@ -8,26 +8,25 @@ interface RouteParams {
 }
 
 export async function PUT(request: NextRequest, { params }: RouteParams) {
-  const tenantId = params.id
+  const payload = await request.json().catch(() => ({}))
+  const {
+    full_name,
+    phone_number,
+    national_id,
+    address,
+    date_of_birth,
+    tenant_user_id,
+  }: Record<string, string | null | undefined> = payload || {}
+
+  const tenantId = params?.id || tenant_user_id
 
   if (!tenantId) {
     return NextResponse.json({ success: false, error: 'Tenant id is required.' }, { status: 400 })
   }
 
   try {
-    const payload = await request.json().catch(() => ({}))
-    const {
-      full_name,
-      email,
-      phone_number,
-      national_id,
-      address,
-      date_of_birth,
-    }: Record<string, string | null | undefined> = payload || {}
-
     if (
       !full_name &&
-      !email &&
       !phone_number &&
       !national_id &&
       typeof address === 'undefined' &&
@@ -40,15 +39,6 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     }
 
     const adminSupabase = createAdminClient()
-
-    if (email) {
-      const { error: emailError } = await adminSupabase.auth.admin.updateUserById(tenantId, {
-        email,
-      })
-      if (emailError) {
-        throw emailError
-      }
-    }
 
     const profileUpdate: Record<string, string | null | undefined> = {}
     if (full_name !== undefined) profileUpdate.full_name = full_name

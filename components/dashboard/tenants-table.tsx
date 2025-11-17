@@ -254,16 +254,33 @@ export function TenantsTable({ searchQuery = '' }: TenantsTableProps) {
   const handleSaveEdit = async (event?: FormEvent) => {
     event?.preventDefault()
     if (!editTenant) return
+    const tenantId = editTenant.tenant_user_id
+    if (!tenantId) {
+      const message = 'Tenant record is missing an id. Please refresh and try again.'
+      setEditError(message)
+      toast({
+        title: 'Update failed',
+        description: message,
+        variant: 'destructive',
+      })
+      return
+    }
     setSavingEdit(true)
     setEditError(null)
     try {
-      const response = await fetch(`/api/tenants/${editTenant.tenant_user_id}`, {
+      const payload = {
+        tenant_user_id: tenantId,
+        full_name: editForm.full_name,
+        phone_number: editForm.phone_number,
+        national_id: editForm.national_id,
+        address: editForm.address,
+        date_of_birth: editForm.date_of_birth || null,
+      }
+
+      const response = await fetch(`/api/tenants/${encodeURIComponent(tenantId)}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...editForm,
-          date_of_birth: editForm.date_of_birth || null,
-        }),
+        body: JSON.stringify(payload),
       })
 
       if (!response.ok) {
@@ -506,14 +523,15 @@ export function TenantsTable({ searchQuery = '' }: TenantsTableProps) {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  value={editForm.email}
-                  onChange={(event) => setEditForm((state) => ({ ...state, email: event.target.value }))}
-                />
-              </div>
+              <Label htmlFor="email">Email (username)</Label>
+              <Input
+                id="email"
+                type="email"
+                value={editForm.email}
+                disabled
+                readOnly
+              />
+            </div>
               <div className="space-y-2">
                 <Label htmlFor="phone_number">Phone number</Label>
                 <Input

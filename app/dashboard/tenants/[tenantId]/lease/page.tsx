@@ -16,6 +16,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Loader2, ArrowLeft, Download, Calendar, FileText } from 'lucide-react'
 import { useToast } from '@/components/ui/use-toast'
+import jsPDF from 'jspdf'
 
 interface LeaseResponse {
   tenant: {
@@ -51,6 +52,12 @@ interface LeaseResponse {
 }
 
 const durationOptions = Array.from({ length: 10 }, (_, index) => (index + 1) * 6)
+
+const currencyFormatter = new Intl.NumberFormat('en-KE', {
+  style: 'currency',
+  currency: 'KES',
+  minimumFractionDigits: 0,
+})
 
 function summarizeLease(lease: LeaseResponse['lease'] | null) {
   if (!lease) {
@@ -106,7 +113,7 @@ export default function TenantLeaseManagementPage() {
       setLoading(true)
       setError(null)
       try {
-        const response = await fetch(`/api/tenants/${tenantId}/lease`)
+        const response = await fetch(`/api/tenants/${tenantId}/lease?tenantId=${tenantId}`)
         if (!response.ok) {
           const payload = await response.json().catch(() => ({}))
           throw new Error(payload.error || 'Failed to load lease data.')
@@ -146,10 +153,11 @@ export default function TenantLeaseManagementPage() {
 
     try {
       setSaving(true)
-      const response = await fetch(`/api/tenants/${tenantId}/lease`, {
+      const response = await fetch(`/api/tenants/${tenantId}/lease?tenantId=${tenantId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          tenant_user_id: tenantId,
           start_date: startDate,
           duration_months: Number(durationMonths),
           monthly_rent: monthlyRent ? Number(monthlyRent) : null,
@@ -198,26 +206,86 @@ export default function TenantLeaseManagementPage() {
     }
   }
 
-  const handleExport = () => {
-    if (!data || !tenant) return
-    const leaseInfo = `
-      <h2>Lease Agreement</h2>
-      <p><strong>Tenant:</strong> ${tenant.full_name || ''}</p>
-      <p><strong>Unit:</strong> ${lease?.unit?.unit_number || 'N/A'} ${
-        lease?.unit?.building?.name ? `- ${lease.unit.building.name}` : ''
-      }</p>
-      <p><strong>Lease Term:</strong> ${startDate || 'N/A'} to ${lease?.end_date || 'N/A'}</p>
-      <p><strong>Monthly Rent:</strong> ${monthlyRent || 'N/A'}</p>
-      <p><strong>Deposit:</strong> ${depositAmount || 'N/A'}</p>
-    `
+  const formatCurrency = (value: string | number | null | undefined) => {
+    if (value === null || value === undefined || value === '') return 'KES 0'
+    const numeric = typeof value === 'string' ? Number(value) : value
+    if (!Number.isFinite(numeric as number)) return 'KES 0'
+    return currencyFormatter.format(Number(numeric))
+  }
 
-    const printWindow = window.open('', '', 'width=900,height=650')
-    if (!printWindow) return
-    printWindow.document.write(`<html><head><title>Lease Export</title></head><body>${leaseInfo}</body></html>`)
-    printWindow.document.close()
-    printWindow.focus()
-    printWindow.print()
-    printWindow.close()
+  const handleExport = () => {
+    if (!tenant) {
+      toast({
+        title: 'Missing tenant',
+        description: 'Load tenant details before exporting the lease.',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    const doc = new jsPDF({ unit: 'pt', format: 'a4' })
+    const pageWidth = doc.internal.pageSize.getWidth()
+
+    const primary = '#4682B4'
+    const accent = '#e8f1fb'
+    const slate = '#1f2937'
+
+    doc.setFillColor(primary)
+    doc.rect(0, 0, pageWidth, 110, 'F')
+    doc.setTextColor('#ffffff')
+    doc.setFontSize(24)
+    doc.text('Lease Agreement Summary', 40, 55)
+    doc.setFontSize(12)
+    doc.text(`Generated: ${new Date().toLocaleDateString()}`, 40, 80)
+
+    doc.setFillColor('#ffffff')
+    doc.roundedRect(40, 130, pageWidth - 80, 360, 12, 12, 'F')
+
+    doc.setTextColor(primary)
+    doc.setFontSize(18)
+    doc.text(tenant.full_name || 'Tenant', 60, 165)
+    doc.setFontSize(12)
+    doc.setTextColor(slate)
+    doc.text(`Tenant ID: ${tenant.id}`, 60, 185)
+    doc.text(`Phone: ${tenant.phone_number || 'N/A'}`, 60, 205)
+    doc.text(`Address: ${tenant.address || 'N/A'}`, 60, 225)
+
+    doc.setFillColor(accent)
+    doc.roundedRect(60, 250, pageWidth - 120, 140, 8, 8, 'F')
+    doc.setTextColor(slate)
+    doc.setFontSize(13)
+    const buildingLabel = lease?.unit?.building?.name
+      ? `${lease.unit.building.name}${lease.unit.building.location ? ` • ${lease.unit.building.location}` : ''}`
+      : 'Not linked to a property'
+    doc.text(`Property: ${buildingLabel}`, 75, 280)
+    doc.text(`Unit: ${lease?.unit?.unit_number || 'Unassigned'}`, 75, 300)
+    doc.text(`Start Date: ${lease?.start_date || startDate || 'Not set'}`, 75, 320)
+    doc.text(`End Date: ${lease?.end_date || 'Not set'}`, 75, 340)
+    doc.text(`Duration: ${durationMonths} months`, 75, 360)
+
+    doc.setFontSize(16)
+    doc.setTextColor(primary)
+    doc.text(`Monthly Rent: ${formatCurrency(monthlyRent)}`, 75, 390)
+    doc.text(`Deposit: ${formatCurrency(depositAmount)}`, 75, 415)
+
+    doc.setFontSize(12)
+    doc.setTextColor(slate)
+    doc.text('Status', 60, 450)
+    doc.setFontSize(11)
+    doc.text(
+      leaseSummary?.status ? leaseSummary.status.toUpperCase() : 'UNASSIGNED',
+      60,
+      468
+    )
+    doc.setTextColor('#4b5563')
+    doc.text(leaseSummary?.detail || 'No lease on file.', 60, 486, { maxWidth: pageWidth - 120 })
+
+    doc.setFontSize(10)
+    doc.setTextColor('#9ca3af')
+    doc.text('Generated from the Rentalk tenant management system.', 60, 520)
+
+    const filename = `lease-${tenant.full_name?.replace(/\s+/g, '-') || tenant.id}-${Date.now()}.pdf`
+    doc.save(filename)
   }
 
   if (!tenantId) {

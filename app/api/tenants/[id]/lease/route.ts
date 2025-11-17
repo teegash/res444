@@ -57,7 +57,8 @@ async function verifyManagerAccess() {
 }
 
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
-  const tenantId = params.id
+  const url = request.nextUrl
+  const tenantId = params?.id || url.searchParams.get('tenantId') || undefined
   if (!tenantId) {
     return NextResponse.json({ success: false, error: 'Tenant id is required.' }, { status: 400 })
   }
@@ -133,7 +134,18 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
 }
 
 export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
-  const tenantId = params.id
+  const url = request.nextUrl
+  const payload = await request.json().catch(() => ({}))
+  const {
+    start_date,
+    duration_months,
+    monthly_rent,
+    deposit_amount,
+    unit_id,
+    tenant_user_id,
+  } = payload || {}
+
+  const tenantId = params?.id || url.searchParams.get('tenantId') || tenant_user_id
   if (!tenantId) {
     return NextResponse.json({ success: false, error: 'Tenant id is required.' }, { status: 400 })
   }
@@ -142,15 +154,6 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
   if (auth.error) return auth.error
 
   try {
-    const payload = await request.json().catch(() => ({}))
-    const {
-      start_date,
-      duration_months,
-      monthly_rent,
-      deposit_amount,
-      unit_id,
-    } = payload || {}
-
     if (!start_date || !duration_months) {
       return NextResponse.json(
         { success: false, error: 'Start date and lease duration are required.' },
