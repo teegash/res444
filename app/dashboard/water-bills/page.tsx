@@ -1,70 +1,252 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Sidebar } from '@/components/dashboard/sidebar'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Droplet, Send, Calculator } from 'lucide-react'
+import { Droplet, Send, Calculator, Loader2 } from 'lucide-react'
 import { Textarea } from '@/components/ui/textarea'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { useToast } from '@/components/ui/use-toast'
+import jsPDF from 'jspdf'
+
+interface TenantSummary {
+  id: string
+  name: string | null
+  phone: string | null
+  email: string | null
+}
+
+interface UnitSummary {
+  id: string
+  unit_number: string | null
+  status: string | null
+  tenant: TenantSummary | null
+  latest_reading: number | null
+}
+
+interface PropertySummary {
+  id: string
+  name: string | null
+  location: string | null
+  units: UnitSummary[]
+}
 
 export default function WaterBillsPage() {
+  const { toast } = useToast()
   const [selectedProperty, setSelectedProperty] = useState('')
   const [selectedUnit, setSelectedUnit] = useState('')
   const [previousReading, setPreviousReading] = useState('')
   const [currentReading, setCurrentReading] = useState('')
   const [pricePerUnit, setPricePerUnit] = useState('85')
-  
-  const properties = [
-    { id: '1', name: 'Kilimani Heights' },
-    { id: '2', name: 'Westlands Plaza' },
-    { id: '3', name: 'Karen Villas' },
-    { id: '4', name: 'Eastlands Court' },
-  ]
+  const [properties, setProperties] = useState<PropertySummary[]>([])
+  const [loading, setLoading] = useState(true)
+  const [formError, setFormError] = useState<string | null>(null)
+  const [notes, setNotes] = useState('')
+  const [sendingInvoice, setSendingInvoice] = useState(false)
+  const [downloading, setDownloading] = useState(false)
 
-  const units: Record<string, Array<{ id: string; number: string; tenant: string; email: string; phone: string; previousReading: number }>> = {
-    '1': [
-      { id: '1', number: 'A-101', tenant: 'John Kamau', email: 'john.kamau@email.com', phone: '+254 712 345 678', previousReading: 1250 },
-      { id: '2', number: 'A-102', tenant: 'Mary Wanjiku', email: 'mary.w@email.com', phone: '+254 723 456 789', previousReading: 980 },
-      { id: '3', number: 'A-103', tenant: 'Peter Ochieng', email: 'peter.o@email.com', phone: '+254 734 567 890', previousReading: 1100 },
-    ],
-    '2': [
-      { id: '4', number: 'B-201', tenant: 'Grace Akinyi', email: 'grace.a@email.com', phone: '+254 745 678 901', previousReading: 850 },
-      { id: '5', number: 'B-202', tenant: 'David Mwangi', email: 'david.m@email.com', phone: '+254 756 789 012', previousReading: 1320 },
-    ],
-    '3': [
-      { id: '6', number: 'C-301', tenant: 'Sarah Njeri', email: 'sarah.n@email.com', phone: '+254 767 890 123', previousReading: 920 },
-      { id: '7', number: 'C-302', tenant: 'James Kibet', email: 'james.k@email.com', phone: '+254 778 901 234', previousReading: 1050 },
-    ],
-    '4': [
-      { id: '8', number: 'D-101', tenant: 'Anne Wangari', email: 'anne.w@email.com', phone: '+254 789 012 345', previousReading: 1180 },
-      { id: '9', number: 'D-102', tenant: 'Robert Otieno', email: 'robert.o@email.com', phone: '+254 790 123 456', previousReading: 870 },
-    ],
-  }
+  useEffect(() => {
+    const fetchFormData = async () => {
+      try {
+        setLoading(true)
+        const response = await fetch('/api/water-bills/form-data', { cache: 'no-store' })
+        if (!response.ok) {
+          const payload = await response.json().catch(() => ({}))
+          throw new Error(payload.error || 'Failed to load data.')
+        }
+        const payload = await response.json()
+        setProperties(payload.data?.properties || [])
+        setPricePerUnit(
+          payload.data?.default_rate ? payload.data.default_rate.toString() : pricePerUnit
+        )
+      } catch (err) {
+        setFormError(err instanceof Error ? err.message : 'Unable to load form data.')
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchFormData()
+  }, [])
 
-  const selectedUnitData = selectedProperty && selectedUnit
-    ? units[selectedProperty]?.find(u => u.id === selectedUnit)
+  const availableUnits = useMemo(() => {
+    return properties.find((property) => property.id === selectedProperty)?.units || []
+  }, [properties, selectedProperty])
+
+  const selectedPropertyData = useMemo(
+    () => properties.find((property) => property.id === selectedProperty) || null,
+    [properties, selectedProperty]
+  )
+
+  const selectedUnitData = selectedUnit
+    ? availableUnits.find((unit) => unit.id === selectedUnit) || null
     : null
 
-  const unitsConsumed = currentReading && previousReading
-    ? Math.max(0, parseFloat(currentReading) - parseFloat(previousReading))
-    : 0
-  
+  const unitsConsumed =
+    currentReading && previousReading
+      ? Math.max(0, parseFloat(currentReading) - parseFloat(previousReading))
+      : 0
+
   const totalAmount = unitsConsumed * parseFloat(pricePerUnit || '0')
 
   const handleUnitChange = (unitId: string) => {
     setSelectedUnit(unitId)
-    const unit = selectedProperty ? units[selectedProperty]?.find(u => u.id === unitId) : null
-    if (unit) {
-      setPreviousReading(unit.previousReading.toString())
+    const unit = availableUnits.find((u) => u.id === unitId)
+    if (unit?.latest_reading !== null && !Number.isNaN(unit.latest_reading)) {
+      setPreviousReading(unit.latest_reading.toString())
+    } else {
+      setPreviousReading('')
     }
   }
 
-  const handleSendInvoice = () => {
-    // Handle sending invoice logic here
-    alert(`Invoice sent to ${selectedUnitData?.tenant}`)
+  const handleSendInvoice = async () => {
+    if (!selectedUnitData) {
+      toast({
+        title: 'Select a tenant',
+        description: 'Choose a property and unit to send an invoice.',
+        variant: 'destructive',
+      })
+      return
+    }
+    if (!selectedUnitData.tenant?.phone) {
+      toast({
+        title: 'Missing phone number',
+        description: 'This tenant does not have a phone number on file.',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    try {
+      setSendingInvoice(true)
+      const dueDate = computeDueDate()
+      const response = await fetch('/api/water-bills/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          propertyId: selectedProperty,
+          propertyName: selectedPropertyData?.name,
+          unitNumber: selectedUnitData.unit_number,
+          tenantName: selectedUnitData.tenant?.name,
+          tenantPhone: selectedUnitData.tenant?.phone,
+          unitsConsumed,
+          pricePerUnit: Number(pricePerUnit),
+          totalAmount,
+          previousReading,
+          currentReading,
+          notes,
+          dueDate,
+        }),
+      })
+
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}))
+        throw new Error(payload.error || 'Failed to send invoice.')
+      }
+
+      toast({
+        title: 'Invoice sent',
+        description: `Message sent to ${selectedUnitData.tenant?.name || 'tenant'}.`,
+      })
+    } catch (err) {
+      toast({
+        title: 'Unable to send invoice',
+        description: err instanceof Error ? err.message : 'Please try again later.',
+        variant: 'destructive',
+      })
+    } finally {
+      setSendingInvoice(false)
+    }
+  }
+
+  const computeDueDate = () => {
+    const date = new Date()
+    date.setDate(date.getDate() + 7)
+    return date.toISOString().split('T')[0]
+  }
+
+  const formatCurrency = (value: number | string) => {
+    const num = typeof value === 'string' ? Number(value) : value
+    if (!Number.isFinite(num)) return 'KES 0.00'
+    return `KES ${num.toLocaleString('en-KE', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}`
+  }
+
+  const handleDownloadPdf = async () => {
+    if (!selectedUnitData) {
+      toast({
+        title: 'Select a tenant',
+        description: 'Choose a property and unit to export.',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    try {
+      setDownloading(true)
+      const doc = new jsPDF()
+      const invoiceDate = new Date().toLocaleDateString()
+      const dueDate = computeDueDate()
+
+      doc.setFontSize(18)
+      doc.text(`Water Invoice - ${selectedUnitData.tenant?.name || 'Tenant'}`, 14, 20)
+      doc.setFontSize(12)
+      doc.text(`Property: ${selectedPropertyData?.name || 'N/A'}`, 14, 30)
+      doc.text(`Unit: ${selectedUnitData.unit_number || 'N/A'}`, 14, 37)
+      doc.text(`Invoice Date: ${invoiceDate}`, 14, 44)
+      doc.text(`Due Date: ${dueDate}`, 14, 51)
+
+      doc.line(14, 56, 196, 56)
+      doc.text('Readings', 14, 64)
+      doc.text(`Previous: ${previousReading || '-'}`, 14, 70)
+      doc.text(`Current: ${currentReading || '-'}`, 80, 70)
+      doc.text(`Units Consumed: ${unitsConsumed.toFixed(2)} units`, 14, 77)
+      doc.text(`Rate per Unit: ${formatCurrency(pricePerUnit)}`, 14, 84)
+
+      doc.setFontSize(14)
+      doc.text(`Total Amount Due: ${formatCurrency(totalAmount)}`, 14, 95)
+
+      doc.setFontSize(12)
+      doc.text('Notes:', 14, 110)
+      doc.text(notes || 'No additional notes provided.', 14, 117, { maxWidth: 180 })
+
+      doc.setFontSize(10)
+      doc.text('Thank you for staying current with your utilities.', 14, 140)
+
+      doc.save(
+        `water-invoice-${selectedUnitData.unit_number || selectedUnitData.id}-${Date.now()}.pdf`
+      )
+      setDownloading(false)
+    } catch (error) {
+      setDownloading(false)
+      toast({
+        title: 'Unable to generate PDF',
+        description: error instanceof Error ? error.message : 'Please try again later.',
+        variant: 'destructive',
+      })
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex min-h-screen bg-gray-50">
+        <Sidebar />
+        <div className="flex-1 p-8 ml-16">
+          <div className="max-w-4xl">
+            <Card>
+              <CardContent className="py-10 text-center text-muted-foreground">
+                Loading water bill data…
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -82,9 +264,15 @@ export default function WaterBillsPage() {
           <p className="text-muted-foreground">Generate and send water bill invoices to tenants</p>
         </div>
 
-        <div className="max-w-4xl">
+        <div className="max-w-4xl space-y-4">
+          {formError && (
+            <Alert variant="destructive">
+              <AlertDescription>{formError}</AlertDescription>
+            </Alert>
+          )}
+
           <Card>
-            <CardHeader className="bg-gradient-to-r from-[#4682B4] to-[#5a9fd4] text-white">
+            <CardHeader className="bg-gradient-to-r from-[#4682B4] to-[#5a9fd4] text-white pt-7 pb-6">
               <CardTitle className="flex items-center gap-2">
                 <Calculator className="h-5 w-5" />
                 Water Consumption Invoice Form
@@ -95,19 +283,22 @@ export default function WaterBillsPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="property">Select Property *</Label>
-                  <Select value={selectedProperty} onValueChange={(value) => {
-                    setSelectedProperty(value)
-                    setSelectedUnit('')
-                    setPreviousReading('')
-                    setCurrentReading('')
-                  }}>
+                  <Select
+                    value={selectedProperty}
+                    onValueChange={(value) => {
+                      setSelectedProperty(value)
+                      setSelectedUnit('')
+                      setPreviousReading('')
+                      setCurrentReading('')
+                    }}
+                  >
                     <SelectTrigger id="property" className="h-12">
                       <SelectValue placeholder="Choose property" />
                     </SelectTrigger>
                     <SelectContent>
                       {properties.map((property) => (
                         <SelectItem key={property.id} value={property.id}>
-                          {property.name}
+                          {property.name || 'Unnamed property'}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -116,18 +307,15 @@ export default function WaterBillsPage() {
 
                 <div className="space-y-2">
                   <Label htmlFor="unit">Select Apartment Unit *</Label>
-                  <Select 
-                    value={selectedUnit} 
-                    onValueChange={handleUnitChange}
-                    disabled={!selectedProperty}
-                  >
+                  <Select value={selectedUnit} onValueChange={handleUnitChange} disabled={!selectedProperty}>
                     <SelectTrigger id="unit" className="h-12">
-                      <SelectValue placeholder={selectedProperty ? "Choose unit" : "Select property first"} />
+                      <SelectValue placeholder={selectedProperty ? 'Choose unit' : 'Select property first'} />
                     </SelectTrigger>
                     <SelectContent>
-                      {selectedProperty && units[selectedProperty]?.map((unit) => (
+                      {availableUnits.map((unit) => (
                         <SelectItem key={unit.id} value={unit.id}>
-                          Unit {unit.number} - {unit.tenant}
+                          Unit {unit.unit_number || 'N/A'}
+                          {unit.tenant?.name ? ` • ${unit.tenant.name}` : ''}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -145,25 +333,25 @@ export default function WaterBillsPage() {
                     <div>
                       <Label className="text-xs text-muted-foreground">Tenant Name</Label>
                       <div className="mt-1 p-3 bg-white border rounded-md font-medium">
-                        {selectedUnitData.tenant}
+                        {selectedUnitData.tenant?.name || 'Not assigned'}
                       </div>
                     </div>
                     <div>
                       <Label className="text-xs text-muted-foreground">Unit Number</Label>
                       <div className="mt-1 p-3 bg-white border rounded-md font-medium">
-                        {selectedUnitData.number}
+                        {selectedUnitData.unit_number || 'N/A'}
                       </div>
                     </div>
                     <div>
                       <Label className="text-xs text-muted-foreground">Email Address</Label>
                       <div className="mt-1 p-3 bg-white border rounded-md">
-                        {selectedUnitData.email}
+                        {selectedUnitData.tenant?.email || 'Not available'}
                       </div>
                     </div>
                     <div>
                       <Label className="text-xs text-muted-foreground">Phone Number</Label>
                       <div className="mt-1 p-3 bg-white border rounded-md">
-                        {selectedUnitData.phone}
+                        {selectedUnitData.tenant?.phone || 'Not available'}
                       </div>
                     </div>
                   </div>
@@ -222,6 +410,8 @@ export default function WaterBillsPage() {
                     placeholder="Add any additional notes or remarks for this invoice..."
                     rows={3}
                     disabled={!selectedUnit}
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
                   />
                 </div>
               </div>
@@ -253,11 +443,29 @@ export default function WaterBillsPage() {
               <div className="flex gap-4 pt-4">
                 <Button
                   className="flex-1 h-12 text-lg bg-[#4682B4] hover:bg-[#4682B4]/90"
-                  disabled={!selectedUnit || !currentReading || !previousReading || unitsConsumed <= 0}
+                  disabled={!selectedUnit || !currentReading || !previousReading || unitsConsumed <= 0 || sendingInvoice}
                   onClick={handleSendInvoice}
                 >
-                  <Send className="mr-2 h-5 w-5" />
-                  Send Invoice to Tenant
+                  {sendingInvoice ? (
+                    <>
+                      <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                      Sending…
+                    </>
+                  ) : (
+                    <>
+                      <Send className="mr-2 h-5 w-5" />
+                      Send Invoice to Tenant
+                    </>
+                  )}
+                </Button>
+                <Button
+                  variant="outline"
+                  className="h-12 gap-2"
+                  onClick={handleDownloadPdf}
+                  disabled={!selectedUnit || !currentReading || !previousReading || unitsConsumed <= 0 || downloading}
+                >
+                  {downloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Droplet className="h-4 w-4" />}
+                  Download PDF
                 </Button>
                 <Button
                   variant="outline"
@@ -268,6 +476,7 @@ export default function WaterBillsPage() {
                     setPreviousReading('')
                     setCurrentReading('')
                     setPricePerUnit('85')
+                    setNotes('')
                   }}
                 >
                   Clear Form

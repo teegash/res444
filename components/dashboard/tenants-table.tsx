@@ -146,6 +146,9 @@ function TenantActions({
             Open Chat
           </Link>
         </DropdownMenuItem>
+        <DropdownMenuItem asChild>
+          <Link href={`/dashboard/tenants/${tenant.tenant_user_id}/lease`}>Lease</Link>
+        </DropdownMenuItem>
         <DropdownMenuItem
           onClick={() => onRemove(tenant)}
           className="text-destructive focus:text-destructive"
@@ -230,7 +233,7 @@ export function TenantsTable({ searchQuery = '' }: TenantsTableProps) {
         tenant.national_id,
       ]
         .filter(Boolean)
-        .some((value) => value!.toLowerCase().includes(query))
+        .some((value) => value!.toLowerCase().startsWith(query))
     })
   }, [searchQuery, tenants])
 

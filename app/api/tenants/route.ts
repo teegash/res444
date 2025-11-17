@@ -1,6 +1,45 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 
+function summarizeLeaseState(lease: any) {
+  if (!lease) {
+    return {
+      status: 'unassigned',
+      detail: 'Lease has not been assigned.',
+    }
+  }
+
+  const today = new Date()
+  const start = lease.start_date ? new Date(lease.start_date) : null
+  const end = lease.end_date ? new Date(lease.end_date) : null
+
+  if (start && start <= today && (!end || end >= today)) {
+    return {
+      status: 'valid',
+      detail: 'Lease is currently active.',
+    }
+  }
+
+  if (end && end < today) {
+    return {
+      status: 'expired',
+      detail: `Lease ended on ${end.toLocaleDateString()}.`,
+    }
+  }
+
+  if (start && start > today) {
+    return {
+      status: 'pending',
+      detail: `Lease becomes active on ${start.toLocaleDateString()}.`,
+    }
+  }
+
+  return {
+    status: lease.status || 'pending',
+    detail: 'Lease status pending verification.',
+  }
+}
+
 export async function GET() {
   try {
     const adminSupabase = createAdminClient()
@@ -214,6 +253,7 @@ export async function GET() {
         lease?.deposit_amount !== null && lease?.deposit_amount !== undefined
           ? Number(lease.deposit_amount)
           : null
+      const leaseSummary = summarizeLeaseState(lease)
       const paymentStatus = lease
         ? resolvePaymentStatus(profile.id, monthlyRentValue)
         : {
@@ -233,11 +273,12 @@ export async function GET() {
         date_of_birth: profile.date_of_birth || null,
         email: authUser?.email || '',
         created_at: profile.created_at || authUser?.created_at || null,
-        lease_status: lease?.status || 'unassigned',
+        lease_status: leaseSummary.status,
         lease_start_date: lease?.start_date || null,
         lease_end_date: lease?.end_date || null,
         monthly_rent: monthlyRentValue,
         deposit_amount: depositAmountValue,
+        lease_status_detail: leaseSummary.detail,
         unit: unit
           ? {
               id: unit.id,
