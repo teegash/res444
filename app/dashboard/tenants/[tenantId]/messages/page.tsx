@@ -171,7 +171,7 @@ export default function ManagerTenantMessagesPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
+    <div className="min-h-screen bg-gradient-to-b from-blue-50/40 via-white to-gray-50 p-6">
       <div className="max-w-4xl mx-auto space-y-4">
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="sm" onClick={() => router.push('/dashboard/tenants')}>
@@ -187,8 +187,8 @@ export default function ManagerTenantMessagesPage() {
           </div>
         )}
 
-        <Card className="shadow-sm h-[70vh] flex flex-col">
-          <CardHeader>
+        <Card className="h-[600px] flex flex-col">
+          <CardHeader className="border-b bg-muted/30">
             <CardTitle className="text-base flex items-center gap-3">
               <Avatar className="h-10 w-10">
                 {tenant?.profile_picture_url ? (
@@ -212,10 +212,10 @@ export default function ManagerTenantMessagesPage() {
               </div>
             </CardTitle>
           </CardHeader>
-          <CardContent className="flex-1 flex flex-col">
-            <div className="flex-1 overflow-y-auto space-y-4 pr-1">
+          <CardContent className="flex-1 flex flex-col p-0">
+            <div className="flex-1 overflow-y-auto space-y-4 p-6">
               {loading ? (
-                <div className="flex items-center justify-center h-full text-muted-foreground">
+                <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                   Loading conversation…
                 </div>
@@ -227,10 +227,7 @@ export default function ManagerTenantMessagesPage() {
                 messages.map((message) => {
                   const isManager = message.sender_user_id === user?.id
                   return (
-                    <div
-                      key={message.id}
-                      className={`flex ${isManager ? 'justify-end' : 'justify-start'}`}
-                    >
+                    <div key={message.id} className={`flex ${isManager ? 'justify-end' : 'justify-start'}`}>
                       <div
                         className={`max-w-[70%] rounded-2xl px-4 py-2 text-sm ${
                           isManager
@@ -247,23 +244,23 @@ export default function ManagerTenantMessagesPage() {
                   )
                 })
               )}
+              <div ref={bottomRef} />
             </div>
-            <div className="border-t pt-4 mt-4">
+            <div className="border-t p-4 bg-muted/20">
               <div className="flex items-end gap-2">
                 <Textarea
                   value={newMessage}
                   onChange={(event) => setNewMessage(event.target.value)}
                   placeholder="Type your message..."
-                  rows={3}
+                  rows={2}
                   className="flex-1 resize-none"
                 />
-                <Button className="h-11 px-6 gap-2" onClick={handleSend} disabled={sending}>
+                <Button className="bg-primary hover:bg-primary/90 h-11 px-6 gap-2" onClick={handleSend} disabled={sending}>
                   {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                   Send
                 </Button>
               </div>
             </div>
-            <div ref={bottomRef} />
           </CardContent>
         </Card>
       </div>
