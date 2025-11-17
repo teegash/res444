@@ -1,20 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getSmsClient } from '@/lib/africasTalking'
-
-const KE_COUNTRY_CODE = '+254'
-
-function normalizePhoneNumber(raw: string | null | undefined) {
-  if (!raw) return null
-  let sanitized = raw.replace(/[\s-]/g, '')
-  if (sanitized.startsWith('0')) {
-    sanitized = `${KE_COUNTRY_CODE}${sanitized.slice(1)}`
-  }
-  if (!sanitized.startsWith('+')) {
-    sanitized = `+${sanitized}`
-  }
-  const isValid = /^\+\d{7,15}$/.test(sanitized)
-  return isValid ? sanitized : null
-}
+import { sendSMSWithLogging } from '@/lib/sms/smsService'
+import { validatePhoneNumber } from '@/lib/sms/africasTalking'
+import { createClient } from '@/lib/supabase/server'
 
 export async function POST(request: NextRequest) {
   try {
@@ -23,6 +10,8 @@ export async function POST(request: NextRequest) {
     const {
       tenantName,
       tenantPhone,
+      tenantUserId,
+      unitId,
       propertyName,
       unitNumber,
       unitsConsumed,
@@ -34,13 +23,22 @@ export async function POST(request: NextRequest) {
       dueDate,
     } = body || {}
 
-    const normalizedPhone = normalizePhoneNumber(tenantPhone)
-    if (!normalizedPhone) {
+    if (!tenantPhone) {
       return NextResponse.json(
         {
           success: false,
-          error:
-            'Tenant phone number is missing or invalid. Use an international format such as +254707694388.',
+          error: 'Tenant phone number is required.',
+        },
+        { status: 400 }
+      )
+    }
+
+    const phoneValidation = validatePhoneNumber(tenantPhone)
+    if (!phoneValidation.valid) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: phoneValidation.error || 'Phone number format is invalid.',
         },
         { status: 400 }
       )
@@ -52,9 +50,6 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       )
     }
-
-    const sms = getSmsClient()
-    const senderId = process.env.AT_SMS_SHORTCODE || 'sandbox'
 
     const invoiceRef = `INV-${Date.now().toString().slice(-6)}`
     const formattedUnits = Number(unitsConsumed).toFixed(2)
@@ -80,13 +75,31 @@ export async function POST(request: NextRequest) {
       .filter(Boolean)
       .join(' ')
 
-    await sms.send({
-      to: [normalizedPhone],
+    const supabase = await createClient()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+
+    const smsResult = await sendSMSWithLogging({
+      phoneNumber: tenantPhone,
       message,
-      from: senderId,
+      senderUserId: user?.id,
+      recipientUserId: tenantUserId,
+      relatedEntityType: 'water_bill',
+      relatedEntityId: unitId,
     })
 
-    return NextResponse.json({ success: true })
+    if (!smsResult.success) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: smsResult.error || 'Failed to send SMS invoice.',
+        },
+        { status: 502 }
+      )
+    }
+
+    return NextResponse.json({ success: true, data: { communicationId: smsResult.communicationId } })
   } catch (error) {
     console.error('[WaterBill.Send] Failed to send invoice SMS', error)
     return NextResponse.json(

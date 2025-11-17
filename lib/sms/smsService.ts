@@ -3,9 +3,12 @@
 import { createClient } from '@/lib/supabase/server'
 import { sendSMS, getAfricasTalkingConfig, isAfricasTalkingConfigured, formatPhoneNumber } from './africasTalking'
 
+const SYSTEM_SENDER_ID = '00000000-0000-0000-0000-000000000000'
+
 export interface SendSMSOptions {
   phoneNumber: string
   message: string
+  senderUserId?: string
   recipientUserId?: string
   relatedEntityType?: 'payment' | 'maintenance_request' | 'lease' | 'water_bill'
   relatedEntityId?: string
@@ -31,13 +34,16 @@ export async function sendSMSWithLogging(
     // 1. Check if Africa's Talking is configured
     if (!isAfricasTalkingConfigured()) {
       console.warn('Africa\'s Talking not configured, logging SMS without sending')
+
+      const senderId = options.senderUserId || SYSTEM_SENDER_ID
+      const recipientId = options.recipientUserId || null
       
       // Still log to database but mark as not sent
       const { data: communication } = await supabase
         .from('communications')
         .insert({
-          sender_user_id: options.recipientUserId || '00000000-0000-0000-0000-000000000000', // System user
-          recipient_user_id: options.recipientUserId || null,
+          sender_user_id: senderId,
+          recipient_user_id: recipientId,
           related_entity_type: options.relatedEntityType || null,
           related_entity_id: options.relatedEntityId || null,
           message_text: options.message,
@@ -69,12 +75,15 @@ export async function sendSMSWithLogging(
     // 4. Log to communications table
     let communicationId: string | undefined
 
+    const senderId = options.senderUserId || SYSTEM_SENDER_ID
+    const recipientId = options.recipientUserId || null
+
     if (smsResult.success && smsResult.messageId) {
       const { data: communication } = await supabase
         .from('communications')
         .insert({
-          sender_user_id: options.recipientUserId || '00000000-0000-0000-0000-000000000000', // System user
-          recipient_user_id: options.recipientUserId || null,
+          sender_user_id: senderId,
+          recipient_user_id: recipientId,
           related_entity_type: options.relatedEntityType || null,
           related_entity_id: options.relatedEntityId || null,
           message_text: options.message,
@@ -104,8 +113,8 @@ export async function sendSMSWithLogging(
       const { data: communication } = await supabase
         .from('communications')
         .insert({
-          sender_user_id: options.recipientUserId || '00000000-0000-0000-0000-000000000000',
-          recipient_user_id: options.recipientUserId || null,
+          sender_user_id: senderId,
+          recipient_user_id: recipientId,
           related_entity_type: options.relatedEntityType || null,
           related_entity_id: options.relatedEntityId || null,
           message_text: options.message,
@@ -198,4 +207,3 @@ export async function getUserPhoneNumber(userId: string): Promise<string | null>
     return null
   }
 }
-

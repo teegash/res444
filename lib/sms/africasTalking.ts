@@ -1,3 +1,7 @@
+import AfricasTalking from 'africastalking'
+
+let smsChannel: ReturnType<typeof AfricasTalking>['SMS'] | null = null
+let cachedSignature: string | null = null
 
 export interface AfricasTalkingConfig {
   apiKey: string
@@ -38,11 +42,17 @@ export interface DeliveryStatusCallback {
 /**
  * Get Africa's Talking API base URL
  */
-function getBaseUrl(environment: 'sandbox' | 'production'): string {
-  if (environment === 'production') {
-    return 'https://api.africastalking.com'
+function ensureSmsChannel(config: AfricasTalkingConfig) {
+  const signature = `${config.username}:${config.apiKey}`
+  if (!smsChannel || cachedSignature !== signature) {
+    const client = AfricasTalking({
+      apiKey: config.apiKey,
+      username: config.username,
+    })
+    smsChannel = client.SMS
+    cachedSignature = signature
   }
-  return 'https://api.sandbox.africastalking.com'
+  return smsChannel
 }
 
 /**
@@ -120,79 +130,36 @@ export async function sendSMS(
       }
     }
 
-    // 2. Prepare request
-    const baseUrl = getBaseUrl(config.environment)
-    const sendUrl = `${baseUrl}/version1/messaging`
-
-    const requestBody: {
-      username: string
-      message: string
-      to: string
-      from?: string
-    } = {
-      username: config.username,
-      message: request.message,
+    const smsClient = ensureSmsChannel(config)
+    const sendPayload: { to: string; message: string; from?: string } = {
       to: recipients.join(','),
+      message: request.message,
     }
-
-    // Add sender ID if provided (production only)
     if (request.senderId || config.senderId) {
-      requestBody.from = request.senderId || config.senderId
+      sendPayload.from = request.senderId || config.senderId
     }
 
-    // 3. Make API request
-    const response = await fetch(sendUrl, {
-      method: 'POST',
-      headers: {
-        ApiKey: config.apiKey,
-        'Content-Type': 'application/x-www-form-urlencoded',
-        Accept: 'application/json',
-      },
-      body: new URLSearchParams(
-        Object.entries(requestBody).reduce((acc, [key, value]) => {
-          if (value !== undefined) {
-            acc[key] = String(value)
-          }
-          return acc
-        }, {} as Record<string, string>)
-      ).toString(),
-    })
+    const response = await smsClient.send(sendPayload)
+    const smsData = response?.SMSMessageData
 
-    const responseData = await response.json()
-
-    if (!response.ok) {
+    if (!smsData) {
       return {
         success: false,
-        errorCode: responseData.errorCode || String(response.status),
-        errorMessage:
-          responseData.errorMessage ||
-          responseData.error ||
-          'Failed to send SMS',
+        errorCode: 'NO_RESPONSE',
+        errorMessage: 'No SMSMessageData returned from Africa\'s Talking.',
       }
     }
 
-    // 4. Parse response
-    // Africa's Talking returns different formats for single vs bulk
-    if (responseData.SMSMessageData) {
-      const smsData = responseData.SMSMessageData
-
-      return {
-        success: true,
-        messageId: smsData.Recipients?.[0]?.messageId,
-        recipients: smsData.Recipients?.map((recipient: any) => ({
-          statusCode: recipient.statusCode || 0,
-          number: recipient.number,
-          status: recipient.status || 'Unknown',
-          cost: recipient.cost || '0',
-          messageId: recipient.messageId || '',
-        })),
-      }
-    }
-
-    // Fallback for different response format
     return {
       success: true,
-      messageId: responseData.messageId || responseData.id,
+      messageId: smsData.Recipients?.[0]?.messageId,
+      recipients: smsData.Recipients?.map((recipient: any) => ({
+        statusCode: recipient.statusCode || 0,
+        number: recipient.number,
+        status: recipient.status || 'Unknown',
+        cost: recipient.cost || '0',
+        messageId: recipient.messageId || '',
+      })),
     }
   } catch (error) {
     const err = error as Error
@@ -208,12 +175,31 @@ export async function sendSMS(
 /**
  * Get Africa's Talking config from environment
  */
+function envFallback(...keys: string[]): string | undefined {
+  for (const key of keys) {
+    const value = process.env[key]
+    if (value && value.length > 0) {
+      return value
+    }
+  }
+  return undefined
+}
+
 export function getAfricasTalkingConfig(): AfricasTalkingConfig {
+  const apiKey = envFallback('AFRICAS_TALKING_API_KEY', 'AT_API_KEY', 'AT_SANDBOX_API_KEY')
+  const username = envFallback('AFRICAS_TALKING_USERNAME', 'AT_USERNAME', 'AT_SANDBOX_USERNAME') || 'sandbox'
+  const senderId = envFallback('AFRICAS_TALKING_SENDER_ID', 'AT_SMS_SHORTCODE', 'AT_SHORTCODE')
+  const environment = (envFallback('AFRICAS_TALKING_ENVIRONMENT', 'AT_ENVIRONMENT') as 'sandbox' | 'production') || 'sandbox'
+
+  if (!apiKey) {
+    throw new Error("Africa's Talking API key is not configured. Set AFRICAS_TALKING_API_KEY or AT_API_KEY.")
+  }
+
   return {
-    apiKey: process.env.AFRICAS_TALKING_API_KEY!,
-    username: process.env.AFRICAS_TALKING_USERNAME!,
-    senderId: process.env.AFRICAS_TALKING_SENDER_ID,
-    environment: (process.env.AFRICAS_TALKING_ENVIRONMENT as 'sandbox' | 'production') || 'sandbox',
+    apiKey,
+    username,
+    senderId,
+    environment,
   }
 }
 
@@ -221,8 +207,7 @@ export function getAfricasTalkingConfig(): AfricasTalkingConfig {
  * Check if Africa's Talking is configured
  */
 export function isAfricasTalkingConfigured(): boolean {
-  const apiKey = process.env.AFRICAS_TALKING_API_KEY
-  const username = process.env.AFRICAS_TALKING_USERNAME
+  const apiKey = envFallback('AFRICAS_TALKING_API_KEY', 'AT_API_KEY', 'AT_SANDBOX_API_KEY')
+  const username = envFallback('AFRICAS_TALKING_USERNAME', 'AT_USERNAME', 'AT_SANDBOX_USERNAME')
   return !!(apiKey && username)
 }
-

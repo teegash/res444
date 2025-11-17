@@ -139,10 +139,12 @@ export default function WaterBillsPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           propertyId: selectedProperty,
+          unitId: selectedUnitData.id,
           propertyName: selectedPropertyData?.name,
           unitNumber: selectedUnitData.unit_number,
           tenantName: selectedUnitData.tenant?.name,
           tenantPhone: selectedUnitData.tenant?.phone,
+          tenantUserId: selectedUnitData.tenant?.id,
           unitsConsumed,
           pricePerUnit: Number(pricePerUnit),
           totalAmount,
