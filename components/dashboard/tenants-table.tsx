@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { FormEvent, useEffect, useMemo, useState } from 'react'
 import {
   Table,
   TableBody,
@@ -180,6 +180,7 @@ export function TenantsTable({ searchQuery = '' }: TenantsTableProps) {
   })
   const [savingEdit, setSavingEdit] = useState(false)
   const [editSuccess, setEditSuccess] = useState<string | null>(null)
+  const [editError, setEditError] = useState<string | null>(null)
 
   const [tenantToDelete, setTenantToDelete] = useState<TenantRecord | null>(null)
   const [removingTenant, setRemovingTenant] = useState(false)
@@ -220,6 +221,7 @@ export function TenantsTable({ searchQuery = '' }: TenantsTableProps) {
           : '',
       })
       setEditSuccess(null)
+      setEditError(null)
     }
   }, [editTenant])
 
@@ -249,9 +251,11 @@ export function TenantsTable({ searchQuery = '' }: TenantsTableProps) {
     })
   }
 
-  const handleSaveEdit = async () => {
+  const handleSaveEdit = async (event?: FormEvent) => {
+    event?.preventDefault()
     if (!editTenant) return
     setSavingEdit(true)
+    setEditError(null)
     try {
       const response = await fetch(`/api/tenants/${editTenant.tenant_user_id}`, {
         method: 'PUT',
@@ -270,11 +274,13 @@ export function TenantsTable({ searchQuery = '' }: TenantsTableProps) {
       setEditSuccess('Tenant details updated successfully.')
       setRefreshIndex((index) => index + 1)
     } catch (saveError) {
+      const message = saveError instanceof Error ? saveError.message : 'Unable to save changes.'
       toast({
         title: 'Update failed',
-        description: saveError instanceof Error ? saveError.message : 'Unable to save changes.',
+        description: message,
         variant: 'destructive',
       })
+      setEditError(message)
     } finally {
       setSavingEdit(false)
     }
@@ -475,106 +481,116 @@ export function TenantsTable({ searchQuery = '' }: TenantsTableProps) {
           if (!open) {
             setEditTenant(null)
             setEditSuccess(null)
+            setEditError(null)
           }
         }}
       >
         <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Edit tenant details</DialogTitle>
-            <DialogDescription>
-              Update contact information or identifiers. Lease adjustments will be handled from the lease
-              module.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="full_name">Full name</Label>
-              <Input
-                id="full_name"
-                value={editForm.full_name}
-                onChange={(event) =>
-                  setEditForm((state) => ({ ...state, full_name: event.target.value }))
-                }
-              />
+          <form onSubmit={handleSaveEdit} className="space-y-4">
+            <DialogHeader>
+              <DialogTitle>Edit tenant details</DialogTitle>
+              <DialogDescription>
+                Update contact information or identifiers. Lease adjustments will be handled from the lease
+                module.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="full_name">Full name</Label>
+                <Input
+                  id="full_name"
+                  value={editForm.full_name}
+                  onChange={(event) =>
+                    setEditForm((state) => ({ ...state, full_name: event.target.value }))
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="email">Email</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={editForm.email}
+                  onChange={(event) => setEditForm((state) => ({ ...state, email: event.target.value }))}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="phone_number">Phone number</Label>
+                <Input
+                  id="phone_number"
+                  value={editForm.phone_number}
+                  onChange={(event) =>
+                    setEditForm((state) => ({ ...state, phone_number: event.target.value }))
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="national_id">National ID</Label>
+                <Input
+                  id="national_id"
+                  value={editForm.national_id}
+                  onChange={(event) =>
+                    setEditForm((state) => ({ ...state, national_id: event.target.value }))
+                  }
+                />
+              </div>
+              <div className="space-y-2 md:col-span-2">
+                <Label htmlFor="address">Address</Label>
+                <Input
+                  id="address"
+                  value={editForm.address}
+                  onChange={(event) =>
+                    setEditForm((state) => ({ ...state, address: event.target.value }))
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="date_of_birth">Date of birth</Label>
+                <Input
+                  id="date_of_birth"
+                  type="date"
+                  value={editForm.date_of_birth}
+                  onChange={(event) =>
+                    setEditForm((state) => ({ ...state, date_of_birth: event.target.value }))
+                  }
+                />
+              </div>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                value={editForm.email}
-                onChange={(event) => setEditForm((state) => ({ ...state, email: event.target.value }))}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="phone_number">Phone number</Label>
-              <Input
-                id="phone_number"
-                value={editForm.phone_number}
-                onChange={(event) =>
-                  setEditForm((state) => ({ ...state, phone_number: event.target.value }))
-                }
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="national_id">National ID</Label>
-              <Input
-                id="national_id"
-                value={editForm.national_id}
-                onChange={(event) =>
-                  setEditForm((state) => ({ ...state, national_id: event.target.value }))
-                }
-              />
-            </div>
-            <div className="space-y-2 md:col-span-2">
-              <Label htmlFor="address">Address</Label>
-              <Input
-                id="address"
-                value={editForm.address}
-                onChange={(event) =>
-                  setEditForm((state) => ({ ...state, address: event.target.value }))
-                }
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="date_of_birth">Date of birth</Label>
-              <Input
-                id="date_of_birth"
-                type="date"
-                value={editForm.date_of_birth}
-                onChange={(event) =>
-                  setEditForm((state) => ({ ...state, date_of_birth: event.target.value }))
-                }
-              />
-            </div>
-          </div>
-          {editSuccess && (
-            <Alert>
-              <AlertDescription>{editSuccess}</AlertDescription>
-            </Alert>
-          )}
-          <DialogFooter>
-            {editSuccess ? (
-              <Button
-                onClick={() => {
-                  setEditTenant(null)
-                  setEditSuccess(null)
-                }}
-                className="bg-[#4682B4] hover:bg-[#3a6c93]"
-              >
-                Close
-              </Button>
-            ) : (
-              <Button
-                onClick={handleSaveEdit}
-                disabled={savingEdit}
-                className="bg-[#4682B4] hover:bg-[#3a6c93]"
-              >
-                {savingEdit ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                Save changes
-              </Button>
+            {editError && (
+              <Alert variant="destructive">
+                <AlertDescription>{editError}</AlertDescription>
+              </Alert>
             )}
-          </DialogFooter>
+            {editSuccess && (
+              <Alert>
+                <AlertDescription>{editSuccess}</AlertDescription>
+              </Alert>
+            )}
+            <DialogFooter>
+              {editSuccess ? (
+                <Button
+                  type="button"
+                  onClick={() => {
+                    setEditTenant(null)
+                    setEditSuccess(null)
+                    setEditError(null)
+                  }}
+                  className="bg-[#4682B4] hover:bg-[#3a6c93]"
+                >
+                  Close
+                </Button>
+              ) : (
+                <Button
+                  type="submit"
+                  disabled={savingEdit}
+                  className="bg-[#4682B4] hover:bg-[#3a6c93]"
+                >
+                  {savingEdit ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                  Save changes
+                </Button>
+              )}
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
 
