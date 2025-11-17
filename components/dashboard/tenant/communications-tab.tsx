@@ -42,6 +42,7 @@ export function CommunicationsTab() {
         throw new Error(payload.error || 'Failed to load messages.')
       }
       const payload = await response.json()
+      initialRender.current = true
       setMessages(payload.data || [])
 
       const unreadForTenant = (payload.data || [])
@@ -225,6 +226,7 @@ export function CommunicationsTab() {
               </div>
             ))
           )}
+          <div ref={bottomRef} />
         </CardContent>
 
         <div className="border-t p-4 bg-muted/20">
@@ -246,8 +248,6 @@ export function CommunicationsTab() {
             </Button>
           </div>
         </div>
-
-        <div ref={bottomRef} />
       </Card>
     </div>
   )

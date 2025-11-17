@@ -62,6 +62,7 @@ export default function ManagerTenantMessagesPage() {
         throw new Error(payload.error || 'Failed to load conversation.')
       }
       const payload = await response.json()
+      initialRender.current = true
       setTenant(payload.data?.tenant || null)
       setMessages(payload.data?.messages || [])
     } catch (err) {
@@ -75,6 +76,10 @@ export default function ManagerTenantMessagesPage() {
   useEffect(() => {
     fetchConversation()
   }, [tenantId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    initialRender.current = true
+  }, [tenantId])
 
   useEffect(() => {
     if (loading) return
