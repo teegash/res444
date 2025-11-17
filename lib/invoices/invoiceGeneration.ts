@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { invoiceStatusToBoolean } from '@/lib/invoices/status-utils'
 
 export interface InvoiceData {
   id: string
@@ -8,7 +9,7 @@ export interface InvoiceData {
   invoice_type: 'rent' | 'water'
   amount: number
   due_date: string
-  status: 'unpaid' | 'partially_paid' | 'paid' | 'overdue'
+  status: boolean
   months_covered: number
   description: string | null
   created_at: string
@@ -177,7 +178,7 @@ async function createRentInvoice(
         invoice_type: 'rent',
         amount: monthlyRent,
         due_date: dueDate,
-        status: 'unpaid',
+        status: false,
         months_covered: 1,
         description: description || `Monthly rent invoice`,
       })
@@ -215,7 +216,7 @@ async function createWaterInvoice(
         invoice_type: 'water',
         amount: amount,
         due_date: dueDate,
-        status: 'unpaid',
+        status: false,
         months_covered: 1,
         description: description || `Water bill invoice`,
       })
@@ -437,7 +438,7 @@ export async function generateMonthlyInvoices(
  */
 export async function calculateInvoiceStatus(
   invoiceId: string
-): Promise<'unpaid' | 'partially_paid' | 'paid' | 'overdue'> {
+): Promise<boolean> {
   try {
     const supabase = await createClient()
 
@@ -449,7 +450,7 @@ export async function calculateInvoiceStatus(
       .single()
 
     if (invoiceError || !invoice) {
-      return 'unpaid'
+      return false
     }
 
     // Get total payments for this invoice
@@ -465,26 +466,10 @@ export async function calculateInvoiceStatus(
     )
 
     const invoiceAmount = parseFloat(invoice.amount.toString())
-    const dueDate = new Date(invoice.due_date)
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
-
-    // Check if overdue
-    if (dueDate < today && totalPaid < invoiceAmount) {
-      return 'overdue'
-    }
-
-    // Check payment status
-    if (totalPaid >= invoiceAmount) {
-      return 'paid'
-    } else if (totalPaid > 0) {
-      return 'partially_paid'
-    } else {
-      return 'unpaid'
-    }
+    return totalPaid >= invoiceAmount
   } catch (error) {
     console.error('Error calculating invoice status:', error)
-    return 'unpaid'
+    return false
   }
 }
 
@@ -535,8 +520,8 @@ export async function markOverdueInvoices(): Promise<{
     // Get all unpaid/partially_paid invoices past due date
     const { data: overdueInvoices, error } = await supabase
       .from('invoices')
-      .select('id, amount')
-      .in('status', ['unpaid', 'partially_paid'])
+      .select('id')
+      .eq('status', false)
       .lt('due_date', today.toISOString().split('T')[0])
 
     if (error) {
@@ -548,32 +533,12 @@ export async function markOverdueInvoices(): Promise<{
       return { success: true, overdue_count: 0 }
     }
 
-    // Update each invoice status
-    let updatedCount = 0
-    for (const invoice of overdueInvoices) {
-      const status = await calculateInvoiceStatus(invoice.id)
-      if (status === 'overdue') {
-        const { error: updateError } = await supabase
-          .from('invoices')
-          .update({
-            status: 'overdue',
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', invoice.id)
-
-        if (!updateError) {
-          updatedCount++
-        }
-      }
-    }
-
     return {
       success: true,
-      overdue_count: updatedCount,
+      overdue_count: overdueInvoices.length,
     }
   } catch (error) {
     console.error('Error in markOverdueInvoices:', error)
     return { success: false, overdue_count: 0 }
   }
 }
-

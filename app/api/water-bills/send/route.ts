@@ -121,7 +121,7 @@ export async function POST(request: NextRequest) {
         invoice_type: 'water',
         amount: Number(totalAmount),
         due_date: dueDateDisplay,
-        status: 'unpaid',
+        status: false,
         description: `Water invoice ${invoiceRef} for ${propertyName || 'unit'} ${unitNumber || ''}`.trim(),
       })
       .select('id')

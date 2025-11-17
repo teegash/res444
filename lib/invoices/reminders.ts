@@ -80,7 +80,7 @@ async function getUnpaidInvoicesForReminder(): Promise<
         )
       `
       )
-      .in('status', ['unpaid', 'partially_paid', 'overdue'])
+      .eq('status', false)
 
     if (error || !invoices) {
       return []
@@ -345,4 +345,3 @@ export async function sendWaterBillReminders(): Promise<SendReminderResult> {
     }
   }
 }
-
