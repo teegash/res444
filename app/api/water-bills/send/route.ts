@@ -1,6 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSmsClient } from '@/lib/africasTalking'
 
+const KE_COUNTRY_CODE = '+254'
+
+function normalizePhoneNumber(raw: string | null | undefined) {
+  if (!raw) return null
+  let sanitized = raw.replace(/[\s-]/g, '')
+  if (sanitized.startsWith('0')) {
+    sanitized = `${KE_COUNTRY_CODE}${sanitized.slice(1)}`
+  }
+  if (!sanitized.startsWith('+')) {
+    sanitized = `+${sanitized}`
+  }
+  const isValid = /^\+\d{7,15}$/.test(sanitized)
+  return isValid ? sanitized : null
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json().catch(() => ({}))
@@ -19,9 +34,14 @@ export async function POST(request: NextRequest) {
       dueDate,
     } = body || {}
 
-    if (!tenantPhone) {
+    const normalizedPhone = normalizePhoneNumber(tenantPhone)
+    if (!normalizedPhone) {
       return NextResponse.json(
-        { success: false, error: 'Tenant phone number is required to send an invoice.' },
+        {
+          success: false,
+          error:
+            'Tenant phone number is missing or invalid. Use an international format such as +254707694388.',
+        },
         { status: 400 }
       )
     }
@@ -61,7 +81,7 @@ export async function POST(request: NextRequest) {
       .join(' ')
 
     await sms.send({
-      to: [tenantPhone],
+      to: [normalizedPhone],
       message,
       from: senderId,
     })
