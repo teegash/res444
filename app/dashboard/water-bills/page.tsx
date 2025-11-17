@@ -48,6 +48,17 @@ export default function WaterBillsPage() {
   const [notes, setNotes] = useState('')
   const [sendingInvoice, setSendingInvoice] = useState(false)
   const [downloading, setDownloading] = useState(false)
+  const [invoiceSent, setInvoiceSent] = useState(false)
+
+  const resetForm = () => {
+    setSelectedProperty('')
+    setSelectedUnit('')
+    setPreviousReading('')
+    setCurrentReading('')
+    setPricePerUnit('85')
+    setNotes('')
+    setInvoiceSent(false)
+  }
 
   useEffect(() => {
     const fetchFormData = async () => {
@@ -147,10 +158,7 @@ export default function WaterBillsPage() {
         throw new Error(payload.error || 'Failed to send invoice.')
       }
 
-      toast({
-        title: 'Invoice sent',
-        description: `Message sent to ${selectedUnitData.tenant?.name || 'tenant'}.`,
-      })
+      setInvoiceSent(true)
     } catch (err) {
       toast({
         title: 'Unable to send invoice',
@@ -189,38 +197,61 @@ export default function WaterBillsPage() {
 
     try {
       setDownloading(true)
-      const doc = new jsPDF()
-      const invoiceDate = new Date().toLocaleDateString()
-      const dueDate = computeDueDate()
+      const doc = new jsPDF({ unit: 'pt', format: 'a4' })
+      const pageWidth = doc.internal.pageSize.getWidth()
+
+      const primaryColor = '#4682B4'
+      const accentColor = '#e3f2fd'
+      const textColor = '#1f2937'
+
+      doc.setFillColor(primaryColor)
+      doc.rect(0, 0, pageWidth, 110, 'F')
+
+      doc.setFontSize(24)
+      doc.setTextColor('#ffffff')
+      doc.text('Water Consumption Invoice', 40, 55)
+
+      doc.setFontSize(12)
+      doc.text(`Invoice Date: ${new Date().toLocaleDateString()}`, 40, 80)
+      doc.text(`Due Date: ${computeDueDate()}`, 40, 98)
+
+      doc.setFillColor('#ffffff')
+      doc.roundedRect(40, 125, pageWidth - 80, 350, 12, 12, 'F')
+
+      doc.setTextColor(primaryColor)
+      doc.setFontSize(16)
+      doc.text(selectedUnitData.tenant?.name || 'Tenant', 60, 155)
+      doc.setFontSize(11)
+      doc.setTextColor(textColor)
+      doc.text(`Property: ${selectedPropertyData?.name || 'N/A'}`, 60, 175)
+      doc.text(`Unit: ${selectedUnitData.unit_number || 'N/A'}`, 60, 190)
+      doc.text(`Phone: ${selectedUnitData.tenant?.phone || 'N/A'}`, 60, 205)
+      doc.text(`Email: ${selectedUnitData.tenant?.email || 'N/A'}`, 60, 220)
+
+      doc.setFillColor(accentColor)
+      doc.roundedRect(60, 245, pageWidth - 120, 120, 8, 8, 'F')
+      doc.setFontSize(12)
+      doc.setTextColor(textColor)
+      doc.text(`Previous Reading: ${previousReading || '-'}`, 75, 275)
+      doc.text(`Current Reading: ${currentReading || '-'}`, 75, 295)
+      doc.text(`Units Consumed: ${unitsConsumed.toFixed(2)} units`, 75, 315)
+      doc.text(`Rate per Unit: ${formatCurrency(pricePerUnit)}`, 75, 335)
 
       doc.setFontSize(18)
-      doc.text(`Water Invoice - ${selectedUnitData.tenant?.name || 'Tenant'}`, 14, 20)
-      doc.setFontSize(12)
-      doc.text(`Property: ${selectedPropertyData?.name || 'N/A'}`, 14, 30)
-      doc.text(`Unit: ${selectedUnitData.unit_number || 'N/A'}`, 14, 37)
-      doc.text(`Invoice Date: ${invoiceDate}`, 14, 44)
-      doc.text(`Due Date: ${dueDate}`, 14, 51)
-
-      doc.line(14, 56, 196, 56)
-      doc.text('Readings', 14, 64)
-      doc.text(`Previous: ${previousReading || '-'}`, 14, 70)
-      doc.text(`Current: ${currentReading || '-'}`, 80, 70)
-      doc.text(`Units Consumed: ${unitsConsumed.toFixed(2)} units`, 14, 77)
-      doc.text(`Rate per Unit: ${formatCurrency(pricePerUnit)}`, 14, 84)
-
-      doc.setFontSize(14)
-      doc.text(`Total Amount Due: ${formatCurrency(totalAmount)}`, 14, 95)
+      doc.setTextColor(primaryColor)
+      doc.text(`Total Due: ${formatCurrency(totalAmount)}`, 75, 375)
 
       doc.setFontSize(12)
-      doc.text('Notes:', 14, 110)
-      doc.text(notes || 'No additional notes provided.', 14, 117, { maxWidth: 180 })
+      doc.setTextColor(textColor)
+      doc.text('Notes', 60, 410)
+      doc.setFontSize(11)
+      doc.text(notes || 'No additional notes provided.', 60, 430, { maxWidth: pageWidth - 120 })
 
       doc.setFontSize(10)
-      doc.text('Thank you for staying current with your utilities.', 14, 140)
+      doc.setTextColor('#6b7280')
+      doc.text('Thank you for staying current with your utilities.', 60, 500)
 
-      doc.save(
-        `water-invoice-${selectedUnitData.unit_number || selectedUnitData.id}-${Date.now()}.pdf`
-      )
+      doc.save(`water-invoice-${selectedUnitData.unit_number || selectedUnitData.id}-${Date.now()}.pdf`)
       setDownloading(false)
     } catch (error) {
       setDownloading(false)
@@ -271,14 +302,32 @@ export default function WaterBillsPage() {
             </Alert>
           )}
 
-          <Card>
-            <CardHeader className="bg-gradient-to-r from-[#4682B4] to-[#5a9fd4] text-white pt-7 pb-6">
-              <CardTitle className="flex items-center gap-2">
-                <Calculator className="h-5 w-5" />
-                Water Consumption Invoice Form
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="pt-6 space-y-6">
+          {invoiceSent ? (
+            <Card>
+              <CardContent className="py-10 text-center space-y-4">
+                <Droplet className="mx-auto h-10 w-10 text-[#4682B4]" />
+                <h2 className="text-2xl font-bold">Invoice Sent Successfully</h2>
+                <p className="text-sm text-muted-foreground">
+                  The tenant has received the SMS invoice. You can download the PDF for your records or send
+                  another invoice.
+                </p>
+                <div className="flex justify-center gap-4">
+                  <Button variant="outline" onClick={handleDownloadPdf}>
+                    Download PDF
+                  </Button>
+                  <Button onClick={resetForm}>Send Another Invoice</Button>
+                </div>
+              </CardContent>
+            </Card>
+          ) : (
+            <Card>
+              <CardHeader className="bg-gradient-to-r from-[#4682B4] to-[#5a9fd4] text-white pt-7 pb-6">
+                <CardTitle className="flex items-center gap-2">
+                  <Calculator className="h-5 w-5" />
+                  Water Consumption Invoice Form
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="pt-6 space-y-6">
               {/* Property and Unit Selection */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
@@ -483,7 +532,8 @@ export default function WaterBillsPage() {
                 </Button>
               </div>
             </CardContent>
-          </Card>
+            </Card>
+          )}
         </div>
       </div>
     </div>
