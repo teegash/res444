@@ -121,6 +121,15 @@ Before deploying to production:
 - [ ] Verify all URLs use HTTPS
 - [ ] Ensure `.env.local` is in `.gitignore`
 
+## Africa's Talking callbacks (ngrok)
+
+Testing delivery callbacks from Africa's Talking requires a public URL. Use ngrok when working locally:
+
+1. Install ngrok (e.g. `brew install ngrok` on macOS or download from https://ngrok.com/).
+2. Start your dev server (`pnpm dev`) and run `ngrok http 3000` in another terminal.
+3. Copy the HTTPS forwarding URL ngrok prints and set it as the Delivery Reports Callback inside the Africa's Talking dashboard, pointing to `https://<ngrok-domain>/api/sms/callback`.
+4. Only run ngrok when you need callbacks—normal local development does not require it.
+
 ## Security Notes
 
 1. **Never commit `.env.local`** - It contains sensitive credentials
@@ -150,4 +159,3 @@ Before deploying to production:
 - Verify `CRON_SECRET` is set and matches in cron service
 - Check cron service can reach your endpoints
 - Verify endpoints are accessible (not behind auth)
-

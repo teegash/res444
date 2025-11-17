@@ -40,6 +40,8 @@ interface NotificationItem {
   message_text: string
   created_at: string
   read: boolean
+  related_entity_type?: string | null
+  related_entity_id?: string | null
 }
 
 interface TenantHeaderProps {
@@ -149,7 +151,11 @@ export function TenantHeader({ summary, loading, onProfileUpdated }: TenantHeade
         setNotifications((current) => current.filter((item) => item.id !== notification.id))
       }
       setSheetOpen(false)
-      router.push('/dashboard/tenant/messages')
+      if (notification.related_entity_type === 'water_bill' && notification.related_entity_id) {
+        router.push(`/dashboard/tenant/invoices/${notification.related_entity_id}`)
+      } else {
+        router.push('/dashboard/tenant/messages')
+      }
     } catch (error) {
       console.error('[TenantHeader] failed to open notification', error)
     }

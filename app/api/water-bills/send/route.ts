@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { sendSMSWithLogging } from '@/lib/sms/smsService'
 import { validatePhoneNumber } from '@/lib/sms/africasTalking'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 
 export async function POST(request: NextRequest) {
   try {
@@ -75,18 +76,103 @@ export async function POST(request: NextRequest) {
       .filter(Boolean)
       .join(' ')
 
+    if (!tenantUserId || !unitId) {
+      return NextResponse.json(
+        { success: false, error: 'Tenant and unit identifiers are required.' },
+        { status: 400 }
+      )
+    }
+
     const supabase = await createClient()
     const {
       data: { user },
+      error: authError,
     } = await supabase.auth.getUser()
+
+    if (authError || !user) {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const adminSupabase = createAdminClient()
+
+    const { data: lease, error: leaseError } = await adminSupabase
+      .from('leases')
+      .select('id, tenant_user_id, unit_id')
+      .eq('tenant_user_id', tenantUserId)
+      .eq('unit_id', unitId)
+      .order('start_date', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    if (leaseError || !lease) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'No active lease found for this tenant and unit.',
+        },
+        { status: 400 }
+      )
+    }
+
+    const { data: invoice, error: invoiceError } = await adminSupabase
+      .from('invoices')
+      .insert({
+        lease_id: lease.id,
+        invoice_type: 'water',
+        amount: Number(totalAmount),
+        due_date: dueDateDisplay,
+        status: 'unpaid',
+        description: `Water invoice ${invoiceRef} for ${propertyName || 'unit'} ${unitNumber || ''}`.trim(),
+      })
+      .select('id')
+      .single()
+
+    if (invoiceError || !invoice) {
+      throw invoiceError || new Error('Failed to create invoice record.')
+    }
+
+    const dueDateObj = new Date(dueDateDisplay)
+    const billingMonth = new Date(dueDateObj.getFullYear(), dueDateObj.getMonth(), 1)
+      .toISOString()
+      .split('T')[0]
+
+    await adminSupabase
+      .from('water_bills')
+      .upsert(
+        {
+          unit_id: unitId,
+          billing_month: billingMonth,
+          meter_reading_start: previousReading ? Number(previousReading) : null,
+          meter_reading_end: currentReading ? Number(currentReading) : null,
+          units_consumed: Number(unitsConsumed),
+          amount: Number(totalAmount),
+          status: 'invoiced_separately',
+          added_to_invoice_id: invoice.id,
+          added_by: user.id,
+          added_at: new Date().toISOString(),
+          is_estimated: false,
+          notes: notes || null,
+        },
+        { onConflict: 'unit_id,billing_month' }
+      )
+
+    await adminSupabase.from('communications').insert({
+      sender_user_id: user.id,
+      recipient_user_id: tenantUserId,
+      related_entity_type: 'water_bill',
+      related_entity_id: invoice.id,
+      message_text: `A new water bill (${invoiceRef}) for ${propertyName || 'your unit'} is due on ${dueDateDisplay}.`,
+      message_type: 'in_app',
+      read: false,
+    })
 
     const smsResult = await sendSMSWithLogging({
       phoneNumber: tenantPhone,
       message,
-      senderUserId: user?.id,
+      senderUserId: user.id,
       recipientUserId: tenantUserId,
       relatedEntityType: 'water_bill',
-      relatedEntityId: unitId,
+      relatedEntityId: invoice.id,
     })
 
     if (!smsResult.success) {
@@ -99,7 +185,10 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    return NextResponse.json({ success: true, data: { communicationId: smsResult.communicationId } })
+    return NextResponse.json({
+      success: true,
+      data: { communicationId: smsResult.communicationId, invoiceId: invoice.id },
+    })
   } catch (error) {
     console.error('[WaterBill.Send] Failed to send invoice SMS', error)
     return NextResponse.json(
