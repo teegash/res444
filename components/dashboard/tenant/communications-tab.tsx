@@ -30,6 +30,7 @@ export function CommunicationsTab() {
   const [loading, setLoading] = useState(true)
   const [sending, setSending] = useState(false)
   const bottomRef = useRef<HTMLDivElement | null>(null)
+  const initialRender = useRef(true)
 
   const fetchMessages = useCallback(async () => {
     if (!user?.id) return
@@ -70,10 +71,10 @@ export function CommunicationsTab() {
   }, [fetchMessages])
 
   useEffect(() => {
-    const timeout = setTimeout(() => {
-      bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-    }, 100)
-    return () => clearTimeout(timeout)
+    if (loading) return
+    const behavior: ScrollBehavior = initialRender.current ? 'auto' : 'smooth'
+    bottomRef.current?.scrollIntoView({ behavior })
+    initialRender.current = false
   }, [messages, loading])
 
   useEffect(() => {

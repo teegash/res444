@@ -47,6 +47,7 @@ export default function ManagerTenantMessagesPage() {
   const [sending, setSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const bottomRef = useRef<HTMLDivElement | null>(null)
+  const initialRender = useRef(true)
 
   const fetchConversation = async () => {
     if (!tenantId) return
@@ -76,10 +77,10 @@ export default function ManagerTenantMessagesPage() {
   }, [tenantId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    const timeout = setTimeout(() => {
-      bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-    }, 100)
-    return () => clearTimeout(timeout)
+    if (loading) return
+    const behavior: ScrollBehavior = initialRender.current ? 'auto' : 'smooth'
+    bottomRef.current?.scrollIntoView({ behavior })
+    initialRender.current = false
   }, [messages, loading])
 
   useEffect(() => {
