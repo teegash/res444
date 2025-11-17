@@ -224,8 +224,8 @@ export default function ManagerTenantMessagesPage() {
                   </div>
                 </div>
               </CardHeader>
-              <CardContent className="flex-1 flex flex-col p-0">
-                <div className="flex-1 overflow-y-auto space-y-4 p-6 bg-slate-50/60" style={{ minHeight: 0 }}>
+              <CardContent className="flex-1 min-h-0 flex flex-col p-0">
+                <div className="flex-1 min-h-0 overflow-y-auto space-y-4 p-6 bg-slate-50/60">
                   {loading ? (
                     <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
                       <Loader2 className="w-4 h-4 mr-2 animate-spin" />
