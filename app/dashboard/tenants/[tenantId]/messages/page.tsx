@@ -52,7 +52,9 @@ export default function ManagerTenantMessagesPage() {
     try {
       setLoading(true)
       setError(null)
-      const response = await fetch(`/api/tenants/${tenantId}/messages`, { cache: 'no-store' })
+      const response = await fetch(`/api/tenants/${tenantId}/messages?tenantId=${tenantId}`, {
+        cache: 'no-store',
+      })
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}))
         throw new Error(payload.error || 'Failed to load conversation.')
@@ -114,7 +116,7 @@ export default function ManagerTenantMessagesPage() {
 
     try {
       setSending(true)
-      const response = await fetch(`/api/tenants/${tenantId}/message`, {
+      const response = await fetch(`/api/tenants/${tenantId}/message?tenantId=${tenantId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: newMessage.trim() }),

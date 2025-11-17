@@ -142,7 +142,9 @@ function TenantActions({
       <DropdownMenuContent align="end">
         <DropdownMenuItem onClick={() => onEdit(tenant)}>Edit</DropdownMenuItem>
         <DropdownMenuItem asChild>
-          <Link href={`/dashboard/tenants/${tenant.tenant_user_id}/messages`}>Open Chat</Link>
+          <Link href={`/dashboard/tenants/${tenant.tenant_user_id}/messages?tenantId=${tenant.tenant_user_id}`}>
+            Open Chat
+          </Link>
         </DropdownMenuItem>
         <DropdownMenuItem
           onClick={() => onRemove(tenant)}
