@@ -201,10 +201,15 @@ export default function WaterBillsPage() {
       setDownloading(true)
       const doc = new jsPDF({ unit: 'pt', format: 'a4' })
       const pageWidth = doc.internal.pageSize.getWidth()
+      const pageHeight = doc.internal.pageSize.getHeight()
 
       const primaryColor = '#4682B4'
       const accentColor = '#e3f2fd'
       const textColor = '#1f2937'
+      const backgroundColor = '#f4f8ff'
+
+      doc.setFillColor(backgroundColor)
+      doc.rect(0, 0, pageWidth, pageHeight, 'F')
 
       doc.setFillColor(primaryColor)
       doc.rect(0, 0, pageWidth, 110, 'F')
