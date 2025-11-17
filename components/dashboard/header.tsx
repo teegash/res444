@@ -24,6 +24,7 @@ import { createClient } from '@/lib/supabase/client'
 
 interface NotificationItem {
   id: string
+  sender_user_id: string
   message_text: string
   created_at: string
   read: boolean
@@ -116,16 +117,20 @@ export function Header() {
     }
   }, [fetchNotifications, supabase, user?.id])
 
-  const handleMarkAsRead = async (id: string) => {
+  const handleNotificationClick = async (notification: NotificationItem) => {
     try {
-      await fetch('/api/manager/notifications', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ids: [id] }),
-      })
-      fetchNotifications()
+      if (!notification.read) {
+        await fetch('/api/manager/notifications', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ids: [notification.id] }),
+        })
+        fetchNotifications()
+      }
+      setNotificationsOpen(false)
+      router.push(`/dashboard/tenants/${notification.sender_user_id}/messages?tenantId=${notification.sender_user_id}`)
     } catch (error) {
-      console.error('[Header] mark notification failed', error)
+      console.error('[Header] notification navigation failed', error)
     }
   }
 
@@ -200,13 +205,12 @@ export function Header() {
                   <p className="text-center text-muted-foreground py-8">No notifications</p>
                 ) : (
                   notifications.map((notification) => (
-                    <div
+                    <button
                       key={notification.id}
-                      onClick={() => handleMarkAsRead(notification.id)}
-                      className={`p-3 rounded-lg border cursor-pointer transition-colors ${
-                        notification.read
-                          ? 'bg-background border-border'
-                          : 'bg-primary/5 border-primary/20'
+                      type="button"
+                      onClick={() => handleNotificationClick(notification)}
+                      className={`w-full text-left p-3 rounded-lg border cursor-pointer transition-colors ${
+                        notification.read ? 'bg-background border-border' : 'bg-primary/5 border-primary/20'
                       }`}
                     >
                       <div className="flex items-start justify-between gap-2">
@@ -223,7 +227,7 @@ export function Header() {
                       <p className="text-xs text-muted-foreground mt-2">
                         {notification.created_at ? formatRelative(notification.created_at) : ''}
                       </p>
-                    </div>
+                    </button>
                   ))
                 )}
               </div>

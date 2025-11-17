@@ -135,6 +135,23 @@ export function TenantHeader({ summary, loading, onProfileUpdated }: TenantHeade
     fetchNotifications()
   }
 
+  const handleNotificationClick = async (notification: NotificationItem) => {
+    try {
+      if (!notification.read) {
+        await fetch('/api/tenant/notifications', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ids: [notification.id] }),
+        })
+        fetchNotifications()
+      }
+      setSheetOpen(false)
+      router.push('/dashboard/tenant/messages')
+    } catch (error) {
+      console.error('[TenantHeader] failed to open notification', error)
+    }
+  }
+
   const openUploadModal = () => {
     setSelectedFile(null)
     setPreviewUrl(summary?.profile?.profile_picture_url || null)
@@ -272,9 +289,11 @@ export function TenantHeader({ summary, loading, onProfileUpdated }: TenantHeade
                     <p className="text-center text-muted-foreground py-6">No notifications yet.</p>
                   ) : (
                     notifications.map((notification) => (
-                      <div
+                      <button
                         key={notification.id}
-                        className={`p-4 rounded-lg border ${
+                        type="button"
+                        onClick={() => handleNotificationClick(notification)}
+                        className={`w-full text-left p-4 rounded-lg border transition ${
                           notification.read ? 'bg-white border-gray-200' : 'bg-blue-50 border-blue-200'
                         }`}
                       >
@@ -286,7 +305,7 @@ export function TenantHeader({ summary, loading, onProfileUpdated }: TenantHeade
                         <p className="text-xs text-gray-500">
                           {notification.created_at ? formatRelative(notification.created_at) : ''}
                         </p>
-                      </div>
+                      </button>
                     ))
                   )}
                 </div>
