@@ -145,7 +145,7 @@ export function Header() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ids: unreadIds }),
       })
-      fetchNotifications()
+      setNotifications([])
     } catch (error) {
       console.error('[Header] mark all notifications failed', error)
     }

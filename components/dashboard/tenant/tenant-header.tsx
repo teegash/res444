@@ -132,7 +132,7 @@ export function TenantHeader({ summary, loading, onProfileUpdated }: TenantHeade
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ids: unreadIds }),
     })
-    fetchNotifications()
+    setNotifications([])
   }
 
   const handleNotificationClick = async (notification: NotificationItem) => {
