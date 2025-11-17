@@ -199,7 +199,7 @@ export default function ManagerTenantMessagesPage() {
 
         <div className="grid gap-6 lg:grid-cols-3">
           <div className="lg:col-span-2">
-            <Card className="h-[600px] flex flex-col border border-slate-200">
+            <Card className="h-[600px] flex flex-col border border-slate-200 overflow-hidden">
               <CardHeader className="border-b bg-white">
                 <div className="flex items-center gap-3">
                   <Avatar className="h-12 w-12 border border-slate-200">
@@ -225,7 +225,7 @@ export default function ManagerTenantMessagesPage() {
                 </div>
               </CardHeader>
               <CardContent className="flex-1 flex flex-col p-0">
-                <div className="flex-1 overflow-y-auto space-y-4 p-6 bg-slate-50/60">
+                <div className="flex-1 overflow-y-auto space-y-4 p-6 bg-slate-50/60" style={{ minHeight: 0 }}>
                   {loading ? (
                     <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
                       <Loader2 className="w-4 h-4 mr-2 animate-spin" />
