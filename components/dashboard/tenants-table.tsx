@@ -266,11 +266,7 @@ export function TenantsTable({ searchQuery = '' }: TenantsTableProps) {
       }
 
       setEditSuccess('Tenant details updated successfully.')
-      setTimeout(() => {
-        setEditTenant(null)
-        setEditSuccess(null)
-        setRefreshIndex((index) => index + 1)
-      }, 1200)
+      setRefreshIndex((index) => index + 1)
     } catch (saveError) {
       toast({
         title: 'Update failed',
@@ -556,14 +552,26 @@ export function TenantsTable({ searchQuery = '' }: TenantsTableProps) {
             </Alert>
           )}
           <DialogFooter>
-            <Button
-              onClick={handleSaveEdit}
-              disabled={savingEdit}
-              className="bg-[#4682B4] hover:bg-[#3a6c93]"
-            >
-              {savingEdit ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-              Save changes
-            </Button>
+            {editSuccess ? (
+              <Button
+                onClick={() => {
+                  setEditTenant(null)
+                  setEditSuccess(null)
+                }}
+                className="bg-[#4682B4] hover:bg-[#3a6c93]"
+              >
+                Close
+              </Button>
+            ) : (
+              <Button
+                onClick={handleSaveEdit}
+                disabled={savingEdit}
+                className="bg-[#4682B4] hover:bg-[#3a6c93]"
+              >
+                {savingEdit ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                Save changes
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
