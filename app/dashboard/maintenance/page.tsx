@@ -206,16 +206,6 @@ export default function MaintenancePage() {
                     </p>
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-3 text-sm">
-                  <div className="rounded-2xl bg-white/15 px-4 py-3 backdrop-blur-sm">
-                    <p className="text-white/70">Tenant satisfaction</p>
-                    <p className="text-2xl font-semibold">98%</p>
-                  </div>
-                  <div className="rounded-2xl bg-white/15 px-4 py-3 backdrop-blur-sm">
-                    <p className="text-white/70">Urgent SLAs</p>
-                    <p className="text-2xl font-semibold">92% met</p>
-                  </div>
-                </div>
               </div>
             </div>
           </section>

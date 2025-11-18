@@ -2,8 +2,6 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 
-const MANAGER_ROLES = new Set(['admin', 'manager', 'caretaker'])
-
 export async function GET() {
   try {
     const supabase = await createClient()
@@ -16,23 +14,7 @@ export async function GET() {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Prefer Auth metadata for the role since some RLS setups may block profile lookups
-    let role: string | undefined = (user.user_metadata?.role as string | undefined)?.toLowerCase()
     const adminSupabase = createAdminClient()
-
-    if (!role) {
-      const { data: profile } = await adminSupabase
-        .from('user_profiles')
-        .select('role')
-        .eq('id', user.id)
-        .maybeSingle()
-      role = profile?.role?.toLowerCase()
-    }
-
-    if (!role || !MANAGER_ROLES.has(role)) {
-      return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })
-    }
-
     const { data, error } = await adminSupabase
       .from('maintenance_requests')
       .select(

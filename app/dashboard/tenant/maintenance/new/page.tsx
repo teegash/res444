@@ -231,7 +231,7 @@ export default function NewMaintenanceRequestPage() {
                   {PRIORITY_OPTIONS.map((option) => (
                     <div
                       key={option.value}
-                      className="flex items-center space-x-3 p-3 border rounded-lg hover:bg-accent/50 transition-colors"
+                      className="flex items-center space-x-3 p-3 border rounded-lg hover:bg-gray-50 transition-colors"
                     >
                       <RadioGroupItem value={option.value} id={option.value} />
                       <Label htmlFor={option.value} className="flex-1 cursor-pointer">

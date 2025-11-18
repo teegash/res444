@@ -101,7 +101,7 @@ export default function TenantMaintenancePage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-blue-600 via-blue-700 to-purple-700">
+    <div className="min-h-screen bg-white">
       <div className="max-w-6xl mx-auto p-4 md:p-6 lg:p-8 space-y-6">
         <div className="flex items-center gap-4">
           <Link href="/dashboard/tenant">
@@ -235,25 +235,21 @@ export default function TenantMaintenancePage() {
           </CardHeader>
           <CardContent>
             <div className="grid gap-4 md:grid-cols-2">
-              <div className="p-4 border rounded-lg hover:bg-accent/50 transition-colors">
+              <div className="p-4 border rounded-lg hover:bg-gray-50 transition-colors">
                 <Plus className="h-5 w-5 text-blue-600 mb-2" />
                 <p className="font-medium mb-1">Report new issue</p>
                 <p className="text-xs text-muted-foreground mb-3">Submit a maintenance request</p>
-                <Link href="/dashboard/tenant/maintenance/new">
-                  <Button size="sm" variant="outline" className="w-full">
-                    Create request
-                  </Button>
-                </Link>
+                <Button size="sm" variant="outline" className="w-full" asChild>
+                  <Link href="/dashboard/tenant/maintenance/new">Create request</Link>
+                </Button>
               </div>
-              <div className="p-4 border rounded-lg hover:bg-accent/50 transition-colors">
+              <div className="p-4 border rounded-lg hover:bg-gray-50 transition-colors">
                 <MessageSquare className="h-5 w-5 text-green-600 mb-2" />
                 <p className="font-medium mb-1">Ask management</p>
                 <p className="text-xs text-muted-foreground mb-3">Send a message to property team</p>
-                <Link href="/dashboard/tenant/messages">
-                  <Button size="sm" variant="outline" className="w-full">
-                    Send message
-                  </Button>
-                </Link>
+                <Button size="sm" variant="outline" className="w-full" asChild>
+                  <Link href="/dashboard/tenant/messages">Send message</Link>
+                </Button>
               </div>
             </div>
             <div className="mt-4 flex items-center gap-2 text-xs text-muted-foreground">
