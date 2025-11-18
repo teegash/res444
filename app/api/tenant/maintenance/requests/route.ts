@@ -89,11 +89,7 @@ export async function GET() {
         completed_at,
         attachment_urls,
         assigned_to,
-        tenant:user_profiles!maintenance_requests_tenant_user_id_fkey (
-          id,
-          full_name,
-          phone_number
-        ),
+        tenant_user_id,
         unit:apartment_units (
           id,
           unit_number,
@@ -112,9 +108,53 @@ export async function GET() {
       throw error
     }
 
+    const tenantIds = (data || [])
+      .map((request) => request.tenant_user_id)
+      .filter((value): value is string => Boolean(value))
+
+    let tenantMap = new Map<string, { id: string; full_name: string | null; phone_number: string | null }>()
+    if (tenantIds.length > 0) {
+      const { data: tenantProfiles, error: tenantError } = await adminSupabase
+        .from('user_profiles')
+        .select('id, full_name, phone_number')
+        .in('id', tenantIds)
+
+      if (tenantError) {
+        throw tenantError
+      }
+
+      tenantMap = new Map((tenantProfiles || []).map((profile) => [profile.id, profile]))
+    }
+
+    const assignedIds = (data || [])
+      .map((request) => request.assigned_to)
+      .filter((value): value is string => Boolean(value))
+
+    let assignedMap = new Map<string, string>()
+    if (assignedIds.length > 0) {
+      const { data: assignedProfiles, error: assignedError } = await adminSupabase
+        .from('user_profiles')
+        .select('id, full_name')
+        .in('id', assignedIds)
+
+      if (assignedError) {
+        throw assignedError
+      }
+
+      assignedMap = new Map(
+        (assignedProfiles || []).map((profile) => [profile.id, profile.full_name || 'Assigned technician'])
+      )
+    }
+
     return NextResponse.json({
       success: true,
-      data: (data || []).map(formatRequestPayload),
+      data: (data || []).map((request) =>
+        formatRequestPayload({
+          ...request,
+          tenant: request.tenant_user_id ? tenantMap.get(request.tenant_user_id) || null : null,
+          assigned_to_name: request.assigned_to ? assignedMap.get(request.assigned_to) || null : null,
+        })
+      ),
     })
   } catch (error) {
     console.error('[TenantMaintenance.GET] Failed to fetch requests', error)

@@ -30,11 +30,6 @@ export async function GET() {
         tenant_user_id,
         assigned_to,
         attachment_urls,
-        tenant:user_profiles!maintenance_requests_tenant_user_id_fkey (
-          id,
-          full_name,
-          phone_number
-        ),
         unit:apartment_units (
           id,
           unit_number,
@@ -50,6 +45,26 @@ export async function GET() {
 
     if (error) {
       throw error
+    }
+
+    const tenantIds = (data || [])
+      .map((request) => request.tenant_user_id)
+      .filter((value): value is string => Boolean(value))
+
+    let tenantMap = new Map<string, { id: string; full_name: string | null; phone_number: string | null }>()
+    if (tenantIds.length > 0) {
+      const { data: tenantProfiles, error: tenantError } = await adminSupabase
+        .from('user_profiles')
+        .select('id, full_name, phone_number')
+        .in('id', tenantIds)
+
+      if (tenantError) {
+        throw tenantError
+      }
+
+      tenantMap = new Map(
+        (tenantProfiles || []).map((profile) => [profile.id, profile])
+      )
     }
 
     const assignedIds = (data || [])
@@ -80,7 +95,7 @@ export async function GET() {
       updated_at: request.updated_at,
       completed_at: request.completed_at,
       attachment_urls: request.attachment_urls || [],
-      tenant: request.tenant || null,
+      tenant: request.tenant_user_id ? tenantMap.get(request.tenant_user_id) || null : null,
       unit: request.unit || null,
       assigned_to: request.assigned_to,
       assigned_to_name: request.assigned_to ? assignedMap.get(request.assigned_to) || null : null,

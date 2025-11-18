@@ -105,18 +105,18 @@ export default function TenantMaintenancePage() {
       <div className="max-w-6xl mx-auto p-4 md:p-6 lg:p-8 space-y-6">
         <div className="flex items-center gap-4">
           <Link href="/dashboard/tenant">
-            <Button variant="ghost" size="sm" className="text-white hover:bg-white/10">
-              <ArrowLeft className="h-4 w-4 mr-2" />
+            <Button variant="outline" size="sm" className="gap-2">
+              <ArrowLeft className="h-4 w-4" />
               Back
             </Button>
           </Link>
-          <div className="flex items-center gap-3 text-white">
-            <div className="p-2 bg-white/20 rounded-lg">
-              <Wrench className="h-5 w-5" />
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-blue-100 rounded-lg">
+              <Wrench className="h-5 w-5 text-blue-600" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold">Maintenance History</h1>
-              <p className="text-sm text-white/80">Track and follow up on your requests</p>
+              <h1 className="text-2xl font-bold text-slate-900">Maintenance History</h1>
+              <p className="text-sm text-muted-foreground">Track your requests and follow up on progress</p>
             </div>
           </div>
           <Link href="/dashboard/tenant/maintenance/new" className="ml-auto">
