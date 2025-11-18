@@ -248,7 +248,11 @@ export default function ManagerTenantMessagesPage() {
                             }`}
                           >
                             <p className="whitespace-pre-line">{message.message_text}</p>
-                            <span className="block text-[10px] text-muted-foreground mt-1">
+                            <span
+                              className={`block text-[10px] mt-1 ${
+                                isManager ? 'text-white/80' : 'text-muted-foreground'
+                              }`}
+                            >
                               {new Date(message.created_at).toLocaleString()}
                             </span>
                           </div>

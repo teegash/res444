@@ -59,6 +59,7 @@ function formatRequestPayload(request: any) {
     unit: request.unit || null,
     assigned_to: request.assigned_to,
     assigned_to_name: request.assigned_to_name || null,
+    assigned_technician_phone: request.assigned_technician_phone || null,
   }
 }
 
@@ -89,6 +90,8 @@ export async function GET() {
         completed_at,
         attachment_urls,
         assigned_to,
+        assigned_technician_name,
+        assigned_technician_phone,
         tenant_user_id,
         unit:apartment_units (
           id,
@@ -152,7 +155,10 @@ export async function GET() {
         formatRequestPayload({
           ...request,
           tenant: request.tenant_user_id ? tenantMap.get(request.tenant_user_id) || null : null,
-          assigned_to_name: request.assigned_to ? assignedMap.get(request.assigned_to) || null : null,
+          assigned_to_name:
+            request.assigned_technician_name ||
+            (request.assigned_to ? assignedMap.get(request.assigned_to) || null : null),
+          assigned_technician_phone: request.assigned_technician_phone || null,
         })
       ),
     })

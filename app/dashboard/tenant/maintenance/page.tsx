@@ -17,6 +17,7 @@ type MaintenanceRequest = {
   updated_at?: string | null
   attachment_urls: string[] | null
   assigned_to_name?: string | null
+  assigned_technician_phone?: string | null
 }
 
 export default function TenantMaintenancePage() {
@@ -95,7 +96,8 @@ export default function TenantMaintenancePage() {
       return 'Issue resolved. Let us know if you need further assistance.'
     }
     if (request.assigned_to_name) {
-      return `Technician ${request.assigned_to_name} has been assigned.`
+      const phoneSuffix = request.assigned_technician_phone ? ` (${request.assigned_technician_phone})` : ''
+      return `Technician ${request.assigned_to_name}${phoneSuffix} has been assigned.`
     }
     return 'Our maintenance team is reviewing your request.'
   }
@@ -220,6 +222,17 @@ export default function TenantMaintenancePage() {
                           Attachment {idx + 1}
                         </a>
                       ))}
+                    </div>
+                  )}
+                  {request.assigned_to_name && (
+                    <div className="mt-4 rounded-xl border border-emerald-100 bg-emerald-50 p-4 text-sm">
+                      <p className="font-semibold text-emerald-900">
+                        Assigned technician: {request.assigned_to_name}
+                        {request.assigned_technician_phone && ` • ${request.assigned_technician_phone}`}
+                      </p>
+                      <p className="text-xs text-emerald-700 mt-1">
+                        Expect a call or visit from the technician soon.
+                      </p>
                     </div>
                   )}
                 </div>

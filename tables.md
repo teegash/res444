@@ -308,6 +308,8 @@ create table public.maintenance_requests (
   priority_level text null,
   status text null,
   assigned_to uuid null,
+  assigned_technician_name text null,
+  assigned_technician_phone text null,
   attachment_urls text[] null,
   created_at timestamp with time zone null default CURRENT_TIMESTAMP,
   updated_at timestamp with time zone null default CURRENT_TIMESTAMP,

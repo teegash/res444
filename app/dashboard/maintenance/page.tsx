@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { FormEvent, useEffect, useMemo, useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -25,9 +25,9 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
 import { Sidebar } from '@/components/dashboard/sidebar'
 import { Header } from '@/components/dashboard/header'
+import { useToast } from '@/components/ui/use-toast'
 
 type MaintenanceRequest = {
   id: string
@@ -55,6 +55,7 @@ type MaintenanceRequest = {
   } | null
   assigned_to?: string | null
   assigned_to_name?: string | null
+  assigned_technician_phone?: string | null
 }
 
 type DescriptionMetadata = {
@@ -92,6 +93,7 @@ function formatDate(value?: string | null) {
 }
 
 export default function MaintenancePage() {
+  const router = useRouter()
   const searchParams = useSearchParams()
   const [requests, setRequests] = useState<MaintenanceRequest[]>([])
   const [selectedRequest, setSelectedRequest] = useState<MaintenanceRequest | null>(null)
@@ -99,17 +101,46 @@ export default function MaintenancePage() {
   const [detailsModalOpen, setDetailsModalOpen] = useState(false)
   const [loadingRequests, setLoadingRequests] = useState(true)
   const [requestError, setRequestError] = useState<string | null>(null)
+  const [searchTerm, setSearchTerm] = useState('')
+  const [statusFilter, setStatusFilter] = useState('all')
+  const [priorityFilter, setPriorityFilter] = useState('all')
+  const [categoryFilter, setCategoryFilter] = useState('all')
+  const [assignTechnicianName, setAssignTechnicianName] = useState('')
+  const [assignTechnicianPhone, setAssignTechnicianPhone] = useState('')
+  const [assignSubmitting, setAssignSubmitting] = useState(false)
+  const [assignError, setAssignError] = useState<string | null>(null)
+  const { toast } = useToast()
 
   const openRequests = useMemo(() => requests.filter((r) => r.status === 'open').length, [requests])
   const inProgress = useMemo(
     () => requests.filter((r) => r.status === 'in_progress' || r.status === 'assigned').length,
     [requests]
   )
-  const completedToday = useMemo(
+  const completedRequests = useMemo(
     () => requests.filter((r) => r.status === 'completed').length,
     [requests]
   )
-  const averageResponse = '2.5 hrs'
+  const averageResponse = useMemo(() => {
+    const durations = requests
+      .map((request) => {
+        if (!request.completed_at || !request.created_at) return null
+        const completed = new Date(request.completed_at).getTime()
+        const created = new Date(request.created_at).getTime()
+        if (Number.isNaN(completed) || Number.isNaN(created) || completed <= created) return null
+        return (completed - created) / 3600000
+      })
+      .filter((value): value is number => value !== null)
+
+    if (durations.length === 0) {
+      return '—'
+    }
+
+    const avgHours = durations.reduce((sum, value) => sum + value, 0) / durations.length
+    if (avgHours >= 24) {
+      return `${(avgHours / 24).toFixed(1)} days`
+    }
+    return `${avgHours.toFixed(1)} hrs`
+  }, [requests])
   const selectedMeta = selectedRequest ? extractDescriptionMeta(selectedRequest.description) : null
   const highlightedRequestId = searchParams?.get('requestId')
 
@@ -154,6 +185,81 @@ export default function MaintenancePage() {
     }
   }, [highlightedRequestId, requests])
 
+  const handleAssignSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    if (!selectedRequest) {
+      setAssignError('Select a maintenance request to assign.')
+      return
+    }
+    if (!assignTechnicianName.trim() || !assignTechnicianPhone.trim()) {
+      setAssignError('Technician name and phone number are required.')
+      return
+    }
+
+    setAssignSubmitting(true)
+    setAssignError(null)
+    try {
+      const response = await fetch('/api/maintenance/requests', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          requestId: selectedRequest.id,
+          technicianName: assignTechnicianName,
+          technicianPhone: assignTechnicianPhone,
+        }),
+      })
+
+      const payload = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        throw new Error(payload.error || 'Failed to assign technician.')
+      }
+
+      const updated = payload.data as {
+        id: string
+        status: string | null
+        assigned_technician_name?: string | null
+        assigned_technician_phone?: string | null
+      }
+
+      setRequests((current) =>
+        current.map((request) =>
+          request.id === updated.id
+            ? {
+                ...request,
+                assigned_to_name: updated.assigned_technician_name || request.assigned_to_name,
+                assigned_technician_phone:
+                  updated.assigned_technician_phone || request.assigned_technician_phone || null,
+                status: updated.status || request.status,
+              }
+            : request
+        )
+      )
+
+      setSelectedRequest((current) =>
+        current && current.id === updated.id
+          ? {
+              ...current,
+              assigned_to_name: updated.assigned_technician_name || current.assigned_to_name,
+              assigned_technician_phone:
+                updated.assigned_technician_phone || current.assigned_technician_phone || null,
+              status: updated.status || current.status,
+            }
+          : current
+      )
+
+      toast({
+        title: 'Technician assigned',
+        description: `${updated.assigned_technician_name || 'Technician'} has been notified.`,
+      })
+      setAssignModalOpen(false)
+    } catch (error) {
+      console.error('[MaintenancePage] assign failed', error)
+      setAssignError(error instanceof Error ? error.message : 'Unable to assign technician.')
+    } finally {
+      setAssignSubmitting(false)
+    }
+  }
+
   const metricCards = [
     {
       label: 'Open tickets',
@@ -170,8 +276,8 @@ export default function MaintenancePage() {
       accent: 'bg-blue-50 text-blue-600',
     },
     {
-      label: 'Completed today',
-      value: completedToday,
+      label: 'Completed requests',
+      value: completedRequests,
       meta: 'Resolved & closed',
       icon: CheckCircle2,
       accent: 'bg-emerald-50 text-emerald-600',
@@ -179,7 +285,7 @@ export default function MaintenancePage() {
     {
       label: 'Avg. response',
       value: averageResponse,
-      meta: 'Across all tickets',
+      meta: 'Average resolution time',
       icon: Clock3,
       accent: 'bg-purple-50 text-purple-600',
     },
@@ -242,20 +348,27 @@ export default function MaintenancePage() {
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                    <Input placeholder="Search requests..." className="pl-10" />
+                    <Input
+                      placeholder="Search requests..."
+                      className="pl-10"
+                      value={searchTerm}
+                      onChange={(event) => setSearchTerm(event.target.value)}
+                    />
                   </div>
-                  <Select>
+                  <Select value={statusFilter} onValueChange={setStatusFilter}>
                     <SelectTrigger className="h-11">
                       <SelectValue placeholder="Status" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">All Status</SelectItem>
                       <SelectItem value="open">Open</SelectItem>
-                      <SelectItem value="progress">In Progress</SelectItem>
+                      <SelectItem value="in_progress">In Progress</SelectItem>
+                      <SelectItem value="assigned">Assigned</SelectItem>
                       <SelectItem value="completed">Completed</SelectItem>
+                      <SelectItem value="cancelled">Cancelled</SelectItem>
                     </SelectContent>
                   </Select>
-                  <Select>
+                  <Select value={priorityFilter} onValueChange={setPriorityFilter}>
                     <SelectTrigger className="h-11">
                       <SelectValue placeholder="Priority" />
                     </SelectTrigger>
@@ -264,9 +377,10 @@ export default function MaintenancePage() {
                       <SelectItem value="high">High</SelectItem>
                       <SelectItem value="medium">Medium</SelectItem>
                       <SelectItem value="low">Low</SelectItem>
+                      <SelectItem value="urgent">Urgent</SelectItem>
                     </SelectContent>
                   </Select>
-                  <Select>
+                  <Select value={categoryFilter} onValueChange={setCategoryFilter}>
                     <SelectTrigger className="h-11">
                       <SelectValue placeholder="Category" />
                     </SelectTrigger>
@@ -276,6 +390,7 @@ export default function MaintenancePage() {
                       <SelectItem value="electrical">Electrical</SelectItem>
                       <SelectItem value="hvac">HVAC</SelectItem>
                       <SelectItem value="security">Security</SelectItem>
+                      <SelectItem value="general">General</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -296,12 +411,14 @@ export default function MaintenancePage() {
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {requests.length === 0 && !loadingRequests ? (
+                  {filteredRequests.length === 0 && !loadingRequests ? (
                     <div className="text-center text-muted-foreground py-10 border rounded-lg">
-                      No maintenance requests yet.
+                      {requests.length === 0
+                        ? 'No maintenance requests yet.'
+                        : 'No requests match your current filters.'}
                     </div>
                   ) : (
-                    requests.map((request) => {
+                    filteredRequests.map((request) => {
                       const meta = extractDescriptionMeta(request.description)
                       const submittedAt = formatDate(request.created_at)
                     const tenantName = request.tenant?.full_name || 'Tenant'
@@ -379,7 +496,14 @@ export default function MaintenancePage() {
                         </div>
                         <div className="rounded-xl bg-slate-50 px-3 py-2">
                           <p className="text-xs uppercase tracking-wide text-slate-500">Assigned to</p>
-                          <p className="font-medium text-slate-900">{request.assigned_to_name || 'Unassigned'}</p>
+                          <div className="font-medium text-slate-900">
+                            {request.assigned_to_name || 'Unassigned'}
+                            {request.assigned_to_name && request.assigned_technician_phone && (
+                              <p className="text-xs text-muted-foreground mt-0.5">
+                                {request.assigned_technician_phone}
+                              </p>
+                            )}
+                          </div>
                         </div>
                       </div>
 
@@ -396,7 +520,17 @@ export default function MaintenancePage() {
                           <Eye className="w-4 h-4 mr-1" />
                           View details
                         </Button>
-                        <Button variant="outline" size="sm" className="rounded-full">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="rounded-full"
+                          onClick={() => {
+                            if (!request.tenant?.id) return
+                            router.push(
+                              `/dashboard/tenants/${request.tenant.id}/messages?tenantId=${request.tenant.id}`
+                            )
+                          }}
+                        >
                           <MessageSquare className="w-4 h-4 mr-1" />
                           Message tenant
                         </Button>
@@ -406,6 +540,9 @@ export default function MaintenancePage() {
                             className="rounded-full bg-amber-500 hover:bg-amber-600"
                             onClick={() => {
                               setSelectedRequest(request)
+                              setAssignTechnicianName('')
+                              setAssignTechnicianPhone('')
+                              setAssignError(null)
                               setAssignModalOpen(true)
                             }}
                           >
@@ -487,6 +624,45 @@ export default function MaintenancePage() {
                   )}
                 </div>
               </div>
+              {selectedRequest.attachment_urls && selectedRequest.attachment_urls.length > 0 && (
+                <div>
+                  <Label className="text-sm font-medium">Attached photos</Label>
+                  <div className="mt-2 grid grid-cols-2 sm:grid-cols-3 gap-3">
+                    {selectedRequest.attachment_urls.map((url, index) => (
+                      <button
+                        key={`${url}-${index}`}
+                        type="button"
+                        onClick={() => window.open(url, '_blank', 'noopener,noreferrer')}
+                        className="group relative overflow-hidden rounded-xl border bg-slate-50 hover:bg-slate-100 transition"
+                      >
+                        <img
+                          src={url}
+                          alt={`Maintenance attachment ${index + 1}`}
+                          className="h-28 w-full object-cover"
+                        />
+                        <span className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white text-xs font-medium">
+                          View full size
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {selectedRequest.assigned_to_name && (
+                <div className="rounded-xl border border-emerald-100 bg-emerald-50 p-4">
+                  <p className="text-sm font-semibold text-emerald-900">
+                    Assigned technician: {selectedRequest.assigned_to_name}
+                  </p>
+                  {selectedRequest.assigned_technician_phone && (
+                    <p className="text-xs text-emerald-800 mt-1">
+                      Contact: {selectedRequest.assigned_technician_phone}
+                    </p>
+                  )}
+                  <p className="text-xs text-emerald-700 mt-1">
+                    Tenant has been notified about this assignment.
+                  </p>
+                </div>
+              )}
               <div className="flex gap-2">
                 <Button className="flex-1">Mark as Complete</Button>
                 <Button variant="outline" className="flex-1">Add Note</Button>
@@ -496,35 +672,101 @@ export default function MaintenancePage() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={assignModalOpen} onOpenChange={setAssignModalOpen}>
+      <Dialog
+        open={assignModalOpen}
+        onOpenChange={(open) => {
+          setAssignModalOpen(open)
+          if (!open) {
+            setAssignError(null)
+            setAssignTechnicianName('')
+            setAssignTechnicianPhone('')
+          }
+        }}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Assign Technician</DialogTitle>
-            <DialogDescription>Select a technician for this maintenance request</DialogDescription>
+            <DialogDescription>Share the contact details with the tenant and update the request</DialogDescription>
           </DialogHeader>
-          <div className="space-y-4">
+          <form className="space-y-4" onSubmit={handleAssignSubmit}>
             <div>
-              <Label>Technician</Label>
-              <Select>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select technician..." />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="peter">Peter Mwangi - Plumber</SelectItem>
-                  <SelectItem value="james">James Ochieng - Electrician</SelectItem>
-                  <SelectItem value="mary">Mary Wanjiru - General Maintenance</SelectItem>
-                </SelectContent>
-              </Select>
+              <Label htmlFor="technician-name">Technician name</Label>
+              <Input
+                id="technician-name"
+                placeholder="e.g. Peter Mwangi"
+                value={assignTechnicianName}
+                onChange={(event) => setAssignTechnicianName(event.target.value)}
+                required
+              />
             </div>
             <div>
-              <Label>Notes (Optional)</Label>
-              <Textarea placeholder="Add any special instructions..." />
+              <Label htmlFor="technician-phone">Technician phone</Label>
+              <Input
+                id="technician-phone"
+                placeholder="e.g. +2547..."
+                value={assignTechnicianPhone}
+                onChange={(event) => setAssignTechnicianPhone(event.target.value)}
+                required
+              />
+              <p className="text-xs text-muted-foreground mt-1">Provide the number the tenant should expect a call from.</p>
             </div>
-            <Button className="w-full">Assign Request</Button>
-          </div>
+            {assignError && <p className="text-sm text-red-600">{assignError}</p>}
+            <Button type="submit" className="w-full" disabled={assignSubmitting || !selectedRequest}>
+              {assignSubmitting ? 'Assigning…' : 'Assign Request'}
+            </Button>
+          </form>
         </DialogContent>
       </Dialog>
     </div>
   </div>
 )
 }
+  const filteredRequests = useMemo(() => {
+    const search = searchTerm.trim().toLowerCase()
+    return requests.filter((request) => {
+      const meta = extractDescriptionMeta(request.description)
+      const categoryRaw = (meta.metadata.category || meta.metadata['category'] || 'general').toLowerCase()
+      const statusRaw = (request.status || 'open').toLowerCase()
+      const priorityRaw = (request.priority_level || 'medium').toLowerCase()
+
+      if (search) {
+        const haystack = [
+          request.title,
+          request.description,
+          request.tenant?.full_name,
+          request.unit?.unit_number,
+          request.unit?.building?.name,
+          meta.metadata.location,
+          meta.metadata['specific location'],
+        ]
+          .filter(Boolean)
+          .join(' ')
+          .toLowerCase()
+
+        if (!haystack.includes(search)) {
+          return false
+        }
+      }
+
+      if (statusFilter !== 'all') {
+        if (statusFilter === 'in_progress') {
+          const activeStatuses = ['in_progress', 'assigned']
+          if (!activeStatuses.includes(statusRaw)) {
+            return false
+          }
+        } else if (statusRaw !== statusFilter) {
+          return false
+        }
+      }
+
+      if (priorityFilter !== 'all' && priorityRaw !== priorityFilter) {
+        return false
+      }
+
+      if (categoryFilter !== 'all' && categoryRaw !== categoryFilter) {
+        return false
+      }
+
+      return true
+    })
+  }, [requests, searchTerm, statusFilter, priorityFilter, categoryFilter])

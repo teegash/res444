@@ -266,7 +266,7 @@ export function TenantHeader({ summary, loading, onProfileUpdated }: TenantHeade
   const profileImage = summary?.profile?.profile_picture_url || null
 
   return (
-    <Card className="border-0 shadow-sm bg-white sticky top-0 z-10">
+    <Card className="border border-white/60 shadow-sm bg-white/70 backdrop-blur-md supports-[backdrop-filter]:bg-white/50 sticky top-0 z-10">
       <div className="px-6 py-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
