@@ -8,8 +8,8 @@ interface RouteParams {
   }
 }
 
-export async function GET(_request: NextRequest, { params }: RouteParams) {
-  const invoiceId = params?.invoiceId
+export async function GET(request: NextRequest, { params }: RouteParams) {
+  const invoiceId = params?.invoiceId || request.nextUrl.searchParams.get('invoiceId')
   if (!invoiceId) {
     return NextResponse.json({ success: false, error: 'Invoice id is required.' }, { status: 400 })
   }
