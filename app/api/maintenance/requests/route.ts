@@ -158,17 +158,15 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Invalid request payload.' }, { status: 400 })
     }
 
-    const { requestId, technicianName, technicianPhone } = body as {
+    const { action = 'assign', requestId } = body as {
+      action?: 'assign' | 'complete'
       requestId?: string
       technicianName?: string
       technicianPhone?: string
     }
 
-    if (!requestId || !technicianName?.trim() || !technicianPhone?.trim()) {
-      return NextResponse.json(
-        { success: false, error: 'Technician name and phone are required.' },
-        { status: 400 }
-      )
+    if (!requestId) {
+      return NextResponse.json({ success: false, error: 'Request ID is required.' }, { status: 400 })
     }
 
     const supabase = await createClient()
@@ -194,7 +192,7 @@ export async function PATCH(request: NextRequest) {
 
     const { data: targetRequest, error: targetError } = await adminSupabase
       .from('maintenance_requests')
-      .select('id, tenant_user_id')
+      .select('id, tenant_user_id, title')
       .eq('id', requestId)
       .maybeSingle()
 
@@ -206,42 +204,83 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Request not found.' }, { status: 404 })
     }
 
-    const trimmedName = technicianName.trim()
-    const trimmedPhone = technicianPhone.trim()
+    if (action === 'assign') {
+      const { technicianName, technicianPhone } = body as { technicianName?: string; technicianPhone?: string }
+      if (!technicianName?.trim() || !technicianPhone?.trim()) {
+        return NextResponse.json(
+          { success: false, error: 'Technician name and phone are required.' },
+          { status: 400 }
+        )
+      }
+      const trimmedName = technicianName.trim()
+      const trimmedPhone = technicianPhone.trim()
 
-    const { data: updated, error: updateError } = await adminSupabase
-      .from('maintenance_requests')
-      .update({
-        assigned_technician_name: trimmedName,
-        assigned_technician_phone: trimmedPhone,
-        status: 'assigned',
-        updated_at: new Date().toISOString(),
+      const { data: updated, error: updateError } = await adminSupabase
+        .from('maintenance_requests')
+        .update({
+          assigned_technician_name: trimmedName,
+          assigned_technician_phone: trimmedPhone,
+          status: 'assigned',
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', requestId)
+        .select('id, title, status, assigned_technician_name, assigned_technician_phone, tenant_user_id')
+        .single()
+
+      if (updateError || !updated) {
+        throw updateError || new Error('Failed to assign technician.')
+      }
+
+      await adminSupabase.from('communications').insert({
+        sender_user_id: user.id,
+        recipient_user_id: updated.tenant_user_id,
+        related_entity_type: 'maintenance_request',
+        related_entity_id: updated.id,
+        message_text: `Technician ${trimmedName} has been assigned (${trimmedPhone}).`,
+        message_type: 'in_app',
+        read: false,
       })
-      .eq('id', requestId)
-      .select('id, title, status, assigned_technician_name, assigned_technician_phone, tenant_user_id')
-      .single()
 
-    if (updateError || !updated) {
-      throw updateError || new Error('Failed to assign technician.')
+      return NextResponse.json({ success: true, data: updated })
     }
 
-    await adminSupabase.from('communications').insert({
-      sender_user_id: user.id,
-      recipient_user_id: updated.tenant_user_id,
-      related_entity_type: 'maintenance_request',
-      related_entity_id: updated.id,
-      message_text: `Technician ${trimmedName} has been assigned (${trimmedPhone}).`,
-      message_type: 'in_app',
-      read: false,
-    })
+    if (action === 'complete') {
+      const now = new Date().toISOString()
+      const { data: updated, error: updateError } = await adminSupabase
+        .from('maintenance_requests')
+        .update({
+          status: 'completed',
+          completed_at: now,
+          updated_at: now,
+        })
+        .eq('id', requestId)
+        .select('id, title, status, completed_at, tenant_user_id')
+        .single()
 
-    return NextResponse.json({ success: true, data: updated })
+      if (updateError || !updated) {
+        throw updateError || new Error('Failed to mark request complete.')
+      }
+
+      await adminSupabase.from('communications').insert({
+        sender_user_id: user.id,
+        recipient_user_id: updated.tenant_user_id,
+        related_entity_type: 'maintenance_request',
+        related_entity_id: updated.id,
+        message_text: `Your maintenance request "${updated.title}" has been marked as complete.`,
+        message_type: 'in_app',
+        read: false,
+      })
+
+      return NextResponse.json({ success: true, data: updated })
+    }
+
+    return NextResponse.json({ success: false, error: 'Unsupported action.' }, { status: 400 })
   } catch (error) {
-    console.error('[ManagerMaintenance.PATCH] Failed to assign technician', error)
+    console.error('[ManagerMaintenance.PATCH] Failed to update request', error)
     return NextResponse.json(
       {
         success: false,
-        error: error instanceof Error ? error.message : 'Failed to assign technician.',
+        error: error instanceof Error ? error.message : 'Failed to update maintenance request.',
       },
       { status: 500 }
     )

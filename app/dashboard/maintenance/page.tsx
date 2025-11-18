@@ -109,6 +109,7 @@ export default function MaintenancePage() {
   const [assignTechnicianPhone, setAssignTechnicianPhone] = useState('')
   const [assignSubmitting, setAssignSubmitting] = useState(false)
   const [assignError, setAssignError] = useState<string | null>(null)
+  const [completeSubmitting, setCompleteSubmitting] = useState(false)
   const { toast } = useToast()
 
   const openRequests = useMemo(() => requests.filter((r) => r.status === 'open').length, [requests])
@@ -306,6 +307,64 @@ export default function MaintenancePage() {
       setAssignError(error instanceof Error ? error.message : 'Unable to assign technician.')
     } finally {
       setAssignSubmitting(false)
+    }
+  }
+
+  const handleMarkComplete = async () => {
+    if (!selectedRequest) {
+      setAssignError('Select a maintenance request to update.')
+      return
+    }
+    setAssignError(null)
+    setCompleteSubmitting(true)
+    try {
+      const response = await fetch('/api/maintenance/requests', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'complete',
+          requestId: selectedRequest.id,
+        }),
+      })
+
+      const payload = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        throw new Error(payload.error || 'Failed to mark request as complete.')
+      }
+
+      const updated = payload.data as { id: string; status?: string | null; completed_at?: string | null }
+
+      setRequests((current) =>
+        current.map((request) =>
+          request.id === updated.id
+            ? {
+                ...request,
+                status: updated.status || 'completed',
+                completed_at: updated.completed_at || request.completed_at,
+              }
+            : request
+        )
+      )
+
+      setSelectedRequest((current) =>
+        current && current.id === updated.id
+          ? {
+              ...current,
+              status: updated.status || 'completed',
+              completed_at: updated.completed_at || current.completed_at,
+            }
+          : current
+      )
+
+      toast({
+        title: 'Request completed',
+        description: 'The tenant has been notified.',
+      })
+    } catch (error) {
+      console.error('[MaintenancePage] complete failed', error)
+      setAssignError(error instanceof Error ? error.message : 'Unable to complete request.')
+    } finally {
+      setCompleteSubmitting(false)
     }
   }
 
@@ -713,8 +772,15 @@ export default function MaintenancePage() {
                 </div>
               )}
               <div className="flex gap-2">
-                <Button className="flex-1">Mark as Complete</Button>
-                <Button variant="outline" className="flex-1">Add Note</Button>
+                <Button
+                  className="flex-1"
+                  onClick={handleMarkComplete}
+                  disabled={
+                    !selectedRequest || selectedRequest.status === 'completed' || completeSubmitting
+                  }
+                >
+                  {completeSubmitting ? 'Marking…' : 'Mark as Complete'}
+                </Button>
               </div>
             </div>
           )}
