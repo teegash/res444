@@ -108,6 +108,7 @@ export default function MaintenancePage() {
     [requests]
   )
   const averageResponse = '2.5 hrs'
+  const selectedMeta = selectedRequest ? extractDescriptionMeta(selectedRequest.description) : null
 
   useEffect(() => {
     const fetchRequests = async () => {
@@ -403,7 +404,7 @@ export default function MaintenancePage() {
                       </div>
                     </CardContent>
                   </Card>
-                    ))
+                    )})
                   )}
                 </div>
               )}
@@ -515,4 +516,3 @@ export default function MaintenancePage() {
   </div>
 )
 }
-  const selectedMeta = selectedRequest ? extractDescriptionMeta(selectedRequest.description) : null
