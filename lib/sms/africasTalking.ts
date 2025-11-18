@@ -162,12 +162,37 @@ export async function sendSMS(
       })),
     }
   } catch (error) {
-    const err = error as Error
-    console.error('Error sending SMS via Africa\'s Talking:', err)
+    const err = error as any
+    const response = err?.response
+    const responseData = response?.data
+    const recipient = responseData?.SMSMessageData?.Recipients?.[0]
+
+    const errorPayload = {
+      message: err?.message,
+      status: response?.status,
+      statusText: response?.statusText,
+      data: responseData,
+      username: config.username,
+      environment: config.environment,
+    }
+
+    console.error("Error sending SMS via Africa's Talking:", errorPayload)
+
+    const friendlyMessage =
+      recipient?.status ||
+      responseData?.SMSMessageData?.Message ||
+      err?.message ||
+      'Failed to send SMS'
+
     return {
       success: false,
-      errorCode: 'EXCEPTION',
-      errorMessage: err.message || 'Failed to send SMS',
+      errorCode:
+        (typeof recipient?.statusCode !== 'undefined'
+          ? String(recipient.statusCode)
+          : response?.status
+            ? String(response.status)
+            : 'EXCEPTION'),
+      errorMessage: friendlyMessage,
     }
   }
 }
@@ -185,13 +210,19 @@ function envChain(...keys: string[]) {
   return { value: undefined, key: undefined }
 }
 
+function envFallback(...keys: string[]): string | undefined {
+  return envChain(...keys).value
+}
+
 export function getAfricasTalkingConfig(): AfricasTalkingConfig {
   const apiKeyResult = envChain('AFRICAS_TALKING_API_KEY', 'AT_API_KEY', 'AT_SANDBOX_API_KEY')
   const usernameResult = envChain('AFRICAS_TALKING_USERNAME', 'AT_USERNAME', 'AT_SANDBOX_USERNAME')
   const environmentResult = envChain('AFRICAS_TALKING_ENVIRONMENT', 'AT_ENVIRONMENT')
 
   if (!apiKeyResult.value) {
-    throw new Error("Africa's Talking API key is not configured. Set AFRICAS_TALKING_API_KEY or AT_API_KEY.")
+    throw new Error(
+      "Africa's Talking API key is not configured. Set AFRICAS_TALKING_API_KEY, AT_API_KEY, or AT_SANDBOX_API_KEY."
+    )
   }
 
   let environment = environmentResult.value as 'sandbox' | 'production' | undefined
