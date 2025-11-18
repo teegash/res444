@@ -175,30 +175,42 @@ export async function sendSMS(
 /**
  * Get Africa's Talking config from environment
  */
-function envFallback(...keys: string[]): string | undefined {
+function envChain(...keys: string[]) {
   for (const key of keys) {
     const value = process.env[key]
     if (value && value.length > 0) {
-      return value
+      return { value, key }
     }
   }
-  return undefined
+  return { value: undefined, key: undefined }
 }
 
 export function getAfricasTalkingConfig(): AfricasTalkingConfig {
-  const apiKey = envFallback('AFRICAS_TALKING_API_KEY', 'AT_API_KEY', 'AT_SANDBOX_API_KEY')
-  const username = envFallback('AFRICAS_TALKING_USERNAME', 'AT_USERNAME', 'AT_SANDBOX_USERNAME') || 'sandbox'
-  const senderId = envFallback('AFRICAS_TALKING_SENDER_ID', 'AT_SMS_SHORTCODE', 'AT_SHORTCODE')
-  const environment = (envFallback('AFRICAS_TALKING_ENVIRONMENT', 'AT_ENVIRONMENT') as 'sandbox' | 'production') || 'sandbox'
+  const apiKeyResult = envChain('AFRICAS_TALKING_API_KEY', 'AT_API_KEY', 'AT_SANDBOX_API_KEY')
+  const usernameResult = envChain('AFRICAS_TALKING_USERNAME', 'AT_USERNAME', 'AT_SANDBOX_USERNAME')
+  const environmentResult = envChain('AFRICAS_TALKING_ENVIRONMENT', 'AT_ENVIRONMENT')
 
-  if (!apiKey) {
+  if (!apiKeyResult.value) {
     throw new Error("Africa's Talking API key is not configured. Set AFRICAS_TALKING_API_KEY or AT_API_KEY.")
   }
 
+  let environment = environmentResult.value as 'sandbox' | 'production' | undefined
+  if (!environment) {
+    environment = apiKeyResult.key?.includes('SANDBOX') ? 'sandbox' : 'production'
+  }
+
+  const username =
+    usernameResult.value ||
+    (environment === 'sandbox' ? 'sandbox' : undefined) ||
+    'sandbox'
+
+  const senderIdResult = envChain('AFRICAS_TALKING_SENDER_ID', 'AT_SMS_SHORTCODE', 'AT_SHORTCODE')
+  const senderId = environment === 'production' ? senderIdResult.value : undefined
+
   return {
-    apiKey,
+    apiKey: apiKeyResult.value,
     username,
-    senderId: environment === 'production' ? senderId : undefined,
+    senderId,
     environment,
   }
 }

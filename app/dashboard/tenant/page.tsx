@@ -108,7 +108,6 @@ export default function TenantDashboard() {
         )}
         <TenantHeader summary={summary} onProfileUpdated={fetchSummary} loading={loading} />
         <TenantInfoCards summary={summary} loading={loading} />
-        <TenantQuickActions />
         
         <div className="grid gap-6 md:grid-cols-3 mt-8">
           {/* Recent Activity */}
@@ -194,6 +193,8 @@ export default function TenantDashboard() {
             </CardContent>
           </Card>
         </div>
+
+        <TenantQuickActions />
 
         {/* Quick Stats */}
         <Card className="bg-gradient-to-br from-blue-600 to-orange-500 text-white shadow-lg">
