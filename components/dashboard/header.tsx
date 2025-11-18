@@ -284,7 +284,7 @@ export function Header() {
           {/* Profile Dropdown */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="gap-2 pl-2 pr-1">
+              <Button variant="ghost" className="gap-2 pl-2 pr-1 hover:bg-gray-100 dark:hover:bg-gray-800">
                 <div className="w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center border border-gray-200 dark:border-gray-700">
                   <User className="w-4 h-4 text-gray-600 dark:text-gray-400" />
                 </div>
