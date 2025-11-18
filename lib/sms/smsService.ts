@@ -1,7 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
-import { sendSMS, getAfricasTalkingConfig, isAfricasTalkingConfigured, formatPhoneNumber } from './africasTalking'
+import { sendSMS, getAfricasTalkingConfig, formatPhoneNumber } from './africasTalking'
 
 const SYSTEM_SENDER_ID = '00000000-0000-0000-0000-000000000000'
 
@@ -31,40 +31,10 @@ export async function sendSMSWithLogging(
   try {
     const supabase = await createClient()
 
-    // 1. Check if Africa's Talking is configured
-    if (!isAfricasTalkingConfigured()) {
-      console.warn('Africa\'s Talking not configured, logging SMS without sending')
-
-      const senderId = options.senderUserId || SYSTEM_SENDER_ID
-      const recipientId = options.recipientUserId || null
-      
-      // Still log to database but mark as not sent
-      const { data: communication } = await supabase
-        .from('communications')
-        .insert({
-          sender_user_id: senderId,
-          recipient_user_id: recipientId,
-          related_entity_type: options.relatedEntityType || null,
-          related_entity_id: options.relatedEntityId || null,
-          message_text: options.message,
-          message_type: 'sms',
-          read: false,
-          sent_via_africas_talking: false,
-        })
-        .select('id')
-        .single()
-
-      return {
-        success: false,
-        error: 'Africa\'s Talking not configured',
-        communicationId: communication?.id,
-      }
-    }
-
-    // 2. Format phone number
+    // 1. Format phone number
     const formattedPhone = formatPhoneNumber(options.phoneNumber)
 
-    // 3. Get config and send SMS
+    // 2. Get config and send SMS
     const config = getAfricasTalkingConfig()
     const smsResult = await sendSMS(config, {
       message: options.message,
