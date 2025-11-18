@@ -118,7 +118,10 @@ export default function MaintenancePage() {
       try {
         setLoadingRequests(true)
         setRequestError(null)
-        const response = await fetch('/api/maintenance/requests', { cache: 'no-store' })
+        const response = await fetch('/api/maintenance/requests', {
+          cache: 'no-store',
+          credentials: 'include',
+        })
         if (!response.ok) {
           const payload = await response.json().catch(() => ({}))
           throw new Error(payload.error || 'Failed to load maintenance requests.')

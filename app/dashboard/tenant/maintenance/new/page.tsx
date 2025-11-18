@@ -282,11 +282,8 @@ export default function NewMaintenanceRequestPage() {
                 <label htmlFor="attachments" className="flex flex-col items-center gap-2 cursor-pointer">
                   <Upload className="h-8 w-8 text-muted-foreground" />
                   <p className="text-sm text-muted-foreground">
-                    Upload up to 3 photos to help us understand the issue better
+                    Click here to upload up to 3 photos that show the issue clearly
                   </p>
-                  <Button variant="outline" size="sm" type="button">
-                    Choose Files
-                  </Button>
                 </label>
                 <input
                   id="attachments"
