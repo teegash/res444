@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -91,6 +92,7 @@ function formatDate(value?: string | null) {
 }
 
 export default function MaintenancePage() {
+  const searchParams = useSearchParams()
   const [requests, setRequests] = useState<MaintenanceRequest[]>([])
   const [selectedRequest, setSelectedRequest] = useState<MaintenanceRequest | null>(null)
   const [assignModalOpen, setAssignModalOpen] = useState(false)
@@ -109,6 +111,7 @@ export default function MaintenancePage() {
   )
   const averageResponse = '2.5 hrs'
   const selectedMeta = selectedRequest ? extractDescriptionMeta(selectedRequest.description) : null
+  const highlightedRequestId = searchParams?.get('requestId')
 
   useEffect(() => {
     const fetchRequests = async () => {
@@ -132,6 +135,21 @@ export default function MaintenancePage() {
 
     fetchRequests()
   }, [])
+
+  useEffect(() => {
+    if (!highlightedRequestId || requests.length === 0) return
+    const matched = requests.find((req) => req.id === highlightedRequestId) || null
+    if (matched) {
+      setSelectedRequest(matched)
+      setDetailsModalOpen(true)
+      const card = document.getElementById(`maintenance-card-${matched.id}`)
+      if (card) {
+        card.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        card.classList.add('ring-2', 'ring-blue-400')
+        setTimeout(() => card.classList.remove('ring-2', 'ring-blue-400'), 2000)
+      }
+    }
+  }, [highlightedRequestId, requests])
 
   const metricCards = [
     {
@@ -199,7 +217,7 @@ export default function MaintenancePage() {
             </div>
           </section>
 
-          <div className="max-w-7xl mx-auto px-4 md:px-6 lg:px-8 space-y-8 mt-[-3rem]">
+          <div className="max-w-7xl mx-auto px-4 md:px-6 lg:px-8 space-y-8 mt-6">
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
               {metricCards.map((metric) => (
                 <Card key={metric.label} className="border border-white/60 shadow-lg/5 bg-white">
@@ -304,6 +322,7 @@ export default function MaintenancePage() {
                     return (
                   <Card
                     key={request.id}
+                    id={`maintenance-card-${request.id}`}
                     className="relative border border-slate-100 bg-white shadow-sm hover:shadow-lg transition-all"
                   >
                     <span

@@ -1,8 +1,7 @@
 'use client'
 
-import { useMemo, useState } from 'react'
-import { useRouter } from 'next/navigation'
-import { ArrowLeft, Wrench, Upload, Loader2 } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { ArrowLeft, Wrench, Upload, Loader2, CheckCircle2, History } from 'lucide-react'
 import Link from 'next/link'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -36,7 +35,6 @@ const PRIORITY_OPTIONS = [
 ] as const
 
 export default function NewMaintenanceRequestPage() {
-  const router = useRouter()
   const { toast } = useToast()
 
   const [category, setCategory] = useState<string>('')
@@ -47,8 +45,10 @@ export default function NewMaintenanceRequestPage() {
   const [contactPreference, setContactPreference] = useState('phone')
   const [contactTime, setContactTime] = useState('')
   const [attachments, setAttachments] = useState<File[]>([])
+  const [previewUrls, setPreviewUrls] = useState<string[]>([])
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [successRequest, setSuccessRequest] = useState<{ id: string; title: string } | null>(null)
 
   const attachmentDetails = useMemo(
     () =>
@@ -58,9 +58,35 @@ export default function NewMaintenanceRequestPage() {
     [attachments]
   )
 
+  useEffect(() => {
+    const urls = attachments.map((file) => URL.createObjectURL(file))
+    setPreviewUrls(urls)
+    return () => {
+      urls.forEach((url) => URL.revokeObjectURL(url))
+    }
+  }, [attachments])
+
+  const clearFormFields = () => {
+    setCategory('')
+    setPriority('medium')
+    setTitle('')
+    setDescription('')
+    setLocation('')
+    setContactPreference('phone')
+    setContactTime('')
+    setAttachments([])
+    setPreviewUrls([])
+    setError(null)
+  }
+
+  const handleSendAnother = () => {
+    clearFormFields()
+    setSuccessRequest(null)
+  }
+
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files ? Array.from(event.target.files) : []
-    const limited = files.slice(0, 5)
+    const limited = files.slice(0, 3)
     setAttachments(limited)
   }
 
@@ -109,16 +135,17 @@ export default function NewMaintenanceRequestPage() {
         }),
       })
 
+      const payload = await response.json().catch(() => ({}))
       if (!response.ok) {
-        const payload = await response.json().catch(() => ({}))
         throw new Error(payload.error || 'Failed to submit maintenance request.')
       }
+      clearFormFields()
+      setSuccessRequest({ id: payload.data?.id || '', title })
 
       toast({
         title: 'Request submitted',
         description: 'We have received your maintenance request and will respond shortly.',
       })
-      router.push('/dashboard/tenant/maintenance')
     } catch (err) {
       console.error('[TenantMaintenanceForm] submit failed', err)
       setError(err instanceof Error ? err.message : 'Unable to submit maintenance request.')
@@ -145,6 +172,28 @@ export default function NewMaintenanceRequestPage() {
           </div>
         </div>
 
+        {successRequest ? (
+          <Card className="text-center">
+            <CardContent className="space-y-4 py-12">
+              <CheckCircle2 className="w-12 h-12 text-green-500 mx-auto" />
+              <div>
+                <h2 className="text-2xl font-semibold">Request submitted</h2>
+                <p className="text-sm text-muted-foreground mt-1">
+                  We&apos;ve logged your maintenance request. Our team will review it and contact you shortly.
+                </p>
+              </div>
+              <div className="flex flex-col sm:flex-row gap-3 sm:justify-center">
+                <Button onClick={handleSendAnother}>Send another request</Button>
+                <Link href="/dashboard/tenant/maintenance" className="w-full sm:w-auto">
+                  <Button variant="outline" className="w-full gap-2">
+                    <History className="w-4 h-4" />
+                    View previous requests
+                  </Button>
+                </Link>
+              </div>
+            </CardContent>
+          </Card>
+        ) : (
         <Card>
           <CardHeader>
             <CardTitle>Submit Maintenance Request</CardTitle>
@@ -232,16 +281,31 @@ export default function NewMaintenanceRequestPage() {
                 <label className="border-2 border-dashed rounded-lg p-8 text-center hover:bg-accent/50 transition-colors cursor-pointer block">
                   <Upload className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
                   <p className="text-sm text-muted-foreground mb-1">
-                    Upload photos to help us understand the issue better
+                    Upload up to 3 photos to help us understand the issue better
                   </p>
                   <Button variant="outline" size="sm" type="button">
                     Choose Files
                   </Button>
-                  <input type="file" className="hidden" multiple accept="image/*" onChange={handleFileChange} />
+                  <input
+                    type="file"
+                    className="hidden"
+                    multiple
+                    accept="image/*"
+                    onChange={handleFileChange}
+                  />
                   {attachmentDetails && (
                     <p className="text-xs text-muted-foreground mt-2">Attached: {attachmentDetails}</p>
                   )}
                 </label>
+                {previewUrls.length > 0 && (
+                  <div className="grid grid-cols-3 gap-3 mt-3">
+                    {previewUrls.map((src, idx) => (
+                      <div key={src} className="relative rounded-lg overflow-hidden bg-slate-100">
+                        <img src={src} alt={`Attachment ${idx + 1}`} className="w-full h-24 object-cover" />
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div className="space-y-3">
@@ -290,6 +354,7 @@ export default function NewMaintenanceRequestPage() {
             </form>
           </CardContent>
         </Card>
+        )}
       </div>
     </div>
   )

@@ -230,6 +230,16 @@ export async function POST(request: NextRequest) {
       throw insertError || new Error('Failed to create maintenance request.')
     }
 
+    await adminSupabase.from('communications').insert({
+      sender_user_id: user.id,
+      recipient_user_id: user.id,
+      related_entity_type: 'maintenance_request',
+      related_entity_id: inserted.id,
+      message_text: 'Maintenance request received. We will update you soon.',
+      message_type: 'in_app',
+      read: false,
+    })
+
     const { data: managers } = await adminSupabase
       .from('user_profiles')
       .select('id')
@@ -239,7 +249,6 @@ export async function POST(request: NextRequest) {
       managers
         ?.map((profile) => profile.id)
         .filter((id): id is string => Boolean(id) && id !== user.id) || []
-
     if (managerIds.length > 0) {
       const notificationRows = managerIds.map((managerId) => ({
         sender_user_id: user.id,

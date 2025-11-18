@@ -1,8 +1,8 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { ArrowLeft, Wrench, Plus, MessageSquare, Loader2 } from 'lucide-react'
 import Link from 'next/link'
+import { ArrowLeft, Wrench, Plus, MessageSquare, Loader2, FileText, AlertCircle } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -11,13 +11,15 @@ type MaintenanceRequest = {
   id: string
   title: string
   description: string
-  priority_level: string
-  status: string
+  priority_level: string | null
+  status: string | null
   created_at: string
+  updated_at?: string | null
   attachment_urls: string[] | null
+  assigned_to_name?: string | null
 }
 
-export default function MaintenancePage() {
+export default function TenantMaintenancePage() {
   const [requests, setRequests] = useState<MaintenanceRequest[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -59,7 +61,7 @@ export default function MaintenancePage() {
     return date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
   }
 
-  const priorityColor = (priority: string) => {
+  const priorityBadge = (priority?: string | null) => {
     switch (priority) {
       case 'high':
         return 'bg-red-100 text-red-700'
@@ -72,12 +74,12 @@ export default function MaintenancePage() {
     }
   }
 
-  const statusColor = (status: string) => {
+  const statusBadge = (status?: string | null) => {
     switch (status) {
       case 'open':
         return 'bg-blue-100 text-blue-700'
-      case 'in_progress':
       case 'assigned':
+      case 'in_progress':
         return 'bg-amber-100 text-amber-700'
       case 'completed':
         return 'bg-emerald-100 text-emerald-700'
@@ -88,23 +90,33 @@ export default function MaintenancePage() {
     }
   }
 
+  const responseMessage = (request: MaintenanceRequest) => {
+    if (request.status === 'completed') {
+      return 'Issue resolved. Let us know if you need further assistance.'
+    }
+    if (request.assigned_to_name) {
+      return `Technician ${request.assigned_to_name} has been assigned.`
+    }
+    return 'Our maintenance team is reviewing your request.'
+  }
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-600 via-blue-700 to-purple-700">
+    <div className="min-h-screen bg-gradient-to-b from-blue-600 via-blue-700 to-purple-700">
       <div className="max-w-6xl mx-auto p-4 md:p-6 lg:p-8 space-y-6">
-        <div className="flex items-center gap-4 mb-6">
+        <div className="flex items-center gap-4">
           <Link href="/dashboard/tenant">
             <Button variant="ghost" size="sm" className="text-white hover:bg-white/10">
               <ArrowLeft className="h-4 w-4 mr-2" />
               Back
             </Button>
           </Link>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 text-white">
             <div className="p-2 bg-white/20 rounded-lg">
-              <Wrench className="h-5 w-5 text-white" />
+              <Wrench className="h-5 w-5" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-white">Maintenance Requests</h1>
-              <p className="text-sm text-white/80">Track your requests and their progress</p>
+              <h1 className="text-2xl font-bold">Maintenance History</h1>
+              <p className="text-sm text-white/80">Track and follow up on your requests</p>
             </div>
           </div>
           <Link href="/dashboard/tenant/maintenance/new" className="ml-auto">
@@ -116,30 +128,33 @@ export default function MaintenancePage() {
         </div>
 
         <div className="grid gap-4 md:grid-cols-3">
-          <Card className="bg-white/95">
-            <CardHeader className="pb-3">
-              <CardDescription className="text-orange-600 font-semibold text-lg">{stats.open}</CardDescription>
-              <CardTitle className="text-sm">Open Requests</CardTitle>
+          <Card className="bg-white/95 shadow-sm">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm text-muted-foreground">Open requests</CardTitle>
+              <CardDescription className="text-3xl font-semibold text-orange-600">{stats.open}</CardDescription>
+              <p className="text-xs text-muted-foreground mt-1">Awaiting assignment</p>
             </CardHeader>
           </Card>
-          <Card className="bg-white/95">
-            <CardHeader className="pb-3">
-              <CardDescription className="text-blue-600 font-semibold text-lg">{stats.inProgress}</CardDescription>
-              <CardTitle className="text-sm">In Progress</CardTitle>
+          <Card className="bg-white/95 shadow-sm">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm text-muted-foreground">In progress</CardTitle>
+              <CardDescription className="text-3xl font-semibold text-blue-600">{stats.inProgress}</CardDescription>
+              <p className="text-xs text-muted-foreground mt-1">Technicians on site</p>
             </CardHeader>
           </Card>
-          <Card className="bg-white/95">
-            <CardHeader className="pb-3">
-              <CardDescription className="text-green-600 font-semibold text-lg">{stats.completed}</CardDescription>
-              <CardTitle className="text-sm">Completed</CardTitle>
+          <Card className="bg-white/95 shadow-sm">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm text-muted-foreground">Resolved</CardTitle>
+              <CardDescription className="text-3xl font-semibold text-green-600">{stats.completed}</CardDescription>
+              <p className="text-xs text-muted-foreground mt-1">This month</p>
             </CardHeader>
           </Card>
         </div>
 
         <Card className="bg-white/95">
           <CardHeader>
-            <CardTitle>Your Maintenance Requests</CardTitle>
-            <CardDescription>Track the status of your maintenance requests</CardDescription>
+            <CardTitle>Request history</CardTitle>
+            <CardDescription>Your past maintenance submissions and current statuses</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             {loading ? (
@@ -152,40 +167,61 @@ export default function MaintenancePage() {
                 {error}
               </div>
             ) : requests.length === 0 ? (
-              <div className="text-center py-10 text-muted-foreground">
+              <div className="text-center text-muted-foreground py-10">
                 You haven&apos;t submitted any maintenance requests yet.
               </div>
             ) : (
               requests.map((request) => (
-                <div
-                  key={request.id}
-                  className="p-4 rounded-lg border"
-                  style={{ backgroundColor: request.status === 'completed' ? '#ecfdf5' : '#f8fafc' }}
-                >
-                  <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between mb-2">
+                <div key={request.id} className="rounded-xl border border-slate-100 p-5 shadow-sm bg-white">
+                  <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                     <div>
-                      <h3 className="font-semibold text-lg">{request.title}</h3>
-                      <p className="text-sm text-muted-foreground mt-1">{request.description.split('\n')[0]}</p>
+                      <p className="text-xs text-muted-foreground">{formatDate(request.created_at)}</p>
+                      <h3 className="text-lg font-semibold text-slate-900">{request.title}</h3>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        {request.description.split('\n')[0]}
+                      </p>
                     </div>
                     <div className="flex items-center gap-2">
-                      <Badge className={priorityColor(request.priority_level)}>{request.priority_level}</Badge>
-                      <Badge className={statusColor(request.status)}>
-                        {request.status.replace('_', ' ')}
+                      <Badge className={priorityBadge(request.priority_level)}>{request.priority_level || 'medium'}</Badge>
+                      <Badge className={statusBadge(request.status)}>
+                        {(request.status || 'open').replace('_', ' ')}
                       </Badge>
                     </div>
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm text-muted-foreground">
-                    <p>
-                      Submitted:{' '}
-                      <span className="text-foreground font-medium">{formatDate(request.created_at)}</span>
-                    </p>
-                    {request.attachment_urls && request.attachment_urls.length > 0 && (
-                      <p>
-                        Attachments:{' '}
-                        <span className="text-foreground font-medium">{request.attachment_urls.length}</span>
+                  <div className="mt-4 grid gap-3 md:grid-cols-3 text-sm text-muted-foreground">
+                    <div className="rounded-lg bg-slate-50 p-3">
+                      <p className="text-xs uppercase tracking-wide text-slate-500">Response</p>
+                      <p className="text-slate-900 font-medium">{responseMessage(request)}</p>
+                    </div>
+                    <div className="rounded-lg bg-slate-50 p-3">
+                      <p className="text-xs uppercase tracking-wide text-slate-500">Status updated</p>
+                      <p className="text-slate-900 font-medium">
+                        {request.updated_at ? formatDate(request.updated_at) : 'Pending'}
                       </p>
-                    )}
+                    </div>
+                    <div className="rounded-lg bg-slate-50 p-3">
+                      <p className="text-xs uppercase tracking-wide text-slate-500">Attachments</p>
+                      <p className="text-slate-900 font-medium">
+                        {request.attachment_urls?.length || 0} file(s)
+                      </p>
+                    </div>
                   </div>
+                  {request.attachment_urls && request.attachment_urls.length > 0 && (
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {request.attachment_urls.map((url, idx) => (
+                        <a
+                          key={url}
+                          href={url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1 text-xs text-blue-600 underline"
+                        >
+                          <FileText className="w-3 h-3" />
+                          Attachment {idx + 1}
+                        </a>
+                      ))}
+                    </div>
+                  )}
                 </div>
               ))
             )}
@@ -194,31 +230,35 @@ export default function MaintenancePage() {
 
         <Card className="bg-white/95">
           <CardHeader>
-            <CardTitle>Need Help?</CardTitle>
-            <CardDescription>Common maintenance actions</CardDescription>
+            <CardTitle>Need help?</CardTitle>
+            <CardDescription>Quick actions and support</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="grid gap-4 md:grid-cols-2">
               <div className="p-4 border rounded-lg hover:bg-accent/50 transition-colors">
                 <Plus className="h-5 w-5 text-blue-600 mb-2" />
-                <p className="font-medium mb-1">Report New Issue</p>
-                <p className="text-xs text-muted-foreground mb-3">Submit a new maintenance request</p>
+                <p className="font-medium mb-1">Report new issue</p>
+                <p className="text-xs text-muted-foreground mb-3">Submit a maintenance request</p>
                 <Link href="/dashboard/tenant/maintenance/new">
                   <Button size="sm" variant="outline" className="w-full">
-                    Create Request
+                    Create request
                   </Button>
                 </Link>
               </div>
               <div className="p-4 border rounded-lg hover:bg-accent/50 transition-colors">
                 <MessageSquare className="h-5 w-5 text-green-600 mb-2" />
-                <p className="font-medium mb-1">Contact Management</p>
-                <p className="text-xs text-muted-foreground mb-3">Send a message to property manager</p>
+                <p className="font-medium mb-1">Ask management</p>
+                <p className="text-xs text-muted-foreground mb-3">Send a message to property team</p>
                 <Link href="/dashboard/tenant/messages">
                   <Button size="sm" variant="outline" className="w-full">
-                    Send Message
+                    Send message
                   </Button>
                 </Link>
               </div>
+            </div>
+            <div className="mt-4 flex items-center gap-2 text-xs text-muted-foreground">
+              <AlertCircle className="w-4 h-4" />
+              For emergencies impacting safety, contact management immediately via phone.
             </div>
           </CardContent>
         </Card>

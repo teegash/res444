@@ -26,9 +26,9 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    if (fileList.length > 5) {
+    if (fileList.length > 3) {
       return NextResponse.json(
-        { success: false, error: 'You can upload at most 5 attachments per request.' },
+        { success: false, error: 'You can upload at most 3 attachments per request.' },
         { status: 400 }
       )
     }
@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
         .slice(2)}.${extension}`
 
       const { error: uploadError } = await adminSupabase.storage
-        .from('maintenance-attachments')
+        .from('maintenance_attachments')
         .upload(filePath, buffer, {
           contentType: file.type || 'image/jpeg',
           cacheControl: '3600',
@@ -58,7 +58,7 @@ export async function POST(request: NextRequest) {
       }
 
       const { data: publicUrlData } = adminSupabase.storage
-        .from('maintenance-attachments')
+        .from('maintenance_attachments')
         .getPublicUrl(filePath)
 
       if (publicUrlData?.publicUrl) {

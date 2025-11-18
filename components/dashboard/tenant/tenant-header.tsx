@@ -324,45 +324,45 @@ export function TenantHeader({ summary, loading, onProfileUpdated }: TenantHeade
                     )}
                   </div>
                 </SheetHeader>
-                <div className="mt-0 space-y-4 px-6 py-4 max-h-[70vh] overflow-y-auto">
+                <div className="space-y-3 px-6 py-4 max-h-[70vh] overflow-y-auto">
                   {notifications.length === 0 ? (
                     <p className="text-center text-muted-foreground py-6">No notifications yet.</p>
                   ) : (
-                    notifications.map((notification) => (
-                      (() => {
-                        const isPayment =
-                          (notification.related_entity_type || '').toLowerCase() === 'payment'
-                        const rowClasses = isPayment
-                          ? 'bg-red-50 border-red-200'
-                          : notification.read
-                            ? 'bg-white border-gray-200'
-                            : 'bg-blue-50 border-blue-200'
-                        return (
-                      <button
-                        key={notification.id}
-                        type="button"
-                        onClick={() => handleNotificationClick(notification)}
-                        className={`w-full text-left p-4 rounded-lg border transition ${rowClasses}`}
-                      >
-                        <div className="flex items-start justify-between mb-1">
-                          <h4 className="font-semibold text-sm flex items-center gap-2">
-                            {isPayment && (
-                              <Badge className="bg-red-500 text-white rounded-full px-2 py-0.5 text-[10px]">
-                                Payment
-                              </Badge>
-                            )}
-                            <span>{isPayment ? 'Payment notice' : 'New message'}</span>
-                          </h4>
-                          {!notification.read && <Badge className="bg-[#4682B4]">New</Badge>}
-                        </div>
-                        <p className="text-sm text-gray-600 mb-2">{notification.message_text}</p>
-                        <p className="text-xs text-gray-500">
-                          {notification.created_at ? formatRelative(notification.created_at) : ''}
-                        </p>
-                      </button>
-                        )
-                      })()
-                    ))
+                    notifications.map((notification) => {
+                      const isPayment =
+                        (notification.related_entity_type || '').toLowerCase() === 'payment'
+                      const rowClasses = isPayment
+                        ? 'bg-red-50 border-red-200'
+                        : notification.read
+                          ? 'bg-white border-gray-200'
+                          : 'bg-blue-50 border-blue-200'
+                      return (
+                        <button
+                          key={notification.id}
+                          type="button"
+                          onClick={() => handleNotificationClick(notification)}
+                          className={`w-full text-left p-4 rounded-lg border transition ${rowClasses}`}
+                        >
+                          <div className="flex items-start justify-between mb-1">
+                            <h4 className="font-semibold text-sm flex items-center gap-2">
+                              {isPayment && (
+                                <Badge className="bg-red-500 text-white rounded-full px-2 py-0.5 text-[10px]">
+                                  Payment
+                                </Badge>
+                              )}
+                              <span>{isPayment ? 'Payment notice' : 'New message'}</span>
+                            </h4>
+                            {!notification.read && <Badge className="bg-[#4682B4]">New</Badge>}
+                          </div>
+                          <p className={`text-sm mb-2 ${isPayment ? 'text-red-700' : 'text-gray-600'}`}>
+                            {notification.message_text}
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            {notification.created_at ? formatRelative(notification.created_at) : ''}
+                          </p>
+                        </button>
+                      )
+                    })
                   )}
                 </div>
               </SheetContent>
