@@ -1,13 +1,93 @@
 'use client'
 
-import { ArrowLeft, Wrench, Plus, Filter, MessageSquare } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { ArrowLeft, Wrench, Plus, MessageSquare, Loader2 } from 'lucide-react'
 import Link from 'next/link'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+
+type MaintenanceRequest = {
+  id: string
+  title: string
+  description: string
+  priority_level: string
+  status: string
+  created_at: string
+  attachment_urls: string[] | null
+}
 
 export default function MaintenancePage() {
+  const [requests, setRequests] = useState<MaintenanceRequest[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    const fetchRequests = async () => {
+      try {
+        setLoading(true)
+        setError(null)
+        const response = await fetch('/api/tenant/maintenance/requests', { cache: 'no-store' })
+        if (!response.ok) {
+          const payload = await response.json().catch(() => ({}))
+          throw new Error(payload.error || 'Failed to fetch maintenance requests.')
+        }
+        const payload = await response.json()
+        setRequests(payload.data || [])
+      } catch (err) {
+        console.error('[TenantMaintenanceList] fetch failed', err)
+        setError(err instanceof Error ? err.message : 'Unable to load maintenance requests.')
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchRequests()
+  }, [])
+
+  const stats = useMemo(() => {
+    const open = requests.filter((req) => req.status === 'open').length
+    const inProgress = requests.filter((req) => req.status === 'in_progress' || req.status === 'assigned').length
+    const completed = requests.filter((req) => req.status === 'completed').length
+    return { open, inProgress, completed }
+  }, [requests])
+
+  const formatDate = (value?: string | null) => {
+    if (!value) return '—'
+    const date = new Date(value)
+    if (Number.isNaN(date.getTime())) return '—'
+    return date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
+  }
+
+  const priorityColor = (priority: string) => {
+    switch (priority) {
+      case 'high':
+        return 'bg-red-100 text-red-700'
+      case 'urgent':
+        return 'bg-red-600 text-white'
+      case 'medium':
+        return 'bg-orange-100 text-orange-700'
+      default:
+        return 'bg-slate-100 text-slate-700'
+    }
+  }
+
+  const statusColor = (status: string) => {
+    switch (status) {
+      case 'open':
+        return 'bg-blue-100 text-blue-700'
+      case 'in_progress':
+      case 'assigned':
+        return 'bg-amber-100 text-amber-700'
+      case 'completed':
+        return 'bg-emerald-100 text-emerald-700'
+      case 'cancelled':
+        return 'bg-slate-200 text-slate-700'
+      default:
+        return 'bg-slate-100 text-slate-700'
+    }
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-600 via-blue-700 to-purple-700">
       <div className="max-w-6xl mx-auto p-4 md:p-6 lg:p-8 space-y-6">
@@ -22,8 +102,10 @@ export default function MaintenancePage() {
             <div className="p-2 bg-white/20 rounded-lg">
               <Wrench className="h-5 w-5 text-white" />
             </div>
-            <h1 className="text-2xl font-bold text-white">Maintenance Requests</h1>
-            <p className="text-sm text-white/80">Track Your Requests</p>
+            <div>
+              <h1 className="text-2xl font-bold text-white">Maintenance Requests</h1>
+              <p className="text-sm text-white/80">Track your requests and their progress</p>
+            </div>
           </div>
           <Link href="/dashboard/tenant/maintenance/new" className="ml-auto">
             <Button className="bg-orange-500 hover:bg-orange-600 gap-2">
@@ -33,146 +115,87 @@ export default function MaintenancePage() {
           </Link>
         </div>
 
-        {/* Stats Cards */}
         <div className="grid gap-4 md:grid-cols-3">
           <Card className="bg-white/95">
             <CardHeader className="pb-3">
-              <CardDescription className="text-orange-600 font-semibold text-lg">1</CardDescription>
+              <CardDescription className="text-orange-600 font-semibold text-lg">{stats.open}</CardDescription>
               <CardTitle className="text-sm">Open Requests</CardTitle>
             </CardHeader>
           </Card>
           <Card className="bg-white/95">
             <CardHeader className="pb-3">
-              <CardDescription className="text-blue-600 font-semibold text-lg">1</CardDescription>
+              <CardDescription className="text-blue-600 font-semibold text-lg">{stats.inProgress}</CardDescription>
               <CardTitle className="text-sm">In Progress</CardTitle>
             </CardHeader>
           </Card>
           <Card className="bg-white/95">
             <CardHeader className="pb-3">
-              <CardDescription className="text-green-600 font-semibold text-lg">1</CardDescription>
-              <CardTitle className="text-sm">Completed This Month</CardTitle>
+              <CardDescription className="text-green-600 font-semibold text-lg">{stats.completed}</CardDescription>
+              <CardTitle className="text-sm">Completed</CardTitle>
             </CardHeader>
           </Card>
         </div>
 
-        {/* Your Maintenance Requests */}
         <Card className="bg-white/95">
           <CardHeader>
             <CardTitle>Your Maintenance Requests</CardTitle>
             <CardDescription>Track the status of your maintenance requests</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {/* Request Cards */}
-            <div className="bg-blue-50 p-6 rounded-lg border border-blue-100">
-              <div className="flex items-start justify-between mb-4">
-                <div className="flex-1">
-                  <div className="flex items-center gap-3 mb-2">
-                    <h3 className="font-semibold text-lg text-blue-900">Leaking faucet in kitchen</h3>
-                    <Badge className="bg-orange-500">Medium</Badge>
-                    <Badge className="bg-blue-600">In Progress</Badge>
+            {loading ? (
+              <div className="flex items-center justify-center py-10 text-muted-foreground">
+                <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+                Loading your requests…
+              </div>
+            ) : error ? (
+              <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                {error}
+              </div>
+            ) : requests.length === 0 ? (
+              <div className="text-center py-10 text-muted-foreground">
+                You haven&apos;t submitted any maintenance requests yet.
+              </div>
+            ) : (
+              requests.map((request) => (
+                <div
+                  key={request.id}
+                  className="p-4 rounded-lg border"
+                  style={{ backgroundColor: request.status === 'completed' ? '#ecfdf5' : '#f8fafc' }}
+                >
+                  <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between mb-2">
+                    <div>
+                      <h3 className="font-semibold text-lg">{request.title}</h3>
+                      <p className="text-sm text-muted-foreground mt-1">{request.description.split('\n')[0]}</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge className={priorityColor(request.priority_level)}>{request.priority_level}</Badge>
+                      <Badge className={statusColor(request.status)}>
+                        {request.status.replace('_', ' ')}
+                      </Badge>
+                    </div>
                   </div>
-                  <p className="text-sm text-blue-700 mb-3">
-                    The kitchen faucet has been leaking for the past few days. Water drips continuously even when turned off completely.
-                  </p>
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div>
-                      <p className="text-blue-600 font-medium">Category: <span className="text-blue-900">Plumbing</span></p>
-                    </div>
-                    <div>
-                      <p className="text-blue-600 font-medium">Est. completion: <span className="text-blue-900">Dec 5, 2024</span></p>
-                    </div>
-                    <div>
-                      <p className="text-blue-600 font-medium">Submitted: <span className="text-blue-900">Dec 2, 2024</span></p>
-                    </div>
-                    <div>
-                      <p className="text-blue-600 font-medium">Assigned to: <span className="text-blue-900">Peter Mwangi</span></p>
-                    </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm text-muted-foreground">
+                    <p>
+                      Submitted:{' '}
+                      <span className="text-foreground font-medium">{formatDate(request.created_at)}</span>
+                    </p>
+                    {request.attachment_urls && request.attachment_urls.length > 0 && (
+                      <p>
+                        Attachments:{' '}
+                        <span className="text-foreground font-medium">{request.attachment_urls.length}</span>
+                      </p>
+                    )}
                   </div>
                 </div>
-              </div>
-              <div className="flex gap-2">
-                <Button size="sm" variant="outline" className="bg-white">
-                  View Details
-                </Button>
-                <Button size="sm" variant="outline" className="bg-white">
-                  Add Comment
-                </Button>
-              </div>
-            </div>
-
-            <div className="bg-green-50 p-6 rounded-lg border border-green-100">
-              <div className="flex items-start justify-between mb-4">
-                <div className="flex-1">
-                  <div className="flex items-center gap-3 mb-2">
-                    <h3 className="font-semibold text-lg text-green-900">Light bulb replacement in bedroom</h3>
-                    <Badge variant="secondary">Low</Badge>
-                    <Badge className="bg-green-600">Completed</Badge>
-                  </div>
-                  <p className="text-sm text-green-700 mb-3">
-                    Main bedroom ceiling light bulb burned out and needs replacement.
-                  </p>
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div>
-                      <p className="text-green-600 font-medium">Category: <span className="text-green-900">Electrical</span></p>
-                    </div>
-                    <div>
-                      <p className="text-green-600 font-medium">Completed: <span className="text-green-900">Nov 29, 2024</span></p>
-                    </div>
-                    <div>
-                      <p className="text-green-600 font-medium">Submitted: <span className="text-green-900">Nov 28, 2024</span></p>
-                    </div>
-                    <div>
-                      <p className="text-green-600 font-medium">Assigned to: <span className="text-green-900">James Ochieng</span></p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <Button size="sm" variant="outline" className="bg-white">
-                View Details
-              </Button>
-            </div>
-
-            <div className="bg-gray-50 p-6 rounded-lg border">
-              <div className="flex items-start justify-between mb-4">
-                <div className="flex-1">
-                  <div className="flex items-center gap-3 mb-2">
-                    <h3 className="font-semibold text-lg">Door handle loose</h3>
-                    <Badge variant="secondary">Low</Badge>
-                    <Badge variant="outline">Open</Badge>
-                  </div>
-                  <p className="text-sm text-muted-foreground mb-3">
-                    Front door handle is becoming loose and needs tightening.
-                  </p>
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div>
-                      <p className="text-muted-foreground font-medium">Category: <span className="text-foreground">General</span></p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground font-medium">Submitted: <span className="text-foreground">Nov 25, 2024</span></p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div className="flex gap-2">
-                <Button size="sm" variant="outline">
-                  View Details
-                </Button>
-                <Button size="sm" variant="outline">
-                  Add Comment
-                </Button>
-                <Button size="sm" variant="outline">
-                  Edit Request
-                </Button>
-              </div>
-            </div>
+              ))
+            )}
           </CardContent>
         </Card>
 
-        {/* Need Help Section */}
         <Card className="bg-white/95">
           <CardHeader>
             <CardTitle>Need Help?</CardTitle>
-            <CardDescription>Common maintenance issues and quick actions</CardDescription>
+            <CardDescription>Common maintenance actions</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="grid gap-4 md:grid-cols-2">

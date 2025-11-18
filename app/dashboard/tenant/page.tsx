@@ -41,6 +41,7 @@ type TenantInvoiceRecord = {
   property_name: string | null
   property_location: string | null
   unit_label: string | null
+  created_at?: string | null
 } | null
 
 export default function TenantDashboard() {
@@ -80,7 +81,20 @@ export default function TenantDashboard() {
         throw new Error(payload.error || 'Failed to load pending invoices.')
       }
       const payload = await response.json()
-      setPendingInvoice(payload.data?.[0] || null)
+      const pendingWaterInvoice =
+        (payload.data || [])
+          .filter(
+            (invoice: TenantInvoiceRecord & { invoice_type?: string | null }) =>
+              invoice &&
+              invoice.invoice_type === 'water' &&
+              invoice.status === false
+          )
+          .sort((a, b) => {
+            const aTime = a?.created_at ? new Date(a.created_at).getTime() : 0
+            const bTime = b?.created_at ? new Date(b.created_at).getTime() : 0
+            return bTime - aTime
+          })?.[0] || null
+      setPendingInvoice(pendingWaterInvoice)
     } catch (err) {
       console.error('[TenantDashboard] pending invoice fetch failed', err)
       setPendingInvoice(null)

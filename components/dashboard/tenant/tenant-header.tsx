@@ -86,6 +86,19 @@ export function TenantHeader({ summary, loading, onProfileUpdated }: TenantHeade
 
   const unreadCount = notifications.filter((n) => !n.read).length
 
+  const sortNotifications = useCallback((items: NotificationItem[]) => {
+    return [...items].sort((a, b) => {
+      const aPayment = (a.related_entity_type || '').toLowerCase() === 'payment'
+      const bPayment = (b.related_entity_type || '').toLowerCase() === 'payment'
+      if (aPayment !== bPayment) {
+        return aPayment ? -1 : 1
+      }
+      const aTime = a.created_at ? new Date(a.created_at).getTime() : 0
+      const bTime = b.created_at ? new Date(b.created_at).getTime() : 0
+      return bTime - aTime
+    })
+  }, [])
+
   const fetchNotifications = useCallback(async () => {
     try {
       const response = await fetch('/api/tenant/notifications', { cache: 'no-store' })
@@ -94,11 +107,11 @@ export function TenantHeader({ summary, loading, onProfileUpdated }: TenantHeade
       }
       const payload = await response.json()
       const notifications = (payload.data || []).filter((item: NotificationItem) => !item.read)
-      setNotifications(notifications)
+      setNotifications(sortNotifications(notifications))
     } catch (error) {
       console.error('[TenantHeader] fetch notifications failed', error)
     }
-  }, [])
+  }, [sortNotifications])
 
   useEffect(() => {
     fetchNotifications()
@@ -297,31 +310,49 @@ export function TenantHeader({ summary, loading, onProfileUpdated }: TenantHeade
                   )}
                 </Button>
               </SheetTrigger>
-              <SheetContent>
-                <SheetHeader>
-                  <SheetTitle>Notifications</SheetTitle>
-                  <SheetDescription>Latest updates from your property team.</SheetDescription>
-                  {unreadCount > 0 && (
-                    <Button variant="ghost" size="sm" onClick={markAllAsRead}>
-                      Mark all as read
-                    </Button>
-                  )}
+              <SheetContent className="w-96 px-0">
+                <SheetHeader className="px-6 pt-6 pb-2 border-b border-border/60 bg-gradient-to-r from-[#f4f6fb] to-white sticky top-0 z-10">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <SheetTitle className="text-lg">Notifications</SheetTitle>
+                      <SheetDescription>Latest updates from your property team.</SheetDescription>
+                    </div>
+                    {unreadCount > 0 && (
+                      <Button variant="ghost" size="sm" onClick={markAllAsRead} className="text-xs">
+                        Mark all as read
+                      </Button>
+                    )}
+                  </div>
                 </SheetHeader>
-                <div className="mt-6 space-y-4">
+                <div className="mt-0 space-y-4 px-6 py-4 max-h-[70vh] overflow-y-auto">
                   {notifications.length === 0 ? (
                     <p className="text-center text-muted-foreground py-6">No notifications yet.</p>
                   ) : (
                     notifications.map((notification) => (
+                      (() => {
+                        const isPayment =
+                          (notification.related_entity_type || '').toLowerCase() === 'payment'
+                        const rowClasses = isPayment
+                          ? 'bg-red-50 border-red-200'
+                          : notification.read
+                            ? 'bg-white border-gray-200'
+                            : 'bg-blue-50 border-blue-200'
+                        return (
                       <button
                         key={notification.id}
                         type="button"
                         onClick={() => handleNotificationClick(notification)}
-                        className={`w-full text-left p-4 rounded-lg border transition ${
-                          notification.read ? 'bg-white border-gray-200' : 'bg-blue-50 border-blue-200'
-                        }`}
+                        className={`w-full text-left p-4 rounded-lg border transition ${rowClasses}`}
                       >
                         <div className="flex items-start justify-between mb-1">
-                          <h4 className="font-semibold text-sm">New message</h4>
+                          <h4 className="font-semibold text-sm flex items-center gap-2">
+                            {isPayment && (
+                              <Badge className="bg-red-500 text-white rounded-full px-2 py-0.5 text-[10px]">
+                                Payment
+                              </Badge>
+                            )}
+                            <span>{isPayment ? 'Payment notice' : 'New message'}</span>
+                          </h4>
                           {!notification.read && <Badge className="bg-[#4682B4]">New</Badge>}
                         </div>
                         <p className="text-sm text-gray-600 mb-2">{notification.message_text}</p>
@@ -329,6 +360,8 @@ export function TenantHeader({ summary, loading, onProfileUpdated }: TenantHeade
                           {notification.created_at ? formatRelative(notification.created_at) : ''}
                         </p>
                       </button>
+                        )
+                      })()
                     ))
                   )}
                 </div>

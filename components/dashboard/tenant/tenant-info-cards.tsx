@@ -1,6 +1,8 @@
 'use client'
 
+import Link from 'next/link'
 import { Card, CardContent } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
 import { Home, DollarSign, Calendar } from 'lucide-react'
 
 interface TenantInfoCardsProps {
@@ -69,7 +71,7 @@ export function TenantInfoCards({ summary, loading }: TenantInfoCardsProps) {
       </Card>
 
       <Card className="bg-white border shadow-sm hover:shadow-md transition-shadow">
-        <CardContent className="p-6">
+        <CardContent className="p-6 space-y-4">
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center shrink-0">
               <DollarSign className="w-6 h-6 text-primary" />
@@ -81,6 +83,13 @@ export function TenantInfoCards({ summary, loading }: TenantInfoCardsProps) {
               </p>
             </div>
           </div>
+          {!loading && (
+            <Link href="/dashboard/tenant/payment?intent=rent" className="block">
+              <Button className="w-full bg-emerald-500 hover:bg-emerald-600 text-white">
+                Pay Rent
+              </Button>
+            </Link>
+          )}
         </CardContent>
       </Card>
 
