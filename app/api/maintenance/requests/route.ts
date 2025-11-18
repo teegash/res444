@@ -16,14 +16,19 @@ export async function GET() {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
     }
 
+    // Prefer Auth metadata for the role since some RLS setups may block profile lookups
+    let role: string | undefined = (user.user_metadata?.role as string | undefined)?.toLowerCase()
     const adminSupabase = createAdminClient()
-    const { data: profile } = await adminSupabase
-      .from('user_profiles')
-      .select('role')
-      .eq('id', user.id)
-      .maybeSingle()
 
-    const role = profile?.role?.toLowerCase() || ''
+    if (!role) {
+      const { data: profile } = await adminSupabase
+        .from('user_profiles')
+        .select('role')
+        .eq('id', user.id)
+        .maybeSingle()
+      role = profile?.role?.toLowerCase()
+    }
+
     if (!role || !MANAGER_ROLES.has(role)) {
       return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })
     }
