@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
-import { Search, Bell, LogOut, User } from 'lucide-react'
+import { Search, Bell, LogOut, User, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -17,6 +17,7 @@ import {
   SheetContent,
   SheetHeader,
   SheetTitle,
+  SheetClose,
 } from '@/components/ui/sheet'
 import { Badge } from '@/components/ui/badge'
 import { useAuth } from '@/lib/auth/context'
@@ -212,24 +213,33 @@ export function Header() {
               )}
             </Button>
             <SheetContent side="right" className="w-[28rem] px-0">
-              <div className="px-6 pt-6 pb-2 border-b border-border/60 bg-gradient-to-r from-[#f4f6fb] to-white sticky top-0 z-10">
-                <div className="flex items-center justify-between">
-                  <div>
+              <div className="px-6 pt-6 pb-4 border-b border-border/60 bg-gradient-to-r from-[#f4f6fb] to-white sticky top-0 z-10">
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex-1">
                     <SheetTitle className="text-lg">Notifications</SheetTitle>
                     <p className="text-xs text-muted-foreground mt-1">
                       Stay updated on tenant activity and billing alerts
                     </p>
+                    {unreadCount > 0 && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={handleMarkAllAsRead}
+                        className="text-xs mt-2"
+                      >
+                        Mark all as read
+                      </Button>
+                    )}
                   </div>
-                  {unreadCount > 0 && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={handleMarkAllAsRead}
-                      className="text-xs"
+                  <SheetClose asChild>
+                    <button
+                      type="button"
+                      className="flex items-center justify-center w-8 h-8 rounded-full border border-border text-foreground hover:bg-muted transition"
+                      aria-label="Close notifications"
                     >
-                      Mark all as read
-                    </Button>
-                  )}
+                      <X className="w-4 h-4" />
+                    </button>
+                  </SheetClose>
                 </div>
               </div>
               <div className="max-h-[70vh] overflow-y-auto px-6 py-4 space-y-3">

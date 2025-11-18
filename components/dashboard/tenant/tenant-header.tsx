@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Bell, Settings, LogOut, Home, Camera, Loader2 } from 'lucide-react'
+import { Bell, Settings, LogOut, Home, Camera, Loader2, X } from 'lucide-react'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -16,6 +16,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import {
   Sheet,
+  SheetClose,
   SheetContent,
   SheetDescription,
   SheetHeader,
@@ -106,8 +107,8 @@ export function TenantHeader({ summary, loading, onProfileUpdated }: TenantHeade
         throw new Error('Failed to load notifications.')
       }
       const payload = await response.json()
-      const notifications = (payload.data || []).filter((item: NotificationItem) => !item.read)
-      setNotifications(sortNotifications(notifications))
+      const unread = (payload.data || []).filter((item: NotificationItem) => !item.read)
+      setNotifications(sortNotifications(unread))
     } catch (error) {
       console.error('[TenantHeader] fetch notifications failed', error)
     }
@@ -311,17 +312,26 @@ export function TenantHeader({ summary, loading, onProfileUpdated }: TenantHeade
                 </Button>
               </SheetTrigger>
               <SheetContent className="w-96 px-0">
-                <SheetHeader className="px-6 pt-6 pb-2 border-b border-border/60 bg-gradient-to-r from-[#f4f6fb] to-white sticky top-0 z-10">
-                  <div className="flex items-center justify-between">
-                    <div>
+                <SheetHeader className="px-6 pt-6 pb-4 border-b border-border/60 bg-gradient-to-r from-[#f4f6fb] to-white sticky top-0 z-10">
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="flex-1">
                       <SheetTitle className="text-lg">Notifications</SheetTitle>
                       <SheetDescription>Latest updates from your property team.</SheetDescription>
+                      {unreadCount > 0 && (
+                        <Button variant="ghost" size="sm" onClick={markAllAsRead} className="text-xs mt-2">
+                          Mark all as read
+                        </Button>
+                      )}
                     </div>
-                    {unreadCount > 0 && (
-                      <Button variant="ghost" size="sm" onClick={markAllAsRead} className="text-xs">
-                        Mark all as read
-                      </Button>
-                    )}
+                    <SheetClose asChild>
+                      <button
+                        type="button"
+                        className="flex items-center justify-center w-8 h-8 rounded-full border border-border text-foreground hover:bg-muted transition"
+                        aria-label="Close notifications"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </SheetClose>
                   </div>
                 </SheetHeader>
                 <div className="space-y-3 px-6 py-4 max-h-[70vh] overflow-y-auto">
