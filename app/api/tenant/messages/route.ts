@@ -28,7 +28,7 @@ export async function GET() {
 
     const { data, error } = await adminSupabase
       .from('communications')
-      .select('id, sender_user_id, recipient_user_id, message_text, read, created_at')
+      .select('id, sender_user_id, recipient_user_id, message_text, read, created_at, related_entity_type')
       .or(`sender_user_id.eq.${user.id},recipient_user_id.eq.${user.id}`)
       .order('created_at', { ascending: true })
       .limit(200)
@@ -60,13 +60,15 @@ export async function GET() {
 
     const profileMap = new Map(profiles.map((p) => [p.id, p.full_name || null]))
 
-    const payload = (data || []).map((message) => ({
-      ...message,
-      sender_name:
-        message.sender_user_id === user.id
-          ? 'You'
-          : profileMap.get(message.sender_user_id) || 'Property Management',
-    }))
+    const payload = (data || [])
+      .filter((message) => message.related_entity_type !== 'payment')
+      .map((message) => ({
+        ...message,
+        sender_name:
+          message.sender_user_id === user.id
+            ? 'You'
+            : profileMap.get(message.sender_user_id) || 'Property Management',
+      }))
 
     return NextResponse.json({ success: true, data: payload })
   } catch (error) {

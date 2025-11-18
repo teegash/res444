@@ -1,15 +1,24 @@
 'use client'
 
+import { useEffect, useState } from 'react'
+import Link from 'next/link'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { FileDown, CreditCard, CheckCircle, Calendar } from 'lucide-react'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { FileDown, CreditCard, CheckCircle, Calendar, Loader2 } from 'lucide-react'
 
-const invoices = [
-  { id: 'INV-2024-02', month: 'February 2024', amount: 18500, dueDate: '2024-02-01', paid: false, type: 'Rent' },
-  { id: 'INV-2024-01', month: 'January 2024', amount: 18500, dueDate: '2024-01-01', paid: true, type: 'Rent' },
-  { id: 'INV-2023-12', month: 'December 2023', amount: 18500, dueDate: '2023-12-01', paid: true, type: 'Rent' },
-]
+type TenantInvoice = {
+  id: string
+  amount: number
+  due_date: string | null
+  status: boolean
+  invoice_type: string | null
+  description: string | null
+  property_name: string | null
+  property_location: string | null
+  unit_label: string | null
+}
 
 const paymentHistory = [
   { id: 1, date: '2024-01-05', amount: 18500, method: 'M-Pesa', status: 'Completed', ref: 'TXN123456' },
@@ -17,6 +26,40 @@ const paymentHistory = [
 ]
 
 export function PaymentsAndInvoicesTab() {
+  const [invoices, setInvoices] = useState<TenantInvoice[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    const fetchInvoices = async () => {
+      try {
+        setLoading(true)
+        const response = await fetch('/api/tenant/invoices', { cache: 'no-store' })
+        if (!response.ok) {
+          const payload = await response.json().catch(() => ({}))
+          throw new Error(payload.error || 'Failed to load invoices.')
+        }
+        const payload = await response.json()
+        setInvoices(payload.data || [])
+        setError(null)
+      } catch (err) {
+        console.error('[PaymentsAndInvoicesTab] fetch invoices failed', err)
+        setError(err instanceof Error ? err.message : 'Unable to load invoices.')
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchInvoices()
+  }, [])
+
+  const formatDate = (value: string | null | undefined) => {
+    if (!value) return '—'
+    const date = new Date(value)
+    if (Number.isNaN(date.getTime())) return '—'
+    return date.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })
+  }
+
   return (
     <div className="space-y-6 mt-6">
       <div className="grid md:grid-cols-2 gap-4">
@@ -57,33 +100,51 @@ export function PaymentsAndInvoicesTab() {
           <CardDescription>Your invoices for the next months</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="space-y-3">
-            {invoices.map((invoice) => (
-              <div key={invoice.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/30 transition">
-                <div className="flex-1">
-                  <div className="flex items-center gap-3 mb-1">
-                    <h4 className="font-semibold">{invoice.month}</h4>
-                    <Badge variant="outline">{invoice.type}</Badge>
+          {error && (
+            <Alert variant="destructive" className="mb-4">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+          {loading ? (
+            <div className="flex items-center justify-center py-6 text-muted-foreground text-sm">
+              <Loader2 className="h-4 w-4 animate-spin mr-2" /> Loading invoices…
+            </div>
+          ) : invoices.length === 0 ? (
+            <p className="text-sm text-muted-foreground">You have no invoices at the moment.</p>
+          ) : (
+            <div className="space-y-3">
+              {invoices.map((invoice) => (
+                <div key={invoice.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/30 transition">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-3 mb-1">
+                      <h4 className="font-semibold">{invoice.invoice_type === 'water' ? 'Water Bill' : 'Rent Invoice'}</h4>
+                      <Badge variant="outline">{invoice.invoice_type?.toUpperCase() || 'Invoice'}</Badge>
+                    </div>
+                    <p className="text-sm text-muted-foreground">Due: {formatDate(invoice.due_date)}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {invoice.property_name || 'Property'} {invoice.unit_label ? `• Unit ${invoice.unit_label}` : ''}
+                    </p>
                   </div>
-                  <p className="text-sm text-muted-foreground">Due: {invoice.dueDate}</p>
-                </div>
                   <div className="text-right flex items-center gap-4">
                     <div>
                       <p className="text-lg font-bold text-primary">KES {invoice.amount.toLocaleString()}</p>
-                      <Badge variant={invoice.paid ? 'default' : 'secondary'} className={invoice.paid ? 'bg-green-600' : ''}>
-                        {invoice.paid ? 'Paid' : 'Unpaid'}
+                      <Badge variant={invoice.status ? 'default' : 'secondary'} className={invoice.status ? 'bg-green-600' : ''}>
+                        {invoice.status ? 'Paid' : 'Unpaid'}
                       </Badge>
                     </div>
-                  { !invoice.paid && (
-                    <Button size="sm" className="bg-primary hover:bg-primary/90 gap-2">
-                      <CreditCard className="h-4 w-4" />
-                      Pay Now
-                    </Button>
-                  )}
+                    {!invoice.status && (
+                      <Link href={`/dashboard/tenant/invoices/${invoice.id}`}>
+                        <Button size="sm" className="bg-primary hover:bg-primary/90 gap-2">
+                          <CreditCard className="h-4 w-4" />
+                          Pay Now
+                        </Button>
+                      </Link>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
 

@@ -157,7 +157,15 @@ export function TenantHeader({ summary, loading, onProfileUpdated }: TenantHeade
         notification.related_entity_id !== 'undefined'
           ? notification.related_entity_id
           : null
-      if (notification.related_entity_type === 'payment' && invoiceId) {
+      if (notification.related_entity_type === 'payment') {
+        if (!invoiceId) {
+          toast({
+            title: 'Invoice unavailable',
+            description: 'This notification is no longer linked to an invoice.',
+            variant: 'destructive',
+          })
+          return
+        }
         router.push(`/dashboard/tenant/invoices/${invoiceId}`)
       } else {
         router.push('/dashboard/tenant/messages')

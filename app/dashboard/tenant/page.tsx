@@ -32,10 +32,22 @@ type TenantSummary = {
   } | null
 } | null
 
+type TenantInvoiceRecord = {
+  id: string
+  amount: number
+  due_date: string | null
+  status: boolean
+  invoice_type: string | null
+  property_name: string | null
+  property_location: string | null
+  unit_label: string | null
+} | null
+
 export default function TenantDashboard() {
   const [summary, setSummary] = useState<TenantSummary>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [pendingInvoice, setPendingInvoice] = useState<TenantInvoiceRecord>(null)
 
   const fetchSummary = useCallback(async () => {
     try {
@@ -59,6 +71,32 @@ export default function TenantDashboard() {
   useEffect(() => {
     fetchSummary()
   }, [fetchSummary])
+
+  const fetchPendingInvoice = useCallback(async () => {
+    try {
+      const response = await fetch('/api/tenant/invoices?status=pending', { cache: 'no-store' })
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}))
+        throw new Error(payload.error || 'Failed to load pending invoices.')
+      }
+      const payload = await response.json()
+      setPendingInvoice(payload.data?.[0] || null)
+    } catch (err) {
+      console.error('[TenantDashboard] pending invoice fetch failed', err)
+      setPendingInvoice(null)
+    }
+  }, [])
+
+  useEffect(() => {
+    fetchPendingInvoice()
+  }, [fetchPendingInvoice])
+
+  const formatDate = (value: string | null | undefined) => {
+    if (!value) return '—'
+    const date = new Date(value)
+    if (Number.isNaN(date.getTime())) return '—'
+    return date.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-blue-50/30 via-white to-orange-50/20">
@@ -125,15 +163,23 @@ export default function TenantDashboard() {
             <CardContent className="space-y-3">
               <div className="p-3 rounded-lg bg-red-50 border border-red-100">
                 <div className="flex items-center justify-between mb-1">
-                  <p className="text-sm font-medium">Rent Due</p>
-                  <Badge variant="destructive" className="text-xs">Due Soon</Badge>
+                  <p className="text-sm font-medium">Next Payment Due</p>
+                  <Badge variant="destructive" className="text-xs">{pendingInvoice ? 'Due Soon' : 'Clear'}</Badge>
                 </div>
-                <p className="text-xs text-muted-foreground">January 5, 2025</p>
-                <Link href="/dashboard/tenant/payment">
-                  <Button size="sm" className="w-full mt-2" variant="outline">
-                    Pay Now
+                <p className="text-xs text-muted-foreground">
+                  {pendingInvoice ? formatDate(pendingInvoice.due_date) : 'No outstanding payments'}
+                </p>
+                {pendingInvoice ? (
+                  <Link href={`/dashboard/tenant/invoices/${pendingInvoice.id}`}>
+                    <Button size="sm" className="w-full mt-2" variant="outline">
+                      Pay {pendingInvoice.invoice_type === 'water' ? 'Water Bill' : 'Invoice'}
+                    </Button>
+                  </Link>
+                ) : (
+                  <Button size="sm" className="w-full mt-2" variant="outline" disabled>
+                    All Paid
                   </Button>
-                </Link>
+                )}
               </div>
               
               <div className="p-3 rounded-lg bg-blue-50 border border-blue-100">

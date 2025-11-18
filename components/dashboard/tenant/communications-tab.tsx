@@ -19,6 +19,7 @@ interface CommunicationMessage {
   read: boolean
   created_at: string
   sender_name?: string
+  related_entity_type?: string | null
 }
 
 export function CommunicationsTab() {
@@ -43,18 +44,7 @@ export function CommunicationsTab() {
       }
       const payload = await response.json()
       initialRender.current = true
-      setMessages(payload.data || [])
-
-      const unreadForTenant = (payload.data || [])
-        .filter((msg: CommunicationMessage) => !msg.read && msg.recipient_user_id === user.id)
-        .map((msg: CommunicationMessage) => msg.id)
-      if (unreadForTenant.length > 0) {
-        await fetch('/api/tenant/notifications', {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ids: unreadForTenant }),
-        })
-      }
+      setMessages((payload.data || []).filter((msg: CommunicationMessage) => msg.related_entity_type !== 'payment'))
     } catch (error) {
       console.error('[CommunicationsTab] load failed', error)
       toast({
@@ -91,7 +81,9 @@ export function CommunicationsTab() {
           filter: `recipient_user_id=eq.${user.id}`,
         },
         (payload) => {
-          setMessages((existing) => [...existing, payload.new as CommunicationMessage])
+          const record = payload.new as CommunicationMessage
+          if (record.related_entity_type === 'payment') return
+          setMessages((existing) => [...existing, record])
         }
       )
       .subscribe()
