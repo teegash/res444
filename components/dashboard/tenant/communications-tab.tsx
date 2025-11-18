@@ -43,8 +43,23 @@ export function CommunicationsTab() {
         throw new Error(payload.error || 'Failed to load messages.')
       }
       const payload = await response.json()
+      const filteredMessages = (payload.data || []).filter(
+        (msg: CommunicationMessage) => msg.related_entity_type !== 'payment'
+      )
       initialRender.current = true
-      setMessages((payload.data || []).filter((msg: CommunicationMessage) => msg.related_entity_type !== 'payment'))
+      setMessages(filteredMessages)
+
+      const unreadForTenant = filteredMessages
+        .filter((msg: CommunicationMessage) => !msg.read && msg.recipient_user_id === user.id)
+        .map((msg: CommunicationMessage) => msg.id)
+
+      if (unreadForTenant.length > 0) {
+        await fetch('/api/tenant/notifications', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ids: unreadForTenant }),
+        })
+      }
     } catch (error) {
       console.error('[CommunicationsTab] load failed', error)
       toast({
