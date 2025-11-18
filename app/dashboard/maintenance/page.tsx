@@ -143,6 +143,55 @@ export default function MaintenancePage() {
   }, [requests])
   const selectedMeta = selectedRequest ? extractDescriptionMeta(selectedRequest.description) : null
   const highlightedRequestId = searchParams?.get('requestId')
+  const filteredRequests = useMemo(() => {
+    const search = searchTerm.trim().toLowerCase()
+    return requests.filter((request) => {
+      const meta = extractDescriptionMeta(request.description)
+      const categoryRaw = (meta.metadata.category || meta.metadata['category'] || 'general').toLowerCase()
+      const statusRaw = (request.status || 'open').toLowerCase()
+      const priorityRaw = (request.priority_level || 'medium').toLowerCase()
+
+      if (search) {
+        const haystack = [
+          request.title,
+          request.description,
+          request.tenant?.full_name,
+          request.unit?.unit_number,
+          request.unit?.building?.name,
+          meta.metadata.location,
+          meta.metadata['specific location'],
+        ]
+          .filter(Boolean)
+          .join(' ')
+          .toLowerCase()
+
+        if (!haystack.includes(search)) {
+          return false
+        }
+      }
+
+      if (statusFilter !== 'all') {
+        if (statusFilter === 'in_progress') {
+          const activeStatuses = ['in_progress', 'assigned']
+          if (!activeStatuses.includes(statusRaw)) {
+            return false
+          }
+        } else if (statusRaw !== statusFilter) {
+          return false
+        }
+      }
+
+      if (priorityFilter !== 'all' && priorityRaw !== priorityFilter) {
+        return false
+      }
+
+      if (categoryFilter !== 'all' && categoryRaw !== categoryFilter) {
+        return false
+      }
+
+      return true
+    })
+  }, [requests, searchTerm, statusFilter, priorityFilter, categoryFilter])
 
   useEffect(() => {
     const fetchRequests = async () => {
@@ -721,52 +770,3 @@ export default function MaintenancePage() {
   </div>
 )
 }
-  const filteredRequests = useMemo(() => {
-    const search = searchTerm.trim().toLowerCase()
-    return requests.filter((request) => {
-      const meta = extractDescriptionMeta(request.description)
-      const categoryRaw = (meta.metadata.category || meta.metadata['category'] || 'general').toLowerCase()
-      const statusRaw = (request.status || 'open').toLowerCase()
-      const priorityRaw = (request.priority_level || 'medium').toLowerCase()
-
-      if (search) {
-        const haystack = [
-          request.title,
-          request.description,
-          request.tenant?.full_name,
-          request.unit?.unit_number,
-          request.unit?.building?.name,
-          meta.metadata.location,
-          meta.metadata['specific location'],
-        ]
-          .filter(Boolean)
-          .join(' ')
-          .toLowerCase()
-
-        if (!haystack.includes(search)) {
-          return false
-        }
-      }
-
-      if (statusFilter !== 'all') {
-        if (statusFilter === 'in_progress') {
-          const activeStatuses = ['in_progress', 'assigned']
-          if (!activeStatuses.includes(statusRaw)) {
-            return false
-          }
-        } else if (statusRaw !== statusFilter) {
-          return false
-        }
-      }
-
-      if (priorityFilter !== 'all' && priorityRaw !== priorityFilter) {
-        return false
-      }
-
-      if (categoryFilter !== 'all' && categoryRaw !== categoryFilter) {
-        return false
-      }
-
-      return true
-    })
-  }, [requests, searchTerm, statusFilter, priorityFilter, categoryFilter])
