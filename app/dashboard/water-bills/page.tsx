@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { Sidebar } from '@/components/dashboard/sidebar'
+import { Header } from '@/components/dashboard/header'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -274,14 +275,17 @@ export default function WaterBillsPage() {
     return (
       <div className="flex min-h-screen bg-gray-50">
         <Sidebar />
-        <div className="flex-1 p-8 ml-16">
-          <div className="max-w-4xl">
-            <Card>
-              <CardContent className="py-10 text-center text-muted-foreground">
-                Loading water bill data…
-              </CardContent>
-            </Card>
-          </div>
+        <div className="flex-1 flex flex-col">
+          <Header />
+          <main className="flex-1 p-8 overflow-auto">
+            <div className="max-w-4xl">
+              <Card>
+                <CardContent className="py-10 text-center text-muted-foreground">
+                  Loading water bill data…
+                </CardContent>
+              </Card>
+            </div>
+          </main>
         </div>
       </div>
     )
@@ -290,24 +294,26 @@ export default function WaterBillsPage() {
   return (
     <div className="flex min-h-screen bg-gray-50">
       <Sidebar />
-      <div className="flex-1 p-8 ml-16">
-        {/* Header */}
-        <div className="mb-8">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="p-2 bg-blue-100 rounded-lg">
-              <Droplet className="h-6 w-6 text-[#4682B4]" />
+      <div className="flex-1 flex flex-col">
+        <Header />
+        <main className="flex-1 p-8 overflow-auto">
+          {/* Header */}
+          <div className="mb-8">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="p-2 bg-blue-100 rounded-lg">
+                <Droplet className="h-6 w-6 text-[#4682B4]" />
+              </div>
+              <h1 className="text-3xl font-bold">Create Water Bill Invoice</h1>
             </div>
-            <h1 className="text-3xl font-bold">Create Water Bill Invoice</h1>
+            <p className="text-muted-foreground">Generate and send water bill invoices to tenants</p>
           </div>
-          <p className="text-muted-foreground">Generate and send water bill invoices to tenants</p>
-        </div>
 
-        <div className="max-w-4xl space-y-4">
-          {formError && (
-            <Alert variant="destructive">
-              <AlertDescription>{formError}</AlertDescription>
-            </Alert>
-          )}
+          <div className="max-w-4xl space-y-4">
+            {formError && (
+              <Alert variant="destructive">
+                <AlertDescription>{formError}</AlertDescription>
+              </Alert>
+            )}
 
           {invoiceSent ? (
             <Card>
@@ -541,7 +547,8 @@ export default function WaterBillsPage() {
             </CardContent>
             </Card>
           )}
-        </div>
+          </div>
+        </main>
       </div>
     </div>
   )

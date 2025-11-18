@@ -28,6 +28,8 @@ interface NotificationItem {
   message_text: string
   created_at: string
   read: boolean
+  related_entity_type?: string | null
+  related_entity_id?: string | null
 }
 
 function formatRelative(dateString: string) {
@@ -77,6 +79,19 @@ export function Header() {
     fetchUserFirstName()
   }, [user])
 
+  const sortNotifications = useCallback((items: NotificationItem[]) => {
+    return [...items].sort((a, b) => {
+      const aPayment = (a.related_entity_type || '').toLowerCase() === 'payment'
+      const bPayment = (b.related_entity_type || '').toLowerCase() === 'payment'
+      if (aPayment !== bPayment) {
+        return aPayment ? -1 : 1
+      }
+      const aTime = new Date(a.created_at).getTime()
+      const bTime = new Date(b.created_at).getTime()
+      return bTime - aTime
+    })
+  }, [])
+
   const fetchNotifications = useCallback(async () => {
     try {
       const response = await fetch('/api/manager/notifications', { cache: 'no-store' })
@@ -85,11 +100,11 @@ export function Header() {
       }
       const payload = await response.json()
       const unread = (payload.data || []).filter((item: NotificationItem) => !item.read)
-      setNotifications(unread)
+      setNotifications(sortNotifications(unread))
     } catch (error) {
       console.error('[Header] notifications fetch failed', error)
     }
-  }, [])
+  }, [sortNotifications])
 
   useEffect(() => {
     fetchNotifications()
@@ -187,10 +202,15 @@ export function Header() {
                 </Badge>
               )}
             </Button>
-            <SheetContent side="right" className="w-96">
-              <SheetHeader>
+            <SheetContent side="right" className="w-[28rem] px-0">
+              <div className="px-6 pt-6 pb-2 border-b border-border/60 bg-gradient-to-r from-[#f4f6fb] to-white sticky top-0 z-10">
                 <div className="flex items-center justify-between">
-                  <SheetTitle>Notifications</SheetTitle>
+                  <div>
+                    <SheetTitle className="text-lg">Notifications</SheetTitle>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Stay updated on tenant activity and billing alerts
+                    </p>
+                  </div>
                   {unreadCount > 0 && (
                     <Button
                       variant="ghost"
@@ -202,24 +222,38 @@ export function Header() {
                     </Button>
                   )}
                 </div>
-              </SheetHeader>
-              <div className="space-y-3 mt-6">
+              </div>
+              <div className="max-h-[70vh] overflow-y-auto px-6 py-4 space-y-3">
                 {notifications.length === 0 ? (
                   <p className="text-center text-muted-foreground py-8">No notifications</p>
                 ) : (
-                  notifications.map((notification) => (
+                  notifications.map((notification) => {
+                    const isPayment =
+                      (notification.related_entity_type || '').toLowerCase() === 'payment'
+                    const rowClasses = isPayment
+                      ? 'bg-red-500/10 border-red-200'
+                      : notification.read
+                        ? 'bg-background border-border'
+                        : 'bg-primary/5 border-primary/20'
+
+                    return (
                     <button
                       key={notification.id}
                       type="button"
                       onClick={() => handleNotificationClick(notification)}
-                      className={`w-full text-left p-3 rounded-lg border cursor-pointer transition-colors ${
-                        notification.read ? 'bg-background border-border' : 'bg-primary/5 border-primary/20'
-                      }`}
+                      className={`w-full text-left p-4 rounded-2xl border cursor-pointer transition-all hover:-translate-y-0.5 hover:shadow-sm ${rowClasses}`}
                     >
-                      <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-start justify-between gap-3">
                         <div className="flex-1">
-                          <p className="font-medium text-sm">New tenant message</p>
-                          <p className="text-xs text-muted-foreground mt-1">
+                          <p className="font-medium text-sm flex items-center gap-2">
+                            {isPayment && (
+                              <Badge className="bg-red-500/80 text-white rounded-full px-2 py-0.5">
+                                Payment alert
+                              </Badge>
+                            )}
+                            <span>{isPayment ? 'Payment notice' : 'New tenant message'}</span>
+                          </p>
+                          <p className="text-xs text-muted-foreground mt-2 leading-relaxed">
                             {notification.message_text}
                           </p>
                         </div>
@@ -227,11 +261,12 @@ export function Header() {
                           <div className="w-2 h-2 bg-primary rounded-full mt-1 flex-shrink-0" />
                         )}
                       </div>
-                      <p className="text-xs text-muted-foreground mt-2">
+                      <p className="text-xs text-muted-foreground mt-3">
                         {notification.created_at ? formatRelative(notification.created_at) : ''}
                       </p>
                     </button>
-                  ))
+                    )
+                  })
                 )}
               </div>
             </SheetContent>

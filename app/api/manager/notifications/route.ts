@@ -24,7 +24,7 @@ export async function GET() {
     const adminSupabase = createAdminClient()
     const { data, error } = await adminSupabase
       .from('communications')
-      .select('id, sender_user_id, recipient_user_id, message_text, read, created_at')
+      .select('id, sender_user_id, recipient_user_id, message_text, read, created_at, related_entity_type, related_entity_id, message_type')
       .eq('recipient_user_id', user.id)
       .order('created_at', { ascending: false })
       .limit(30)

@@ -32,6 +32,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Sidebar } from '@/components/dashboard/sidebar'
+import { Header } from '@/components/dashboard/header'
 
 export default function CommunicationsPage() {
   const router = useRouter()
@@ -54,12 +55,14 @@ export default function CommunicationsPage() {
   return (
     <div className="flex min-h-screen bg-gray-50">
       <Sidebar />
-      <div className="flex-1 p-8 ml-16">
-        <div className="mb-6">
-          <h1 className="text-3xl font-bold">Communications Hub</h1>
-        </div>
+      <div className="flex-1 flex flex-col">
+        <Header />
+        <main className="flex-1 p-8 overflow-auto">
+          <div className="mb-6">
+            <h1 className="text-3xl font-bold">Communications Hub</h1>
+          </div>
 
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="messages">Messages</TabsTrigger>
             <TabsTrigger value="sms">SMS Reminders</TabsTrigger>
@@ -241,6 +244,7 @@ export default function CommunicationsPage() {
             </div>
           </DialogContent>
         </Dialog>
+        </main>
       </div>
     </div>
   )

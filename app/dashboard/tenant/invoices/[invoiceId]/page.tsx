@@ -54,7 +54,8 @@ export default function TenantInvoicePaymentPage() {
       if (!invoiceId) return
       try {
         setLoading(true)
-        const response = await fetch(`/api/tenant/invoices/${invoiceId}`, { cache: 'no-store' })
+        const encodedId = encodeURIComponent(invoiceId)
+        const response = await fetch(`/api/tenant/invoices/${encodedId}?invoiceId=${encodedId}`, { cache: 'no-store' })
         if (!response.ok) {
           const payload = await response.json().catch(() => ({}))
           throw new Error(payload.error || 'Failed to load invoice.')

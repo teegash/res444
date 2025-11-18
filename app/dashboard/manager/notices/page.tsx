@@ -1,8 +1,8 @@
 'use client'
 
 import { Sidebar } from '@/components/dashboard/sidebar'
+import { Header } from '@/components/dashboard/header'
 import { AlertTriangle, Plus } from 'lucide-react'
-import Link from 'next/link'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -16,17 +16,19 @@ export default function ManagerNoticesPage() {
   return (
     <div className="flex min-h-screen bg-gray-50">
       <Sidebar />
-      <div className="flex-1 p-8 ml-16">
-        <div className="mb-6">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-yellow-100 rounded-lg">
-              <AlertTriangle className="h-6 w-6 text-yellow-600" />
+      <div className="flex-1 flex flex-col">
+        <Header />
+        <main className="flex-1 p-8 overflow-auto">
+          <div className="mb-6">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-yellow-100 rounded-lg">
+                <AlertTriangle className="h-6 w-6 text-yellow-600" />
+              </div>
+              <h1 className="text-3xl font-bold">Send Notice</h1>
             </div>
-            <h1 className="text-3xl font-bold">Send Notice</h1>
           </div>
-        </div>
 
-        <div className="grid gap-6 lg:grid-cols-2">
+          <div className="grid gap-6 lg:grid-cols-2">
           {/* Send New Notice */}
           <Card>
             <CardHeader>
@@ -247,6 +249,8 @@ export default function ManagerNoticesPage() {
           </CardContent>
         </Card>
       </div>
-    </div>
+    </main>
+  </div>
+</div>
   )
 }

@@ -1,6 +1,7 @@
 'use client'
 
 import { Sidebar } from '@/components/dashboard/sidebar'
+import { Header } from '@/components/dashboard/header'
 import { TrendingUp, TrendingDown, BarChart3, Eye } from 'lucide-react'
 import Link from 'next/link'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -11,34 +12,36 @@ export default function ReportsPage() {
   return (
     <div className="flex min-h-screen bg-gray-50">
       <Sidebar />
-      <div className="flex-1 p-8 ml-16">
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-blue-100 rounded-lg">
-              <BarChart3 className="h-6 w-6 text-[#4682B4]" />
+      <div className="flex-1 flex flex-col">
+        <Header />
+        <main className="flex-1 p-8 overflow-auto">
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-blue-100 rounded-lg">
+                <BarChart3 className="h-6 w-6 text-[#4682B4]" />
+              </div>
+              <h1 className="text-3xl font-bold">Financial Reports</h1>
             </div>
-            <h1 className="text-3xl font-bold">Financial Reports</h1>
+            <div className="flex gap-2">
+              <Select defaultValue="all">
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="Time Period" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Time</SelectItem>
+                  <SelectItem value="month">This Month</SelectItem>
+                  <SelectItem value="quarter">This Quarter</SelectItem>
+                  <SelectItem value="year">This Year</SelectItem>
+                </SelectContent>
+              </Select>
+              <Link href="/dashboard/manager/reports/preview">
+                <Button>
+                  <Eye className="h-4 w-4 mr-2" />
+                  Preview Report
+                </Button>
+              </Link>
+            </div>
           </div>
-          <div className="flex gap-2">
-            <Select defaultValue="all">
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Time Period" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Time</SelectItem>
-                <SelectItem value="month">This Month</SelectItem>
-                <SelectItem value="quarter">This Quarter</SelectItem>
-                <SelectItem value="year">This Year</SelectItem>
-              </SelectContent>
-            </Select>
-            <Link href="/dashboard/manager/reports/preview">
-              <Button>
-                <Eye className="h-4 w-4 mr-2" />
-                Preview Report
-              </Button>
-            </Link>
-          </div>
-        </div>
 
         {/* Key Metrics */}
         <div className="grid gap-4 md:grid-cols-4">
@@ -181,6 +184,8 @@ export default function ReportsPage() {
           </CardContent>
         </Card>
       </div>
-    </div>
+    </main>
+  </div>
+</div>
   )
 }
