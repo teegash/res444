@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
         .slice(2)}.${extension}`
 
       const { error: uploadError } = await adminSupabase.storage
-        .from('maintenance_attachments')
+        .from('maintenance-attachments')
         .upload(filePath, buffer, {
           contentType: file.type || 'image/jpeg',
           cacheControl: '3600',
@@ -58,7 +58,7 @@ export async function POST(request: NextRequest) {
       }
 
       const { data: publicUrlData } = adminSupabase.storage
-        .from('maintenance_attachments')
+        .from('maintenance-attachments')
         .getPublicUrl(filePath)
 
       if (publicUrlData?.publicUrl) {

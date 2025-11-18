@@ -23,7 +23,8 @@ export async function GET() {
       .eq('id', user.id)
       .maybeSingle()
 
-    if (!profile?.role || !MANAGER_ROLES.has(profile.role)) {
+    const role = profile?.role?.toLowerCase() || ''
+    if (!role || !MANAGER_ROLES.has(role)) {
       return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })
     }
 
