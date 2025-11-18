@@ -169,7 +169,7 @@ export default function TenantDashboard() {
                   {pendingInvoice ? formatDate(pendingInvoice.due_date) : 'No outstanding payments'}
                 </p>
                 {pendingInvoice ? (
-                  <Link href={`/dashboard/tenant/invoices/${pendingInvoice.id}`}>
+                  <Link href={`/dashboard/tenant/invoices/${pendingInvoice.id}?invoiceId=${pendingInvoice.id}`}>
                     <Button size="sm" className="w-full mt-2" variant="outline">
                       Pay {pendingInvoice.invoice_type === 'water' ? 'Water Bill' : 'Invoice'}
                     </Button>

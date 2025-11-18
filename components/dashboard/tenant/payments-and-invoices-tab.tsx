@@ -133,7 +133,7 @@ export function PaymentsAndInvoicesTab() {
                       </Badge>
                     </div>
                     {!invoice.status && (
-                      <Link href={`/dashboard/tenant/invoices/${invoice.id}`}>
+                      <Link href={`/dashboard/tenant/invoices/${invoice.id}?invoiceId=${invoice.id}`}>
                         <Button size="sm" className="bg-primary hover:bg-primary/90 gap-2">
                           <CreditCard className="h-4 w-4" />
                           Pay Now

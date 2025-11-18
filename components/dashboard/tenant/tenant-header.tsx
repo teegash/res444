@@ -166,7 +166,7 @@ export function TenantHeader({ summary, loading, onProfileUpdated }: TenantHeade
           })
           return
         }
-        router.push(`/dashboard/tenant/invoices/${invoiceId}`)
+        router.push(`/dashboard/tenant/invoices/${encodeURIComponent(invoiceId)}?invoiceId=${encodeURIComponent(invoiceId)}`)
       } else {
         router.push('/dashboard/tenant/messages')
       }

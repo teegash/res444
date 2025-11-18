@@ -195,8 +195,13 @@ export function getAfricasTalkingConfig(): AfricasTalkingConfig {
   }
 
   let environment = environmentResult.value as 'sandbox' | 'production' | undefined
+  const inferredSandbox = apiKeyResult.key?.includes('SANDBOX') || apiKeyResult.value.startsWith('atsk_') || usernameResult.value === 'sandbox'
   if (!environment) {
-    environment = apiKeyResult.key?.includes('SANDBOX') ? 'sandbox' : 'production'
+    environment = inferredSandbox ? 'sandbox' : 'production'
+  }
+
+  if (environment === 'production' && inferredSandbox) {
+    environment = 'sandbox'
   }
 
   const username =

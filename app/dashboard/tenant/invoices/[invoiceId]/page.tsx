@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -33,11 +33,14 @@ interface InvoiceDetail {
 
 export default function TenantInvoicePaymentPage() {
   const params = useParams()
+  const searchParams = useSearchParams()
   const router = useRouter()
   const invoiceId = useMemo(() => {
     const raw = params?.invoiceId
-    return Array.isArray(raw) ? raw[0] : raw
-  }, [params])
+    const slug = Array.isArray(raw) ? raw[0] : raw
+    const query = searchParams?.get('invoiceId') || null
+    return slug || query
+  }, [params, searchParams])
 
   const [invoice, setInvoice] = useState<InvoiceDetail | null>(null)
   const [loading, setLoading] = useState(true)
