@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+const ATTACHMENT_BUCKET = 'maintenance-attachments'
 
 export async function GET() {
   try {
@@ -87,6 +88,31 @@ export async function GET() {
       )
     }
 
+    const attachmentPaths = Array.from(
+      new Set(
+        (data || [])
+          .flatMap((request) => request.attachment_urls || [])
+          .filter((value): value is string => Boolean(value) && !value.startsWith('http'))
+      )
+    )
+
+    let signedUrlMap = new Map<string, string>()
+    if (attachmentPaths.length > 0) {
+      const { data: signedItems, error: signedError } = await adminSupabase.storage
+        .from(ATTACHMENT_BUCKET)
+        .createSignedUrls(attachmentPaths, 60 * 60)
+
+      if (signedError) {
+        console.error('[ManagerMaintenance.GET] signed url error', signedError)
+      } else if (signedItems) {
+        signedUrlMap = new Map(
+          signedItems
+            .filter((item): item is { path: string; signedUrl: string } => Boolean(item.signedUrl))
+            .map((item) => [item.path, item.signedUrl])
+        )
+      }
+    }
+
     const payload = (data || []).map((request) => ({
       id: request.id,
       title: request.title,
@@ -96,7 +122,13 @@ export async function GET() {
       created_at: request.created_at,
       updated_at: request.updated_at,
       completed_at: request.completed_at,
-      attachment_urls: request.attachment_urls || [],
+      attachment_urls: (request.attachment_urls || []).map((url) => {
+        if (!url) return url
+        if (url.startsWith('http://') || url.startsWith('https://')) {
+          return url
+        }
+        return signedUrlMap.get(url) || url
+      }),
       tenant: request.tenant_user_id ? tenantMap.get(request.tenant_user_id) || null : null,
       unit: request.unit || null,
       assigned_to: request.assigned_to,

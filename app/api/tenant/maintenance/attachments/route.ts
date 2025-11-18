@@ -57,13 +57,7 @@ export async function POST(request: NextRequest) {
         throw uploadError
       }
 
-      const { data: publicUrlData } = adminSupabase.storage
-        .from('maintenance-attachments')
-        .getPublicUrl(filePath)
-
-      if (publicUrlData?.publicUrl) {
-        uploadedUrls.push(publicUrlData.publicUrl)
-      }
+      uploadedUrls.push(filePath)
     }
 
     return NextResponse.json({ success: true, urls: uploadedUrls })

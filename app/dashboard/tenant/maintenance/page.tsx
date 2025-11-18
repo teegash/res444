@@ -209,18 +209,23 @@ export default function TenantMaintenancePage() {
                     </div>
                   </div>
                   {request.attachment_urls && request.attachment_urls.length > 0 && (
-                    <div className="mt-3 flex flex-wrap gap-2">
+                    <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 gap-3">
                       {request.attachment_urls.map((url, idx) => (
-                        <a
-                          key={url}
-                          href={url}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="inline-flex items-center gap-1 text-xs text-blue-600 underline"
+                        <button
+                          key={`${url}-${idx}`}
+                          type="button"
+                          onClick={() => window.open(url, '_blank', 'noopener,noreferrer')}
+                          className="group relative overflow-hidden rounded-xl border bg-slate-50 hover:bg-slate-100 transition"
                         >
-                          <FileText className="w-3 h-3" />
-                          Attachment {idx + 1}
-                        </a>
+                          <img
+                            src={url}
+                            alt={`Maintenance attachment ${idx + 1}`}
+                            className="h-28 w-full object-cover"
+                          />
+                          <span className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white text-xs font-medium">
+                            View full size
+                          </span>
+                        </button>
                       ))}
                     </div>
                   )}
