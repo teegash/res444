@@ -277,31 +277,34 @@ export default function NewMaintenanceRequestPage() {
               </div>
 
               <div className="space-y-2">
-                <Label>Photos (Optional)</Label>
-                <label className="border-2 border-dashed rounded-lg p-8 text-center hover:bg-accent/50 transition-colors cursor-pointer block">
-                  <Upload className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
-                  <p className="text-sm text-muted-foreground mb-1">
+              <Label>Photos (Optional)</Label>
+              <div className="border-2 border-dashed rounded-lg p-6 text-center bg-white transition-colors cursor-pointer">
+                <label htmlFor="attachments" className="flex flex-col items-center gap-2 cursor-pointer">
+                  <Upload className="h-8 w-8 text-muted-foreground" />
+                  <p className="text-sm text-muted-foreground">
                     Upload up to 3 photos to help us understand the issue better
                   </p>
                   <Button variant="outline" size="sm" type="button">
                     Choose Files
                   </Button>
-                  <input
-                    type="file"
-                    className="hidden"
-                    multiple
-                    accept="image/*"
-                    onChange={handleFileChange}
-                  />
-                  {attachmentDetails && (
-                    <p className="text-xs text-muted-foreground mt-2">Attached: {attachmentDetails}</p>
-                  )}
                 </label>
-                {previewUrls.length > 0 && (
-                  <div className="grid grid-cols-3 gap-3 mt-3">
-                    {previewUrls.map((src, idx) => (
-                      <div key={src} className="relative rounded-lg overflow-hidden bg-slate-100">
-                        <img src={src} alt={`Attachment ${idx + 1}`} className="w-full h-24 object-cover" />
+                <input
+                  id="attachments"
+                  type="file"
+                  className="hidden"
+                  multiple
+                  accept="image/*"
+                  onChange={handleFileChange}
+                />
+                {attachmentDetails && (
+                  <p className="text-xs text-muted-foreground mt-2">Attached: {attachmentDetails}</p>
+                )}
+              </div>
+              {previewUrls.length > 0 && (
+                <div className="grid grid-cols-3 gap-3 mt-3">
+                  {previewUrls.map((src, idx) => (
+                    <div key={src} className="relative rounded-lg overflow-hidden bg-slate-100">
+                      <img src={src} alt={`Attachment ${idx + 1}`} className="w-full h-24 object-cover" />
                       </div>
                     ))}
                   </div>
