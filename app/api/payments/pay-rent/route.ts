@@ -55,7 +55,7 @@ export async function POST(request: NextRequest) {
                 months_covered: monthsCovered,
                 invoice_type: 'rent',
                 description: `Rent for ${currentMonth}${monthsCovered > 1 ? ` (${monthsCovered} months)` : ''}`,
-            })
+            } as any)
             .select('id, lease_id, amount, due_date, status, months_covered, invoice_type, description, created_at')
             .single() as any;
 
