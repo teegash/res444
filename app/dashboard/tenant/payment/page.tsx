@@ -62,15 +62,35 @@ export default function TenantPaymentPortal() {
   }, [invoice?.due_date, monthsToPay])
 
   const fetchInvoice = useCallback(async () => {
-    const invoiceId = searchParams.get('invoiceId')
-    if (!invoiceId) {
-      setInvoiceError('No invoice specified.')
-      setLoadingInvoice(false)
-      return
-    }
+    let invoiceId = searchParams.get('invoiceId')
 
     try {
       setLoadingInvoice(true)
+
+      // If no invoiceId, try to find the earliest pending rent invoice
+      if (!invoiceId) {
+        const res = await fetch(`/api/tenant/invoices?status=pending`)
+        if (res.ok) {
+          const json = await res.json()
+          const pendingInvoices = json.data || []
+          // Prioritize rent invoices, then sort by due date
+          const nextInvoice = pendingInvoices
+            .sort((a: any, b: any) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime())
+            .find((inv: any) => inv.invoice_type === 'rent') || pendingInvoices[0]
+
+          if (nextInvoice) {
+            invoiceId = nextInvoice.id
+          }
+        }
+      }
+
+      if (!invoiceId) {
+        setInvoiceError('No pending invoices found. You are all paid up!')
+        setLoadingInvoice(false)
+        return
+      }
+
+      // Now fetch the specific invoice details (or verify the one we found)
       const res = await fetch(`/api/tenant/invoices?status=pending`)
       if (!res.ok) throw new Error('Failed to fetch invoices')
       const json = await res.json()
