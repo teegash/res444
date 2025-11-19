@@ -16,9 +16,17 @@ maintenance page live data integration
 tenant maintenance request
 make sure history of requests are seen at the bottom of maintenance request form
 lease download in tenant check
+lease autorenew toggle
+lease download
 
 payment intergration, mpesa intergration
 daraja in nategadgets
+payments page and tenants column update after payment
+=also should update upon successful verification of bank slip - impliment this consider wiring the “Recheck” / “Review slip” actions in pending-verification-tab so managers can trigger verification without leaving the page.=
+also should auto update upon successful payment through using peyment gateway for visacards
+autoupdate several months payments
+this should stop rent payment reminders and only send invoice for water
+
 
 In tenant dashboard, the pay rent button, make sure it goes to payment page but shows the rent amount, not the latest invoice, this will then be updated in payments showing the tenant has done a prepayment if its early and update the payment status to add a month or 2 before sending an invoice or rent reminder
 

@@ -10,6 +10,7 @@ export interface VerifyPaymentRequest {
   bank_reference_number?: string
   deposit_slip_url?: string
   notes?: string
+  months_paid?: number
 }
 
 export interface VerifyPaymentResult {
@@ -85,10 +86,13 @@ export async function createPaymentWithDepositSlip(
       }
     }
 
-    if (request.amount > invoiceAmount) {
+    const monthsPaid = Math.min(12, Math.max(1, request.months_paid || 1))
+    const expectedAmount = invoiceAmount * monthsPaid
+
+    if (Math.abs(request.amount - expectedAmount) > 0.01) {
       return {
         success: false,
-        error: `Payment amount (KES ${request.amount}) cannot exceed invoice amount (KES ${invoiceAmount})`,
+        error: `Payment amount must equal ${monthsPaid} month(s) of rent (KES ${expectedAmount}).`,
       }
     }
 
@@ -103,7 +107,12 @@ export async function createPaymentWithDepositSlip(
         bank_reference_number: request.bank_reference_number || null,
         deposit_slip_url: request.deposit_slip_url || null,
         verified: false, // Pending verification
-        notes: request.notes || `Payment submitted with ${request.payment_method}. ${request.deposit_slip_url ? 'Deposit slip uploaded.' : ''}`,
+        months_paid: monthsPaid,
+        notes:
+          request.notes ||
+          `Payment submitted covering ${monthsPaid} month(s) with ${request.payment_method}. ${
+            request.deposit_slip_url ? 'Deposit slip uploaded.' : ''
+          }`,
       })
       .select('id')
       .single()
@@ -157,9 +166,12 @@ export async function approvePayment(
         tenant_user_id,
         amount_paid,
         verified,
+        months_paid,
         invoices (
           id,
-          amount
+          amount,
+          due_date,
+          lease_id
         )
       `
       )
@@ -213,7 +225,20 @@ export async function approvePayment(
     }
 
     // 4. Update invoice status
+    const monthsPaid = payment.months_paid || 1
+
+    await supabase.from('invoices').update({ months_covered: monthsPaid }).eq('id', invoice.id)
     await updateInvoiceStatus(invoice.id)
+
+    if (invoice.due_date && invoice.lease_id) {
+      const dueDate = new Date(invoice.due_date)
+      const paidUntil = new Date(dueDate)
+      paidUntil.setMonth(paidUntil.getMonth() + monthsPaid - 1)
+      await supabase
+        .from('leases')
+        .update({ rent_paid_until: paidUntil.toISOString().split('T')[0] })
+        .eq('id', invoice.lease_id)
+    }
 
     // 5. Send notification to tenant
     await sendPaymentVerificationNotification(
@@ -407,4 +432,3 @@ async function sendPaymentVerificationNotification(
     // Don't throw - notification failure shouldn't break the process
   }
 }
-

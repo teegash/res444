@@ -25,6 +25,7 @@ type PendingVerificationTabProps = {
   payments: PaymentRecord[]
   loading: boolean
   lastChecked: string | null
+  pollFrequencySeconds?: number
 }
 
 const formatDate = (value?: string | null) => {
@@ -53,7 +54,14 @@ function resolveStatus(payment: PaymentRecord) {
   return { label: 'Pending', variant: 'outline' as const }
 }
 
-export function PendingVerificationTab({ payments, loading, lastChecked }: PendingVerificationTabProps) {
+export function PendingVerificationTab({
+  payments,
+  loading,
+  lastChecked,
+  pollFrequencySeconds,
+}: PendingVerificationTabProps) {
+  const frequency = Math.max(5, pollFrequencySeconds || 30)
+
   return (
     <div className="space-y-6">
       <Card>
@@ -61,7 +69,7 @@ export function PendingVerificationTab({ payments, loading, lastChecked }: Pendi
           <div className="flex items-center gap-3">
             <div className={`w-3 h-3 rounded-full ${loading ? 'bg-amber-500 animate-pulse' : 'bg-green-500'}`} />
             <div>
-              <p className="font-semibold">Auto-checking M-Pesa payments every 30 seconds</p>
+              <p className="font-semibold">Auto-checking M-Pesa payments every {frequency} seconds</p>
               <p className="text-sm text-muted-foreground">
                 Last checked: {lastChecked ? formatDate(lastChecked) : 'Sync scheduled'}
               </p>
@@ -76,6 +84,7 @@ export function PendingVerificationTab({ payments, loading, lastChecked }: Pendi
             <TableRow>
               <TableHead>Tenant Name</TableHead>
               <TableHead>Amount (KES)</TableHead>
+              <TableHead>Months</TableHead>
               <TableHead>Type</TableHead>
               <TableHead>Method</TableHead>
               <TableHead>Date</TableHead>
@@ -86,13 +95,13 @@ export function PendingVerificationTab({ payments, loading, lastChecked }: Pendi
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center text-sm text-muted-foreground py-8">
+                <TableCell colSpan={8} className="text-center text-sm text-muted-foreground py-8">
                   Loading payments...
                 </TableCell>
               </TableRow>
             ) : payments.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center text-sm text-muted-foreground py-8">
+                <TableCell colSpan={8} className="text-center text-sm text-muted-foreground py-8">
                   No pending payments right now.
                 </TableCell>
               </TableRow>
@@ -103,6 +112,7 @@ export function PendingVerificationTab({ payments, loading, lastChecked }: Pendi
                   <TableRow key={payment.id}>
                     <TableCell className="font-medium">{payment.tenantName}</TableCell>
                     <TableCell>{currencyFormatter.format(payment.amount)}</TableCell>
+                    <TableCell>{payment.monthsPaid || 1}</TableCell>
                     <TableCell>{payment.invoiceType || '—'}</TableCell>
                     <TableCell className="capitalize">{payment.paymentMethod || '—'}</TableCell>
                     <TableCell>{formatDate(payment.paymentDate)}</TableCell>

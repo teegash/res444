@@ -243,6 +243,7 @@ create table public.payments (
   mpesa_response_code text null,
   last_status_check timestamp with time zone null,
   retry_count integer null default 0,
+  months_paid integer null default 1,
   created_at timestamp with time zone null default CURRENT_TIMESTAMP,
   constraint payments_pkey primary key (id),
   constraint payments_invoice_id_fkey foreign KEY (invoice_id) references invoices (id) on delete CASCADE,
@@ -255,7 +256,8 @@ create table public.payments (
           'mpesa'::text,
           'bank_transfer'::text,
           'cash'::text,
-          'cheque'::text
+          'cheque'::text,
+          'card'::text
         ]
       )
     )
@@ -367,6 +369,7 @@ create table public.leases (
   rent_auto_populated boolean null default false,
   rent_locked_reason text null,
   lease_auto_generated boolean null default false,
+  rent_paid_until date null,
   created_at timestamp with time zone null default CURRENT_TIMESTAMP,
   updated_at timestamp with time zone null default CURRENT_TIMESTAMP,
   constraint leases_pkey primary key (id),

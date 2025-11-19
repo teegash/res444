@@ -37,19 +37,28 @@ async function getManagerContext(): Promise<ManagerContextResult> {
   return { adminSupabase, user }
 }
 
-function mapPayment(row: any) {
+function mapPayment(
+  row: any,
+  lookups?: {
+    tenantMap?: Map<string, { full_name: string | null; phone_number: string | null }>
+    verifiedMap?: Map<string, string | null>
+  }
+) {
   const amount = Number(row.amount_paid) || 0
   const invoice = row.invoice || null
   const lease = invoice?.lease || null
   const unit = lease?.unit || null
   const building = unit?.building || null
 
+  const tenantProfile = lookups?.tenantMap?.get(row.tenant_user_id || '') || null
+  const verifiedByName = row.verified_by ? lookups?.verifiedMap?.get(row.verified_by) || null : null
+
   return {
     id: row.id,
     invoiceId: invoice?.id || null,
-    tenantId: row.tenant?.id || null,
-    tenantName: row.tenant?.full_name || 'Tenant',
-    tenantPhone: row.tenant?.phone_number || null,
+    tenantId: row.tenant_user_id || null,
+    tenantName: tenantProfile?.full_name || 'Tenant',
+    tenantPhone: tenantProfile?.phone_number || null,
     propertyName: building?.name || null,
     propertyLocation: building?.location || null,
     unitLabel: unit?.unit_number || null,
@@ -63,7 +72,7 @@ function mapPayment(row: any) {
     bankReferenceNumber: row.bank_reference_number || null,
     depositSlipUrl: row.deposit_slip_url || null,
     verified: Boolean(row.verified),
-    verifiedBy: row.verified_by_profile?.full_name || null,
+    verifiedBy: verifiedByName,
     verifiedAt: row.verified_at,
     mpesaAutoVerified: row.mpesa_auto_verified || false,
     mpesaQueryStatus: row.mpesa_query_status || null,
@@ -71,6 +80,7 @@ function mapPayment(row: any) {
     lastStatusCheck: row.last_status_check || row.mpesa_verification_timestamp || null,
     retryCount: row.retry_count || 0,
     notes: row.notes || null,
+    monthsPaid: row.months_paid || 1,
   }
 }
 
@@ -87,10 +97,6 @@ function isFailure(payment: ReturnType<typeof mapPayment>) {
     return true
   }
   return false
-}
-
-function formatNumber(value: number) {
-  return Number.isFinite(value) ? value : 0
 }
 
 function buildBreakdown(payments: ReturnType<typeof mapPayment>[]) {
@@ -137,22 +143,16 @@ export async function GET() {
         mpesa_response_code,
         last_status_check,
         retry_count,
-        tenant:user_profiles!payments_tenant_user_id_fkey (
-          id,
-          full_name,
-          phone_number
-        ),
-        verified_by_profile:user_profiles!payments_verified_by_fkey (
-          id,
-          full_name
-        ),
+        months_paid,
         invoice:invoices (
           id,
           invoice_type,
           amount,
           due_date,
+          months_covered,
           lease:leases (
             id,
+            rent_paid_until,
             unit:apartment_units (
               unit_number,
               building:apartment_buildings (
@@ -171,7 +171,42 @@ export async function GET() {
       throw error
     }
 
-    const mapped = (data || []).map(mapPayment)
+    const tenantIds = Array.from(
+      new Set((data || []).map((payment) => payment.tenant_user_id).filter((id): id is string => Boolean(id)))
+    )
+    const verifiedIds = Array.from(
+      new Set((data || []).map((payment) => payment.verified_by).filter((id): id is string => Boolean(id)))
+    )
+
+    let tenantMap = new Map<string, { full_name: string | null; phone_number: string | null }>()
+    if (tenantIds.length > 0) {
+      const { data: tenantProfiles } = await adminSupabase
+        .from('user_profiles')
+        .select('id, full_name, phone_number')
+        .in('id', tenantIds)
+
+      tenantMap = new Map(
+        (tenantProfiles || []).map((profile) => [profile.id, { full_name: profile.full_name, phone_number: profile.phone_number }])
+      )
+    }
+
+    let verifiedMap = new Map<string, string | null>()
+    if (verifiedIds.length > 0) {
+      const { data: verifiedProfiles } = await adminSupabase
+        .from('user_profiles')
+        .select('id, full_name')
+        .in('id', verifiedIds)
+
+      verifiedMap = new Map((verifiedProfiles || []).map((profile) => [profile.id, profile.full_name]))
+    }
+
+    const mapped = (data || []).map((payment) =>
+      mapPayment(payment, {
+        tenantMap,
+        verifiedMap,
+      })
+    )
+
     const failed = mapped.filter(isFailure)
     const failedIds = new Set(failed.map((payment) => payment.id))
     const pending = mapped.filter((payment) => !payment.verified && !failedIds.has(payment.id))
@@ -271,6 +306,7 @@ export async function POST(request: NextRequest) {
     if ('error' in ctx) {
       return ctx.error
     }
+
     const result = await autoVerifyMpesaPayments()
 
     return NextResponse.json({

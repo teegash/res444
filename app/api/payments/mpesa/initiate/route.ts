@@ -49,6 +49,11 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    const monthsCoveredRaw = Number((body as any).months_covered)
+    const monthsCovered = Number.isFinite(monthsCoveredRaw)
+      ? Math.min(12, Math.max(1, Math.trunc(monthsCoveredRaw)))
+      : 1
+
     if (!body.phone_number) {
       return NextResponse.json(
         {
@@ -88,6 +93,7 @@ export async function POST(request: NextRequest) {
         `
         id,
         amount,
+        status,
         lease_id,
         description,
         leases (
@@ -144,11 +150,12 @@ export async function POST(request: NextRequest) {
     }
 
     const invoiceAmount = parseFloat(invoice.amount.toString())
-    if (body.amount !== invoiceAmount) {
+    const expectedAmount = invoiceAmount * monthsCovered
+    if (Math.abs(body.amount - expectedAmount) > 0.01) {
       return NextResponse.json(
         {
           success: false,
-          error: `Payment amount must match the invoice amount (KES ${invoiceAmount}).`,
+          error: `Payment amount must equal invoice total for ${monthsCovered} month(s): KES ${expectedAmount}.`,
         },
         { status: 400 }
       )
@@ -189,7 +196,8 @@ export async function POST(request: NextRequest) {
         amount_paid: body.amount,
         payment_method: 'mpesa',
         verified: false,
-        notes: `M-Pesa payment initiated for ${transactionDesc}`,
+        months_paid: monthsCovered,
+        notes: `M-Pesa payment initiated for ${transactionDesc} covering ${monthsCovered} month(s).`,
       })
       .select('id')
       .single()
@@ -248,8 +256,9 @@ export async function POST(request: NextRequest) {
         checkout_request_id: stkResponse.checkoutRequestId,
         merchant_request_id: stkResponse.merchantRequestId,
         customer_message: stkResponse.customerMessage,
-        amount: body.amount,
+        amount: expectedAmount,
         phone_number: phoneNumber,
+        months_covered: monthsCovered,
       },
     })
   } catch (error) {

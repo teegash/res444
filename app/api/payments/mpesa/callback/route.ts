@@ -51,10 +51,12 @@ export async function POST(request: NextRequest) {
         invoice_id,
         tenant_user_id,
         amount_paid,
+        months_paid,
         mpesa_receipt_number,
         invoices (
           id,
           amount,
+          due_date,
           lease_id
         )
       `
@@ -75,10 +77,12 @@ export async function POST(request: NextRequest) {
           invoice_id,
           tenant_user_id,
           amount_paid,
+          months_paid,
           mpesa_receipt_number,
           invoices (
             id,
             amount,
+            due_date,
             lease_id
           )
         `
@@ -106,7 +110,7 @@ export async function POST(request: NextRequest) {
     // 4. Handle payment result
     if (parsed.resultCode === 0) {
       // Payment successful
-      const invoice = payment.invoices as { id: string; amount: number } | null
+      const invoice = payment.invoices as { id: string; amount: number; due_date: string | null; lease_id: string } | null
 
       if (!invoice) {
         console.error('Invoice not found for payment:', payment.id)
@@ -152,8 +156,24 @@ export async function POST(request: NextRequest) {
         })
       }
 
-      // 6. Update invoice status
+      // 6. Update invoice coverage and status
+      const monthsPaid = payment.months_paid || 1
+      await supabase
+        .from('invoices')
+        .update({ months_covered: monthsPaid })
+        .eq('id', invoice.id)
+
       await updateInvoiceStatus(invoice.id)
+
+      if (invoice.due_date) {
+        const dueDate = new Date(invoice.due_date)
+        const paidUntil = new Date(dueDate)
+        paidUntil.setMonth(paidUntil.getMonth() + monthsPaid - 1)
+        await supabase
+          .from('leases')
+          .update({ rent_paid_until: paidUntil.toISOString().split('T')[0] })
+          .eq('id', invoice.lease_id)
+      }
 
       // 7. Send SMS confirmation (async, don't wait)
       sendPaymentConfirmationSMS(payment.tenant_user_id, {
@@ -273,4 +293,3 @@ export async function GET() {
     { status: 200 }
   )
 }
-

@@ -34,6 +34,13 @@ const currencyFormatter = new Intl.NumberFormat('en-KE', {
   minimumFractionDigits: 0,
 })
 
+const formatDateTime = (value?: string | null) => {
+  if (!value) return '—'
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) return '—'
+  return parsed.toLocaleString()
+}
+
 interface VerifiedPaymentsTabProps {
   payments: PaymentRecord[]
   stats?: PaymentStats
@@ -44,6 +51,38 @@ export function VerifiedPaymentsTab({ payments, stats, loading }: VerifiedPaymen
   const [timeFilter, setTimeFilter] = useState('30')
   const [selectedPayment, setSelectedPayment] = useState<PaymentRecord | null>(null)
   const [showReceiptModal, setShowReceiptModal] = useState(false)
+  const selectedMeta = useMemo(() => {
+    if (!selectedPayment) {
+      return null
+    }
+
+    const receipt = selectedPayment.mpesaReceiptNumber || selectedPayment.bankReferenceNumber || '—'
+    const method = selectedPayment.paymentMethod
+      ? selectedPayment.paymentMethod.replace(/_/g, ' ')
+      : '—'
+    const verifiedBy =
+      selectedPayment.verifiedBy ||
+      (selectedPayment.mpesaAutoVerified ? 'M-Pesa API' : 'Manager verification')
+    const verifiedOn = formatDateTime(selectedPayment.verifiedAt || selectedPayment.paymentDate)
+    const invoiceRef = selectedPayment.invoiceId
+      ? selectedPayment.invoiceId.substring(0, 8).toUpperCase()
+      : '—'
+    const months = selectedPayment.monthsPaid || 1
+    const coverageLabel = `${months} month${months > 1 ? 's' : ''}`
+    const propertyParts = [selectedPayment.propertyName, selectedPayment.unitLabel].filter(
+      (part): part is string => Boolean(part)
+    )
+
+    return {
+      receipt,
+      method,
+      verifiedBy,
+      verifiedOn,
+      invoiceRef,
+      coverageLabel,
+      propertyLabel: propertyParts.length ? propertyParts.join(' • ') : '—',
+    }
+  }, [selectedPayment])
 
   const filteredPayments = useMemo(() => {
     if (timeFilter === 'all') return payments
@@ -163,7 +202,7 @@ export function VerifiedPaymentsTab({ payments, stats, loading }: VerifiedPaymen
                   <TableCell>
                     <Badge variant="outline">{payment.verifiedBy || (payment.mpesaAutoVerified ? 'M-Pesa API' : '—')}</Badge>
                   </TableCell>
-                  <TableCell>{payment.verifiedAt ? new Date(payment.verifiedAt).toLocaleString() : '—'}</TableCell>
+                  <TableCell>{formatDateTime(payment.verifiedAt || payment.paymentDate)}</TableCell>
                   <TableCell className="text-sm font-mono">
                     {payment.mpesaReceiptNumber || payment.bankReferenceNumber || '—'}
                   </TableCell>
@@ -216,34 +255,46 @@ export function VerifiedPaymentsTab({ payments, stats, loading }: VerifiedPaymen
           <DialogHeader>
             <DialogTitle>Payment Receipt</DialogTitle>
           </DialogHeader>
-          {selectedPayment && (
+          {selectedPayment && selectedMeta && (
             <div className="space-y-6">
-              <div className="border rounded-lg p-6 space-y-4">
+              <div className="border rounded-lg p-6 space-y-4 text-sm">
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Tenant:</span>
-                  <span className="font-medium">{selectedPayment.tenant}</span>
+                  <span className="text-muted-foreground">Tenant</span>
+                  <span className="font-medium text-right">{selectedPayment.tenantName}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Amount:</span>
+                  <span className="text-muted-foreground">Property</span>
+                  <span className="font-medium text-right">{selectedMeta.propertyLabel}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Invoice</span>
+                  <span className="font-medium text-right">#{selectedMeta.invoiceRef}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Amount</span>
                   <span className="font-bold text-green-600">
                     {currencyFormatter.format(selectedPayment.amount)}
                   </span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Date:</span>
-                  <span className="font-medium">{selectedPayment.date}</span>
+                  <span className="text-muted-foreground">Coverage</span>
+                  <span className="font-medium text-right">{selectedMeta.coverageLabel}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Receipt ID:</span>
-                  <span className="font-medium text-sm">{selectedPayment.receipt}</span>
+                  <span className="text-muted-foreground">Receipt</span>
+                  <span className="font-mono text-right">{selectedMeta.receipt}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Method:</span>
-                  <span className="font-medium">{selectedPayment.method}</span>
+                  <span className="text-muted-foreground">Method</span>
+                  <span className="font-medium text-right capitalize">{selectedMeta.method}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Verified By:</span>
-                  <span className="font-medium">{selectedPayment.verifiedBy}</span>
+                  <span className="text-muted-foreground">Verified By</span>
+                  <span className="font-medium text-right">{selectedMeta.verifiedBy}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Verified On</span>
+                  <span className="font-medium text-right">{selectedMeta.verifiedOn}</span>
                 </div>
               </div>
               <div className="flex gap-2">

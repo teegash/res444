@@ -1,12 +1,14 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ArrowLeft, Download, FileText, Calendar, AlertCircle } from 'lucide-react'
 import Link from 'next/link'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { useToast } from '@/components/ui/use-toast'
+import { Switch } from '@/components/ui/switch'
+import jsPDF from 'jspdf'
 
 type LeaseDetails = {
   id: string
@@ -72,6 +74,8 @@ export default function LeasePage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [downloading, setDownloading] = useState(false)
+  const [autoRenewEnabled, setAutoRenewEnabled] = useState(false)
+  const [togglingAutoRenew, setTogglingAutoRenew] = useState(false)
   const { toast } = useToast()
 
   useEffect(() => {
@@ -86,6 +90,7 @@ export default function LeasePage() {
         }
         const payload = await response.json()
         setLease(payload.data || null)
+        setAutoRenewEnabled(Boolean(payload.data?.lease_auto_generated))
       } catch (err) {
         console.error('[LeasePage] fetch failed', err)
         setError(err instanceof Error ? err.message : 'Unable to load lease info.')
@@ -140,30 +145,113 @@ export default function LeasePage() {
     }
   }, [lease?.end_date])
 
-  const handleDownload = async () => {
-    try {
-      setDownloading(true)
-      const response = await fetch('/api/tenant/lease/pdf')
-      if (!response.ok) {
-        const payload = await response.json().catch(() => ({}))
-        throw new Error(payload.error || 'Failed to generate lease PDF.')
-      }
-      const blob = await response.blob()
-      const url = URL.createObjectURL(blob)
-      const anchor = document.createElement('a')
-      anchor.href = url
-      anchor.download = `lease-summary-${lease?.id || 'document'}.pdf`
-      anchor.click()
-      URL.revokeObjectURL(url)
-    } catch (err) {
-      console.error('[LeasePage] download failed', err)
+  const generatePdf = useCallback(() => {
+    if (!lease) {
       toast({
-        title: 'Download failed',
-        description: err instanceof Error ? err.message : 'Unable to generate the lease PDF.',
+        title: 'Lease unavailable',
+        description: 'We could not find lease details to export.',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    const doc = new jsPDF({ unit: 'pt', format: 'a4' })
+    const marginX = 48
+    let cursorY = 72
+
+    const addHeading = (text: string) => {
+      doc.setFontSize(16)
+      doc.setTextColor('#111827')
+      doc.text(text, marginX, cursorY)
+      cursorY += 24
+    }
+
+    const addRow = (label: string, value?: string | null) => {
+      doc.setFontSize(11)
+      doc.setTextColor('#475569')
+      doc.text(`${label}:`, marginX, cursorY)
+      doc.setTextColor('#0f172a')
+      doc.text(value || '—', marginX + 150, cursorY)
+      cursorY += 18
+    }
+
+    doc.setFontSize(20)
+    doc.setTextColor('#0f172a')
+    doc.text('Lease Agreement Summary', marginX, cursorY)
+    cursorY += 28
+
+    doc.setFontSize(11)
+    doc.setTextColor('#475569')
+    doc.text(`Generated: ${new Date().toLocaleString()}`, marginX, cursorY)
+    cursorY += 36
+
+    addHeading('Property & Tenant')
+    addRow('Property', propertyName)
+    addRow('Location', propertyLocation)
+    addRow('Unit', unitLabel)
+    addRow('Tenant ID', lease.id)
+
+    cursorY += 12
+    addHeading('Lease Terms')
+    addRow('Lease Period', leasePeriod)
+    addRow('Monthly Rent', monthlyRent)
+    addRow('Deposit', depositAmount)
+    addRow('Status', leaseStatus)
+    addRow('Auto-Renew', autoRenewEnabled ? 'Enabled' : 'Disabled')
+
+    cursorY += 12
+    addHeading('Documents & Metadata')
+    addRow('Agreement on File', agreementUrl ? 'Available' : 'Not provided')
+    addRow('Last Updated', lease.updated_at ? formatDate(lease.updated_at) : '—')
+
+    cursorY += 24
+    doc.setFontSize(10)
+    doc.setTextColor('#94a3b8')
+    doc.text(
+      'This PDF is generated from the tenant portal and summarizes your current lease. Contact management for official documentation.',
+      marginX,
+      cursorY,
+      { maxWidth: 500 }
+    )
+
+    doc.save(`lease-summary-${lease.id}.pdf`)
+  }, [lease, propertyName, propertyLocation, unitLabel, leasePeriod, monthlyRent, depositAmount, leaseStatus, autoRenewEnabled, agreementUrl, toast])
+
+  const handleDownload = async () => {
+    setDownloading(true)
+    try {
+      generatePdf()
+    } finally {
+      setDownloading(false)
+    }
+  }
+
+  const handleAutoRenewToggle = async (enabled: boolean) => {
+    try {
+      setTogglingAutoRenew(true)
+      const response = await fetch('/api/tenant/lease/auto-renew', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled }),
+      })
+      const payload = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        throw new Error(payload.error || 'Failed to update auto-renew preference.')
+      }
+      setAutoRenewEnabled(enabled)
+      toast({
+        title: `Auto-renew ${enabled ? 'enabled' : 'disabled'}`,
+        description: 'Your lease renewal preference has been saved.',
+      })
+    } catch (err) {
+      console.error('[LeasePage] auto-renew toggle failed', err)
+      toast({
+        title: 'Update failed',
+        description: err instanceof Error ? err.message : 'Unable to update auto-renew.',
         variant: 'destructive',
       })
     } finally {
-      setDownloading(false)
+      setTogglingAutoRenew(false)
     }
   }
 
@@ -349,12 +437,24 @@ export default function LeasePage() {
                 <p className="font-semibold">{leaseStatus}</p>
               </div>
               <div>
-                <p className="text-muted-foreground mb-1">Notice Period</p>
+                <p className="text-muted-foreground mb-1">Evacuation Notice</p>
                 <p className="font-semibold">30 days (standard)</p>
               </div>
             </div>
-            <div className="flex gap-3 mt-6">
-              <Button disabled={!lease}>Express Interest in Renewal</Button>
+            <div className="flex flex-col sm:flex-row gap-4 mt-6 items-start sm:items-center">
+              <div className="flex items-center gap-3">
+                <div>
+                  <p className="text-sm font-medium">Auto-renew lease</p>
+                  <p className="text-xs text-muted-foreground">
+                    Automatically extend your lease unless you opt out.
+                  </p>
+                </div>
+                <Switch
+                  checked={autoRenewEnabled}
+                  onCheckedChange={handleAutoRenewToggle}
+                  disabled={!lease || togglingAutoRenew}
+                />
+              </div>
               <Link href="/dashboard/tenant/messages">
                 <Button variant="outline">Contact Property Manager</Button>
               </Link>

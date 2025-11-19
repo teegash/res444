@@ -25,6 +25,7 @@ export type PaymentRecord = {
   lastStatusCheck: string | null
   retryCount: number
   notes: string | null
+  monthsPaid?: number
 }
 
 export type PaymentStats = {

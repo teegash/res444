@@ -15,6 +15,7 @@ export default function PaymentsPage() {
   const { toast } = useToast()
   const [manualSyncedAt, setManualSyncedAt] = useState<string | null>(null)
   const [autoSyncedAt, setAutoSyncedAt] = useState<string | null>(null)
+  const [autoCheckFrequency, setAutoCheckFrequency] = useState<number>(30)
   const [isSyncing, setIsSyncing] = useState(false)
   const [refreshKey, setRefreshKey] = useState(0)
 
@@ -52,6 +53,7 @@ export default function PaymentsPage() {
 
   const handleIntegrationUpdate = (integration: IntegrationSummary | null) => {
     setAutoSyncedAt(integration?.lastAutoCheck || null)
+    setAutoCheckFrequency(Math.max(5, integration?.autoVerifyFrequencySeconds || 30))
   }
 
   return (
@@ -73,7 +75,7 @@ export default function PaymentsPage() {
                   <div>
                     <p className="font-semibold">Last sync: {lastSyncedLabel}</p>
                     <p className="text-sm text-muted-foreground">
-                      Auto-checking M-Pesa payments every 30 seconds via Daraja
+                      Auto-checking M-Pesa payments every {autoCheckFrequency} seconds via Daraja
                     </p>
                   </div>
                 </div>

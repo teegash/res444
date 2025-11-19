@@ -23,6 +23,7 @@ export async function POST(request: NextRequest) {
     const bankReferenceNumber = formData.get('bank_reference_number') as string | null
     const notes = formData.get('notes') as string | null
     const depositSlip = formData.get('deposit_slip') as File | null
+    const monthsPaidValue = formData.get('months_paid') as string | null
 
     // 3. Validate required fields
     if (!invoiceId) {
@@ -122,6 +123,9 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    const monthsPaidRaw = monthsPaidValue ? parseInt(monthsPaidValue, 10) : 1
+    const monthsPaid = Number.isFinite(monthsPaidRaw) ? Math.min(12, Math.max(1, monthsPaidRaw)) : 1
+
     // 5. Create payment record
     const result = await createPaymentWithDepositSlip(userId, {
       invoice_id: invoiceId,
@@ -130,6 +134,7 @@ export async function POST(request: NextRequest) {
       bank_reference_number: bankReferenceNumber || undefined,
       deposit_slip_url: depositSlipUrl,
       notes: notes || undefined,
+      months_paid: monthsPaid,
     })
 
     if (!result.success) {
@@ -172,4 +177,3 @@ export async function GET() {
     { status: 405 }
   )
 }
-

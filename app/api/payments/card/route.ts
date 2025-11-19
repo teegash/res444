@@ -1,0 +1,120 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { requireAuth } from '@/lib/rbac/routeGuards'
+import { createClient } from '@/lib/supabase/server'
+import { updateInvoiceStatus } from '@/lib/invoices/invoiceGeneration'
+
+export async function POST(request: NextRequest) {
+  try {
+    const { userId } = await requireAuth()
+
+    const body = await request.json().catch(() => null)
+    if (!body) {
+      return NextResponse.json({ success: false, error: 'Invalid JSON body.' }, { status: 400 })
+    }
+
+    const { invoice_id, amount, months_covered, card_name, card_number, card_expiry, card_cvv } = body as {
+      invoice_id?: string
+      amount?: number
+      months_covered?: number
+      card_name?: string
+      card_number?: string
+      card_expiry?: string
+      card_cvv?: string
+    }
+
+    if (!invoice_id || !amount) {
+      return NextResponse.json({ success: false, error: 'invoice_id and amount are required.' }, { status: 400 })
+    }
+
+    const monthsCoveredRaw = Number(months_covered)
+    const monthsCovered = Number.isFinite(monthsCoveredRaw)
+      ? Math.min(12, Math.max(1, Math.trunc(monthsCoveredRaw)))
+      : 1
+
+    const supabase = await createClient()
+    const { data: invoice, error: invoiceError } = await supabase
+      .from('invoices')
+      .select(
+        `
+        id,
+        amount,
+        status,
+        due_date,
+        lease:leases (
+          id,
+          tenant_user_id,
+          rent_paid_until
+        )
+      `
+      )
+      .eq('id', invoice_id)
+      .maybeSingle()
+
+    if (invoiceError || !invoice) {
+      return NextResponse.json({ success: false, error: 'Invoice not found.' }, { status: 404 })
+    }
+
+    const lease = invoice.lease as { id: string; tenant_user_id: string; rent_paid_until: string | null } | null
+    if (!lease || lease.tenant_user_id !== userId) {
+      return NextResponse.json({ success: false, error: 'You can only pay your own invoices.' }, { status: 403 })
+    }
+
+    if (invoice.status) {
+      return NextResponse.json({ success: false, error: 'Invoice already paid.' }, { status: 400 })
+    }
+
+    const invoiceAmount = Number(invoice.amount)
+    const expectedAmount = invoiceAmount * monthsCovered
+    if (Math.abs(amount - expectedAmount) > 0.01) {
+      return NextResponse.json(
+        { success: false, error: `Amount must equal ${monthsCovered} month(s) of rent: KES ${expectedAmount}.` },
+        { status: 400 }
+      )
+    }
+
+    const maskedCard = card_number ? card_number.replace(/.(?=.{4})/g, '•') : undefined
+
+    const now = new Date().toISOString()
+    const { data: payment, error: paymentError } = await supabase
+      .from('payments')
+      .insert({
+        invoice_id,
+        tenant_user_id: userId,
+        amount_paid: amount,
+        payment_method: 'card',
+        verified: true,
+        verified_by: userId,
+        verified_at: now,
+        months_paid: monthsCovered,
+        notes: `Card payment processed${maskedCard ? ` (${maskedCard})` : ''}.`,
+      })
+      .select('id')
+      .single()
+
+    if (paymentError || !payment) {
+      throw paymentError || new Error('Failed to record payment')
+    }
+
+    await supabase.from('invoices').update({ months_covered: monthsCovered }).eq('id', invoice_id)
+    await updateInvoiceStatus(invoice_id)
+
+    if (invoice.due_date) {
+      const dueDate = new Date(invoice.due_date)
+      const paidUntil = new Date(dueDate)
+      paidUntil.setMonth(paidUntil.getMonth() + monthsCovered - 1)
+      await supabase
+        .from('leases')
+        .update({ rent_paid_until: paidUntil.toISOString().split('T')[0] })
+        .eq('id', lease.id)
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: 'Card payment recorded successfully.',
+      data: { payment_id: payment.id, amount, months_covered: monthsCovered },
+    })
+  } catch (error) {
+    console.error('[CardPayment] Failed to process card payment', error)
+    return NextResponse.json({ success: false, error: 'Failed to process card payment.' }, { status: 500 })
+  }
+}
