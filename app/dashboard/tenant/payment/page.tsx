@@ -67,25 +67,21 @@ export default function TenantPaymentPortal() {
     try {
       setLoadingInvoice(true)
 
-      // If no invoiceId, try to find the earliest pending rent invoice
+      // Try to find a pending rent invoice first
       if (!invoiceId) {
         const res = await fetch(`/api/tenant/invoices?status=pending`)
         if (res.ok) {
           const json = await res.json()
           const pendingInvoices = json.data || []
-          // Prioritize rent invoices, then sort by due date
           const nextInvoice = pendingInvoices
             .sort((a: any, b: any) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime())
             .find((inv: any) => inv.invoice_type === 'rent') || pendingInvoices[0]
-
-          if (nextInvoice) {
-            invoiceId = nextInvoice.id
-          }
+          if (nextInvoice) invoiceId = nextInvoice.id
         }
       }
 
+      // If still no invoice, create and pay rent for the current month(s)
       if (!invoiceId) {
-        // No pending invoice, create and pay rent for current month
         const createRes = await fetch('/api/payments/pay-rent', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -93,16 +89,16 @@ export default function TenantPaymentPortal() {
         })
         if (!createRes.ok) throw new Error('Failed to create rent invoice')
         const created = await createRes.json()
-        invoiceId = created.data?.invoice?.id
+        const newInvoice = created.data?.invoice
+        if (newInvoice) {
+          setInvoice(newInvoice)
+          setLoadingInvoice(false)
+          return
+        }
+        throw new Error('Created invoice missing')
       }
 
-      if (!invoiceId) {
-        setInvoiceError('No pending invoices found. You are all paid up!')
-        setLoadingInvoice(false)
-        return
-      }
-
-      // Now fetch the specific invoice details
+      // Fetch the specific invoice details (may be pending or already paid)
       const res = await fetch(`/api/tenant/invoices?status=pending`)
       if (!res.ok) throw new Error('Failed to fetch invoices')
       const json = await res.json()

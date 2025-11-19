@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
       )
       .eq('mpesa_receipt_number', parsed.checkoutRequestId)
       .eq('payment_method', 'mpesa')
-      .maybeSingle()
+      .maybeSingle() as any
 
     if (paymentByReceipt) {
       payment = paymentByReceipt
@@ -91,7 +91,7 @@ export async function POST(request: NextRequest) {
         .ilike('notes', `%${parsed.checkoutRequestId}%`)
         .order('created_at', { ascending: false })
         .limit(1)
-        .maybeSingle()
+        .maybeSingle() as any
 
       if (paymentByNotes) {
         payment = paymentByNotes
@@ -165,13 +165,37 @@ export async function POST(request: NextRequest) {
 
       await updateInvoiceStatus(invoice.id)
 
-      if (invoice.due_date) {
-        const dueDate = new Date(invoice.due_date)
-        const paidUntil = new Date(dueDate)
-        paidUntil.setMonth(paidUntil.getMonth() + monthsPaid - 1)
+      // Update lease rent_paid_until
+      if (invoice.lease_id) {
+        // Get current lease details
+        const { data: lease } = await supabase
+          .from('leases')
+          .select('rent_paid_until')
+          .eq('id', invoice.lease_id)
+          .single() as any
+
+        const today = new Date()
+        today.setHours(0, 0, 0, 0)
+
+        // Determine starting point for rent_paid_until calculation
+        let startDate: Date
+        if (lease?.rent_paid_until) {
+          const currentPaidUntil = new Date(lease.rent_paid_until)
+          // If already paid into the future, extend from that date
+          startDate = currentPaidUntil > today ? currentPaidUntil : today
+        } else {
+          // Start from today
+          startDate = today
+        }
+
+        // Calculate new rent_paid_until by adding months
+        const newPaidUntil = new Date(startDate)
+        newPaidUntil.setMonth(newPaidUntil.getMonth() + monthsPaid)
+
+        // Update lease
         await supabase
           .from('leases')
-          .update({ rent_paid_until: paidUntil.toISOString().split('T')[0] })
+          .update({ rent_paid_until: newPaidUntil.toISOString().split('T')[0] })
           .eq('id', invoice.lease_id)
       }
 
@@ -250,7 +274,7 @@ async function sendPaymentConfirmationSMS(
       .from('user_profiles')
       .select('phone_number')
       .eq('id', tenantUserId)
-      .single()
+      .single() as any
 
     if (!profile?.phone_number) {
       console.warn('No phone number found for tenant:', tenantUserId)
@@ -269,7 +293,7 @@ async function sendPaymentConfirmationSMS(
 
     // Send SMS via Africa's Talking
     const { sendSMSWithLogging } = await import('@/lib/sms/smsService')
-    
+
     await sendSMSWithLogging({
       phoneNumber: profile.phone_number,
       message: message,

@@ -58,7 +58,7 @@ export async function createPaymentWithDepositSlip(
       `
       )
       .eq('id', request.invoice_id)
-      .single()
+      .single() as any
 
     if (invoiceError || !invoice) {
       return {
@@ -110,12 +110,11 @@ export async function createPaymentWithDepositSlip(
         months_paid: monthsPaid,
         notes:
           request.notes ||
-          `Payment submitted covering ${monthsPaid} month(s) with ${request.payment_method}. ${
-            request.deposit_slip_url ? 'Deposit slip uploaded.' : ''
+          `Payment submitted covering ${monthsPaid} month(s) with ${request.payment_method}. ${request.deposit_slip_url ? 'Deposit slip uploaded.' : ''
           }`,
       })
       .select('id')
-      .single()
+      .single() as any
 
     if (paymentError || !payment) {
       console.error('Error creating payment:', paymentError)
@@ -176,7 +175,7 @@ export async function approvePayment(
       `
       )
       .eq('id', paymentId)
-      .single()
+      .single() as any
 
     if (paymentError || !payment) {
       return {
@@ -193,7 +192,7 @@ export async function approvePayment(
       }
     }
 
-    const invoice = payment.invoices as { id: string; amount: number } | null
+    const invoice = payment.invoices as { id: string; amount: number; lease_id?: string } | null
 
     if (!invoice) {
       return {
@@ -224,19 +223,43 @@ export async function approvePayment(
       }
     }
 
-    // 4. Update invoice status
+    // 4. Update invoice status and lease rent_paid_until
     const monthsPaid = payment.months_paid || 1
 
     await supabase.from('invoices').update({ months_covered: monthsPaid }).eq('id', invoice.id)
     await updateInvoiceStatus(invoice.id)
 
-    if (invoice.due_date && invoice.lease_id) {
-      const dueDate = new Date(invoice.due_date)
-      const paidUntil = new Date(dueDate)
-      paidUntil.setMonth(paidUntil.getMonth() + monthsPaid - 1)
+    // Update lease rent_paid_until
+    if (invoice.lease_id) {
+      // Get current lease details
+      const { data: lease } = await supabase
+        .from('leases')
+        .select('rent_paid_until')
+        .eq('id', invoice.lease_id)
+        .single() as any
+
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+
+      // Determine starting point for rent_paid_until calculation
+      let startDate: Date
+      if (lease?.rent_paid_until) {
+        const currentPaidUntil = new Date(lease.rent_paid_until)
+        // If already paid into the future, extend from that date
+        startDate = currentPaidUntil > today ? currentPaidUntil : today
+      } else {
+        // Start from today
+        startDate = today
+      }
+
+      // Calculate new rent_paid_until by adding months
+      const newPaidUntil = new Date(startDate)
+      newPaidUntil.setMonth(newPaidUntil.getMonth() + monthsPaid)
+
+      // Update lease
       await supabase
         .from('leases')
-        .update({ rent_paid_until: paidUntil.toISOString().split('T')[0] })
+        .update({ rent_paid_until: newPaidUntil.toISOString().split('T')[0] })
         .eq('id', invoice.lease_id)
     }
 
@@ -290,13 +313,14 @@ export async function rejectPayment(
         amount_paid,
         verified,
         deposit_slip_url,
+        notes,
         invoices (
           id
         )
       `
       )
       .eq('id', paymentId)
-      .single()
+      .single() as any
 
     if (paymentError || !payment) {
       return {
@@ -332,7 +356,7 @@ export async function rejectPayment(
         verified_by: null,
         verified_at: null,
       })
-      .eq('id', paymentId)
+      .eq('id', paymentId) as any
 
     if (updateError) {
       console.error('Error updating payment:', updateError)
@@ -392,7 +416,7 @@ async function sendPaymentVerificationNotification(
       .from('user_profiles')
       .select('phone_number, full_name')
       .eq('id', tenantUserId)
-      .single()
+      .single() as any
 
     if (!profile) {
       console.warn('No profile found for tenant:', tenantUserId)
@@ -419,7 +443,7 @@ async function sendPaymentVerificationNotification(
 
     // Send SMS via Africa's Talking
     const { sendSMSWithLogging } = await import('@/lib/sms/smsService')
-    
+
     await sendSMSWithLogging({
       phoneNumber: profile.phone_number,
       message: message,
