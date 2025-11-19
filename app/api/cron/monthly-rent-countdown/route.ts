@@ -55,7 +55,7 @@ export async function POST(request: NextRequest) {
         const updates: Array<{ lease_id: string; old_date: string; new_date: string; months_reduced: number }> = []
 
         // Process each lease
-        for (const lease of leases) {
+        for (const lease of leases as any[]) {
             if (!lease.rent_paid_until) continue
 
             const rentPaidUntil = new Date(lease.rent_paid_until)
@@ -76,10 +76,10 @@ export async function POST(request: NextRequest) {
                     newRentPaidUntil.setMonth(newRentPaidUntil.getMonth() - 1)
                     const newRentPaidUntilStr = newRentPaidUntil.toISOString().split('T')[0]
 
-                    // Update lease
-                    const { error: updateError } = await adminSupabase
+                    // Update lease - using proper type casting
+                    const { error: updateError } = await (adminSupabase as any)
                         .from('leases')
-                        .update({ rent_paid_until: newRentPaidUntilStr } as any)
+                        .update({ rent_paid_until: newRentPaidUntilStr })
                         .eq('id', lease.id)
 
                     if (updateError) {

@@ -67,7 +67,7 @@ export async function GET(request: NextRequest) {
         const currentMonth = new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
         const amount = Number(lease.monthly_rent)
 
-        const { data: invoice, error: invoiceError } = await adminSupabase
+        const { data: invoice, error: invoiceError } = await (adminSupabase as any)
             .from('invoices')
             .insert({
                 lease_id: lease.id,
@@ -79,7 +79,7 @@ export async function GET(request: NextRequest) {
                 description: `Rent for ${currentMonth}`,
             })
             .select('id, lease_id, amount, due_date, status, months_covered, invoice_type, description, created_at')
-            .single() as any
+            .single()
 
         if (invoiceError || !invoice) {
             return NextResponse.json({
