@@ -79,7 +79,7 @@ export async function POST(request: NextRequest) {
                     // Update lease
                     const { error: updateError } = await adminSupabase
                         .from('leases')
-                        .update({ rent_paid_until: newRentPaidUntilStr })
+                        .update({ rent_paid_until: newRentPaidUntilStr } as any)
                         .eq('id', lease.id)
 
                     if (updateError) {

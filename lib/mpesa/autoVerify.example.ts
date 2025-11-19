@@ -55,8 +55,8 @@ name: M-Pesa Auto-Verify
 
 on:
   schedule:
-    - cron: '*/30 * * * *'  # Every 30 seconds (GitHub Actions minimum is 1 minute)
-  workflow_dispatch:  # Allow manual trigger
+    - cron: '*/30 * * * *'  // Every 30 seconds (GitHub Actions minimum is 1 minute)
+  workflow_dispatch:  // Allow manual trigger
 
 jobs:
   auto-verify:
@@ -64,8 +64,8 @@ jobs:
     steps:
       - name: Run Auto-Verification
         run: |
-          curl -X GET https://yourdomain.com/api/cron/mpesa-auto-verify \
-            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
+          curl -X GET https://yourdomain.com/api/cron/mpesa-auto-verify \\
+            -H "Authorization: Bearer \\$\\{ secrets.CRON_SECRET \\}"
 `
 
 // Example 4: External Cron Service (cron-job.org, EasyCron, etc.)
@@ -148,4 +148,3 @@ export const testingGuide = `
 6. Verify invoice status is updated
 7. Check audit logs in mpesa_verification_audit table
 `
-
