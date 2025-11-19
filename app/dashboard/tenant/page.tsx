@@ -90,7 +90,7 @@ export default function TenantDashboard() {
               invoice.invoice_type === 'water' &&
               invoice.status === false
           )
-          .sort((a, b) => {
+          .sort((a: TenantInvoiceRecord, b: TenantInvoiceRecord) => {
             const aTime = a?.created_at ? new Date(a.created_at).getTime() : 0
             const bTime = b?.created_at ? new Date(b.created_at).getTime() : 0
             return bTime - aTime
@@ -195,7 +195,7 @@ export default function TenantDashboard() {
                 <p className="text-xs text-muted-foreground">
                   {pendingInvoice ? formatDate(pendingInvoice.due_date) : 'No outstanding payments'}
                 </p>
-                <Link href="/dashboard/tenant/payment">
+                <Link href="/dashboard/tenant/pay-rent">
                   <Button size="sm" className="w-full mt-2" variant="outline">
                     Pay Rent
                   </Button>
