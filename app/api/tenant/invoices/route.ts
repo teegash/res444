@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
     const { data: leases, error: leaseError } = await adminSupabase
       .from('leases')
       .select(
-        `id, status, tenant_user_id, unit:apartment_units (
+        `id, status, tenant_user_id, rent_paid_until, unit:apartment_units (
           id,
           unit_number,
           building:apartment_buildings (
@@ -41,7 +41,7 @@ export async function GET(request: NextRequest) {
 
     const leaseIds = leases.map((lease) => lease.id)
     const leaseMap = new Map(
-      leases.map((lease) => [lease.id, lease.unit])
+      leases.map((lease) => [lease.id, lease])
     )
 
     const { data: invoices, error: invoiceError } = await adminSupabase
@@ -56,7 +56,9 @@ export async function GET(request: NextRequest) {
 
     const statusFilter = request.nextUrl.searchParams.get('status')
     const payload = (invoices || []).map((invoice) => {
-      const unit = leaseMap.get(invoice.lease_id as string)
+      const lease = leaseMap.get(invoice.lease_id as string)
+      // @ts-ignore
+      const unit = lease?.unit
       const building = unit?.building
       return {
         id: invoice.id,
@@ -67,6 +69,8 @@ export async function GET(request: NextRequest) {
         invoice_type: invoice.invoice_type,
         description: invoice.description,
         created_at: invoice.created_at,
+        // @ts-ignore
+        rent_paid_until: lease?.rent_paid_until || null,
         unit_label: unit?.unit_number || null,
         property_name: building?.name || null,
         property_location: building?.location || null,

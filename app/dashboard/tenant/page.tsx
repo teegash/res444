@@ -23,6 +23,7 @@ type TenantSummary = {
     status: string | null
     start_date: string | null
     end_date: string | null
+    rent_paid_until: string | null
     monthly_rent: number | null
     unit_number: string | null
     unit_label: string | null
@@ -122,7 +123,7 @@ export default function TenantDashboard() {
         )}
         <TenantHeader summary={summary} onProfileUpdated={fetchSummary} loading={loading} />
         <TenantInfoCards summary={summary} loading={loading} />
-        
+
         <div className="grid gap-6 md:grid-cols-3 mt-8">
           {/* Recent Activity */}
           <Card className="md:col-span-2 shadow-sm hover:shadow-md transition-shadow">
@@ -144,7 +145,7 @@ export default function TenantDashboard() {
                   <p className="text-xs text-muted-foreground mt-1">2 days ago</p>
                 </div>
               </div>
-              
+
               <div className="flex items-start gap-3 p-3 rounded-lg bg-blue-50 border border-blue-100">
                 <Bell className="h-5 w-5 text-blue-600 mt-0.5" />
                 <div className="flex-1">
@@ -153,7 +154,7 @@ export default function TenantDashboard() {
                   <p className="text-xs text-muted-foreground mt-1">5 days ago</p>
                 </div>
               </div>
-              
+
               <div className="flex items-start gap-3 p-3 rounded-lg bg-orange-50 border border-orange-100">
                 <AlertCircle className="h-5 w-5 text-orange-600 mt-0.5" />
                 <div className="flex-1">
@@ -174,6 +175,18 @@ export default function TenantDashboard() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
+              {summary?.lease?.rent_paid_until && (
+                <div className="p-3 rounded-lg bg-emerald-50 border border-emerald-100">
+                  <div className="flex items-center justify-between mb-1">
+                    <p className="text-sm font-medium text-emerald-800">Rent Paid Until</p>
+                    <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                  </div>
+                  <p className="text-xs text-emerald-600 font-medium">
+                    {formatDate(summary.lease.rent_paid_until)}
+                  </p>
+                </div>
+              )}
+
               <div className="p-3 rounded-lg bg-red-50 border border-red-100">
                 <div className="flex items-center justify-between mb-1">
                   <p className="text-sm font-medium">Next Payment Due</p>
@@ -194,7 +207,7 @@ export default function TenantDashboard() {
                   </Button>
                 )}
               </div>
-              
+
               <div className="p-3 rounded-lg bg-blue-50 border border-blue-100">
                 <p className="text-sm font-medium mb-1">Lease Renewal</p>
                 <p className="text-xs text-muted-foreground">Review due: March 1, 2025</p>

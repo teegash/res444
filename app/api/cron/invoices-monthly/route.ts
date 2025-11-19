@@ -46,27 +46,33 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    // 1. Generate monthly invoices
-    const invoiceResult = await generateMonthlyInvoices(systemUserId)
+    // 1. Generate monthly invoices (ONLY on the 1st)
+    let invoiceResult: any = { success: true, data: null, error: null }
+    if (dayOfMonth === 1 || request.headers.get('x-manual-trigger')) {
+      invoiceResult = await generateMonthlyInvoices(systemUserId)
 
-    if (!invoiceResult.success) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: invoiceResult.error || 'Failed to generate invoices',
-        },
-        { status: 500 }
-      )
+      if (!invoiceResult.success) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: invoiceResult.error || 'Failed to generate invoices',
+          },
+          { status: 500 }
+        )
+      }
     }
 
-    // 2. Mark overdue invoices
-    const overdueResult = await markOverdueInvoices()
+    // 2. Mark overdue invoices (Run on 1st and 5th)
+    let overdueResult = { overdue_count: 0 }
+    if (dayOfMonth === 1 || dayOfMonth === 5) {
+      overdueResult = await markOverdueInvoices()
+    }
 
-    // 3. Send reminders (on 1st, 5th, and 7th)
+    // 3. Send reminders (on 26th, 1st, and 5th)
     let remindersSent = 0
-    if (dayOfMonth === 1 || dayOfMonth === 5 || dayOfMonth === 7) {
+    if (dayOfMonth === 26 || dayOfMonth === 1 || dayOfMonth === 5) {
       const reminderResult = await sendRentPaymentReminders(
-        dayOfMonth as 1 | 5 | 7
+        dayOfMonth as 26 | 1 | 5
       )
       remindersSent = reminderResult.reminders_sent || 0
     }

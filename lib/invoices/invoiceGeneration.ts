@@ -75,7 +75,7 @@ async function getActiveLeases(): Promise<LeaseInfo[]> {
 
     const { data: leases, error } = await supabase
       .from('leases')
-      .select('id, unit_id, tenant_user_id, monthly_rent, status, start_date, end_date')
+      .select('id, unit_id, tenant_user_id, monthly_rent, status, start_date, end_date, rent_paid_until')
       .eq('status', 'active')
 
     if (error) {
@@ -166,7 +166,8 @@ async function createRentInvoice(
   leaseId: string,
   monthlyRent: number,
   dueDate: string,
-  description?: string
+  description?: string,
+  status: boolean = false
 ): Promise<string | null> {
   try {
     const supabase = await createClient()
@@ -178,7 +179,7 @@ async function createRentInvoice(
         invoice_type: 'rent',
         amount: monthlyRent,
         due_date: dueDate,
-        status: false,
+        status: status,
         months_covered: 1,
         description: description || `Monthly rent invoice`,
       })
@@ -324,6 +325,31 @@ export async function generateMonthlyInvoices(
         )
 
         if (!rentInvoiceExists) {
+          // Check if rent is already paid for this month
+          let isPrePaid = false
+          // @ts-ignore
+          if (lease.rent_paid_until) {
+            // @ts-ignore
+            const paidUntil = new Date(lease.rent_paid_until)
+            const monthStart = new Date(currentMonth)
+            monthStart.setDate(1)
+            // If paid until is after or equal to the end of this month (roughly)
+            // Actually, if paid_until is >= the 1st of this month, it covers this month? 
+            // Usually paid_until is the last day covered. 
+            // So if paid_until >= last day of this month, it's fully paid.
+            // If paid_until >= 1st of this month, it might be partially paid or fully paid.
+            // Let's assume if paid_until >= 1st of NEXT month, this month is fully paid.
+            // Or simpler: if paid_until >= end of this month.
+
+            const monthEnd = new Date(monthStart)
+            monthEnd.setMonth(monthEnd.getMonth() + 1)
+            monthEnd.setDate(0)
+
+            if (paidUntil >= monthEnd) {
+              isPrePaid = true
+            }
+          }
+
           // Get pending water bills for this unit
           const pendingWaterBills = await getPendingWaterBills(
             lease.unit_id,
@@ -336,11 +362,13 @@ export async function generateMonthlyInvoices(
           )
 
           // Create rent invoice
+          // If pre-paid, mark as status=true (paid)
           const rentInvoiceId = await createRentInvoice(
             lease.id,
             parseFloat(lease.monthly_rent.toString()),
             dueDate,
-            `Monthly rent for ${currentMonth}`
+            isPrePaid ? `Monthly rent for ${currentMonth} (Paid in Advance)` : `Monthly rent for ${currentMonth}`,
+            isPrePaid
           )
 
           if (rentInvoiceId) {
@@ -351,49 +379,64 @@ export async function generateMonthlyInvoices(
                 parseFloat(lease.monthly_rent.toString()) + totalWaterAmount
 
               // Update rent invoice to include water
-              const { error: updateError } = await supabase
-                .from('invoices')
-                .update({
-                  amount: combinedAmount,
-                  description: `Monthly rent + water bill for ${currentMonth}`,
-                })
-                .eq('id', rentInvoiceId)
+              // If rent was pre-paid, we only want to mark the RENT part as paid.
+              // But here we are combining them. 
+              // If rent is paid but water is not, the invoice should probably be UNPAID but with partial payment?
+              // Or maybe we shouldn't combine if rent is already paid?
+              // Let's say: if rent is pre-paid, we DO NOT combine water bills, we let them generate separate invoices.
 
-              if (!updateError) {
-                // Mark water bills as added to invoice
-                for (const waterBill of pendingWaterBills) {
-                  await markWaterBillAsAdded(waterBill.id, rentInvoiceId, userId)
-                  waterBillsIncluded++
-                }
-                combinedInvoicesCreated++
-                totalAmount += combinedAmount // Combined amount (rent + water)
-              } else {
-                console.error('Error updating invoice with water:', updateError)
-                // Fallback: count as regular rent invoice
+              if (isPrePaid) {
+                // Rent is paid, so we leave the rent invoice as PAID.
+                // We trigger water invoice generation separately below.
                 rentInvoicesCreated++
+                // Don't add to total amount if it's already paid? Or do we track generated invoice amounts?
+                // We track generated invoice amounts.
                 totalAmount += parseFloat(lease.monthly_rent.toString())
+              } else {
+                const { error: updateError } = await supabase
+                  .from('invoices')
+                  .update({
+                    amount: combinedAmount,
+                    description: `Monthly rent + water bill for ${currentMonth}`,
+                  })
+                  .eq('id', rentInvoiceId)
+
+                if (!updateError) {
+                  // Mark water bills as added to invoice
+                  for (const waterBill of pendingWaterBills) {
+                    await markWaterBillAsAdded(waterBill.id, rentInvoiceId, userId)
+                    waterBillsIncluded++
+                  }
+                  combinedInvoicesCreated++
+                  totalAmount += combinedAmount // Combined amount (rent + water)
+                } else {
+                  console.error('Error updating invoice with water:', updateError)
+                  // Fallback: count as regular rent invoice
+                  rentInvoicesCreated++
+                  totalAmount += parseFloat(lease.monthly_rent.toString())
+                }
               }
             } else {
               // Regular rent invoice (no water or after 5th)
               rentInvoicesCreated++
               totalAmount += parseFloat(lease.monthly_rent.toString())
+            }
 
-              // Create separate water invoices if after 5th
-              if (pendingWaterBills.length > 0 && !isWithin5Days) {
-                for (const waterBill of pendingWaterBills) {
-                  const waterInvoiceId = await createWaterInvoice(
-                    lease.id,
-                    parseFloat(waterBill.amount.toString()),
-                    dueDate,
-                    `Water bill for ${currentMonth}`
-                  )
+            // Create separate water invoices if after 5th OR if rent was pre-paid (so we didn't combine)
+            if (pendingWaterBills.length > 0 && (!isWithin5Days || isPrePaid)) {
+              for (const waterBill of pendingWaterBills) {
+                const waterInvoiceId = await createWaterInvoice(
+                  lease.id,
+                  parseFloat(waterBill.amount.toString()),
+                  dueDate,
+                  `Water bill for ${currentMonth}`
+                )
 
-                  if (waterInvoiceId) {
-                    await markWaterBillAsAdded(waterBill.id, waterInvoiceId, userId)
-                    waterInvoicesCreated++
-                    waterBillsSeparate++
-                    totalAmount += parseFloat(waterBill.amount.toString())
-                  }
+                if (waterInvoiceId) {
+                  await markWaterBillAsAdded(waterBill.id, waterInvoiceId, userId)
+                  waterInvoicesCreated++
+                  waterBillsSeparate++
+                  totalAmount += parseFloat(waterBill.amount.toString())
                 }
               }
             }

@@ -23,6 +23,7 @@ type InvoiceSummary = {
   property_name: string | null
   property_location: string | null
   unit_label: string | null
+  rent_paid_until: string | null
 }
 
 export default function TenantPaymentPortal() {
@@ -61,59 +62,40 @@ export default function TenantPaymentPortal() {
   }, [invoice?.due_date, monthsToPay])
 
   const fetchInvoice = useCallback(async () => {
+    const invoiceId = searchParams.get('invoiceId')
+    if (!invoiceId) {
+      setInvoiceError('No invoice specified.')
+      setLoadingInvoice(false)
+      return
+    }
+
     try {
       setLoadingInvoice(true)
-      setInvoiceError(null)
-      const invoiceId = searchParams?.get('invoiceId')
-      if (invoiceId) {
-        const encodedId = encodeURIComponent(invoiceId)
-        const response = await fetch(`/api/tenant/invoices/${encodedId}?invoiceId=${encodedId}`, { cache: 'no-store' })
-        const payload = await response.json().catch(() => ({}))
-        if (!response.ok) {
-          throw new Error(payload.error || 'Failed to load invoice.')
-        }
-        setInvoice({
-          id: payload.data.id,
-          amount: Number(payload.data.amount),
-          status: payload.data.status,
-          invoice_type: payload.data.invoice_type,
-          description: payload.data.description,
-          due_date: payload.data.due_date,
-          property_name: payload.data.property?.name || null,
-          property_location: payload.data.property?.location || null,
-          unit_label: payload.data.unit?.label || null,
-        })
-        return
-      }
+      const res = await fetch(`/api/tenant/invoices?status=pending`)
+      if (!res.ok) throw new Error('Failed to fetch invoices')
+      const json = await res.json()
+      const found = (json.data || []).find((inv: InvoiceSummary) => inv.id === invoiceId)
 
-      const intent = searchParams?.get('intent')
-      const invoicesResp = await fetch('/api/tenant/invoices?status=pending', { cache: 'no-store' })
-      const invoicesPayload = await invoicesResp.json().catch(() => ({}))
-      if (!invoicesResp.ok) {
-        throw new Error(invoicesPayload.error || 'Failed to load invoices.')
+      if (found) {
+        setInvoice(found)
+      } else {
+        // If not found in pending, try fetching all (maybe it's already paid)
+        const resAll = await fetch(`/api/tenant/invoices`)
+        if (resAll.ok) {
+          const jsonAll = await resAll.json()
+          const foundAll = (jsonAll.data || []).find((inv: InvoiceSummary) => inv.id === invoiceId)
+          if (foundAll) {
+            setInvoice(foundAll)
+          } else {
+            setInvoiceError('Invoice not found.')
+          }
+        } else {
+          setInvoiceError('Invoice not found.')
+        }
       }
-      const list = invoicesPayload.data || []
-      let target = list.find((item: any) => (intent === 'rent' ? item.invoice_type === 'rent' : false))
-      if (!target) {
-        target = list[0]
-      }
-      if (!target) {
-        throw new Error('You have no pending invoices right now.')
-      }
-      setInvoice({
-        id: target.id,
-        amount: Number(target.amount),
-        status: target.status,
-        invoice_type: target.invoice_type,
-        description: target.description,
-        due_date: target.due_date,
-        property_name: target.property_name,
-        property_location: target.property_location,
-        unit_label: target.unit_label,
-      })
-    } catch (error) {
-      setInvoice(null)
-      setInvoiceError(error instanceof Error ? error.message : 'Unable to load invoice.')
+    } catch (err) {
+      console.error(err)
+      setInvoiceError('Unable to load invoice details.')
     } finally {
       setLoadingInvoice(false)
     }
@@ -354,9 +336,9 @@ export default function TenantPaymentPortal() {
                   <span className="font-medium">
                     {invoice.due_date
                       ? new Date(invoice.due_date).toLocaleDateString(undefined, {
-                          month: 'long',
-                          year: 'numeric',
-                        })
+                        month: 'long',
+                        year: 'numeric',
+                      })
                       : '—'}
                   </span>
                 </div>

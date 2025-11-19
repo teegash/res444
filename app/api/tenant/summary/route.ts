@@ -48,6 +48,7 @@ export async function GET() {
         start_date,
         end_date,
         monthly_rent,
+        rent_paid_until,
         unit:apartment_units (
           id,
           unit_number,
@@ -83,17 +84,18 @@ export async function GET() {
       profile: profile || null,
       lease: lease
         ? {
-            id: lease.id,
-            status: lease.status,
-            start_date: lease.start_date,
-            end_date: lease.end_date,
-            monthly_rent: monthlyRent,
-            unit_number: lease.unit?.unit_number || null,
-            unit_label: unitLabel,
-            property_name: lease.unit?.building?.name || null,
-            property_location: lease.unit?.building?.location || null,
-            unit_price_text: lease.unit?.unit_price_category || null,
-          }
+          id: lease.id,
+          status: lease.status,
+          start_date: lease.start_date,
+          end_date: lease.end_date,
+          rent_paid_until: lease.rent_paid_until,
+          monthly_rent: monthlyRent,
+          unit_number: lease.unit?.unit_number || null,
+          unit_label: unitLabel,
+          property_name: lease.unit?.building?.name || null,
+          property_location: lease.unit?.building?.location || null,
+          unit_price_text: lease.unit?.unit_price_category || null,
+        }
         : null,
     }
 
