@@ -10,81 +10,66 @@ import {
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { AlertCircle, CheckCircle2, RotateCw } from 'lucide-react'
+import { Card, CardContent } from '@/components/ui/card'
+import { AlertCircle, CheckCircle2 } from 'lucide-react'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { PaymentRecord } from '@/components/dashboard/payment-tabs/types'
 
-const pendingPayments = [
-  {
-    id: 1,
-    tenant: 'John Doe',
-    amount: 10000,
-    type: 'Rent',
-    method: 'M-Pesa',
-    date: '2024-02-01',
-    status: 'auto-checking',
-    receipt: 'ABC123456789',
-    phone: '+254XXXX5678',
-    checkedTime: '30 sec ago',
-  },
-  {
-    id: 2,
-    tenant: 'Jane Smith',
-    amount: 25000,
-    type: 'Rent',
-    method: 'M-Pesa',
-    date: '2024-02-01',
-    status: 'verified',
-    receipt: 'DEF987654321',
-    verifiedTime: '5 minutes ago',
-  },
-  {
-    id: 3,
-    tenant: 'Bob Wilson',
-    amount: 10000,
-    type: 'Water',
-    method: 'M-Pesa',
-    date: '2024-02-01',
-    status: 'failed',
-    error: 'Insufficient funds',
-  },
-  {
-    id: 4,
-    tenant: 'Mary Johnson',
-    amount: 15000,
-    type: 'Rent',
-    method: 'Bank Transfer',
-    date: '2024-02-01',
-    status: 'awaiting-slip',
-  },
-  {
-    id: 5,
-    tenant: 'Tom Lee',
-    amount: 10000,
-    type: 'Water',
-    method: 'Cash',
-    date: '2024-02-01',
-    status: 'pending',
-  },
-]
+const currencyFormatter = new Intl.NumberFormat('en-KE', {
+  style: 'currency',
+  currency: 'KES',
+  minimumFractionDigits: 0,
+})
 
-export function PendingVerificationTab() {
+type PendingVerificationTabProps = {
+  payments: PaymentRecord[]
+  loading: boolean
+  lastChecked: string | null
+}
+
+const formatDate = (value?: string | null) => {
+  if (!value) return '—'
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) return '—'
+  return parsed.toLocaleString()
+}
+
+function resolveStatus(payment: PaymentRecord) {
+  if (payment.paymentMethod === 'mpesa') {
+    const status = (payment.mpesaQueryStatus || 'pending').toLowerCase()
+    if (['checking', 'pending', 'processing', 'queued'].includes(status)) {
+      return { label: 'Auto-checking', variant: 'auto' as const }
+    }
+    if (['failed', 'error', 'timeout', 'cancelled'].includes(status)) {
+      return { label: 'Attention', variant: 'danger' as const }
+    }
+    return { label: status || 'Pending', variant: 'secondary' as const }
+  }
+
+  if (payment.paymentMethod === 'bank_transfer') {
+    return { label: payment.depositSlipUrl ? 'Awaiting Review' : 'Awaiting Slip', variant: 'secondary' as const }
+  }
+
+  return { label: 'Pending', variant: 'outline' as const }
+}
+
+export function PendingVerificationTab({ payments, loading, lastChecked }: PendingVerificationTabProps) {
   return (
     <div className="space-y-6">
-      {/* Auto-Update Indicator */}
       <Card>
         <CardContent className="pt-6">
           <div className="flex items-center gap-3">
-            <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse" />
+            <div className={`w-3 h-3 rounded-full ${loading ? 'bg-amber-500 animate-pulse' : 'bg-green-500'}`} />
             <div>
               <p className="font-semibold">Auto-checking M-Pesa payments every 30 seconds</p>
-              <p className="text-sm text-muted-foreground">Last checked: 2 minutes ago</p>
+              <p className="text-sm text-muted-foreground">
+                Last checked: {lastChecked ? formatDate(lastChecked) : 'Sync scheduled'}
+              </p>
             </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Payments Table */}
       <div className="border border-border rounded-lg overflow-x-auto">
         <Table>
           <TableHeader>
@@ -99,74 +84,72 @@ export function PendingVerificationTab() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {pendingPayments.map((payment) => (
-              <TableRow key={payment.id}>
-                <TableCell className="font-medium">{payment.tenant}</TableCell>
-                <TableCell>KES {payment.amount.toLocaleString()}</TableCell>
-                <TableCell>{payment.type}</TableCell>
-                <TableCell>{payment.method}</TableCell>
-                <TableCell>{payment.date}</TableCell>
-                <TableCell>
-                  {payment.status === 'auto-checking' && (
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Badge variant="secondary" className="gap-1">
-                            <div className="w-2 h-2 bg-blue-500 rounded-full animate-spin" />
-                            Auto-Checking...
-                          </Badge>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p>Receipt: {payment.receipt}</p>
-                          <p>Phone: {payment.phone}</p>
-                          <p>Checked: {payment.checkedTime}</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  )}
-                  {payment.status === 'verified' && (
-                    <Badge className="gap-1 bg-green-600">
-                      <CheckCircle2 className="w-3 h-3" />
-                      Auto-Verified
-                    </Badge>
-                  )}
-                  {payment.status === 'failed' && (
-                    <Badge variant="destructive" className="gap-1">
-                      <AlertCircle className="w-3 h-3" />
-                      Failed
-                    </Badge>
-                  )}
-                  {payment.status === 'awaiting-slip' && (
-                    <Badge variant="secondary">Awaiting Slip</Badge>
-                  )}
-                  {payment.status === 'pending' && (
-                    <Badge variant="outline">Pending</Badge>
-                  )}
-                </TableCell>
-                <TableCell>
-                  {payment.status === 'failed' && (
-                    <Button variant="ghost" size="sm">
-                      Retry
-                    </Button>
-                  )}
-                  {payment.status === 'verified' && (
-                    <Button variant="ghost" size="sm">
-                      View Receipt
-                    </Button>
-                  )}
-                  {payment.status === 'awaiting-slip' && (
-                    <Button variant="ghost" size="sm">
-                      Verify
-                    </Button>
-                  )}
-                  {payment.status === 'pending' && (
-                    <Button variant="ghost" size="sm">
-                      Confirm
-                    </Button>
-                  )}
+            {loading ? (
+              <TableRow>
+                <TableCell colSpan={7} className="text-center text-sm text-muted-foreground py-8">
+                  Loading payments...
                 </TableCell>
               </TableRow>
-            ))}
+            ) : payments.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={7} className="text-center text-sm text-muted-foreground py-8">
+                  No pending payments right now.
+                </TableCell>
+              </TableRow>
+            ) : (
+              payments.map((payment) => {
+                const status = resolveStatus(payment)
+                return (
+                  <TableRow key={payment.id}>
+                    <TableCell className="font-medium">{payment.tenantName}</TableCell>
+                    <TableCell>{currencyFormatter.format(payment.amount)}</TableCell>
+                    <TableCell>{payment.invoiceType || '—'}</TableCell>
+                    <TableCell className="capitalize">{payment.paymentMethod || '—'}</TableCell>
+                    <TableCell>{formatDate(payment.paymentDate)}</TableCell>
+                    <TableCell>
+                      {status.variant === 'auto' ? (
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Badge variant="secondary" className="gap-1">
+                                <div className="w-2 h-2 bg-blue-500 rounded-full animate-spin" />
+                                {status.label}
+                              </Badge>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              {payment.mpesaReceiptNumber && <p>Receipt: {payment.mpesaReceiptNumber}</p>}
+                              {payment.tenantPhone && <p>Phone: {payment.tenantPhone}</p>}
+                              {payment.lastStatusCheck && (
+                                <p>Checked: {formatDate(payment.lastStatusCheck)}</p>
+                              )}
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      ) : status.variant === 'danger' ? (
+                        <Badge variant="destructive" className="gap-1">
+                          <AlertCircle className="w-3 h-3" />
+                          {status.label}
+                        </Badge>
+                      ) : (
+                        <Badge variant={status.variant}>{status.label}</Badge>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {payment.paymentMethod === 'mpesa' && (
+                        <Button variant="ghost" size="sm">
+                          Recheck
+                        </Button>
+                      )}
+                      {payment.paymentMethod === 'bank_transfer' && payment.depositSlipUrl && (
+                        <Button variant="ghost" size="sm">
+                          Review Slip
+                        </Button>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                )
+              })
+            )}
           </TableBody>
         </Table>
       </div>

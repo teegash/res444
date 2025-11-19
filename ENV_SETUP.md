@@ -1,3 +1,100 @@
+debuggers - always confirm relevant ID presense
+consider table structure
+research on perplexity, has the most information
+
+
+to do ; 
+
+Tenant search bar ///
+Lease page and export feature /// need to change the pdf doc view
+Tenant edit ///
+Waterbill form to send text via africas talking/// Done
+Tenant pay waterbill in the tenants dashboard ///
+waterbiil page when clicked sends message as an invoice ; (DONE ///
+
+maintenance page live data integration 
+tenant maintenance request
+make sure history of requests are seen at the bottom of maintenance request form
+lease download in tenant check
+
+payment intergration, mpesa intergration
+daraja in nategadgets
+
+In tenant dashboard, the pay rent button, make sure it goes to payment page but shows the rent amount, not the latest invoice, this will then be updated in payments showing the tenant has done a prepayment if its early and update the payment status to add a month or 2 before sending an invoice or rent reminder
+
+(Pending) Hook up manager notification clicks to open the maintenance page pre-focused on the relevant request; we can wire that next by checking the related_entity_type when handling clicks in components/dashboard/header.tsx.
+
+
+Skip payments, will work on it later
+Later will work on Africas talking short code/ sender ID
+tenant delete should be implimented well and actually delete the tenant from the system
+
+
+
+make sure there no Rls conflicts when trying to login, here are table definitions
+
+
+the system should spin up a pending lease automatically after tenant signs up, this lease should be editable before forwarding to tenant for esign confirmation which then will be added to the documents in the tenant dashboard under lease documents,
+
+
+impliment lease soon, which will be read and update the data of the tenant
+
+use payments table to determine payment status
+
+The message dialog in tenant action, send message, when clicked the dialog has a message box which can send message directly to tenant, we need to implimet this message feature which will be using communications table, it will act like live chat communication, be keen and thorough when implimenting this, the mesage should be sent to tenant dashboard in message as well, and this should show notification in the bell icon at the top right in header
+
+
+++++Yes, it’s very doable, and Supabase gives you a few solid approaches:
+
+1. Use a Supabase Edge Function or background script with CSV parsing
+
+Upload the CSV (via a dashboard admin UI or CLI) and send it to an Edge Function.
+The function can parse rows (e.g., with Papa Parse), do validation, and for each tenant:
+Create the Supabase Auth user with email and the generated password (${firstName}Pass@123).
+Insert/update the user_profiles row.
+Optionally link to units/leases if the CSV includes unit IDs.
+Trigger the existing credential email helper.
+Advantages: All in one pipeline; you control validation, logging, retry logic.
+2. Use Supabase’s table import + a trigger/cron job
+
+Import the CSV directly into a staging table.
+Run a scheduled job (Supabase cron) or trigger that processes any “pending” rows:
+Generate passwords, call the Auth Admin API, populate user_profiles, mark rows processed.
+Send the credential emails post-success.
+Keeps bulk data operations inside the database, but you must carefully guard the trigger to avoid partial inserts.
+3. External script (Next.js API route or server script)
+
+Build a page where you upload the CSV; the server route reads it, loops rows, and uses supabase.auth.admin.createUser for each.
+Reuse the password-generation logic and email helper you already have.
+Key considerations
+
+Rate limits: Supabase Auth admin calls can handle reasonable bulk (hundreds) but add exponential backoff or chunk batches.
+Validation: Catch duplicates (existing emails, national IDs) before calling createUser.
+Email sending: call your Gmail SMTP helper right after each user is created; if you want them “at a go,” queue them and send after the bulk insert completes.
+Error handling: log failures per row so you can rerun only the failed ones.
+So yes, importing from CSV/Excel and automatically provisioning tenants with emails/passwords is very feasible. I recommend either the Edge Function or external script approach so you have full control over validation and can use your existing password template + email flow. Let me know if you want me to scaffold the function or upload interface.+++++
+
+
+
+
+///okay, i have set up the above, its well implimented - its working, great, now make sure that this isnt messed up, its working well
+
+Set the lease to auto renew after the expiry. This should give automaticaaly send a reminder message exactly  3 months before expiry, then 2 months before expiry, then 1 month before expiry as well.
+
+If the tenant clicks auto renew or does nothing it will auto renew upon expiry, if the client decides to give 1 month notice from the tenant dashboard, the lease should change from active to Notice which will then be inactive after 1 month of date the notice has been given and at that time the tenant will have moved out and the specific unit should read vacant.
+
+also if there are any changes in lease agreement like rent increase, the lease has to be digitally signed again so as to confirm tenant consent.///
+
+
+++++++The right foundation: invoices are first-class rows, the water-bill flow logs them, and tenants see those invoices + notifications. When you add Mpesa/Daraja, the remaining pieces are:
+
+Payment initiation endpoint (already mostly scaffolded): trigger an STK push with the invoice id attached.
+Mpesa callback/auto-verify (you already have lib/mpesa/autoVerify.ts and the mark-paid endpoint): when a receipt comes back, look up the invoice, flip status to true, and stamp payment_date.
+Realtime UI update: subscribe tenants to invoice changes (similar to current communications channel) so the payment page and dashboard flip to “true” instantly.
+That’s the standard pattern: invoice → payment attempt → callback → mark paid → UI sees status=true. You’re on the right track; focus next on wiring the STK push + callback into those existing invoice update helpers so everything stays in sync automatically.
+
+{When you later hook up Mpesa/Daraja, just call updateInvoiceStatus(invoiceId) (it already recalculates and writes status: true once the payments table shows the invoice fully covered).+++++++
+
 # Environment Variables Setup Guide
 
 ## Quick Start
@@ -121,15 +218,6 @@ Before deploying to production:
 - [ ] Verify all URLs use HTTPS
 - [ ] Ensure `.env.local` is in `.gitignore`
 
-## Africa's Talking callbacks (ngrok)
-
-Testing delivery callbacks from Africa's Talking requires a public URL. Use ngrok when working locally:
-
-1. Install ngrok (e.g. `brew install ngrok` on macOS or download from https://ngrok.com/).
-2. Start your dev server (`pnpm dev`) and run `ngrok http 3000` in another terminal.
-3. Copy the HTTPS forwarding URL ngrok prints and set it as the Delivery Reports Callback inside the Africa's Talking dashboard, pointing to `https://<ngrok-domain>/api/sms/callback`.
-4. Only run ngrok when you need callbacks—normal local development does not require it.
-
 ## Security Notes
 
 1. **Never commit `.env.local`** - It contains sensitive credentials
@@ -159,3 +247,4 @@ Testing delivery callbacks from Africa's Talking requires a public URL. Use ngro
 - Verify `CRON_SECRET` is set and matches in cron service
 - Check cron service can reach your endpoints
 - Verify endpoints are accessible (not behind auth)
+

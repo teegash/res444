@@ -94,7 +94,7 @@ export function TenantInfoCards({ summary, loading }: TenantInfoCardsProps) {
       </Card>
 
       <Card className="bg-white border shadow-sm hover:shadow-md transition-shadow">
-        <CardContent className="p-6">
+        <CardContent className="p-6 space-y-4">
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 bg-orange-500/10 rounded-xl flex items-center justify-center shrink-0">
               <Calendar className="w-6 h-6 text-orange-600" />
@@ -106,6 +106,13 @@ export function TenantInfoCards({ summary, loading }: TenantInfoCardsProps) {
               </p>
             </div>
           </div>
+          {!loading && (
+            <Link href="/dashboard/tenant/lease" className="block">
+              <Button variant="outline" className="w-full">
+                View Lease
+              </Button>
+            </Link>
+          )}
         </CardContent>
       </Card>
     </div>

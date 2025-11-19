@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -20,42 +20,40 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { AlertCircle, RotateCcw, Clock } from 'lucide-react'
+import { FailureBreakdown, PaymentRecord } from '@/components/dashboard/payment-tabs/types'
 
-const failureBreakdown = [
-  { reason: 'Insufficient Funds', count: 3, amount: 30000 },
-  { reason: 'User Cancelled', count: 2, amount: 20000 },
-  { reason: 'Invalid Phone', count: 1, amount: 10000 },
-  { reason: 'Timeout', count: 2, amount: 15000 },
-]
+const currencyFormatter = new Intl.NumberFormat('en-KE', {
+  style: 'currency',
+  currency: 'KES',
+  minimumFractionDigits: 0,
+})
 
-const failedPayments = [
-  {
-    id: 1,
-    tenant: 'Bob Wilson',
-    amount: 10000,
-    error: 'InsufficientFunds',
-    attempts: 2,
-    lastAttempt: '2024-02-01 14:30',
-  },
-  {
-    id: 2,
-    tenant: 'Alice Brown',
-    amount: 8000,
-    error: 'UserCancelTransaction',
-    attempts: 1,
-    lastAttempt: '2024-02-01 13:15',
-  },
-]
+interface FailedPaymentsTabProps {
+  payments: PaymentRecord[]
+  breakdown: FailureBreakdown[]
+  loading: boolean
+}
 
-export function FailedPaymentsTab() {
+export function FailedPaymentsTab({ payments, breakdown, loading }: FailedPaymentsTabProps) {
   const [timeFilter, setTimeFilter] = useState('30')
 
-  const handleRetry = (paymentId: number) => {
-    console.log('[v0] Retrying payment:', paymentId)
+  const filteredPayments = useMemo(() => {
+    if (timeFilter === 'all') return payments
+    const days = Number(timeFilter)
+    if (!Number.isFinite(days)) return payments
+    const threshold = Date.now() - days * 24 * 60 * 60 * 1000
+    return payments.filter((payment) => {
+      if (!payment.lastStatusCheck) return true
+      return new Date(payment.lastStatusCheck).getTime() >= threshold
+    })
+  }, [payments, timeFilter])
+
+  const handleRetry = (paymentId: string) => {
+    console.log('[payments] retry', paymentId)
   }
 
-  const handleDefer = (paymentId: number) => {
-    console.log('[v0] Deferring payment:', paymentId)
+  const handleDefer = (paymentId: string) => {
+    console.log('[payments] defer', paymentId)
   }
 
   return (
@@ -76,14 +74,16 @@ export function FailedPaymentsTab() {
 
       {/* Failure Breakdown */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {failureBreakdown.map((item, idx) => (
+        {(breakdown.length ? breakdown : [{ reason: 'No failures', count: 0, amount: 0 }]).map((item, idx) => (
           <Card key={idx}>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium">{item.reason}</CardTitle>
             </CardHeader>
             <CardContent>
               <p className="text-2xl font-bold">{item.count}</p>
-              <p className="text-xs text-muted-foreground">KES {item.amount.toLocaleString()}</p>
+              <p className="text-xs text-muted-foreground">
+                {currencyFormatter.format(item.amount)}
+              </p>
             </CardContent>
           </Card>
         ))}
@@ -103,39 +103,57 @@ export function FailedPaymentsTab() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {failedPayments.map((payment) => (
-              <TableRow key={payment.id}>
-                <TableCell className="font-medium">{payment.tenant}</TableCell>
-                <TableCell>KES {payment.amount.toLocaleString()}</TableCell>
-                <TableCell>
-                  <Badge variant="destructive">{payment.error}</Badge>
-                </TableCell>
-                <TableCell>{payment.attempts}</TableCell>
-                <TableCell className="text-sm">{payment.lastAttempt}</TableCell>
-                <TableCell>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="default"
-                      size="sm"
-                      onClick={() => handleRetry(payment.id)}
-                      className="gap-2"
-                    >
-                      <RotateCcw className="w-4 h-4" />
-                      Retry
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleDefer(payment.id)}
-                      className="gap-2"
-                    >
-                      <Clock className="w-4 h-4" />
-                      Defer
-                    </Button>
-                  </div>
+            {loading ? (
+              <TableRow>
+                <TableCell colSpan={6} className="text-center text-sm text-muted-foreground py-8">
+                  Loading failed payments...
                 </TableCell>
               </TableRow>
-            ))}
+            ) : filteredPayments.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={6} className="text-center text-sm text-muted-foreground py-8">
+                  No failed payments for this range.
+                </TableCell>
+              </TableRow>
+            ) : (
+              filteredPayments.map((payment) => (
+                <TableRow key={payment.id}>
+                  <TableCell className="font-medium">{payment.tenantName}</TableCell>
+                  <TableCell>{currencyFormatter.format(payment.amount)}</TableCell>
+                  <TableCell>
+                    <Badge variant="destructive">
+                      {(payment.mpesaQueryStatus || payment.mpesaResponseCode || 'error').toUpperCase()}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>{payment.retryCount || 0}</TableCell>
+                  <TableCell className="text-sm">
+                    {payment.lastStatusCheck ? new Date(payment.lastStatusCheck).toLocaleString() : '—'}
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="default"
+                        size="sm"
+                        onClick={() => handleRetry(payment.id)}
+                        className="gap-2"
+                      >
+                        <RotateCcw className="w-4 h-4" />
+                        Retry
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleDefer(payment.id)}
+                        className="gap-2"
+                      >
+                        <Clock className="w-4 h-4" />
+                        Defer
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
           </TableBody>
         </Table>
       </div>

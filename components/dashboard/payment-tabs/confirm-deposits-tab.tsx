@@ -12,61 +12,50 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog'
-import { CheckCircle2, XCircle, Eye, Clock, Shield } from 'lucide-react'
-import Image from 'next/image'
+import { CheckCircle2, XCircle, Eye, Clock } from 'lucide-react'
+import { PaymentRecord } from '@/components/dashboard/payment-tabs/types'
 
-const pendingDeposits = [
-  {
-    id: 1,
-    tenant: 'Mary Wanjiku',
-    property: 'Westlands Plaza',
-    unit: 'B-205',
-    amount: 38000,
-    period: 'December 2024',
-    bankReference: 'BK12345789',
-    uploadedDate: 'Dec 1, 2024',
-    uploadedTime: '10:30 AM',
-    slipUrl: '/bank-deposit-slip.jpg',
-  },
-  {
-    id: 2,
-    tenant: 'David Kiprop',
-    property: 'Kilimani Heights',
-    unit: 'A-103',
-    amount: 45000,
-    period: 'December 2024',
-    bankReference: 'BK987654321',
-    uploadedDate: 'Dec 2, 2024',
-    uploadedTime: '2:15 PM',
-    slipUrl: '/bank-deposit-slip.jpg',
-  },
-]
+const currencyFormatter = new Intl.NumberFormat('en-KE', {
+  style: 'currency',
+  currency: 'KES',
+  minimumFractionDigits: 0,
+})
 
-const confirmedDeposits = [
-  {
-    id: 3,
-    tenant: 'Grace Akinyi',
-    property: 'Karen Villas',
-    unit: 'C-201',
-    amount: 52000,
-    period: 'November 2024',
-  },
-]
+const formatPeriod = (value?: string | null) => {
+  if (!value) return '—'
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) return value
+  return parsed.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })
+}
 
-export function ConfirmDepositsTab() {
-  const [selectedDeposit, setSelectedDeposit] = useState<typeof pendingDeposits[0] | null>(null)
+interface ConfirmDepositsTabProps {
+  pendingDeposits: PaymentRecord[]
+  confirmedDeposits: PaymentRecord[]
+  rejectedCount: number
+  loading: boolean
+}
 
-  const handleConfirm = (depositId: number) => {
-    console.log('[v0] Confirming deposit:', depositId)
+export function ConfirmDepositsTab({
+  pendingDeposits,
+  confirmedDeposits,
+  rejectedCount,
+  loading,
+}: ConfirmDepositsTabProps) {
+  const [selectedDeposit, setSelectedDeposit] = useState<PaymentRecord | null>(null)
+
+  const pendingAmount = pendingDeposits.reduce((sum, deposit) => sum + deposit.amount, 0)
+  const confirmedAmount = confirmedDeposits.reduce((sum, deposit) => sum + deposit.amount, 0)
+
+  const handleConfirm = (depositId: string) => {
+    console.log('[payments] confirm deposit', depositId)
   }
 
-  const handleReject = (depositId: number) => {
-    console.log('[v0] Rejecting deposit:', depositId)
+  const handleReject = (depositId: string) => {
+    console.log('[payments] reject deposit', depositId)
   }
 
   return (
     <div className="space-y-6">
-      {/* Header Stats */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card>
           <CardContent className="pt-6">
@@ -77,6 +66,9 @@ export function ConfirmDepositsTab() {
               <div>
                 <p className="text-sm text-gray-600">Pending Review</p>
                 <p className="text-2xl font-bold">{pendingDeposits.length}</p>
+                <p className="text-xs text-muted-foreground">
+                  {currencyFormatter.format(pendingAmount)} awaiting confirmation
+                </p>
               </div>
             </div>
           </CardContent>
@@ -91,6 +83,9 @@ export function ConfirmDepositsTab() {
               <div>
                 <p className="text-sm text-gray-600">Confirmed</p>
                 <p className="text-2xl font-bold">{confirmedDeposits.length}</p>
+                <p className="text-xs text-muted-foreground">
+                  {currencyFormatter.format(confirmedAmount)} verified
+                </p>
               </div>
             </div>
           </CardContent>
@@ -104,14 +99,13 @@ export function ConfirmDepositsTab() {
               </div>
               <div>
                 <p className="text-sm text-gray-600">Rejected</p>
-                <p className="text-2xl font-bold">0</p>
+                <p className="text-2xl font-bold">{rejectedCount}</p>
               </div>
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Pending Confirmation Section */}
       <Card>
         <CardContent className="pt-6">
           <div className="flex items-center gap-2 mb-6">
@@ -120,113 +114,141 @@ export function ConfirmDepositsTab() {
           </div>
 
           <div className="space-y-4">
-            {pendingDeposits.map((deposit) => (
-              <Card key={deposit.id} className="border-2">
-                <CardContent className="pt-6">
-                  <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-4">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-3">
-                        <h3 className="text-lg font-bold">{deposit.tenant}</h3>
-                        <Badge className="bg-yellow-500">Pending Review</Badge>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-x-8 gap-y-2 text-sm">
-                        <div>
-                          <span className="text-gray-600">Property</span>
-                          <p className="font-semibold">{deposit.property}</p>
-                        </div>
-                        <div>
-                          <span className="text-gray-600">Unit</span>
-                          <p className="font-semibold">{deposit.unit}</p>
-                        </div>
-                        <div>
-                          <span className="text-gray-600">Amount</span>
-                          <p className="font-bold text-[#4682B4]">KES {deposit.amount.toLocaleString()}</p>
-                        </div>
-                        <div>
-                          <span className="text-gray-600">Period</span>
-                          <p className="font-semibold">{deposit.period}</p>
-                        </div>
-                        <div>
-                          <span className="text-gray-600">Bank Reference</span>
-                          <p className="font-semibold">{deposit.bankReference}</p>
-                        </div>
-                        <div>
-                          <span className="text-gray-600">Uploaded</span>
-                          <p className="font-semibold">{deposit.uploadedDate} {deposit.uploadedTime}</p>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex flex-col sm:flex-row lg:flex-col gap-2">
-                      <Dialog>
-                        <DialogTrigger asChild>
-                          <Button variant="outline" className="gap-2" onClick={() => setSelectedDeposit(deposit)}>
-                            <Eye className="w-4 h-4" />
-                            View Slip
-                          </Button>
-                        </DialogTrigger>
-                        <DialogContent className="max-w-3xl">
-                          <DialogHeader>
-                            <DialogTitle>Bank Deposit Slip</DialogTitle>
-                            <DialogDescription>Review the uploaded deposit slip</DialogDescription>
-                          </DialogHeader>
-                          <div className="mt-4">
-                            <img
-                              src={deposit.slipUrl || "/placeholder.svg"}
-                              alt="Deposit Slip"
-                              className="w-full rounded-lg border"
-                            />
-                          </div>
-                        </DialogContent>
-                      </Dialog>
-
-                      <Button className="gap-2 bg-[#4682B4] hover:bg-[#4682B4]/90" onClick={() => handleConfirm(deposit.id)}>
-                        <CheckCircle2 className="w-4 h-4" />
-                        Confirm
-                      </Button>
-
-                      <Button variant="destructive" className="gap-2" onClick={() => handleReject(deposit.id)}>
-                        <XCircle className="w-4 h-4" />
-                        Reject
-                      </Button>
-                    </div>
-                  </div>
+            {loading ? (
+              <Card className="border-2">
+                <CardContent className="py-6 text-center text-sm text-muted-foreground">
+                  Loading deposits...
                 </CardContent>
               </Card>
-            ))}
+            ) : pendingDeposits.length === 0 ? (
+              <Card className="border-2">
+                <CardContent className="py-6 text-center text-sm text-muted-foreground">
+                  No pending deposit verifications.
+                </CardContent>
+              </Card>
+            ) : (
+              pendingDeposits.map((deposit) => (
+                <Card key={deposit.id} className="border-2">
+                  <CardContent className="pt-6">
+                    <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-4">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-3">
+                          <h3 className="text-lg font-bold">{deposit.tenantName}</h3>
+                          <Badge className="bg-yellow-500">Pending Review</Badge>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-x-8 gap-y-2 text-sm">
+                          <div>
+                            <span className="text-gray-600">Property</span>
+                            <p className="font-semibold">{deposit.propertyName || '—'}</p>
+                          </div>
+                          <div>
+                            <span className="text-gray-600">Unit</span>
+                            <p className="font-semibold">{deposit.unitLabel || '—'}</p>
+                          </div>
+                          <div>
+                            <span className="text-gray-600">Amount</span>
+                            <p className="font-bold text-[#4682B4]">{currencyFormatter.format(deposit.amount)}</p>
+                          </div>
+                          <div>
+                            <span className="text-gray-600">Period</span>
+                            <p className="font-semibold">{formatPeriod(deposit.invoiceDueDate)}</p>
+                          </div>
+                          <div>
+                            <span className="text-gray-600">Bank Reference</span>
+                            <p className="font-semibold">{deposit.bankReferenceNumber || '—'}</p>
+                          </div>
+                          <div>
+                            <span className="text-gray-600">Uploaded</span>
+                            <p className="font-semibold">{formatPeriod(deposit.paymentDate)}</p>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col sm:flex-row lg:flex-col gap-2">
+                        <Dialog>
+                          <DialogTrigger asChild>
+                            <Button
+                              variant="outline"
+                              className="gap-2"
+                              onClick={() => setSelectedDeposit(deposit)}
+                            >
+                              <Eye className="w-4 h-4" />
+                              View Slip
+                            </Button>
+                          </DialogTrigger>
+                          <DialogContent className="max-w-3xl">
+                            <DialogHeader>
+                              <DialogTitle>Bank Deposit Slip</DialogTitle>
+                              <DialogDescription>Review the uploaded deposit slip</DialogDescription>
+                            </DialogHeader>
+                            <div className="mt-4">
+                              {selectedDeposit?.depositSlipUrl ? (
+                                <img
+                                  src={selectedDeposit.depositSlipUrl}
+                                  alt="Deposit Slip"
+                                  className="w-full rounded-lg border"
+                                />
+                              ) : (
+                                <p className="text-sm text-muted-foreground">No slip uploaded.</p>
+                              )}
+                            </div>
+                          </DialogContent>
+                        </Dialog>
+
+                        <Button
+                          className="gap-2 bg-[#4682B4] hover:bg-[#4682B4]/90"
+                          onClick={() => handleConfirm(deposit.id)}
+                        >
+                          <CheckCircle2 className="w-4 h-4" />
+                          Confirm
+                        </Button>
+
+                        <Button variant="destructive" className="gap-2" onClick={() => handleReject(deposit.id)}>
+                          <XCircle className="w-4 h-4" />
+                          Reject
+                        </Button>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))
+            )}
           </div>
         </CardContent>
       </Card>
 
-      {/* Confirmed Deposits Section */}
       <Card>
         <CardContent className="pt-6">
-          <div className="flex items-center gap-2 mb-6">
+          <div className="flex items-center gap-2 mb-4">
             <CheckCircle2 className="w-5 h-5 text-green-600" />
-            <h2 className="text-xl font-bold">Confirmed Deposits</h2>
+            <h2 className="text-xl font-bold">Recently Confirmed</h2>
           </div>
-
-          <div className="space-y-3">
-            {confirmedDeposits.map((deposit) => (
-              <Card key={deposit.id} className="border-green-200 bg-green-50/30">
-                <CardContent className="pt-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="flex items-center gap-2 mb-1">
-                        <h3 className="font-bold">{deposit.tenant}</h3>
-                        <Badge className="bg-green-600">Confirmed</Badge>
+          {confirmedDeposits.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No confirmed deposits yet.</p>
+          ) : (
+            <div className="grid gap-4">
+              {confirmedDeposits.map((deposit) => (
+                <Card key={deposit.id}>
+                  <CardContent className="pt-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h3 className="font-semibold">{deposit.tenantName}</h3>
+                        <p className="text-sm text-gray-600">
+                          {deposit.propertyName || '—'} • {deposit.unitLabel || '—'}
+                        </p>
                       </div>
-                      <p className="text-sm text-gray-600">
-                        {deposit.property} • Unit {deposit.unit} • KES {deposit.amount.toLocaleString()} • {deposit.period}
-                      </p>
+                      <Badge className="bg-green-600">Confirmed</Badge>
                     </div>
-                    <Button variant="outline" size="sm">View Details</Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+                    <div className="mt-3 flex items-center justify-between">
+                      <p className="text-sm text-gray-600">{formatPeriod(deposit.invoiceDueDate)}</p>
+                      <p className="font-bold text-green-600">{currencyFormatter.format(deposit.amount)}</p>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
