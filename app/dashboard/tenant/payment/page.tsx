@@ -85,12 +85,24 @@ export default function TenantPaymentPortal() {
       }
 
       if (!invoiceId) {
+        // No pending invoice, create and pay rent for current month
+        const createRes = await fetch('/api/payments/pay-rent', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ months_covered: monthsToPay }),
+        })
+        if (!createRes.ok) throw new Error('Failed to create rent invoice')
+        const created = await createRes.json()
+        invoiceId = created.data?.invoice?.id
+      }
+
+      if (!invoiceId) {
         setInvoiceError('No pending invoices found. You are all paid up!')
         setLoadingInvoice(false)
         return
       }
 
-      // Now fetch the specific invoice details (or verify the one we found)
+      // Now fetch the specific invoice details
       const res = await fetch(`/api/tenant/invoices?status=pending`)
       if (!res.ok) throw new Error('Failed to fetch invoices')
       const json = await res.json()
@@ -99,19 +111,7 @@ export default function TenantPaymentPortal() {
       if (found) {
         setInvoice(found)
       } else {
-        // If not found in pending, try fetching all (maybe it's already paid)
-        const resAll = await fetch(`/api/tenant/invoices`)
-        if (resAll.ok) {
-          const jsonAll = await resAll.json()
-          const foundAll = (jsonAll.data || []).find((inv: InvoiceSummary) => inv.id === invoiceId)
-          if (foundAll) {
-            setInvoice(foundAll)
-          } else {
-            setInvoiceError('Invoice not found.')
-          }
-        } else {
-          setInvoiceError('Invoice not found.')
-        }
+        setInvoiceError('Invoice not found.')
       }
     } catch (err) {
       console.error(err)
@@ -119,7 +119,7 @@ export default function TenantPaymentPortal() {
     } finally {
       setLoadingInvoice(false)
     }
-  }, [searchParams])
+  }, [searchParams, monthsToPay])
 
   useEffect(() => {
     fetchInvoice()
