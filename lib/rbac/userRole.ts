@@ -1,6 +1,6 @@
 'use server'
 
-import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { UserRole } from './roles'
 
 export interface UserRoleData {
@@ -20,7 +20,7 @@ export type { UserRole }
  */
 export async function getUserRole(userId: string): Promise<UserRoleData | null> {
   try {
-    const supabase = await createClient()
+    const supabase = createAdminClient()
 
     const { data: memberships, error } = await supabase
       .from('organization_members')
@@ -88,7 +88,7 @@ export async function getUserRoles(
   userId: string
 ): Promise<UserRoleData[]> {
   try {
-    const supabase = await createClient()
+    const supabase = createAdminClient()
 
     const { data: memberships, error } = await supabase
       .from('organization_members')
@@ -185,4 +185,3 @@ export async function getUserRoleForOrganization(
     return null
   }
 }
-
