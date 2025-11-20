@@ -9,6 +9,18 @@ function toDateKey(date: Date) {
   return `${year}-${month}-${day}`
 }
 
+async function selectExistingInvoice(adminSupabase: ReturnType<typeof createAdminClient>, leaseId: string, dueDate: string) {
+  const { data } = await adminSupabase
+    .from('invoices')
+    .select('id, amount, due_date, status, invoice_type, description, months_covered, lease_id')
+    .eq('lease_id', leaseId)
+    .eq('invoice_type', 'rent')
+    .eq('due_date', dueDate)
+    .maybeSingle()
+
+  return data
+}
+
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient()
@@ -66,7 +78,7 @@ export async function GET(request: NextRequest) {
     }
 
     const today = new Date()
-    let dueDate = new Date(today.getUTCFullYear(), today.getUTCMonth(), 1)
+    let dueDate = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1))
 
     if (lease.rent_paid_until) {
       const paidUntil = new Date(lease.rent_paid_until)
@@ -82,15 +94,8 @@ export async function GET(request: NextRequest) {
 
     const dueDateKey = toDateKey(dueDate)
 
-    const { data: existingInvoice } = await adminSupabase
-      .from('invoices')
-      .select('id, amount, due_date, status, invoice_type, description, months_covered, lease_id')
-      .eq('lease_id', lease.id)
-      .eq('invoice_type', 'rent')
-      .eq('due_date', dueDateKey)
-      .maybeSingle()
+    let invoice = await selectExistingInvoice(adminSupabase, lease.id, dueDateKey)
 
-    let invoice = existingInvoice
     if (!invoice) {
       const dueLabel = dueDate.toLocaleString('en-US', { month: 'long', year: 'numeric' })
       const description = `Rent for ${dueLabel}`
@@ -110,15 +115,24 @@ export async function GET(request: NextRequest) {
         )
         .single()
 
-      if (createError || !created) {
-        console.error('[RentInvoice] Failed to create invoice', createError)
+      if (createError) {
+        console.error('[RentInvoice] Insert error', createError.code, createError.message)
+        if (createError.code === '23505') {
+          invoice = await selectExistingInvoice(adminSupabase, lease.id, dueDateKey)
+        }
+      }
+
+      if (!invoice && created) {
+        invoice = created
+      }
+
+      if (!invoice) {
+        console.error('[RentInvoice] Failed to create or find invoice', createError?.message || 'unknown')
         return NextResponse.json(
           { success: false, error: 'Unable to prepare rent invoice.' },
           { status: 500 }
         )
       }
-
-      invoice = created
     }
 
     const property = lease.unit?.building
