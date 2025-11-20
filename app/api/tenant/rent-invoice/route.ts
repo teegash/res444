@@ -101,19 +101,19 @@ export async function GET(request: NextRequest) {
       const description = `Rent for ${dueLabel}`
       const { data: created, error: createError } = await adminSupabase
         .from('invoices')
-      .insert(
-        {
-          lease_id: lease.id,
-          invoice_type: 'rent',
-          amount: monthlyRent,
-          due_date: dueDateKey,
-          months_covered: 1,
-          status: false,
-          description,
-        },
-        { returning: 'representation' }
-      )
-      .single()
+        .insert(
+          {
+            lease_id: lease.id,
+            invoice_type: 'rent',
+            amount: monthlyRent,
+            due_date: dueDateKey,
+            months_covered: 1,
+            status: false,
+            description,
+          },
+          { returning: 'representation' }
+        )
+        .single()
 
       if (createError) {
         console.error('[RentInvoice] Insert error', createError.code, createError.message)
@@ -127,7 +127,11 @@ export async function GET(request: NextRequest) {
       }
 
       if (!invoice) {
-        console.error('[RentInvoice] Failed to create or find invoice', createError?.message || 'unknown')
+        console.error(
+          '[RentInvoice] Failed to create or find invoice',
+          createError?.message || 'unknown',
+          { leaseId: lease.id, dueDate: dueDateKey }
+        )
         return NextResponse.json(
           { success: false, error: 'Unable to prepare rent invoice.' },
           { status: 500 }
