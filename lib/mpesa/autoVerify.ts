@@ -46,9 +46,6 @@ async function getPendingMpesaPayments(): Promise<PendingPayment[]> {
     const supabase = createAdminClient()
 
     // Calculate 24 hours ago
-    const twentyFourHoursAgo = new Date()
-    twentyFourHoursAgo.setHours(twentyFourHoursAgo.getHours() - 24)
-
     // Query payments that:
     // 1. Are M-Pesa payments
     // 2. Not verified
@@ -59,7 +56,6 @@ async function getPendingMpesaPayments(): Promise<PendingPayment[]> {
       .select('id, invoice_id, tenant_user_id, amount_paid, mpesa_receipt_number, retry_count, created_at, last_status_check, notes')
       .eq('payment_method', 'mpesa')
       .eq('verified', false)
-      .lt('created_at', twentyFourHoursAgo.toISOString())
       .or('mpesa_receipt_number.not.is.null,notes.ilike.%CheckoutRequestID%')
       .lt('retry_count', parseInt(process.env.MPESA_MAX_RETRIES || '3')) // Only get payments that haven't exceeded max retries
       .order('created_at', { ascending: true })
