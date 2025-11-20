@@ -60,7 +60,7 @@ export default function TenantPaymentPortal() {
     return end.toLocaleDateString(undefined, { year: 'numeric', month: 'long' })
   }, [invoice?.due_date, monthsToPay])
 
-  const fetchInvoice = useCallback(async () => {
+  const fetchInvoice = useCallback(async (): Promise<InvoiceSummary | null> => {
     try {
       setLoadingInvoice(true)
       setInvoiceError(null)
@@ -73,7 +73,7 @@ export default function TenantPaymentPortal() {
         if (!response.ok) {
           throw new Error(payload.error || 'Failed to load invoice.')
         }
-        setInvoice({
+        const fetchedInvoice: InvoiceSummary = {
           id: payload.data.id,
           amount: Number(payload.data.amount),
           status: payload.data.status,
@@ -83,8 +83,9 @@ export default function TenantPaymentPortal() {
           property_name: payload.data.property?.name || null,
           property_location: payload.data.property?.location || null,
           unit_label: payload.data.unit?.label || null,
-        })
-        return
+        }
+        setInvoice(fetchedInvoice)
+        return fetchedInvoice
       }
 
       if (intent === 'rent') {
@@ -97,7 +98,7 @@ export default function TenantPaymentPortal() {
         if (!rentInvoice) {
           throw new Error('Rent invoice data is missing.')
         }
-        setInvoice({
+        const rentInvoiceData: InvoiceSummary = {
           id: rentInvoice.id,
           amount: Number(rentInvoice.amount),
           status: rentInvoice.status,
@@ -107,9 +108,10 @@ export default function TenantPaymentPortal() {
           property_name: rentInvoice.property_name,
           property_location: rentInvoice.property_location,
           unit_label: rentInvoice.unit_label,
-        })
+        }
+        setInvoice(rentInvoiceData)
         setMonthsToPay(1)
-        return
+        return rentInvoiceData
       }
 
       const invoicesResp = await fetch('/api/tenant/invoices?status=pending', { cache: 'no-store' })
@@ -125,7 +127,7 @@ export default function TenantPaymentPortal() {
       if (!target) {
         throw new Error('You have no pending invoices right now.')
       }
-      setInvoice({
+      const selectedInvoice: InvoiceSummary = {
         id: target.id,
         amount: Number(target.amount),
         status: target.status,
@@ -135,10 +137,13 @@ export default function TenantPaymentPortal() {
         property_name: target.property_name,
         property_location: target.property_location,
         unit_label: target.unit_label,
-      })
+      }
+      setInvoice(selectedInvoice)
+      return selectedInvoice
     } catch (error) {
       setInvoice(null)
       setInvoiceError(error instanceof Error ? error.message : 'Unable to load invoice.')
+      return null
     } finally {
       setLoadingInvoice(false)
     }
@@ -156,7 +161,6 @@ export default function TenantPaymentPortal() {
   }
 
   const handleMpesaPayment = async () => {
-    if (!invoice) return
     if (!mpesaNumber.trim()) {
       toast({
         title: 'Phone number required',
@@ -168,11 +172,21 @@ export default function TenantPaymentPortal() {
     try {
       setSubmitting(true)
       setMpesaMessage(null)
+      const refreshedInvoice = await fetchInvoice()
+      const currentInvoice = refreshedInvoice || invoice
+      if (!currentInvoice || !currentInvoice.id) {
+        toast({
+          title: 'Invoice missing',
+          description: 'Unable to locate the rent invoice. Please refresh the page and try again.',
+          variant: 'destructive',
+        })
+        return
+      }
       const response = await fetch('/api/payments/mpesa/initiate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          invoice_id: invoice.id,
+          invoice_id: currentInvoice.id,
           amount: totalAmount,
           phone_number: mpesaNumber,
           months_covered: monthsToPay,
