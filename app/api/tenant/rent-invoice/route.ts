@@ -101,19 +101,19 @@ export async function GET(request: NextRequest) {
       const description = `Rent for ${dueLabel}`
       const { data: created, error: createError } = await adminSupabase
         .from('invoices')
-        .insert(
-          {
-            lease_id: lease.id,
-            invoice_type: 'rent',
-            amount: monthlyRent,
-            due_date: dueDateKey,
-            months_covered: 1,
-            status: 'unpaid',
-            description,
-          },
-          { returning: 'representation' }
-        )
-        .single()
+      .insert(
+        {
+          lease_id: lease.id,
+          invoice_type: 'rent',
+          amount: monthlyRent,
+          due_date: dueDateKey,
+          months_covered: 1,
+          status: false,
+          description,
+        },
+        { returning: 'representation' }
+      )
+      .single()
 
       if (createError) {
         console.error('[RentInvoice] Insert error', createError.code, createError.message)
@@ -139,7 +139,7 @@ export async function GET(request: NextRequest) {
     const payloadInvoice = {
       id: invoice.id,
       amount: Number(invoice.amount),
-      status: invoice.status === 'paid',
+      status: Boolean(invoice.status),
       invoice_type: invoice.invoice_type,
       description: invoice.description,
       due_date: invoice.due_date,
