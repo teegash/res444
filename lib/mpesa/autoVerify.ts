@@ -1,6 +1,6 @@
 'use server'
 
-import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { queryTransactionStatus, getDarajaConfig } from './queryStatus'
 import { updateInvoiceStatus, calculateInvoiceStatus } from '@/lib/invoices/invoiceGeneration'
 
@@ -43,7 +43,7 @@ export interface AutoVerifyResult {
  */
 async function getPendingMpesaPayments(): Promise<PendingPayment[]> {
   try {
-    const supabase = await createClient()
+    const supabase = createAdminClient()
 
     // Calculate 24 hours ago
     const twentyFourHoursAgo = new Date()
@@ -87,7 +87,7 @@ async function sendPaymentConfirmationSMS(
   receiptNumber: string
 ): Promise<void> {
   try {
-    const supabase = await createClient()
+    const supabase = createAdminClient()
 
     // Get tenant phone number
     const { data: profile } = await supabase
@@ -141,7 +141,7 @@ async function createAuditLog(
   }
 ): Promise<void> {
   try {
-    const supabase = await createClient()
+    const supabase = createAdminClient()
 
     await supabase.from('mpesa_verification_audit').insert({
       payment_id: paymentId,
@@ -171,7 +171,7 @@ async function verifyPayment(
 }> {
   try {
     // 1. Check if payment already verified (race condition protection)
-    const supabase = await createClient()
+    const supabase = createAdminClient()
     const { data: currentPayment } = await supabase
       .from('payments')
       .select('verified, mpesa_receipt_number')
@@ -289,7 +289,7 @@ async function verifyPayment(
       // Get invoice details
       const { data: invoice } = await supabase
         .from('invoices')
-        .select('id, amount')
+        .select('id, amount, due_date, lease_id')
         .eq('id', payment.invoice_id)
         .single()
 
@@ -299,6 +299,22 @@ async function verifyPayment(
 
         // Update invoice status
         await updateInvoiceStatus(invoice.id)
+
+        const monthsPaid = payment.months_paid || 1
+        await supabase
+          .from('invoices')
+          .update({ months_covered: monthsPaid })
+          .eq('id', invoice.id)
+
+        if (invoice.due_date && invoice.lease_id) {
+          const dueDate = new Date(invoice.due_date)
+          const paidUntil = new Date(dueDate)
+          paidUntil.setMonth(paidUntil.getMonth() + monthsPaid - 1)
+          await supabase
+            .from('leases')
+            .update({ rent_paid_until: paidUntil.toISOString().split('T')[0] })
+            .eq('id', invoice.lease_id)
+        }
 
         // If invoice is fully paid, send SMS
         if (invoiceStatus) {
