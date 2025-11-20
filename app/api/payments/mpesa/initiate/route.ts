@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/rbac/routeGuards'
 import { initiateSTKPush, DarajaConfig } from '@/lib/mpesa/daraja'
-import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { updateInvoiceStatus } from '@/lib/invoices/invoiceGeneration'
 
 export async function POST(request: NextRequest) {
@@ -84,7 +84,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const supabase = await createClient()
+    const supabase = createAdminClient()
 
     // 5. Verify invoice exists and user has access
     const { data: invoice, error: invoiceError } = await supabase
