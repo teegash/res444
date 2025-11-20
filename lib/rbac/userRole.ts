@@ -21,59 +21,27 @@ export type { UserRole }
 export async function getUserRole(userId: string): Promise<UserRoleData | null> {
   try {
     const supabase = createAdminClient()
-
-    const { data: memberships, error } = await supabase
-      .from('organization_members')
-      .select(
-        `
-        id,
-        role,
-        organization_id,
-        joined_at,
-        organizations (
-          id,
-          name
-        )
-      `
-      )
-      .eq('user_id', userId)
-      .order('joined_at', { ascending: true })
+    const { data: profile, error } = await supabase
+      .from('user_profiles')
+      .select('role, created_at')
+      .eq('id', userId)
+      .maybeSingle()
 
     if (error) {
-      console.error('Error fetching user role:', error)
+      console.error('Error fetching user role profile:', error)
       return null
     }
 
-    if (!memberships || memberships.length === 0) {
+    if (!profile || !profile.role) {
       return null
     }
-
-    // If user has multiple memberships, return the one with highest privileges
-    // Priority: admin > manager > caretaker > tenant
-    const rolePriority: Record<UserRole, number> = {
-      admin: 4,
-      manager: 3,
-      caretaker: 2,
-      tenant: 1,
-    }
-
-    const sortedMemberships = memberships.sort((a, b) => {
-      const priorityA = rolePriority[a.role as UserRole] || 0
-      const priorityB = rolePriority[b.role as UserRole] || 0
-      return priorityB - priorityA // Higher priority first
-    })
-
-    const primaryMembership = sortedMemberships[0]
-    const organization = primaryMembership.organizations as
-      | { id: string; name: string }
-      | null
 
     return {
-      role: primaryMembership.role as UserRole,
-      organization_id: primaryMembership.organization_id,
-      organization_name: organization?.name || null,
-      membership_id: primaryMembership.id,
-      joined_at: primaryMembership.joined_at,
+      role: profile.role as UserRole,
+      organization_id: null,
+      organization_name: null,
+      membership_id: userId,
+      joined_at: profile.created_at || new Date().toISOString(),
     }
   } catch (error) {
     console.error('Error in getUserRole:', error)
@@ -84,51 +52,28 @@ export async function getUserRole(userId: string): Promise<UserRoleData | null> 
 /**
  * Get all user's roles and memberships
  */
-export async function getUserRoles(
-  userId: string
-): Promise<UserRoleData[]> {
+export async function getUserRoles(userId: string): Promise<UserRoleData[]> {
   try {
     const supabase = createAdminClient()
+    const { data: profile, error } = await supabase
+      .from('user_profiles')
+      .select('role, created_at')
+      .eq('id', userId)
+      .maybeSingle()
 
-    const { data: memberships, error } = await supabase
-      .from('organization_members')
-      .select(
-        `
-        id,
-        role,
-        organization_id,
-        joined_at,
-        organizations (
-          id,
-          name
-        )
-      `
-      )
-      .eq('user_id', userId)
-      .order('joined_at', { ascending: true })
-
-    if (error) {
-      console.error('Error fetching user roles:', error)
+    if (error || !profile || !profile.role) {
       return []
     }
 
-    if (!memberships || memberships.length === 0) {
-      return []
-    }
-
-    return memberships.map((membership) => {
-      const organization = membership.organizations as
-        | { id: string; name: string }
-        | null
-
-      return {
-        role: membership.role as UserRole,
-        organization_id: membership.organization_id,
-        organization_name: organization?.name || null,
-        membership_id: membership.id,
-        joined_at: membership.joined_at,
-      }
-    })
+    return [
+      {
+        role: profile.role as UserRole,
+        organization_id: null,
+        organization_name: null,
+        membership_id: userId,
+        joined_at: profile.created_at || new Date().toISOString(),
+      },
+    ]
   } catch (error) {
     console.error('Error in getUserRoles:', error)
     return []
@@ -165,23 +110,6 @@ export async function getUserRoleForOrganization(
   userId: string,
   organizationId: string
 ): Promise<UserRole | null> {
-  try {
-    const supabase = await createClient()
-
-    const { data: membership, error } = await supabase
-      .from('organization_members')
-      .select('role')
-      .eq('user_id', userId)
-      .eq('organization_id', organizationId)
-      .single()
-
-    if (error || !membership) {
-      return null
-    }
-
-    return membership.role as UserRole
-  } catch (error) {
-    console.error('Error in getUserRoleForOrganization:', error)
-    return null
-  }
+  console.warn('getUserRoleForOrganization is not supported in this environment')
+  return null
 }
