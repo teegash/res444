@@ -182,10 +182,17 @@ export default function TenantPaymentPortal() {
       if (!response.ok) {
         throw new Error(payload.error || 'Failed to initiate payment.')
       }
-      setMpesaMessage(payload.message || 'STK push initiated successfully. Approve the prompt on your phone.')
+      const checkoutId = payload?.data?.checkout_request_id
+      if (checkoutId) {
+        console.log('[mpesa] checkout_request_id', checkoutId)
+      }
+      const toastDescription = checkoutId
+        ? `${payload.message || 'STK push initiated successfully.'} Checkout ID: ${checkoutId}`
+        : payload.message || 'STK push initiated successfully. Approve the prompt on your phone.'
+      setMpesaMessage(toastDescription)
       toast({
         title: 'STK push sent',
-        description: payload.message || 'Approve the prompt on your phone to complete payment.',
+        description: toastDescription,
       })
     } catch (error) {
       toast({
