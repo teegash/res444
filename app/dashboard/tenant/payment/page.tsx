@@ -65,6 +65,7 @@ export default function TenantPaymentPortal() {
       setLoadingInvoice(true)
       setInvoiceError(null)
       const invoiceId = searchParams?.get('invoiceId')
+      const intent = searchParams?.get('intent')
       if (invoiceId) {
         const encodedId = encodeURIComponent(invoiceId)
         const response = await fetch(`/api/tenant/invoices/${encodedId}?invoiceId=${encodedId}`, { cache: 'no-store' })
@@ -86,7 +87,31 @@ export default function TenantPaymentPortal() {
         return
       }
 
-      const intent = searchParams?.get('intent')
+      if (intent === 'rent') {
+        const rentResponse = await fetch('/api/tenant/rent-invoice', { cache: 'no-store' })
+        const rentPayload = await rentResponse.json().catch(() => ({}))
+        if (!rentResponse.ok || !rentPayload.success) {
+          throw new Error(rentPayload.error || 'Failed to prepare rent invoice.')
+        }
+        const rentInvoice = rentPayload.data?.invoice
+        if (!rentInvoice) {
+          throw new Error('Rent invoice data is missing.')
+        }
+        setInvoice({
+          id: rentInvoice.id,
+          amount: Number(rentInvoice.amount),
+          status: rentInvoice.status,
+          invoice_type: rentInvoice.invoice_type,
+          description: rentInvoice.description,
+          due_date: rentInvoice.due_date,
+          property_name: rentInvoice.property_name,
+          property_location: rentInvoice.property_location,
+          unit_label: rentInvoice.unit_label,
+        })
+        setMonthsToPay(1)
+        return
+      }
+
       const invoicesResp = await fetch('/api/tenant/invoices?status=pending', { cache: 'no-store' })
       const invoicesPayload = await invoicesResp.json().catch(() => ({}))
       if (!invoicesResp.ok) {

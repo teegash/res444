@@ -23,12 +23,23 @@ payment intergration, mpesa intergration
 daraja in nategadgets
 payments page and tenants column update after payment
 =also should update upon successful verification of bank slip - impliment this consider wiring the “Recheck” / “Review slip” actions in pending-verification-tab so managers can trigger verification without leaving the page.=
-also should auto update upon successful payment through using peyment gateway for visacards
+make sure mpesa is well intergrated and if it is, let it show in the payments page under status, let it display accurate data, and have legit verification if the daraja api well intergrated, if not let it show disconnected.
+The sync mpesa button should be able to sync daraja data with the dashboard
+let view settings button be practical and the lower part of the screen with 4 cards will change and show settings
+
+also should auto update upon successful payment through using payment gateway for visacards
 autoupdate several months payments
 this should stop rent payment reminders and only send invoice for water
 
-
+***
 In tenant dashboard, the pay rent button, make sure it goes to payment page but shows the rent amount, not the latest invoice, this will then be updated in payments showing the tenant has done a prepayment if its early and update the payment status to add a month or 2 before sending an invoice or rent reminder
+
+make the lease agreement in tenant lease page to generate a more professional looking pdf document
+
+pay rent button in tenant portal,make it such that when it is clicked the payment page brings the rent amount available in lease, this should be called pay rent page - make it look exactly as the pay invoice page
+
+when clicking pay rent in tenant dashboard, if invoice doesnt exist, created one and mark it as paid for that current month, connect it well so that when rent is paid, if in a month where rent is still status paid, true, it will add 1 in the rent paid until in leases table, this resets and reduces by 1 to count for the coming month for rent, so if its reading 1 because the current month has been paid for then the rent paid until becomes 2 and then in the next month on 1st day of the month the rent paid until retiurns to 1 shoding only current month is paid for
+
 
 (Pending) Hook up manager notification clicks to open the maintenance page pre-focused on the relevant request; we can wire that next by checking the related_entity_type when handling clicks in components/dashboard/header.tsx.
 
@@ -37,9 +48,54 @@ Skip payments, will work on it later
 Later will work on Africas talking short code/ sender ID
 tenant delete should be implimented well and actually delete the tenant from the system
 
+Communications hub, announcements tab should have the option of choosing which apartment building to send announcement to, or all buildings, gives a list of all properties with a select option and whichever properties are selected the anouncements are sent to those tenants.
+
+communications hub page in manager dashboard, the sms reminders should actuakly hook to templates of the sms being sent as reminders or invoices, be very keen and make sure they work
+
+communications hub in messages page in tenant dashboard, the messages tab, make sure it shows all the latest messages of the tenants that have been communicating with managers
+
+In Send Notice page, make the form fuction fully, table being used is the communication table, intergrate email, sms and app notification that when they are selected in form, they actually send the form to the specific tenant using the selected medium
+
+In reports page, Revenue Report create a page that can choose different time periods, 1 month, quarter, semi, yearly, all time, the it shows all the data thats necessary for a comprehensive revenue reports page that has just to do with revenue showing trends and also viewing each different property perfomance and also combined report with all data
+
+In reports page, Occupancy Report create a page that can choose different time periods, 1 month, quarter, semi, yearly, all time, the it shows all the data thats necessary for a comprehensive occupancy reports page that has just to do with property occupancy, showing trends and also viewing each different property perfomance and also combined report with all data and be exportable to very neat pdf, or excel or csv
 
 
-make sure there no Rls conflicts when trying to login, here are table definitions
+In reports page, Revenue Report create a page that can choose different time periods, 1 month, quarter, semi, yearly, all time, the it shows all the data thats necessary for a comprehensive revenue reports page that has just to do with revenue showing trends and also viewing each different property perfomance and also combined report with all data and be exportable to very neat pdf, or excel or csv
+
+
+In reports page, Financial Statement create a page that can choose different time periods, 1 month, quarter, semi, yearly, all time, the it shows all the data thats necessary for a comprehensive Financial Statement page that has just to do with statements showing trends and also viewing each different property statements and also combined statements with all data which can be exported to excel, csv and also pdf in statement format.
+
+
+In the statements page, last one at the bottom in sidebar, the Financial page should get data from user_profile with tenant role attributed as tenant id in payments table in database and get their payment information and this payment information should be organized in neat statements which can be exported to excel, csv and also pdf in statement format.
+
+In this financial statement page in manager dashboard, make the Filter Statements search feature work
+
+
+In the profile top left, in profile settings make it fully functional
+
+In manager dashboard make dark theme toggle in preferences, and also impliment settings page to fully work
+
+Make account and security fully functional
+
+make help and support valid and functional
+
+
+in tenant portal make payment history actually pick data from actual done payments for the specific tenant.
+
+in tenant portal make profile settings in top left drop down have a dark theme toggle that actually works, also make the profile editing valid in the profilesettings, can edit name, password, and a few other valid things
+
+in tenant dashboard make the quick actions fit 5 in one row
+
+in tenant dashboard make it fun interactive and better looking, dont be so extravagant but make it look very presentable and great to use.
+
+in tenant portal make the header
+
+
+MAKE PROFILES MANAGER AND CARETAKER AND RESTRICT VIEW OF SPECIFIC FEATURES in admin dashboard.
+
+fix mobile view for both tenant and manager portal and put bottom navigation bar, look very professional
+
 
 
 the system should spin up a pending lease automatically after tenant signs up, this lease should be editable before forwarding to tenant for esign confirmation which then will be added to the documents in the tenant dashboard under lease documents,
