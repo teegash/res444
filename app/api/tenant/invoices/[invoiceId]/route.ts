@@ -40,6 +40,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         lease:leases (
           id,
           tenant_user_id,
+          rent_paid_until,
           unit:apartment_units (
             id,
             unit_number,
@@ -68,10 +69,10 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     }
 
     const property = invoice.lease?.unit?.building
-    const payload = {
-      id: invoice.id,
-      amount: invoice.amount,
-      status: invoice.status,
+      const payload = {
+        id: invoice.id,
+        amount: invoice.amount,
+        status: invoice.status,
       is_paid: Boolean(invoice.status),
       description: invoice.description,
       invoice_type: invoice.invoice_type,
@@ -81,14 +82,15 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         id: invoice.lease?.unit?.id || null,
         label: invoice.lease?.unit?.unit_number || null,
       },
-      property: property
-        ? {
-            id: property.id,
-            name: property.name,
-            location: property.location,
-          }
-        : null,
-    }
+        property: property
+          ? {
+              id: property.id,
+              name: property.name,
+              location: property.location,
+            }
+          : null,
+        rent_paid_until: invoice.lease?.rent_paid_until || null,
+      }
 
     return NextResponse.json({ success: true, data: payload })
   } catch (error) {

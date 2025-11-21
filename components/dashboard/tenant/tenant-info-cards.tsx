@@ -12,6 +12,7 @@ interface TenantInfoCardsProps {
       property_location: string | null
       unit_label: string | null
       monthly_rent: number | null
+      rent_paid_until?: string | null
       end_date: string | null
     } | null
   } | null
@@ -83,6 +84,14 @@ export function TenantInfoCards({ summary, loading }: TenantInfoCardsProps) {
               </p>
             </div>
           </div>
+          {summary?.lease?.rent_paid_until && (
+            <p className="text-xs text-muted-foreground">
+              Paid through {new Date(summary.lease.rent_paid_until).toLocaleDateString(undefined, {
+                year: 'numeric',
+                month: 'short',
+              })}
+            </p>
+          )}
           {!loading && (
             <Link href="/dashboard/tenant/payment?intent=rent" className="block">
               <Button className="w-full bg-emerald-500 hover:bg-emerald-600 text-white">

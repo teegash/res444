@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { parseCallbackData } from '@/lib/mpesa/daraja'
 import { updateInvoiceStatus } from '@/lib/invoices/invoiceGeneration'
+import { calculatePaidUntil } from '@/lib/payments/leaseHelpers'
 
 /**
  * M-Pesa Daraja API callback handler
@@ -165,13 +166,22 @@ export async function POST(request: NextRequest) {
 
       await updateInvoiceStatus(invoice.id)
 
-      if (invoice.due_date) {
-        const dueDate = new Date(invoice.due_date)
-        const paidUntil = new Date(dueDate)
-        paidUntil.setMonth(paidUntil.getMonth() + monthsPaid - 1)
+      const { data: lease } = await supabase
+        .from('leases')
+        .select('id, rent_paid_until')
+        .eq('id', invoice.lease_id)
+        .maybeSingle()
+
+      const nextPaidUntil = calculatePaidUntil(
+        lease?.rent_paid_until || null,
+        invoice.due_date,
+        monthsPaid
+      )
+
+      if (nextPaidUntil) {
         await supabase
           .from('leases')
-          .update({ rent_paid_until: paidUntil.toISOString().split('T')[0] })
+          .update({ rent_paid_until: nextPaidUntil })
           .eq('id', invoice.lease_id)
       }
 

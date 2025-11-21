@@ -29,6 +29,7 @@ type TenantSummary = {
     property_name: string | null
     property_location: string | null
     unit_price_text: string | null
+    rent_paid_until?: string | null
   } | null
 } | null
 
@@ -48,7 +49,7 @@ export default function TenantDashboard() {
   const [summary, setSummary] = useState<TenantSummary>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [pendingInvoice, setPendingInvoice] = useState<TenantInvoiceRecord>(null)
+  const [pendingInvoices, setPendingInvoices] = useState<TenantInvoiceRecord[]>([])
 
   const fetchSummary = useCallback(async () => {
     try {
@@ -73,7 +74,7 @@ export default function TenantDashboard() {
     fetchSummary()
   }, [fetchSummary])
 
-  const fetchPendingInvoice = useCallback(async () => {
+  const fetchPendingInvoices = useCallback(async () => {
     try {
       const response = await fetch('/api/tenant/invoices?status=pending', { cache: 'no-store' })
       if (!response.ok) {
@@ -81,29 +82,22 @@ export default function TenantDashboard() {
         throw new Error(payload.error || 'Failed to load pending invoices.')
       }
       const payload = await response.json()
-      const pendingWaterInvoice =
-        (payload.data || [])
-          .filter(
-            (invoice: TenantInvoiceRecord & { invoice_type?: string | null }) =>
-              invoice &&
-              invoice.invoice_type === 'water' &&
-              invoice.status === false
-          )
-          .sort((a, b) => {
-            const aTime = a?.created_at ? new Date(a.created_at).getTime() : 0
-            const bTime = b?.created_at ? new Date(b.created_at).getTime() : 0
-            return bTime - aTime
-          })?.[0] || null
-      setPendingInvoice(pendingWaterInvoice)
+      const list = (payload.data || []) as TenantInvoiceRecord[]
+      const sorted = [...list].sort((a, b) => {
+        const aTime = a?.due_date ? new Date(a.due_date).getTime() : 0
+        const bTime = b?.due_date ? new Date(b.due_date).getTime() : 0
+        return aTime - bTime
+      })
+      setPendingInvoices(sorted)
     } catch (err) {
       console.error('[TenantDashboard] pending invoice fetch failed', err)
-      setPendingInvoice(null)
+      setPendingInvoices([])
     }
   }, [])
 
   useEffect(() => {
-    fetchPendingInvoice()
-  }, [fetchPendingInvoice])
+    fetchPendingInvoices()
+  }, [fetchPendingInvoices])
 
   const formatDate = (value: string | null | undefined) => {
     if (!value) return '—'
@@ -111,6 +105,9 @@ export default function TenantDashboard() {
     if (Number.isNaN(date.getTime())) return '—'
     return date.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })
   }
+
+  const nextInvoice = pendingInvoices[0] || null
+  const hasPending = pendingInvoices.length > 0
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-blue-50/30 via-white to-orange-50/20">
@@ -177,17 +174,43 @@ export default function TenantDashboard() {
               <div className="p-3 rounded-lg bg-red-50 border border-red-100">
                 <div className="flex items-center justify-between mb-1">
                   <p className="text-sm font-medium">Next Payment Due</p>
-                  <Badge variant="destructive" className="text-xs">{pendingInvoice ? 'Due Soon' : 'Clear'}</Badge>
+                  <Badge variant="destructive" className="text-xs">
+                    {nextInvoice ? 'Due Soon' : 'Clear'}
+                  </Badge>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  {pendingInvoice ? formatDate(pendingInvoice.due_date) : 'No outstanding payments'}
+                  {nextInvoice ? formatDate(nextInvoice.due_date) : 'No outstanding payments'}
                 </p>
-                {pendingInvoice ? (
-                  <Link href={`/dashboard/tenant/invoices/${pendingInvoice.id}?invoiceId=${pendingInvoice.id}`}>
-                    <Button size="sm" className="w-full mt-2" variant="outline">
-                      Pay {pendingInvoice.invoice_type === 'water' ? 'Water Bill' : 'Invoice'}
-                    </Button>
-                  </Link>
+                {hasPending ? (
+                  <div className="space-y-3 mt-3">
+                    {pendingInvoices.slice(0, 3).map((invoice, index) => {
+                      if (!invoice) return null
+                      return (
+                        <div key={invoice.id ?? index} className="p-3 rounded-lg bg-white border border-border">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-sm font-semibold">
+                              {invoice?.invoice_type === 'water' ? 'Water Bill' : 'Invoice'}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              Due {formatDate(invoice?.due_date)}
+                            </p>
+                          </div>
+                          <p className="font-semibold text-lg">
+                            {invoice ? `KES ${invoice.amount.toLocaleString('en-KE', { minimumFractionDigits: 2 })}` : 'KES 0'}
+                          </p>
+                        </div>
+                        <Link
+                          href={`/dashboard/tenant/payment?invoiceId=${invoice.id}&intent=${invoice.invoice_type || ''}`}
+                          className="mt-3 block"
+                        >
+                          <Button size="sm" className="w-full" variant="outline">
+                            Pay {invoice?.invoice_type === 'water' ? 'Water Bill' : 'Invoice'}
+                          </Button>
+                        </Link>
+                      </div>
+                    ))}
+                  </div>
                 ) : (
                   <Button size="sm" className="w-full mt-2" variant="outline" disabled>
                     All Paid

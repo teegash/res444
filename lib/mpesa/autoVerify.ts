@@ -3,6 +3,7 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { queryTransactionStatus, getDarajaConfig } from './queryStatus'
 import { updateInvoiceStatus, calculateInvoiceStatus } from '@/lib/invoices/invoiceGeneration'
+import { calculatePaidUntil } from '@/lib/payments/leaseHelpers'
 
 export interface PendingPayment {
   id: string
@@ -302,14 +303,25 @@ async function verifyPayment(
           .update({ months_covered: monthsPaid })
           .eq('id', invoice.id)
 
-        if (invoice.due_date && invoice.lease_id) {
-          const dueDate = new Date(invoice.due_date)
-          const paidUntil = new Date(dueDate)
-          paidUntil.setMonth(paidUntil.getMonth() + monthsPaid - 1)
-          await supabase
+        if (invoice.lease_id) {
+          const { data: lease } = await supabase
             .from('leases')
-            .update({ rent_paid_until: paidUntil.toISOString().split('T')[0] })
+            .select('id, rent_paid_until')
             .eq('id', invoice.lease_id)
+            .maybeSingle()
+
+          const nextPaidUntil = calculatePaidUntil(
+            lease?.rent_paid_until || null,
+            invoice.due_date || null,
+            monthsPaid
+          )
+
+          if (nextPaidUntil) {
+            await supabase
+              .from('leases')
+              .update({ rent_paid_until: nextPaidUntil })
+              .eq('id', invoice.lease_id)
+          }
         }
 
         // If invoice is fully paid, send SMS

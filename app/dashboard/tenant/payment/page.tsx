@@ -23,6 +23,7 @@ type InvoiceSummary = {
   property_name: string | null
   property_location: string | null
   unit_label: string | null
+  lease_paid_until?: string | null
 }
 
 export default function TenantPaymentPortal() {
@@ -53,12 +54,21 @@ export default function TenantPaymentPortal() {
     [totalAmount]
   )
 
+  const [leasePaidUntil, setLeasePaidUntil] = useState<string | null>(null)
+
   const coverageLabel = useMemo(() => {
     if (!invoice?.due_date) return null
-    const end = new Date(invoice.due_date)
+    const baseDate =
+      leasePaidUntil && new Date(leasePaidUntil) > new Date(invoice.due_date)
+        ? new Date(leasePaidUntil)
+        : new Date(invoice.due_date)
+    const end = new Date(baseDate)
     end.setMonth(end.getMonth() + monthsToPay - 1)
     return end.toLocaleDateString(undefined, { year: 'numeric', month: 'long' })
   }, [invoice?.due_date, monthsToPay])
+
+  const paymentTitle = invoice?.invoice_type === 'water' ? 'Pay Water Bill' : 'Pay Rent'
+  const showMonthsSelection = invoice?.invoice_type !== 'water'
 
   const fetchInvoice = useCallback(async (): Promise<InvoiceSummary | null> => {
     try {
@@ -85,6 +95,7 @@ export default function TenantPaymentPortal() {
           unit_label: payload.data.unit?.label || null,
         }
         setInvoice(fetchedInvoice)
+        setLeasePaidUntil(payload.data?.lease?.rent_paid_until || null)
         return fetchedInvoice
       }
 
@@ -111,6 +122,7 @@ export default function TenantPaymentPortal() {
         }
         setInvoice(rentInvoiceData)
         setMonthsToPay(1)
+        setLeasePaidUntil(rentInvoice.lease?.rent_paid_until || null)
         return rentInvoiceData
       }
 
@@ -139,6 +151,7 @@ export default function TenantPaymentPortal() {
         unit_label: target.unit_label,
       }
       setInvoice(selectedInvoice)
+      setLeasePaidUntil(target?.lease_paid_until || null)
       return selectedInvoice
     } catch (error) {
       setInvoice(null)
@@ -362,18 +375,18 @@ export default function TenantPaymentPortal() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 via-white to-white py-10">
       <div className="max-w-5xl mx-auto px-4 space-y-6">
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" size="sm" onClick={() => router.back()} className="gap-2">
-            <ArrowLeft className="h-4 w-4" /> Back to dashboard
-          </Button>
-          <div>
-            <p className="text-xs text-muted-foreground">Invoice #{invoice.id.slice(0, 8)}</p>
-            <h1 className="text-3xl font-bold">Pay Rent</h1>
+          <div className="flex items-center gap-4">
+            <Button variant="ghost" size="sm" onClick={() => router.back()} className="gap-2">
+              <ArrowLeft className="h-4 w-4" /> Back to dashboard
+            </Button>
+            <div>
+              <p className="text-xs text-muted-foreground">Invoice #{invoice.id.slice(0, 8)}</p>
+              <h1 className="text-3xl font-bold">{paymentTitle}</h1>
+            </div>
+            <Badge className={`ml-auto ${isInvoicePaid ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+              {isInvoicePaid ? 'Paid' : 'Unpaid'}
+            </Badge>
           </div>
-          <Badge className={`ml-auto ${isInvoicePaid ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-            {isInvoicePaid ? 'Paid' : 'Unpaid'}
-          </Badge>
-        </div>
 
         <div className="grid lg:grid-cols-[2fr,3fr] gap-6">
           <Card className="shadow-md border-blue-100">
@@ -386,7 +399,7 @@ export default function TenantPaymentPortal() {
                 <p className="text-xs uppercase text-muted-foreground">Total amount due</p>
                 <p className="text-4xl font-semibold text-[#4682B4]">{formattedAmount}</p>
               </div>
-              <div className="space-y-3 text-sm">
+                <div className="space-y-3 text-sm">
                 <div className="flex justify-between border rounded-xl px-4 py-3 bg-blue-50/60">
                   <span className="text-muted-foreground">Property</span>
                   <span className="font-medium">{invoice.property_name || '—'}</span>
@@ -406,27 +419,29 @@ export default function TenantPaymentPortal() {
                       : '—'}
                   </span>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="months-select">Months to pay</Label>
-                  <select
-                    id="months-select"
-                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm"
-                    value={monthsToPay}
-                    onChange={(event) => setMonthsToPay(Number(event.target.value))}
-                    disabled={isInvoicePaid}
-                  >
-                    {Array.from({ length: 12 }).map((_, index) => (
-                      <option key={index + 1} value={index + 1}>
-                        {index + 1} {index + 1 === 1 ? 'Month' : 'Months'}
-                      </option>
-                    ))}
-                  </select>
-                  {coverageLabel && (
-                    <p className="text-xs text-muted-foreground">
-                      Covers rent through <span className="font-medium text-emerald-600">{coverageLabel}</span>
-                    </p>
-                  )}
-                </div>
+                {showMonthsSelection && (
+                  <div className="space-y-2">
+                    <Label htmlFor="months-select">Months to pay</Label>
+                    <select
+                      id="months-select"
+                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm"
+                      value={monthsToPay}
+                      onChange={(event) => setMonthsToPay(Number(event.target.value))}
+                      disabled={isInvoicePaid}
+                    >
+                      {Array.from({ length: 12 }).map((_, index) => (
+                        <option key={index + 1} value={index + 1}>
+                          {index + 1} {index + 1 === 1 ? 'Month' : 'Months'}
+                        </option>
+                      ))}
+                    </select>
+                    {coverageLabel && (
+                      <p className="text-xs text-muted-foreground">
+                        Covers rent through <span className="font-medium text-emerald-600">{coverageLabel}</span>
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
               <Alert className="bg-slate-50 border-slate-200">
                 <AlertDescription className="text-xs text-muted-foreground">
@@ -486,7 +501,9 @@ export default function TenantPaymentPortal() {
                   <div>
                     <h3 className="text-sm font-semibold">M-Pesa instructions</h3>
                     <p className="text-xs text-muted-foreground">
-                      We will send an STK push to your phone for {monthsToPay} {monthsToPay === 1 ? 'month' : 'months'} of rent.
+                      {showMonthsSelection
+                        ? `We will send an STK push to your phone for ${monthsToPay} ${monthsToPay === 1 ? 'month' : 'months'} of rent.`
+                        : 'We will send an STK push to your phone for this bill.'}
                     </p>
                   </div>
                   <div className="space-y-2">

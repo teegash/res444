@@ -48,6 +48,7 @@ export async function GET() {
         start_date,
         end_date,
         monthly_rent,
+        rent_paid_until,
         unit:apartment_units (
           id,
           unit_number,
@@ -93,6 +94,7 @@ export async function GET() {
             property_name: lease.unit?.building?.name || null,
             property_location: lease.unit?.building?.location || null,
             unit_price_text: lease.unit?.unit_price_category || null,
+            rent_paid_until: lease.rent_paid_until || null,
           }
         : null,
     }
