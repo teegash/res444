@@ -1,5 +1,3 @@
-'use server'
-
 export function calculatePaidUntil(
   leasePaidUntil: string | null | undefined,
   invoiceDueDate: string | null | undefined,
