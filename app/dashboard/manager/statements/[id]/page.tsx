@@ -1,9 +1,9 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { Download, Loader2, Printer, Share2 } from 'lucide-react'
+import { ArrowLeft, Download, Loader2, Printer, Share2 } from 'lucide-react'
 import Link from 'next/link'
-import { useSearchParams } from 'next/navigation'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import Sidebar from '@/components/dashboard/sidebar'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -83,15 +83,28 @@ export default function TenantStatementPage({ params }: { params: { id?: string 
   const [error, setError] = useState<string | null>(null)
   const [exporting, setExporting] = useState(false)
   const searchParams = useSearchParams()
-  const tenantId =
-    params?.id?.trim() || searchParams.get('tenantId')?.trim() || ''
+  const router = useRouter()
+  const pathname = usePathname()
+  const queryTenantId = searchParams.get('tenantId')?.trim() || ''
+  const pathTenantId = useMemo(() => {
+    if (!pathname) return ''
+    const segments = pathname.split('/').filter(Boolean)
+    const lastSegment = segments[segments.length - 1] || ''
+    return lastSegment === 'statements' ? '' : lastSegment
+  }, [pathname])
+  const tenantId = (params?.id && params.id.trim()) || queryTenantId || pathTenantId || ''
 
   useEffect(() => {
+    let redirectTimer: ReturnType<typeof setTimeout> | null = null
+
     const fetchStatement = async () => {
       if (!tenantId) {
-        setError('Missing tenant identifier.')
+        setError('Missing tenant identifier. Redirecting to your tenant list...')
         setStatement(null)
         setLoading(false)
+        redirectTimer = setTimeout(() => {
+          router.replace('/dashboard/tenants')
+        }, 1600)
         return
       }
 
@@ -117,7 +130,13 @@ export default function TenantStatementPage({ params }: { params: { id?: string 
     }
 
     fetchStatement()
-  }, [tenantId])
+
+    return () => {
+      if (redirectTimer) {
+        clearTimeout(redirectTimer)
+      }
+    }
+  }, [tenantId, router])
 
   const periodLabel = useMemo(() => {
     if (!statement?.period) return 'Latest activity'
@@ -355,11 +374,12 @@ export default function TenantStatementPage({ params }: { params: { id?: string 
       <main className="flex-1 p-6 md:p-10">
         <div className="flex items-center justify-between mb-8">
           <div>
-            <p className="text-sm text-muted-foreground mb-1">
-              <Link href="/dashboard/tenants" className="text-blue-600 hover:underline">
-                ← Back to Tenants
+            <Button variant="ghost" size="sm" className="mb-2 px-2 text-sm font-medium text-slate-600 hover:text-slate-900 w-auto" asChild>
+              <Link href="/dashboard/tenants" className="flex items-center gap-2">
+                <ArrowLeft className="h-4 w-4" />
+                Back
               </Link>
-            </p>
+            </Button>
             <h1 className="text-3xl font-bold">Tenant Statement</h1>
             <p className="text-sm text-muted-foreground">
               Detailed record of rent and utility transactions.
