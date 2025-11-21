@@ -76,17 +76,29 @@ function formatDate(value: string | null | undefined) {
   return new Date(value).toLocaleDateString()
 }
 
-export default function TenantStatementPage({ params }: { params: { id: string } }) {
+export default function TenantStatementPage({ params }: { params: { id?: string } }) {
   const [statement, setStatement] = useState<StatementPayload | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [exporting, setExporting] = useState(false)
+  const tenantId = params?.id?.trim() || ''
 
   useEffect(() => {
     const fetchStatement = async () => {
+      if (!tenantId) {
+        setError('Missing tenant identifier.')
+        setStatement(null)
+        setLoading(false)
+        return
+      }
+
       try {
         setLoading(true)
-        const response = await fetch(`/api/manager/statements/${params.id}`, { cache: 'no-store' })
+        const encodedTenantId = encodeURIComponent(tenantId)
+        const response = await fetch(
+          `/api/manager/statements/${encodedTenantId}?tenantId=${encodedTenantId}`,
+          { cache: 'no-store' }
+        )
         const payload = await response.json().catch(() => ({}))
         if (!response.ok) {
           throw new Error(payload.error || 'Failed to load tenant statement.')
@@ -102,7 +114,7 @@ export default function TenantStatementPage({ params }: { params: { id: string }
     }
 
     fetchStatement()
-  }, [params.id])
+  }, [tenantId])
 
   const periodLabel = useMemo(() => {
     if (!statement?.period) return 'Latest activity'
@@ -157,7 +169,7 @@ export default function TenantStatementPage({ params }: { params: { id: string }
   const handleExport = (format: 'pdf' | 'csv' | 'excel') => {
     if (!statement) return
     setExporting(true)
-    const fileBase = `tenant-statement-${params.id}`
+    const fileBase = tenantId ? `tenant-statement-${tenantId}` : 'tenant-statement'
     const subtitle = `${tenantName} • ${propertyLabel}`
 
     try {

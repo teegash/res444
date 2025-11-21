@@ -126,6 +126,9 @@ const paymentBadgeVariant = (status: string) => {
   }
 }
 
+const buildStatementHref = (tenantId?: string | null) =>
+  tenantId ? `/dashboard/manager/statements/${encodeURIComponent(tenantId)}` : ''
+
 function TenantActions({
   tenant,
   onEdit,
@@ -144,9 +147,11 @@ function TenantActions({
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         <DropdownMenuItem onClick={() => onEdit(tenant)}>Edit</DropdownMenuItem>
-        <DropdownMenuItem asChild>
-          <Link href={`/dashboard/manager/statements/${tenant.tenant_user_id}`}>Stmt</Link>
-        </DropdownMenuItem>
+        {tenant.tenant_user_id ? (
+          <DropdownMenuItem asChild>
+            <Link href={buildStatementHref(tenant.tenant_user_id)}>Stmt</Link>
+          </DropdownMenuItem>
+        ) : null}
         <DropdownMenuItem asChild>
           <Link href={`/dashboard/tenants/${tenant.tenant_user_id}/messages?tenantId=${tenant.tenant_user_id}`}>
             Open Chat
@@ -244,6 +249,13 @@ export function TenantsTable({ searchQuery = '', viewMode = 'list' }: TenantsTab
         .some((value) => value!.toLowerCase().startsWith(query))
     })
   }, [searchQuery, tenants])
+
+  const viewTenants = useMemo(() => {
+    if (loading) {
+      return []
+    }
+    return filteredTenants
+  }, [filteredTenants, loading])
 
   const handleCopy = (value: string, label: string) => {
     if (!value) return
@@ -368,9 +380,11 @@ export function TenantsTable({ searchQuery = '', viewMode = 'list' }: TenantsTab
                         {tenant.unit_label || 'Unassigned'}
                       </p>
                     </div>
-                    <Button variant="outline" size="sm" asChild>
-                      <Link href={`/dashboard/manager/statements/${tenant.tenant_user_id}`}>Stmt</Link>
-                    </Button>
+                    {tenant.tenant_user_id ? (
+                      <Button variant="outline" size="sm" asChild>
+                        <Link href={buildStatementHref(tenant.tenant_user_id)}>Stmt</Link>
+                      </Button>
+                    ) : null}
                   </div>
                   <div className="p-4 space-y-2 text-sm">
                     <div className="flex justify-between">
@@ -401,11 +415,15 @@ export function TenantsTable({ searchQuery = '', viewMode = 'list' }: TenantsTab
                       <Button size="sm" variant="outline" onClick={() => setEditTenant(tenant)}>
                         Edit
                       </Button>
-                      <Button size="sm" variant="secondary" asChild>
-                        <Link href={`/dashboard/manager/statements/${tenant.tenant_user_id}`}>
+                      {tenant.tenant_user_id ? (
+                        <Button size="sm" variant="secondary" asChild>
+                          <Link href={buildStatementHref(tenant.tenant_user_id)}>Statement</Link>
+                        </Button>
+                      ) : (
+                        <Button size="sm" variant="secondary" disabled>
                           Statement
-                        </Link>
-                      </Button>
+                        </Button>
+                      )}
                     </div>
                   </div>
                 </div>

@@ -817,118 +817,122 @@ export default function PaymentHistoryPage() {
       </div>
 
       <Dialog open={statementModalOpen} onOpenChange={(open) => (!open ? handleCloseStatement() : null)}>
-        <DialogContent className="max-w-6xl w-[95vw]">
-          <DialogHeader className="flex flex-col gap-3">
-            <div className="flex items-center justify-between">
-              <div>
-                <DialogTitle>Account Statement</DialogTitle>
-                <DialogDescription>Detailed breakdown of the selected invoice.</DialogDescription>
-              </div>
-              {statementDetails && (
-                <div className="flex gap-2">
-                  <Button variant="outline" size="sm" onClick={() => handleStatementExport('pdf')}>
-                    <Download className="h-4 w-4 mr-2" />
-                    PDF
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={() => handleStatementExport('excel')}>
-                    Excel
-                  </Button>
-                </div>
-              )}
-            </div>
-          </DialogHeader>
-          {statementLoading ? (
-            <div className="py-10 text-center text-muted-foreground">Loading statement…</div>
-          ) : statementError ? (
-            <div className="py-6 text-center text-sm text-red-600">{statementError}</div>
-          ) : statementDetails ? (
-            <div className="space-y-6">
-              <div className="grid md:grid-cols-2 gap-4 text-sm">
+        <DialogContent className="w-[94vw] max-w-[1400px] lg:max-w-[1200px] border border-slate-100 shadow-2xl p-0">
+          <div className="flex flex-col max-h-[70vh]">
+            <DialogHeader className="flex flex-col gap-3 p-6 border-b sticky top-0 bg-white z-10">
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                 <div>
-                  <p className="text-muted-foreground mb-1">Statement Period</p>
-                  <p className="font-semibold">{statementDetails.periodLabel}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {new Date(statementDetails.periodStart).toLocaleDateString()} –{' '}
-                    {new Date(statementDetails.periodEnd).toLocaleDateString()}
-                  </p>
+                  <DialogTitle>Account Statement</DialogTitle>
+                  <DialogDescription>Detailed breakdown of the selected invoice.</DialogDescription>
                 </div>
-                <div className="text-right">
-                  <p className="text-muted-foreground mb-1">Closing Balance</p>
-                  <p className="font-semibold text-green-700">
-                    KES {statementDetails.summary.closingBalance.toLocaleString()}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground mb-1">Property</p>
-                  <p className="font-semibold">
-                    {statementDetails.property?.property_name || 'My Unit'}
-                    {statementDetails.property?.unit_number ? ` • ${statementDetails.property.unit_number}` : ''}
-                  </p>
-                </div>
+                {statementDetails && (
+                  <div className="flex gap-2">
+                    <Button variant="outline" size="sm" onClick={() => handleStatementExport('pdf')}>
+                      <Download className="h-4 w-4 mr-2" />
+                      PDF
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => handleStatementExport('excel')}>
+                      Excel
+                    </Button>
+                  </div>
+                )}
               </div>
+            </DialogHeader>
+            <div className="flex-1 overflow-y-auto px-6 py-6 space-y-6">
+              {statementLoading ? (
+                <div className="py-10 text-center text-muted-foreground">Loading statement…</div>
+              ) : statementError ? (
+                <div className="py-6 text-center text-sm text-red-600">{statementError}</div>
+              ) : statementDetails ? (
+                <>
+                  <div className="grid md:grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <p className="text-muted-foreground mb-1">Statement Period</p>
+                      <p className="font-semibold">{statementDetails.periodLabel}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {new Date(statementDetails.periodStart).toLocaleDateString()} –{' '}
+                        {new Date(statementDetails.periodEnd).toLocaleDateString()}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-muted-foreground mb-1">Closing Balance</p>
+                      <p className="font-semibold text-green-700">
+                        KES {statementDetails.summary.closingBalance.toLocaleString()}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground mb-1">Property</p>
+                      <p className="font-semibold">
+                        {statementDetails.property?.property_name || 'My Unit'}
+                        {statementDetails.property?.unit_number ? ` • ${statementDetails.property.unit_number}` : ''}
+                      </p>
+                    </div>
+                  </div>
 
-              <div className="grid md:grid-cols-4 gap-4">
-                <div className="rounded-lg border p-4 bg-slate-50">
-                  <p className="text-xs text-muted-foreground">Opening Balance</p>
-                  <p className="text-lg font-bold">
-                    KES {statementDetails.summary.openingBalance.toLocaleString()}
-                  </p>
-                </div>
-                <div className="rounded-lg border p-4 bg-slate-50">
-                  <p className="text-xs text-muted-foreground">Charges</p>
-                  <p className="text-lg font-bold text-slate-900">
-                    KES {statementDetails.summary.totalCharges.toLocaleString()}
-                  </p>
-                </div>
-                <div className="rounded-lg border p-4 bg-slate-50">
-                  <p className="text-xs text-muted-foreground">Payments</p>
-                  <p className="text-lg font-bold text-blue-600">
-                    KES {statementDetails.summary.totalPayments.toLocaleString()}
-                  </p>
-                </div>
-                <div className="rounded-lg border p-4 bg-slate-50">
-                  <p className="text-xs text-muted-foreground">Closing Balance</p>
-                  <p className="text-lg font-bold text-green-600">
-                    KES {statementDetails.summary.closingBalance.toLocaleString()}
-                  </p>
-                </div>
-              </div>
+                  <div className="grid md:grid-cols-4 gap-4">
+                    <div className="rounded-lg border p-4 bg-slate-50">
+                      <p className="text-xs text-muted-foreground">Opening Balance</p>
+                      <p className="text-lg font-bold">
+                        KES {statementDetails.summary.openingBalance.toLocaleString()}
+                      </p>
+                    </div>
+                    <div className="rounded-lg border p-4 bg-slate-50">
+                      <p className="text-xs text-muted-foreground">Charges</p>
+                      <p className="text-lg font-bold text-slate-900">
+                        KES {statementDetails.summary.totalCharges.toLocaleString()}
+                      </p>
+                    </div>
+                    <div className="rounded-lg border p-4 bg-slate-50">
+                      <p className="text-xs text-muted-foreground">Payments</p>
+                      <p className="text-lg font-bold text-blue-600">
+                        KES {statementDetails.summary.totalPayments.toLocaleString()}
+                      </p>
+                    </div>
+                    <div className="rounded-lg border p-4 bg-slate-50">
+                      <p className="text-xs text-muted-foreground">Closing Balance</p>
+                      <p className="text-lg font-bold text-green-600">
+                        KES {statementDetails.summary.closingBalance.toLocaleString()}
+                      </p>
+                    </div>
+                  </div>
 
-              <div className="border rounded-lg overflow-hidden">
-                <div className="max-h-[70vh] overflow-y-auto">
-                  <table className="w-full text-sm">
-                    <thead className="bg-slate-50">
-                      <tr>
-                        <th className="text-left p-3 font-semibold">Date</th>
-                        <th className="text-left p-3 font-semibold">Description</th>
-                        <th className="text-left p-3 font-semibold">Reference</th>
-                        <th className="text-right p-3 font-semibold">Amount</th>
-                        <th className="text-right p-3 font-semibold">Balance</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {statementDetails.transactions.map((txn) => (
-                        <tr key={txn.id} className="border-b last:border-0">
-                          <td className="p-3">
-                            {txn.posted_at ? new Date(txn.posted_at).toLocaleDateString() : '—'}
-                          </td>
-                          <td className="p-3 capitalize">{txn.description}</td>
-                          <td className="p-3">{txn.reference || '—'}</td>
-                          <td className={`p-3 text-right ${txn.amount < 0 ? 'text-green-600' : 'text-slate-900'}`}>
-                            {txn.amount < 0 ? '-' : ''}
-                            KES {Math.abs(txn.amount).toLocaleString()}
-                          </td>
-                          <td className="p-3 text-right font-medium">
-                            KES {(txn.balance_after || 0).toLocaleString()}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
+                  <div className="border rounded-lg overflow-hidden bg-white">
+                    <div className="max-h-[55vh] overflow-y-auto">
+                      <table className="w-full text-sm">
+                        <thead className="bg-slate-50">
+                          <tr>
+                            <th className="text-left p-3 font-semibold">Date</th>
+                            <th className="text-left p-3 font-semibold">Description</th>
+                            <th className="text-left p-3 font-semibold">Reference</th>
+                            <th className="text-right p-3 font-semibold">Amount</th>
+                            <th className="text-right p-3 font-semibold">Balance</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {statementDetails.transactions.map((txn) => (
+                            <tr key={txn.id} className="border-b last:border-0">
+                              <td className="p-3">
+                                {txn.posted_at ? new Date(txn.posted_at).toLocaleDateString() : '—'}
+                              </td>
+                              <td className="p-3 capitalize">{txn.description}</td>
+                              <td className="p-3">{txn.reference || '—'}</td>
+                              <td className={`p-3 text-right ${txn.amount < 0 ? 'text-green-600' : 'text-slate-900'}`}>
+                                {txn.amount < 0 ? '-' : ''}
+                                KES {Math.abs(txn.amount).toLocaleString()}
+                              </td>
+                              <td className="p-3 text-right font-medium">
+                                KES {(txn.balance_after || 0).toLocaleString()}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </>
+              ) : null}
             </div>
-          ) : null}
+          </div>
         </DialogContent>
       </Dialog>
 

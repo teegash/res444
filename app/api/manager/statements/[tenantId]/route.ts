@@ -48,12 +48,21 @@ type StatementTransaction = {
   balance_after?: number
 }
 
+function resolveTenantId(request: NextRequest, params?: { tenantId?: string }) {
+  if (params?.tenantId) return params.tenantId
+  const urlParam = request.nextUrl.searchParams.get('tenantId')
+  if (urlParam) return urlParam
+  const pathname = request.nextUrl.pathname
+  const segments = pathname.split('/').filter(Boolean)
+  return segments.length > 0 ? segments[segments.length - 1] : null
+}
+
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: { tenantId: string } }
 ) {
   try {
-    const { tenantId } = params
+    const tenantId = resolveTenantId(request, params)
 
     if (!tenantId) {
       return NextResponse.json({ success: false, error: 'Tenant ID is required.' }, { status: 400 })
