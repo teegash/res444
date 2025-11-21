@@ -817,7 +817,7 @@ export default function PaymentHistoryPage() {
       </div>
 
       <Dialog open={statementModalOpen} onOpenChange={(open) => (!open ? handleCloseStatement() : null)}>
-        <DialogContent className="max-w-5xl">
+        <DialogContent className="max-w-6xl w-[95vw]">
           <DialogHeader className="flex flex-col gap-3">
             <div className="flex items-center justify-between">
               <div>
@@ -895,7 +895,7 @@ export default function PaymentHistoryPage() {
               </div>
 
               <div className="border rounded-lg overflow-hidden">
-                <div className="max-h-[60vh] overflow-y-auto">
+                <div className="max-h-[70vh] overflow-y-auto">
                   <table className="w-full text-sm">
                     <thead className="bg-slate-50">
                       <tr>
