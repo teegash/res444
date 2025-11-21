@@ -80,23 +80,19 @@ type PendingInvoice = {
 }
 
 type StatementDetails = {
-  invoice: {
-    id: string
-    invoice_type: string | null
-    amount: number
-    due_date: string | null
-    status: string | null
-    description: string | null
-  }
-  lease: {
+  periodLabel: string
+  periodStart: string
+  periodEnd: string
+  property: {
     property_name: string | null
     property_location: string | null
     unit_number: string | null
   } | null
   summary: {
     openingBalance: number
-    closingBalance: number
+    totalCharges: number
     totalPayments: number
+    closingBalance: number
   }
   transactions: Array<{
     id: string
@@ -105,8 +101,7 @@ type StatementDetails = {
     reference: string | null
     amount: number
     posted_at: string | null
-    status?: string
-    balance_after?: number
+    balance_after: number
   }>
 }
 
@@ -223,12 +218,12 @@ export default function PaymentHistoryPage() {
     fetchPayments()
   }, [fetchPayments])
 
-  const handleOpenStatement = async (invoiceId?: string | null) => {
+  const handleOpenStatement = async (monthKey?: string | null) => {
     setStatementModalOpen(true)
     setStatementError(null)
     setStatementDetails(null)
 
-    if (!invoiceId) {
+    if (!monthKey) {
       setStatementLoading(false)
       setStatementError('Statement is unavailable for this invoice.')
       return
@@ -236,7 +231,7 @@ export default function PaymentHistoryPage() {
 
     setStatementLoading(true)
     try {
-      const response = await fetch(`/api/tenant/statements/${invoiceId}`, { cache: 'no-store' })
+      const response = await fetch(`/api/tenant/statements/month/${monthKey}`, { cache: 'no-store' })
       const payload = await response.json().catch(() => ({}))
       if (!response.ok) {
         throw new Error(payload.error || 'Unable to load statement.')
@@ -387,11 +382,10 @@ export default function PaymentHistoryPage() {
   }, [])
 
   type MonthlyStatement = {
-    id: string
+    monthKey: string
     periodLabel: string
     dateLabel: string
     amount: number
-    invoiceId: string | null
   }
 
   const statementSummaries: MonthlyStatement[] = useMemo(() => {
@@ -402,31 +396,21 @@ export default function PaymentHistoryPage() {
       const date = new Date(payment.posted_at)
       if (Number.isNaN(date.getTime())) return acc
       const key = `${date.getUTCFullYear()}-${date.getUTCMonth()}`
-      const bucket =
-        acc.get(key) ||
-        {
-          amount: 0,
-          date,
-          invoiceIds: new Set<string>(),
-        }
+      const bucket = acc.get(key) || { amount: 0, date }
       bucket.amount += payment.amount_paid
       bucket.date = date
-      if (payment.invoice_id) {
-        bucket.invoiceIds.add(payment.invoice_id)
-      }
       acc.set(key, bucket)
       return acc
-    }, new Map<string, { amount: number; date: Date; invoiceIds: Set<string> }>())
+    }, new Map<string, { amount: number; date: Date }>())
 
     const sortedKeys = Array.from(paymentsByMonth.keys()).sort((a, b) => (a > b ? -1 : 1))
     sortedKeys.slice(0, 6).forEach((key) => {
-      const { amount, date, invoiceIds } = paymentsByMonth.get(key)!
+      const { amount, date } = paymentsByMonth.get(key)!
       summaries.push({
-        id: key,
+        monthKey: key,
         periodLabel: date.toLocaleDateString(undefined, { month: 'long', year: 'numeric' }),
         dateLabel: date.toLocaleDateString(),
         amount,
-        invoiceId: invoiceIds.values().next().value || null,
       })
     })
 
@@ -556,16 +540,16 @@ export default function PaymentHistoryPage() {
       ]
     const rows = statementDetails.transactions.map((txn) => ({
       date: txn.posted_at ? new Date(txn.posted_at).toLocaleDateString() : '—',
-      description: `${txn.description}${txn.status ? ` (${txn.status})` : ''}`,
+      description: txn.description,
       reference: txn.reference || '—',
       amount: `${txn.amount < 0 ? '-' : ''}KES ${Math.abs(txn.amount).toLocaleString()}`,
-      balance: `KES ${(txn.balance_after || 0).toLocaleString()}`,
+      balance: `KES ${txn.balance_after.toLocaleString()}`,
     }))
-    const fileBase = `statement-${statementDetails.invoice.id}`
+    const fileBase = `statement-${statementDetails.periodLabel.replace(/\s+/g, '-')}`
     if (format === 'pdf') {
       exportRowsAsPDF(fileBase, columns, rows, {
         title: 'Account Statement',
-        subtitle: statementDetails.invoice.id,
+        subtitle: statementDetails.periodLabel,
         footerNote: `Generated on ${new Date().toLocaleString()}`,
       })
     } else {
@@ -694,7 +678,7 @@ export default function PaymentHistoryPage() {
             ) : (
               statementSummaries.map((statement) => (
                 <div
-                  key={statement.id}
+                  key={statement.monthKey}
                   className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-100 transition-colors"
                 >
                   <div className="flex items-center gap-3">
@@ -712,14 +696,9 @@ export default function PaymentHistoryPage() {
                     <p className="font-semibold text-green-600">
                       KES {statement.amount.toLocaleString()}
                     </p>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={!statement.invoiceId}
-                      onClick={() => handleOpenStatement(statement.invoiceId)}
-                    >
+                    <Button variant="outline" size="sm" onClick={() => handleOpenStatement(statement.monthKey)}>
                       <FileText className="h-4 w-4 mr-2" />
-                      {statement.invoiceId ? 'View Statement' : 'Not Available'}
+                      View Statement
                     </Button>
                   </div>
                 </div>
@@ -866,40 +845,39 @@ export default function PaymentHistoryPage() {
             <div className="space-y-6">
               <div className="grid md:grid-cols-2 gap-4 text-sm">
                 <div>
-                  <p className="text-muted-foreground mb-1">Invoice</p>
-                  <p className="font-semibold">{statementDetails.invoice.id.slice(0, 8).toUpperCase()}</p>
-                  <p className="text-xs text-muted-foreground capitalize">
-                    {statementDetails.invoice.invoice_type || 'rent'}
+                  <p className="text-muted-foreground mb-1">Statement Period</p>
+                  <p className="font-semibold">{statementDetails.periodLabel}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {new Date(statementDetails.periodStart).toLocaleDateString()} –{' '}
+                    {new Date(statementDetails.periodEnd).toLocaleDateString()}
                   </p>
                 </div>
                 <div className="text-right">
-                  <p className="text-muted-foreground mb-1">Due Date</p>
-                  <p className="font-semibold">
-                    {statementDetails.invoice.due_date
-                      ? new Date(statementDetails.invoice.due_date).toLocaleDateString()
-                      : '—'}
+                  <p className="text-muted-foreground mb-1">Closing Balance</p>
+                  <p className="font-semibold text-green-700">
+                    KES {statementDetails.summary.closingBalance.toLocaleString()}
                   </p>
                 </div>
                 <div>
                   <p className="text-muted-foreground mb-1">Property</p>
                   <p className="font-semibold">
-                    {statementDetails.lease?.property_name || 'My Unit'}
-                    {statementDetails.lease?.unit_number ? ` • ${statementDetails.lease.unit_number}` : ''}
-                  </p>
-                </div>
-                <div className="text-right">
-                  <p className="text-muted-foreground mb-1">Amount</p>
-                  <p className="font-semibold text-green-700">
-                    KES {statementDetails.invoice.amount.toLocaleString()}
+                    {statementDetails.property?.property_name || 'My Unit'}
+                    {statementDetails.property?.unit_number ? ` • ${statementDetails.property.unit_number}` : ''}
                   </p>
                 </div>
               </div>
 
-              <div className="grid md:grid-cols-3 gap-4">
+              <div className="grid md:grid-cols-4 gap-4">
                 <div className="rounded-lg border p-4 bg-slate-50">
                   <p className="text-xs text-muted-foreground">Opening Balance</p>
                   <p className="text-lg font-bold">
                     KES {statementDetails.summary.openingBalance.toLocaleString()}
+                  </p>
+                </div>
+                <div className="rounded-lg border p-4 bg-slate-50">
+                  <p className="text-xs text-muted-foreground">Charges</p>
+                  <p className="text-lg font-bold text-slate-900">
+                    KES {statementDetails.summary.totalCharges.toLocaleString()}
                   </p>
                 </div>
                 <div className="rounded-lg border p-4 bg-slate-50">
@@ -917,42 +895,37 @@ export default function PaymentHistoryPage() {
               </div>
 
               <div className="border rounded-lg overflow-hidden">
-                <table className="w-full text-sm">
-                  <thead className="bg-slate-50">
-                    <tr>
-                      <th className="text-left p-3 font-semibold">Date</th>
-                      <th className="text-left p-3 font-semibold">Description</th>
-                      <th className="text-left p-3 font-semibold">Reference</th>
-                      <th className="text-right p-3 font-semibold">Amount</th>
-                      <th className="text-right p-3 font-semibold">Balance</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {statementDetails.transactions.map((txn) => (
-                      <tr key={txn.id} className="border-b last:border-0">
-                        <td className="p-3">
-                          {txn.posted_at ? new Date(txn.posted_at).toLocaleDateString() : '—'}
-                        </td>
-                        <td className="p-3 capitalize">
-                          {txn.description}
-                          {txn.status && (
-                            <span className="ml-2 text-[10px] uppercase text-muted-foreground">
-                              {txn.status}
-                            </span>
-                          )}
-                        </td>
-                        <td className="p-3">{txn.reference || '—'}</td>
-                        <td className={`p-3 text-right ${txn.amount < 0 ? 'text-green-600' : 'text-slate-900'}`}>
-                          {txn.amount < 0 ? '-' : ''}
-                          KES {Math.abs(txn.amount).toLocaleString()}
-                        </td>
-                        <td className="p-3 text-right font-medium">
-                          KES {(txn.balance_after || 0).toLocaleString()}
-                        </td>
+                <div className="max-h-[60vh] overflow-y-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-slate-50">
+                      <tr>
+                        <th className="text-left p-3 font-semibold">Date</th>
+                        <th className="text-left p-3 font-semibold">Description</th>
+                        <th className="text-left p-3 font-semibold">Reference</th>
+                        <th className="text-right p-3 font-semibold">Amount</th>
+                        <th className="text-right p-3 font-semibold">Balance</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {statementDetails.transactions.map((txn) => (
+                        <tr key={txn.id} className="border-b last:border-0">
+                          <td className="p-3">
+                            {txn.posted_at ? new Date(txn.posted_at).toLocaleDateString() : '—'}
+                          </td>
+                          <td className="p-3 capitalize">{txn.description}</td>
+                          <td className="p-3">{txn.reference || '—'}</td>
+                          <td className={`p-3 text-right ${txn.amount < 0 ? 'text-green-600' : 'text-slate-900'}`}>
+                            {txn.amount < 0 ? '-' : ''}
+                            KES {Math.abs(txn.amount).toLocaleString()}
+                          </td>
+                          <td className="p-3 text-right font-medium">
+                            KES {(txn.balance_after || 0).toLocaleString()}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
           ) : null}
