@@ -14,11 +14,11 @@ type StatementTransaction = {
 }
 
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: { invoiceId: string } }
 ) {
   try {
-    const invoiceId = params.invoiceId
+    const invoiceId = params?.invoiceId || request.nextUrl.searchParams.get('invoiceId')
     if (!invoiceId) {
       return NextResponse.json({ success: false, error: 'Invoice ID is required.' }, { status: 400 })
     }

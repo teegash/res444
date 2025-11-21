@@ -3,11 +3,11 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: { paymentId: string } }
 ) {
   try {
-    const paymentId = params.paymentId
+    const paymentId = params?.paymentId || request.nextUrl.searchParams.get('paymentId')
     if (!paymentId) {
       return NextResponse.json({ success: false, error: 'Payment ID is required.' }, { status: 400 })
     }
