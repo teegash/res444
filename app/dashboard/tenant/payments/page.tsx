@@ -391,6 +391,7 @@ export default function PaymentHistoryPage() {
     periodLabel: string
     dateLabel: string
     amount: number
+    invoiceId: string | null
   }
 
   const statementSummaries: MonthlyStatement[] = useMemo(() => {
@@ -401,21 +402,31 @@ export default function PaymentHistoryPage() {
       const date = new Date(payment.posted_at)
       if (Number.isNaN(date.getTime())) return acc
       const key = `${date.getUTCFullYear()}-${date.getUTCMonth()}`
-      const bucket = acc.get(key) || { amount: 0, date }
+      const bucket =
+        acc.get(key) ||
+        {
+          amount: 0,
+          date,
+          invoiceIds: new Set<string>(),
+        }
       bucket.amount += payment.amount_paid
       bucket.date = date
+      if (payment.invoice_id) {
+        bucket.invoiceIds.add(payment.invoice_id)
+      }
       acc.set(key, bucket)
       return acc
-    }, new Map<string, { amount: number; date: Date }>())
+    }, new Map<string, { amount: number; date: Date; invoiceIds: Set<string> }>())
 
     const sortedKeys = Array.from(paymentsByMonth.keys()).sort((a, b) => (a > b ? -1 : 1))
     sortedKeys.slice(0, 6).forEach((key) => {
-      const { amount, date } = paymentsByMonth.get(key)!
+      const { amount, date, invoiceIds } = paymentsByMonth.get(key)!
       summaries.push({
         id: key,
         periodLabel: date.toLocaleDateString(undefined, { month: 'long', year: 'numeric' }),
         dateLabel: date.toLocaleDateString(),
         amount,
+        invoiceId: invoiceIds.values().next().value || null,
       })
     })
 
@@ -530,6 +541,35 @@ export default function PaymentHistoryPage() {
       }
     } finally {
       setTimeout(() => setExporting(false), 300)
+    }
+  }
+
+  const handleStatementExport = (format: 'pdf' | 'excel') => {
+    if (!statementDetails) return
+    const columns: ExportColumn<{ date: string; description: string; reference: string; amount: string; balance: string }>[] =
+      [
+        { header: 'Date', accessor: (row) => row.date },
+        { header: 'Description', accessor: (row) => row.description },
+        { header: 'Reference', accessor: (row) => row.reference },
+        { header: 'Amount', accessor: (row) => row.amount },
+        { header: 'Balance', accessor: (row) => row.balance },
+      ]
+    const rows = statementDetails.transactions.map((txn) => ({
+      date: txn.posted_at ? new Date(txn.posted_at).toLocaleDateString() : '—',
+      description: `${txn.description}${txn.status ? ` (${txn.status})` : ''}`,
+      reference: txn.reference || '—',
+      amount: `${txn.amount < 0 ? '-' : ''}KES ${Math.abs(txn.amount).toLocaleString()}`,
+      balance: `KES ${(txn.balance_after || 0).toLocaleString()}`,
+    }))
+    const fileBase = `statement-${statementDetails.invoice.id}`
+    if (format === 'pdf') {
+      exportRowsAsPDF(fileBase, columns, rows, {
+        title: 'Account Statement',
+        subtitle: statementDetails.invoice.id,
+        footerNote: `Generated on ${new Date().toLocaleString()}`,
+      })
+    } else {
+      exportRowsAsExcel(fileBase, columns, rows)
     }
   }
 
@@ -675,10 +715,11 @@ export default function PaymentHistoryPage() {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => handleOpenStatement(statement.id)}
+                      disabled={!statement.invoiceId}
+                      onClick={() => handleOpenStatement(statement.invoiceId)}
                     >
                       <FileText className="h-4 w-4 mr-2" />
-                      View Statement
+                      {statement.invoiceId ? 'View Statement' : 'Not Available'}
                     </Button>
                   </div>
                 </div>
@@ -797,10 +838,25 @@ export default function PaymentHistoryPage() {
       </div>
 
       <Dialog open={statementModalOpen} onOpenChange={(open) => (!open ? handleCloseStatement() : null)}>
-        <DialogContent className="max-w-3xl">
-          <DialogHeader>
-            <DialogTitle>Account Statement</DialogTitle>
-            <DialogDescription>Detailed breakdown of the selected invoice.</DialogDescription>
+        <DialogContent className="max-w-5xl">
+          <DialogHeader className="flex flex-col gap-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <DialogTitle>Account Statement</DialogTitle>
+                <DialogDescription>Detailed breakdown of the selected invoice.</DialogDescription>
+              </div>
+              {statementDetails && (
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" onClick={() => handleStatementExport('pdf')}>
+                    <Download className="h-4 w-4 mr-2" />
+                    PDF
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => handleStatementExport('excel')}>
+                    Excel
+                  </Button>
+                </div>
+              )}
+            </div>
           </DialogHeader>
           {statementLoading ? (
             <div className="py-10 text-center text-muted-foreground">Loading statement…</div>
