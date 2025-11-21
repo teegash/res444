@@ -210,19 +210,22 @@ export default function TenantsManagementPage() {
                 {tenant.email && <p>📧 {tenant.email}</p>}
               </div>
               <div className="flex gap-2 pt-3 border-t flex-wrap">
-                <Button size="sm" variant="outline" className="flex-1 min-w-[120px]">
+                <Button size="sm" variant="outline" className="flex-1 min-w-[110px]">
                   View Details
                 </Button>
-                <Button size="sm" variant="outline" className="flex-1 min-w-[120px]">
+                <Button size="sm" variant="outline" className="flex-1 min-w-[110px]">
+                  Edit
+                </Button>
+                <Button size="sm" variant="outline" className="flex-1 min-w-[110px]">
                   Contact
                 </Button>
-                <Button size="sm" variant="outline" className="min-w-[120px]">
+                <Button size="sm" variant="outline" className="min-w-[110px]">
                   Collect Rent
                 </Button>
                 <Button
                   size="sm"
                   variant="secondary"
-                  className="min-w-[120px]"
+                  className="min-w-[110px]"
                   onClick={() => router.push(`/dashboard/manager/statements/${tenant.tenant_user_id}`)}
                 >
                   Stmt
@@ -245,7 +248,7 @@ export default function TenantsManagementPage() {
         {filteredTenants.map((tenant) => (
           <Card key={`${tenant.tenant_user_id}-list`} className="hover:shadow-sm transition-shadow">
             <CardContent className="py-4">
-              <div className="grid grid-cols-1 md:grid-cols-6 gap-4 items-center">
+              <div className="grid grid-cols-1 md:grid-cols-7 gap-4 items-center">
                 <div className="flex items-center gap-3">
                   <Avatar className="h-10 w-10 bg-blue-100">
                     <AvatarFallback className="text-blue-600 font-semibold">
@@ -282,9 +285,14 @@ export default function TenantsManagementPage() {
                 </div>
                 <div className="flex items-center justify-end gap-2 flex-wrap">
                   {renderStatusBadge(tenant)}
+                </div>
+                <div className="flex items-center justify-end gap-2 flex-wrap">
+                  <Button size="sm" variant="outline">
+                    Edit
+                  </Button>
                   <Button
                     size="sm"
-                    variant="outline"
+                    variant="default"
                     onClick={() => router.push(`/dashboard/manager/statements/${tenant.tenant_user_id}`)}
                   >
                     Stmt
@@ -330,7 +338,7 @@ export default function TenantsManagementPage() {
           <CardContent className="pt-6">
             <div className="flex flex-col gap-4">
               <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                <div className="relative w-full md:flex-[0_0_55%]">
+                <div className="relative w-full md:flex-[0_0_50%]">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
                     placeholder="Search tenants by name, unit, or property..."
