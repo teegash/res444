@@ -125,6 +125,10 @@ export async function GET(request: NextRequest) {
       }
 
       if (!invoice) {
+        invoice = await selectExistingInvoice(adminSupabase, lease.id, targetPeriod)
+      }
+
+      if (!invoice) {
         console.error(
           '[RentInvoice] Failed to create or find invoice',
           createError?.message || 'unknown',
