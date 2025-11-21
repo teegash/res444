@@ -15,7 +15,7 @@ export default function AddTenantPage() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    router.push('/dashboard/manager/tenants')
+    router.push('/dashboard/tenants')
   }
 
   return (

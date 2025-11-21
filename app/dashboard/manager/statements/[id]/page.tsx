@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Download, Loader2, Printer, Share2 } from 'lucide-react'
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 import Sidebar from '@/components/dashboard/sidebar'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -81,7 +82,9 @@ export default function TenantStatementPage({ params }: { params: { id?: string 
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [exporting, setExporting] = useState(false)
-  const tenantId = params?.id?.trim() || ''
+  const searchParams = useSearchParams()
+  const tenantId =
+    params?.id?.trim() || searchParams.get('tenantId')?.trim() || ''
 
   useEffect(() => {
     const fetchStatement = async () => {
@@ -353,7 +356,7 @@ export default function TenantStatementPage({ params }: { params: { id?: string 
         <div className="flex items-center justify-between mb-8">
           <div>
             <p className="text-sm text-muted-foreground mb-1">
-              <Link href="/dashboard/manager/tenants" className="text-blue-600 hover:underline">
+              <Link href="/dashboard/tenants" className="text-blue-600 hover:underline">
                 ← Back to Tenants
               </Link>
             </p>
