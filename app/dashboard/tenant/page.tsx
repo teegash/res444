@@ -182,22 +182,22 @@ export default function TenantDashboard() {
                   {nextInvoice ? formatDate(nextInvoice.due_date) : 'No outstanding payments'}
                 </p>
                 {hasPending ? (
-                  <div className="space-y-3 mt-3">
-                    {pendingInvoices.slice(0, 3).map((invoice, index) => {
-                      if (!invoice) return null
-                      return (
-                        <div key={invoice.id ?? index} className="p-3 rounded-lg bg-white border border-border">
+                <div className="space-y-3 mt-3">
+                  {pendingInvoices.slice(0, 3).map((invoice, index) => {
+                    if (!invoice) return null
+                    return (
+                      <div key={invoice.id ?? index} className="p-3 rounded-lg bg-white border border-border">
                         <div className="flex items-center justify-between">
                           <div>
                             <p className="text-sm font-semibold">
-                              {invoice?.invoice_type === 'water' ? 'Water Bill' : 'Invoice'}
+                              {invoice.invoice_type === 'water' ? 'Water Bill' : 'Invoice'}
                             </p>
                             <p className="text-xs text-muted-foreground">
-                              Due {formatDate(invoice?.due_date)}
+                              Due {formatDate(invoice.due_date)}
                             </p>
                           </div>
                           <p className="font-semibold text-lg">
-                            {invoice ? `KES ${invoice.amount.toLocaleString('en-KE', { minimumFractionDigits: 2 })}` : 'KES 0'}
+                            {`KES ${invoice.amount.toLocaleString('en-KE', { minimumFractionDigits: 2 })}`}
                           </p>
                         </div>
                         <Link
@@ -205,12 +205,13 @@ export default function TenantDashboard() {
                           className="mt-3 block"
                         >
                           <Button size="sm" className="w-full" variant="outline">
-                            Pay {invoice?.invoice_type === 'water' ? 'Water Bill' : 'Invoice'}
+                            Pay {invoice.invoice_type === 'water' ? 'Water Bill' : 'Invoice'}
                           </Button>
                         </Link>
                       </div>
-                    ))}
-                  </div>
+                    )
+                  })}
+                </div>
                 ) : (
                   <Button size="sm" className="w-full mt-2" variant="outline" disabled>
                     All Paid
