@@ -165,10 +165,6 @@ export function VerifiedPaymentsTab({ payments, stats, loading }: VerifiedPaymen
     console.log('[payments] download receipt', payment.mpesaReceiptNumber)
   }
 
-  const handleExportAll = (format: 'csv' | 'pdf') => {
-    console.log('[payments] export verified', format)
-  }
-
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-4 mb-4">
