@@ -97,33 +97,30 @@ export default function TenantsManagementPage() {
   }, [tenants, searchQuery])
 
   const renderStatusBadge = (tenant: ManagerTenantRecord) => (
-    <TooltipProvider>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button
-            size="sm"
-            className={`cursor-pointer px-3 py-1 text-white ${statusVariant(
-              tenant.payment_status
-            )} hover:opacity-90`}
-          >
-            {tenant.payment_status}
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent className="bg-slate-900 text-white border-none shadow-lg">
-          <p className="text-xs mb-2 max-w-xs">
-            {tenant.payment_status_detail || 'View complete payment statement for this tenant.'}
-          </p>
-          <Button
-            size="sm"
-            variant="secondary"
-            className="text-slate-900"
-            onClick={() => router.push(`/dashboard/manager/statements/${tenant.tenant_user_id}`)}
-          >
-            View Statement
-          </Button>
-        </TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          size="sm"
+          className={`cursor-pointer px-3 py-1 text-white ${statusVariant(
+            tenant.payment_status
+          )} hover:opacity-90`}
+        >
+          {tenant.payment_status}
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent className="bg-slate-900 text-white border-none shadow-lg space-y-2">
+        <p className="text-xs max-w-xs">
+          {tenant.payment_status_detail || 'View complete payment statement for this tenant.'}
+        </p>
+        <Button
+          size="sm"
+          onClick={() => router.push(`/dashboard/manager/statements/${tenant.tenant_user_id}`)}
+          className="bg-white text-slate-900 hover:bg-slate-100"
+        >
+          View Statement
+        </Button>
+      </TooltipContent>
+    </Tooltip>
   )
 
   const renderGrid = () => {
@@ -287,8 +284,9 @@ export default function TenantsManagementPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-blue-50/30 via-white to-white">
-      <div className="max-w-7xl mx-auto p-4 md:p-6 lg:p-8 space-y-6">
+    <TooltipProvider delayDuration={150}>
+      <div className="min-h-screen bg-gradient-to-b from-blue-50/30 via-white to-white">
+        <div className="max-w-7xl mx-auto p-4 md:p-6 lg:p-8 space-y-6">
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-4">
             <Link href="/dashboard/manager">
@@ -316,22 +314,22 @@ export default function TenantsManagementPage() {
         <Card>
           <CardContent className="pt-6">
             <div className="flex flex-col gap-4">
-              <div className="flex flex-col gap-3 md:flex-row md:items-center">
-                <div className="flex flex-1 items-center gap-3">
-                  <div className="relative flex-1">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      placeholder="Search tenants by name, unit, or property..."
-                      className="pl-10"
-                      value={searchQuery}
-                      onChange={(event) => setSearchQuery(event.target.value)}
-                    />
-                  </div>
-                  <div className="inline-flex rounded-lg border bg-white p-1 shadow-sm">
+              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <div className="relative w-full md:max-w-xl">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search tenants by name, unit, or property..."
+                    className="pl-10"
+                    value={searchQuery}
+                    onChange={(event) => setSearchQuery(event.target.value)}
+                  />
+                </div>
+                <div className="flex items-center gap-3 justify-between md:justify-end">
+                  <div className="inline-flex rounded-full border bg-white p-1 shadow-sm">
                     <Button
                       variant={viewMode === 'grid' ? 'default' : 'ghost'}
                       size="icon"
-                      className="rounded-md"
+                      className="rounded-full"
                       onClick={() => setViewMode('grid')}
                       aria-label="Grid view"
                     >
@@ -340,18 +338,18 @@ export default function TenantsManagementPage() {
                     <Button
                       variant={viewMode === 'list' ? 'default' : 'ghost'}
                       size="icon"
-                      className="rounded-md"
+                      className="rounded-full"
                       onClick={() => setViewMode('list')}
                       aria-label="List view"
                     >
                       <Rows4 className="h-4 w-4" />
                     </Button>
                   </div>
+                  <Button variant="outline" className="w-full md:w-auto">
+                    <Filter className="h-4 w-4 mr-2" />
+                    Filter
+                  </Button>
                 </div>
-                <Button variant="outline" className="w-full md:w-auto">
-                  <Filter className="h-4 w-4 mr-2" />
-                  Filter
-                </Button>
               </div>
             </div>
           </CardContent>
@@ -360,5 +358,6 @@ export default function TenantsManagementPage() {
         {viewMode === 'grid' ? renderGrid() : renderList()}
       </div>
     </div>
+    </TooltipProvider>
   )
 }

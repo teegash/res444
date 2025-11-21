@@ -223,11 +223,18 @@ export default function PaymentHistoryPage() {
     fetchPayments()
   }, [fetchPayments])
 
-  const handleOpenStatement = async (invoiceId: string) => {
+  const handleOpenStatement = async (invoiceId?: string | null) => {
     setStatementModalOpen(true)
-    setStatementLoading(true)
     setStatementError(null)
     setStatementDetails(null)
+
+    if (!invoiceId) {
+      setStatementLoading(false)
+      setStatementError('Statement is unavailable for this invoice.')
+      return
+    }
+
+    setStatementLoading(true)
     try {
       const response = await fetch(`/api/tenant/statements/${invoiceId}`, { cache: 'no-store' })
       const payload = await response.json().catch(() => ({}))
@@ -248,11 +255,18 @@ export default function PaymentHistoryPage() {
     setStatementError(null)
   }
 
-  const handleOpenReceipt = async (paymentId: string) => {
+  const handleOpenReceipt = async (paymentId?: string | null) => {
     setReceiptModalOpen(true)
-    setReceiptLoading(true)
     setReceiptError(null)
     setReceiptDetails(null)
+
+    if (!paymentId) {
+      setReceiptLoading(false)
+      setReceiptError('Receipt is unavailable for this payment.')
+      return
+    }
+
+    setReceiptLoading(true)
     try {
       const response = await fetch(`/api/tenant/receipts/${paymentId}`, { cache: 'no-store' })
       const payload = await response.json().catch(() => ({}))
