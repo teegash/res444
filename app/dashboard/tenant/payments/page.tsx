@@ -15,6 +15,13 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import {
   exportRowsAsCSV,
   exportRowsAsExcel,
   exportRowsAsPDF,
@@ -72,6 +79,70 @@ type PendingInvoice = {
   amount: number
 }
 
+type StatementDetails = {
+  invoice: {
+    id: string
+    invoice_type: string | null
+    amount: number
+    due_date: string | null
+    status: string | null
+    description: string | null
+  }
+  lease: {
+    property_name: string | null
+    property_location: string | null
+    unit_number: string | null
+  } | null
+  summary: {
+    openingBalance: number
+    closingBalance: number
+    totalPayments: number
+  }
+  transactions: Array<{
+    id: string
+    type: 'charge' | 'payment'
+    description: string
+    reference: string | null
+    amount: number
+    posted_at: string | null
+    status?: string
+    balance_after?: number
+  }>
+}
+
+type ReceiptDetails = {
+  payment: {
+    id: string
+    amount: number
+    method: string | null
+    status: string
+    created_at: string | null
+    payment_date: string | null
+    mpesa_receipt_number: string | null
+    bank_reference_number: string | null
+    notes: string | null
+    months_paid: number
+    coverage_label: string
+  }
+  invoice: {
+    id: string
+    type: string | null
+    amount: number
+    due_date: string | null
+    description: string | null
+  } | null
+  property: {
+    property_name: string | null
+    property_location: string | null
+    unit_number: string | null
+  } | null
+  tenant: {
+    name: string
+    phone_number: string | null
+    address: string | null
+  }
+}
+
 export default function PaymentHistoryPage() {
   const [payments, setPayments] = useState<TenantPaymentRecord[]>([])
   const [invoices, setInvoices] = useState<TenantInvoiceRecord[]>([])
@@ -82,6 +153,14 @@ export default function PaymentHistoryPage() {
   const [upcomingInvoice, setUpcomingInvoice] = useState<PendingInvoice | null>(null)
   const [tenantSummary, setTenantSummary] = useState<TenantSummaryPayload | null>(null)
   const [exporting, setExporting] = useState(false)
+  const [statementModalOpen, setStatementModalOpen] = useState(false)
+  const [statementDetails, setStatementDetails] = useState<StatementDetails | null>(null)
+  const [statementLoading, setStatementLoading] = useState(false)
+  const [statementError, setStatementError] = useState<string | null>(null)
+  const [receiptModalOpen, setReceiptModalOpen] = useState(false)
+  const [receiptDetails, setReceiptDetails] = useState<ReceiptDetails | null>(null)
+  const [receiptLoading, setReceiptLoading] = useState(false)
+  const [receiptError, setReceiptError] = useState<string | null>(null)
 
   const fetchPayments = useCallback(async () => {
     try {
@@ -143,6 +222,56 @@ export default function PaymentHistoryPage() {
   useEffect(() => {
     fetchPayments()
   }, [fetchPayments])
+
+  const handleOpenStatement = async (invoiceId: string) => {
+    setStatementModalOpen(true)
+    setStatementLoading(true)
+    setStatementError(null)
+    setStatementDetails(null)
+    try {
+      const response = await fetch(`/api/tenant/statements/${invoiceId}`, { cache: 'no-store' })
+      const payload = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        throw new Error(payload.error || 'Unable to load statement.')
+      }
+      setStatementDetails(payload.data)
+    } catch (error) {
+      setStatementError(error instanceof Error ? error.message : 'Failed to load statement.')
+    } finally {
+      setStatementLoading(false)
+    }
+  }
+
+  const handleCloseStatement = () => {
+    setStatementModalOpen(false)
+    setStatementDetails(null)
+    setStatementError(null)
+  }
+
+  const handleOpenReceipt = async (paymentId: string) => {
+    setReceiptModalOpen(true)
+    setReceiptLoading(true)
+    setReceiptError(null)
+    setReceiptDetails(null)
+    try {
+      const response = await fetch(`/api/tenant/receipts/${paymentId}`, { cache: 'no-store' })
+      const payload = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        throw new Error(payload.error || 'Unable to load receipt.')
+      }
+      setReceiptDetails(payload.data)
+    } catch (error) {
+      setReceiptError(error instanceof Error ? error.message : 'Failed to load receipt.')
+    } finally {
+      setReceiptLoading(false)
+    }
+  }
+
+  const handleCloseReceipt = () => {
+    setReceiptModalOpen(false)
+    setReceiptDetails(null)
+    setReceiptError(null)
+  }
 
   const paymentStats = useMemo(() => {
     const sixMonthsAgo = new Date()
@@ -260,10 +389,20 @@ export default function PaymentHistoryPage() {
     ? `${tenantSummary.lease.unit_label}`
     : 'My Lease'
 
-  const exportColumns: ExportColumn<TenantPaymentRecord>[] = [
+  type ExportRow = TenantPaymentRecord & { isTotalRow?: boolean }
+
+  const totalAmountPaid = useMemo(
+    () => payments.reduce((sum, payment) => sum + payment.amount_paid, 0),
+    [payments]
+  )
+
+  const exportColumns: ExportColumn<ExportRow>[] = [
     {
       header: 'Period',
       accessor: (payment) => {
+        if (payment.isTotalRow) {
+          return 'TOTAL'
+        }
         if (payment.due_date) {
           return new Date(payment.due_date).toLocaleDateString(undefined, {
             month: 'long',
@@ -279,20 +418,24 @@ export default function PaymentHistoryPage() {
     },
     {
       header: 'Amount Paid',
-      accessor: (payment) => `KES ${payment.amount_paid.toLocaleString()}`,
+      accessor: (payment) =>
+        `KES ${payment.amount_paid.toLocaleString()}`,
     },
     {
       header: 'Method',
-      accessor: (payment) => (payment.payment_method || 'UNKNOWN').toUpperCase(),
+      accessor: (payment) =>
+        payment.isTotalRow ? '' : (payment.payment_method || 'UNKNOWN').toUpperCase(),
     },
     {
       header: 'Status',
-      accessor: (payment) => payment.status,
+      accessor: (payment) => (payment.isTotalRow ? '' : payment.status),
     },
     {
       header: 'Reference',
       accessor: (payment) =>
-        payment.mpesa_receipt_number || payment.bank_reference_number || payment.invoice_id || payment.id,
+        payment.isTotalRow
+          ? ''
+          : payment.mpesa_receipt_number || payment.bank_reference_number || payment.invoice_id || payment.id,
     },
     {
       header: 'Recorded On',
@@ -309,7 +452,28 @@ export default function PaymentHistoryPage() {
     setExporting(true)
     const fileBase = `tenant-payments-${tenantName.replace(/\s+/g, '-').toLowerCase()}`
     const subtitle = `${tenantName} • ${propertyLabel}`
-    const rows = payments
+    const rows: ExportRow[] = [
+      ...payments,
+      {
+        id: '__total__',
+        invoice_id: null,
+        amount_paid: totalAmountPaid,
+        payment_method: null,
+        verified: true,
+        status: 'total',
+        created_at: null,
+        posted_at: null,
+        mpesa_receipt_number: null,
+        bank_reference_number: null,
+        months_paid: 0,
+        invoice_type: null,
+        payment_type: null,
+        due_date: null,
+        property_name: null,
+        unit_label: null,
+        isTotalRow: true,
+      },
+    ]
     try {
       switch (format) {
         case 'pdf':
@@ -451,7 +615,7 @@ export default function PaymentHistoryPage() {
               <p className="text-sm text-muted-foreground">No statements generated yet.</p>
             ) : (
               statementSummaries.map((statement) => (
-                <div key={statement.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-accent/50 transition-colors">
+                <div key={statement.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-100 transition-colors">
                   <div className="flex items-center gap-3">
                     <div className="p-2 bg-blue-100 rounded">
                       <FileText className="h-5 w-5 text-blue-600" />
@@ -461,12 +625,10 @@ export default function PaymentHistoryPage() {
                       <p className="text-sm text-muted-foreground">Generated on {statement.date}</p>
                     </div>
                   </div>
-                  <Link href={`/dashboard/tenant/statements/${statement.id}`}>
-                    <Button variant="outline" size="sm">
-                      <FileText className="h-4 w-4 mr-2" />
-                      View Statement
-                    </Button>
-                  </Link>
+                  <Button variant="outline" size="sm" onClick={() => handleOpenStatement(statement.id)}>
+                    <FileText className="h-4 w-4 mr-2" />
+                    View Statement
+                  </Button>
                 </div>
               ))
             )}
@@ -544,7 +706,7 @@ export default function PaymentHistoryPage() {
                       : 'Pending'
 
                 return (
-                  <div key={payment.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-accent/50 transition-colors">
+                  <div key={payment.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-100 transition-colors">
                     <div className="flex items-center gap-4">
                       <div className="p-2 bg-green-100 rounded">
                         <FileText className="h-5 w-5 text-green-600" />
@@ -569,12 +731,10 @@ export default function PaymentHistoryPage() {
                         </p>
                       </div>
                       <Badge className={badgeClass}>{badgeLabel}</Badge>
-                      <Link href={`/dashboard/tenant/receipts/${payment.id}`}>
-                        <Button variant="outline" size="sm">
-                          <FileText className="h-4 w-4 mr-2" />
-                          View Receipt
-                        </Button>
-                      </Link>
+                      <Button variant="outline" size="sm" onClick={() => handleOpenReceipt(payment.id)}>
+                        <FileText className="h-4 w-4 mr-2" />
+                        View Receipt
+                      </Button>
                     </div>
                   </div>
                 )
@@ -583,6 +743,215 @@ export default function PaymentHistoryPage() {
           </CardContent>
         </Card>
       </div>
+
+      <Dialog open={statementModalOpen} onOpenChange={(open) => (!open ? handleCloseStatement() : null)}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Account Statement</DialogTitle>
+            <DialogDescription>Detailed breakdown of the selected invoice.</DialogDescription>
+          </DialogHeader>
+          {statementLoading ? (
+            <div className="py-10 text-center text-muted-foreground">Loading statement…</div>
+          ) : statementError ? (
+            <div className="py-6 text-center text-sm text-red-600">{statementError}</div>
+          ) : statementDetails ? (
+            <div className="space-y-6">
+              <div className="grid md:grid-cols-2 gap-4 text-sm">
+                <div>
+                  <p className="text-muted-foreground mb-1">Invoice</p>
+                  <p className="font-semibold">{statementDetails.invoice.id.slice(0, 8).toUpperCase()}</p>
+                  <p className="text-xs text-muted-foreground capitalize">
+                    {statementDetails.invoice.invoice_type || 'rent'}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className="text-muted-foreground mb-1">Due Date</p>
+                  <p className="font-semibold">
+                    {statementDetails.invoice.due_date
+                      ? new Date(statementDetails.invoice.due_date).toLocaleDateString()
+                      : '—'}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground mb-1">Property</p>
+                  <p className="font-semibold">
+                    {statementDetails.lease?.property_name || 'My Unit'}
+                    {statementDetails.lease?.unit_number ? ` • ${statementDetails.lease.unit_number}` : ''}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className="text-muted-foreground mb-1">Amount</p>
+                  <p className="font-semibold text-green-700">
+                    KES {statementDetails.invoice.amount.toLocaleString()}
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid md:grid-cols-3 gap-4">
+                <div className="rounded-lg border p-4 bg-slate-50">
+                  <p className="text-xs text-muted-foreground">Opening Balance</p>
+                  <p className="text-lg font-bold">
+                    KES {statementDetails.summary.openingBalance.toLocaleString()}
+                  </p>
+                </div>
+                <div className="rounded-lg border p-4 bg-slate-50">
+                  <p className="text-xs text-muted-foreground">Payments</p>
+                  <p className="text-lg font-bold text-blue-600">
+                    KES {statementDetails.summary.totalPayments.toLocaleString()}
+                  </p>
+                </div>
+                <div className="rounded-lg border p-4 bg-slate-50">
+                  <p className="text-xs text-muted-foreground">Closing Balance</p>
+                  <p className="text-lg font-bold text-green-600">
+                    KES {statementDetails.summary.closingBalance.toLocaleString()}
+                  </p>
+                </div>
+              </div>
+
+              <div className="border rounded-lg overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead className="bg-slate-50">
+                    <tr>
+                      <th className="text-left p-3 font-semibold">Date</th>
+                      <th className="text-left p-3 font-semibold">Description</th>
+                      <th className="text-left p-3 font-semibold">Reference</th>
+                      <th className="text-right p-3 font-semibold">Amount</th>
+                      <th className="text-right p-3 font-semibold">Balance</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {statementDetails.transactions.map((txn) => (
+                      <tr key={txn.id} className="border-b last:border-0">
+                        <td className="p-3">
+                          {txn.posted_at ? new Date(txn.posted_at).toLocaleDateString() : '—'}
+                        </td>
+                        <td className="p-3 capitalize">
+                          {txn.description}
+                          {txn.status && (
+                            <span className="ml-2 text-[10px] uppercase text-muted-foreground">
+                              {txn.status}
+                            </span>
+                          )}
+                        </td>
+                        <td className="p-3">{txn.reference || '—'}</td>
+                        <td className={`p-3 text-right ${txn.amount < 0 ? 'text-green-600' : 'text-slate-900'}`}>
+                          {txn.amount < 0 ? '-' : ''}
+                          KES {Math.abs(txn.amount).toLocaleString()}
+                        </td>
+                        <td className="p-3 text-right font-medium">
+                          KES {(txn.balance_after || 0).toLocaleString()}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ) : null}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={receiptModalOpen} onOpenChange={(open) => (!open ? handleCloseReceipt() : null)}>
+        <DialogContent className="max-w-xl">
+          <DialogHeader>
+            <DialogTitle>Payment Receipt</DialogTitle>
+            <DialogDescription>Your official proof of payment.</DialogDescription>
+          </DialogHeader>
+          {receiptLoading ? (
+            <div className="py-10 text-center text-muted-foreground">Loading receipt…</div>
+          ) : receiptError ? (
+            <div className="py-6 text-center text-sm text-red-600">{receiptError}</div>
+          ) : receiptDetails ? (
+            (() => {
+              const isSuccess = receiptDetails.payment.status === 'verified'
+              const accentBg = isSuccess ? 'bg-emerald-50' : 'bg-red-50'
+              const accentText = isSuccess ? 'text-emerald-700' : 'text-red-700'
+              return (
+                <div className="space-y-6">
+                  <div className={`p-4 rounded-lg ${accentBg} ${accentText}`}>
+                    <p className="text-sm uppercase tracking-wide font-semibold">
+                      {isSuccess ? 'Payment Successful' : 'Payment Failed'}
+                    </p>
+                    <p className="text-2xl font-bold">
+                      KES {receiptDetails.payment.amount.toLocaleString()}
+                    </p>
+                    <p className="text-xs mt-1">
+                      {receiptDetails.payment.payment_date
+                        ? new Date(receiptDetails.payment.payment_date).toLocaleString()
+                        : ''}
+                    </p>
+                  </div>
+
+                  <div className="grid md:grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <p className="text-muted-foreground mb-1">Tenant</p>
+                      <p className="font-semibold">{receiptDetails.tenant.name}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-muted-foreground mb-1">Reference</p>
+                      <p className="font-mono font-semibold break-all">
+                        {receiptDetails.payment.mpesa_receipt_number ||
+                          receiptDetails.payment.bank_reference_number ||
+                          receiptDetails.payment.id}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground mb-1">Property</p>
+                      <p className="font-semibold">
+                        {receiptDetails.property?.property_name || 'My Unit'}
+                        {receiptDetails.property?.unit_number
+                          ? ` • ${receiptDetails.property.unit_number}`
+                          : ''}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-muted-foreground mb-1">Coverage</p>
+                      <p className="font-semibold">{receiptDetails.payment.coverage_label}</p>
+                    </div>
+                  </div>
+
+                  <div className="border rounded-lg overflow-hidden text-sm">
+                    <table className="w-full">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="text-left p-3 font-semibold">Description</th>
+                          <th className="text-right p-3 font-semibold">Amount</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr className="border-b">
+                          <td className="p-3">
+                            {receiptDetails.invoice?.description ||
+                              (receiptDetails.invoice?.type === 'water'
+                                ? 'Water bill payment'
+                                : 'Rent payment')}
+                          </td>
+                          <td className="p-3 text-right font-semibold">
+                            KES {receiptDetails.payment.amount.toLocaleString()}
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <div className={`${accentBg} ${accentText} rounded-lg p-4 text-center text-sm`}>
+                    {isSuccess ? (
+                      <>
+                        <p className="font-semibold">Thank you for keeping your payments up to date!</p>
+                        <p>Need help? Reach us at support@rentalkenya.com</p>
+                      </>
+                    ) : (
+                      <p className="font-semibold">
+                        This payment did not go through. Please try again or contact support.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )
+            })()
+          ) : null}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
