@@ -91,11 +91,11 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    const dueDate = rentDueDateForPeriod(targetPeriod)
     let invoice = await selectExistingInvoice(adminSupabase, lease.id, targetPeriod)
 
     if (!invoice) {
         const dueLabel = targetPeriod.toLocaleString('en-US', { month: 'long', year: 'numeric' })
-        const dueDate = rentDueDateForPeriod(targetPeriod)
         const description = `Rent for ${dueLabel}`
         const { data: created, error: createError } = await adminSupabase
           .from('invoices')
@@ -116,7 +116,7 @@ export async function GET(request: NextRequest) {
       if (createError) {
         console.error('[RentInvoice] Insert error', createError.code, createError.message)
         if (createError.code === '23505') {
-          invoice = await selectExistingInvoice(adminSupabase, lease.id, dueDateKey)
+          invoice = await selectExistingInvoice(adminSupabase, lease.id, targetPeriod)
         }
       }
 
@@ -128,7 +128,7 @@ export async function GET(request: NextRequest) {
         console.error(
           '[RentInvoice] Failed to create or find invoice',
           createError?.message || 'unknown',
-          { leaseId: lease.id, dueDate: dueDateKey }
+          { leaseId: lease.id, dueDate }
         )
         return NextResponse.json(
           { success: false, error: 'Unable to prepare rent invoice.' },
