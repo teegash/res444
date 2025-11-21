@@ -64,6 +64,7 @@ type TenantRecord = {
 
 interface TenantsTableProps {
   searchQuery?: string
+  viewMode?: 'grid' | 'list'
 }
 
 const getInitials = (value: string) => {
@@ -144,6 +145,9 @@ function TenantActions({
       <DropdownMenuContent align="end">
         <DropdownMenuItem onClick={() => onEdit(tenant)}>Edit</DropdownMenuItem>
         <DropdownMenuItem asChild>
+          <Link href={`/dashboard/manager/statements/${tenant.tenant_user_id}`}>Stmt</Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem asChild>
           <Link href={`/dashboard/tenants/${tenant.tenant_user_id}/messages?tenantId=${tenant.tenant_user_id}`}>
             Open Chat
           </Link>
@@ -162,7 +166,7 @@ function TenantActions({
   )
 }
 
-export function TenantsTable({ searchQuery = '' }: TenantsTableProps) {
+export function TenantsTable({ searchQuery = '', viewMode = 'list' }: TenantsTableProps) {
   const { toast } = useToast()
   const [tenants, setTenants] = useState<TenantRecord[]>([])
   const [loading, setLoading] = useState(true)
@@ -342,8 +346,82 @@ export function TenantsTable({ searchQuery = '' }: TenantsTableProps) {
           </Alert>
         )}
 
-        <div className="overflow-x-auto">
-          <Table>
+        {viewMode === 'grid' ? (
+          <div className="p-4">
+            <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              {viewTenants.map((tenant) => (
+                <div
+                  key={`card-${tenant.tenant_user_id}`}
+                  className="rounded-xl border bg-white shadow-sm hover:shadow-md transition-shadow"
+                >
+                  <div className="p-4 border-b flex items-center gap-3">
+                    <Avatar className="h-12 w-12 border">
+                      {tenant.profile_picture_url ? (
+                        <AvatarImage src={tenant.profile_picture_url} alt={tenant.full_name} />
+                      ) : (
+                        <AvatarFallback>{getInitials(tenant.full_name)}</AvatarFallback>
+                      )}
+                    </Avatar>
+                    <div className="flex-1">
+                      <p className="font-semibold leading-tight">{tenant.full_name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {tenant.unit_label || 'Unassigned'}
+                      </p>
+                    </div>
+                    <Button variant="outline" size="sm" asChild>
+                      <Link href={`/dashboard/manager/statements/${tenant.tenant_user_id}`}>
+                        Stmt
+                      </Link>
+                    </Button>
+                  </div>
+                  <div className="p-4 space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Email</span>
+                      <span className="font-medium truncate max-w-[55%]">{tenant.email || '—'}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Phone</span>
+                      <span className="font-medium">{tenant.phone_number || '—'}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Rent</span>
+                      <span className="font-medium">{formatCurrency(tenant.monthly_rent)}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-muted-foreground">Lease</span>
+                      <Badge variant="outline" className={leaseBadgeClass(tenant.lease_status)}>
+                        {tenant.lease_status}
+                      </Badge>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-muted-foreground">Payment</span>
+                      <Badge variant={paymentBadgeVariant(tenant.payment_status)}>
+                        {tenant.payment_status}
+                      </Badge>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 pt-3">
+                      <Button size="sm" variant="outline" onClick={() => setEditTenant(tenant)}>
+                        Edit
+                      </Button>
+                      <Button size="sm" variant="secondary" asChild>
+                        <Link href={`/dashboard/manager/statements/${tenant.tenant_user_id}`}>
+                          Statement
+                        </Link>
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+              {viewTenants.length === 0 && (
+                <div className="col-span-full text-center text-sm text-muted-foreground py-12">
+                  No tenants found.
+                </div>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>Tenant Name</TableHead>

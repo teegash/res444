@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { TenantsTable } from '@/components/dashboard/tenants-table'
-import { Plus } from 'lucide-react'
+import { LayoutGrid, Plus, Rows4 } from 'lucide-react'
 import { Sidebar } from '@/components/dashboard/sidebar'
 import { Header } from '@/components/dashboard/header'
 import { useRouter } from 'next/navigation'
@@ -12,6 +12,7 @@ import { useRouter } from 'next/navigation'
 export default function TenantsPage() {
   const router = useRouter()
   const [searchTerm, setSearchTerm] = useState('')
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('list')
 
   return (
     <div className="flex min-h-screen bg-gray-50">
@@ -23,25 +24,47 @@ export default function TenantsPage() {
             <div className="mb-6 space-y-4">
               <h1 className="text-3xl font-bold">Tenant Management</h1>
 
-              <div className="flex items-center justify-between">
-                <div className="flex-1">
+              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <div className="relative w-full md:flex-[0_0_50%]">
                   <Input
                     placeholder="Search by name, email, phone, or unit..."
                     value={searchTerm}
                     onChange={(event) => setSearchTerm(event.target.value)}
                   />
                 </div>
-                <Button
-                  onClick={() => router.push('/dashboard/tenants/new')}
-                  className="gap-2 ml-4 bg-[#4682B4] hover:bg-[#4682B4]/90"
-                >
-                  <Plus className="w-4 h-4" />
-                  Add New Tenant
-                </Button>
+                <div className="flex items-center gap-3 justify-end w-full md:w-auto">
+                  <div className="inline-flex rounded-full border bg-white p-1 shadow-sm">
+                    <Button
+                      variant={viewMode === 'grid' ? 'default' : 'ghost'}
+                      size="icon"
+                      className="rounded-full"
+                      onClick={() => setViewMode('grid')}
+                      aria-label="Grid view"
+                    >
+                      <LayoutGrid className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant={viewMode === 'list' ? 'default' : 'ghost'}
+                      size="icon"
+                      className="rounded-full"
+                      onClick={() => setViewMode('list')}
+                      aria-label="List view"
+                    >
+                      <Rows4 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  <Button
+                    onClick={() => router.push('/dashboard/tenants/new')}
+                    className="gap-2 bg-[#4682B4] hover:bg-[#4682B4]/90"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Add New Tenant
+                  </Button>
+                </div>
               </div>
             </div>
 
-            <TenantsTable searchQuery={searchTerm} />
+            <TenantsTable searchQuery={searchTerm} viewMode={viewMode} />
           </div>
         </main>
       </div>
