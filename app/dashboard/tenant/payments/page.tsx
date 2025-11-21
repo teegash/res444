@@ -8,6 +8,18 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Input } from '@/components/ui/input'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import {
+  exportRowsAsCSV,
+  exportRowsAsExcel,
+  exportRowsAsPDF,
+  ExportColumn,
+} from '@/lib/export/download'
 
 type TenantPaymentRecord = {
   id: string
@@ -28,6 +40,20 @@ type TenantPaymentRecord = {
   unit_label: string | null
 }
 
+type TenantSummaryPayload = {
+  profile: {
+    full_name: string | null
+    phone_number: string | null
+    address: string | null
+  } | null
+  lease: {
+    id: string
+    unit_label: string | null
+    property_name: string | null
+    property_location: string | null
+  } | null
+}
+
 type PendingInvoice = {
   id: string
   due_date: string | null
@@ -41,13 +67,16 @@ export default function PaymentHistoryPage() {
   const [filterMethod, setFilterMethod] = useState<string>('all')
   const [searchMonth, setSearchMonth] = useState('')
   const [upcomingInvoice, setUpcomingInvoice] = useState<PendingInvoice | null>(null)
+  const [tenantSummary, setTenantSummary] = useState<TenantSummaryPayload | null>(null)
+  const [exporting, setExporting] = useState(false)
 
   const fetchPayments = useCallback(async () => {
     try {
       setLoading(true)
-      const [paymentsResp, pendingResp] = await Promise.all([
+      const [paymentsResp, pendingResp, summaryResp] = await Promise.all([
         fetch('/api/tenant/payments', { cache: 'no-store' }),
         fetch('/api/tenant/invoices?status=pending', { cache: 'no-store' }),
+        fetch('/api/tenant/summary', { cache: 'no-store' }),
       ])
 
       if (!paymentsResp.ok) {
@@ -69,6 +98,11 @@ export default function PaymentHistoryPage() {
         } else {
           setUpcomingInvoice(null)
         }
+      }
+
+      if (summaryResp.ok) {
+        const summaryPayload = await summaryResp.json().catch(() => ({}))
+        setTenantSummary(summaryPayload.data || null)
       }
       setError(null)
     } catch (err) {
@@ -178,6 +212,82 @@ export default function PaymentHistoryPage() {
     return Array.from(map.values()).slice(0, 4)
   }, [payments])
 
+  const tenantName = tenantSummary?.profile?.full_name || 'Tenant'
+  const propertyLabel = tenantSummary?.lease?.unit_label
+    ? `${tenantSummary.lease.unit_label}`
+    : 'My Lease'
+
+  const exportColumns: ExportColumn<TenantPaymentRecord>[] = [
+    {
+      header: 'Period',
+      accessor: (payment) => {
+        if (payment.due_date) {
+          return new Date(payment.due_date).toLocaleDateString(undefined, {
+            month: 'long',
+            year: 'numeric',
+          })
+        }
+        return payment.posted_at ? new Date(payment.posted_at).toLocaleDateString() : 'Payment'
+      },
+    },
+    {
+      header: 'Type',
+      accessor: (payment) => (payment.payment_type || payment.invoice_type || 'rent').toUpperCase(),
+    },
+    {
+      header: 'Amount Paid',
+      accessor: (payment) => `KES ${payment.amount_paid.toLocaleString()}`,
+    },
+    {
+      header: 'Method',
+      accessor: (payment) => (payment.payment_method || 'UNKNOWN').toUpperCase(),
+    },
+    {
+      header: 'Status',
+      accessor: (payment) => payment.status,
+    },
+    {
+      header: 'Reference',
+      accessor: (payment) =>
+        payment.mpesa_receipt_number || payment.bank_reference_number || payment.invoice_id || payment.id,
+    },
+    {
+      header: 'Recorded On',
+      accessor: (payment) =>
+        payment.posted_at
+          ? new Date(payment.posted_at).toLocaleDateString()
+          : payment.created_at
+            ? new Date(payment.created_at).toLocaleDateString()
+            : '',
+    },
+  ]
+
+  const handleExport = (format: 'pdf' | 'csv' | 'excel') => {
+    setExporting(true)
+    const fileBase = `tenant-payments-${tenantName.replace(/\s+/g, '-').toLowerCase()}`
+    const subtitle = `${tenantName} • ${propertyLabel}`
+    const rows = payments
+    try {
+      switch (format) {
+        case 'pdf':
+          exportRowsAsPDF(fileBase, exportColumns, rows, {
+            title: 'Payment History',
+            subtitle,
+            footerNote: `Generated on ${new Date().toLocaleString()}`,
+          })
+          break
+        case 'csv':
+          exportRowsAsCSV(fileBase, exportColumns, rows)
+          break
+        case 'excel':
+          exportRowsAsExcel(fileBase, exportColumns, rows)
+          break
+      }
+    } finally {
+      setTimeout(() => setExporting(false), 300)
+    }
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-green-50/30 via-white to-white">
       <div className="max-w-6xl mx-auto p-4 md:p-6 lg:p-8 space-y-6">
@@ -194,10 +304,25 @@ export default function PaymentHistoryPage() {
             </div>
             <h1 className="text-2xl font-bold">Payment History</h1>
           </div>
-          <Button className="ml-auto" variant="outline" size="sm">
-            <Download className="h-4 w-4 mr-2" />
-            Download Statement
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button className="ml-auto" variant="outline" size="sm" disabled={exporting}>
+                <Download className="h-4 w-4 mr-2" />
+                {exporting ? 'Exporting…' : 'Export'}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => handleExport('pdf')}>
+                Download PDF
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleExport('excel')}>
+                Download Excel
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleExport('csv')}>
+                Download CSV
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
 
         {error && (

@@ -27,6 +27,12 @@ import {
 } from '@/components/ui/dialog'
 import { Download, Eye, FileDown } from 'lucide-react'
 import { PaymentRecord, PaymentStats } from '@/components/dashboard/payment-tabs/types'
+import {
+  exportRowsAsCSV,
+  exportRowsAsExcel,
+  exportRowsAsPDF,
+  ExportColumn,
+} from '@/lib/export/download'
 
 const currencyFormatter = new Intl.NumberFormat('en-KE', {
   style: 'currency',
@@ -94,6 +100,40 @@ export function VerifiedPaymentsTab({ payments, stats, loading }: VerifiedPaymen
       return new Date(payment.verifiedAt).getTime() >= threshold
     })
   }, [payments, timeFilter])
+
+  const exportColumns: ExportColumn<PaymentRecord>[] = [
+    { header: 'Tenant', accessor: (payment) => payment.tenantName },
+    { header: 'Amount', accessor: (payment) => currencyFormatter.format(payment.amount) },
+    { header: 'Method', accessor: (payment) => payment.paymentMethod || '—' },
+    { header: 'Verified By', accessor: (payment) => payment.verifiedBy || 'M-Pesa API' },
+    {
+      header: 'Verified On',
+      accessor: (payment) => formatDateTime(payment.verifiedAt || payment.paymentDate),
+    },
+    {
+      header: 'Reference',
+      accessor: (payment) => payment.mpesaReceiptNumber || payment.bankReferenceNumber || '—',
+    },
+  ]
+
+  const handleExportAll = (format: 'csv' | 'pdf' | 'excel') => {
+    const filename = `verified-payments-${timeFilter === 'all' ? 'all-time' : `last-${timeFilter}-days`}`
+    switch (format) {
+      case 'csv':
+        exportRowsAsCSV(filename, exportColumns, filteredPayments)
+        break
+      case 'excel':
+        exportRowsAsExcel(filename, exportColumns, filteredPayments)
+        break
+      case 'pdf':
+        exportRowsAsPDF(filename, exportColumns, filteredPayments, {
+          title: 'Verified Payments',
+          subtitle: `Range: ${timeFilter === 'all' ? 'All Time' : `Past ${timeFilter} days`}`,
+          footerNote: `Generated on ${new Date().toLocaleString()}`,
+        })
+        break
+    }
+  }
 
   const cards = {
     auto: {
@@ -239,6 +279,14 @@ export function VerifiedPaymentsTab({ payments, stats, loading }: VerifiedPaymen
         >
           <FileDown className="w-4 h-4" />
           Export CSV
+        </Button>
+        <Button
+          variant="outline"
+          onClick={() => handleExportAll('excel')}
+          className="gap-2"
+        >
+          <Download className="w-4 h-4" />
+          Export Excel
         </Button>
         <Button
           variant="outline"

@@ -8,6 +8,12 @@ import { ArrowLeft, Download, TrendingUp, Users, Building2, DollarSign } from 'l
 import {
   LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
 } from 'recharts'
+import {
+  exportRowsAsCSV,
+  exportRowsAsExcel,
+  exportRowsAsPDF,
+  ExportColumn,
+} from '@/lib/export/download'
 
 const revenueData = [
   { month: 'Jan', revenue: 450000, target: 500000 },
@@ -33,8 +39,55 @@ const paymentTrendData = [
 export default function ReportsPage() {
   const router = useRouter()
 
+  const rows = [
+    { section: 'Summary', metric: 'Total Revenue', value: 'KES 3.9M', details: '+12.5% vs last month' },
+    { section: 'Summary', metric: 'Properties', value: '12', details: 'Active properties' },
+    { section: 'Summary', metric: 'Tenants', value: '156', details: '78% occupancy rate' },
+    { section: 'Summary', metric: 'Payment Rate', value: '92%', details: 'On-time payments' },
+    ...revenueData.map((entry) => ({
+      section: 'Revenue Trend',
+      metric: entry.month,
+      value: `KES ${entry.revenue.toLocaleString()}`,
+      details: `Target: KES ${entry.target.toLocaleString()}`,
+    })),
+    ...occupancyData.map((entry) => ({
+      section: 'Occupancy',
+      metric: entry.name,
+      value: `${entry.value}%`,
+      details: '',
+    })),
+    ...paymentTrendData.map((entry) => ({
+      section: 'Payment Timeliness',
+      metric: entry.week,
+      value: `${entry.ontime}% on-time`,
+      details: `${entry.late}% late`,
+    })),
+  ]
+
+  const columns: ExportColumn<(typeof rows)[number]>[] = [
+    { header: 'Section', accessor: (row) => row.section },
+    { header: 'Metric', accessor: (row) => row.metric },
+    { header: 'Value', accessor: (row) => row.value },
+    { header: 'Details', accessor: (row) => row.details },
+  ]
+
   const handleDownloadReport = (format: 'pdf' | 'excel' | 'csv') => {
-    console.log('[v0] Downloading report as:', format)
+    const fileBase = `dashboard-report-${new Date().toISOString().slice(0, 10)}`
+    switch (format) {
+      case 'pdf':
+        exportRowsAsPDF(fileBase, columns, rows, {
+          title: 'Dashboard Snapshot',
+          subtitle: 'Revenue, occupancy, and payment performance',
+          footerNote: `Generated on ${new Date().toLocaleString()}`,
+        })
+        break
+      case 'excel':
+        exportRowsAsExcel(fileBase, columns, rows)
+        break
+      case 'csv':
+        exportRowsAsCSV(fileBase, columns, rows)
+        break
+    }
   }
 
   return (

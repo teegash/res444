@@ -6,6 +6,18 @@ import Link from 'next/link'
 import Sidebar from '@/components/dashboard/sidebar'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import {
+  exportRowsAsCSV,
+  exportRowsAsExcel,
+  exportRowsAsPDF,
+  ExportColumn,
+} from '@/lib/export/download'
 
 type StatementTransaction = {
   id: string
@@ -68,6 +80,7 @@ export default function TenantStatementPage({ params }: { params: { id: string }
   const [statement, setStatement] = useState<StatementPayload | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [exporting, setExporting] = useState(false)
 
   useEffect(() => {
     const fetchStatement = async () => {
@@ -113,6 +126,76 @@ export default function TenantStatementPage({ params }: { params: { id: string }
   const propertyLabel = statement?.lease
     ? `${statement.lease.property_name || 'Property'}${statement.lease.unit_number ? ` - ${statement.lease.unit_number}` : ''}`
     : 'Property not assigned'
+
+  const exportColumns: ExportColumn<StatementTransaction>[] = [
+    {
+      header: 'Date',
+      accessor: (txn) => formatDate(txn.posted_at),
+    },
+    {
+      header: 'Type',
+      accessor: (txn) => txn.kind,
+    },
+    {
+      header: 'Description',
+      accessor: (txn) => txn.description,
+    },
+    {
+      header: 'Reference',
+      accessor: (txn) => txn.reference || '—',
+    },
+    {
+      header: 'Amount',
+      accessor: (txn) => formatCurrency(txn.amount),
+    },
+    {
+      header: 'Balance',
+      accessor: (txn) => formatCurrency(txn.balance_after ?? 0),
+    },
+  ]
+
+  const handleExport = (format: 'pdf' | 'csv' | 'excel') => {
+    if (!statement) return
+    setExporting(true)
+    const fileBase = `tenant-statement-${params.id}`
+    const subtitle = `${tenantName} • ${propertyLabel}`
+
+    try {
+      switch (format) {
+        case 'pdf':
+          exportRowsAsPDF(fileBase, exportColumns, statement.transactions, {
+            title: 'Tenant Account Statement',
+            subtitle,
+            footerNote: `Generated on ${new Date().toLocaleString()}`,
+          })
+          break
+        case 'csv':
+          exportRowsAsCSV(fileBase, exportColumns, statement.transactions)
+          break
+        case 'excel':
+          exportRowsAsExcel(fileBase, exportColumns, statement.transactions)
+          break
+      }
+    } finally {
+      setTimeout(() => setExporting(false), 300)
+    }
+  }
+
+  const handleShare = async () => {
+    if (!statement) return
+    const sharePayload = {
+      title: 'Tenant Statement',
+      text: `Statement for ${tenantName}`,
+      url: window.location.href,
+    }
+
+    if (navigator.share) {
+      await navigator.share(sharePayload)
+    } else {
+      await navigator.clipboard.writeText(sharePayload.url)
+      alert('Statement link copied to clipboard.')
+    }
+  }
 
   const renderContent = () => {
     if (loading) {
@@ -268,18 +351,31 @@ export default function TenantStatementPage({ params }: { params: { id: string }
             </p>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" size="sm">
+            <Button variant="outline" size="sm" onClick={() => window.print()}>
               <Printer className="h-4 w-4 mr-2" />
               Print
             </Button>
-            <Button variant="outline" size="sm">
+            <Button variant="outline" size="sm" onClick={handleShare}>
               <Share2 className="h-4 w-4 mr-2" />
               Share
             </Button>
-            <Button size="sm">
-              <Download className="h-4 w-4 mr-2" />
-              Download PDF
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button size="sm" disabled={exporting}>
+                  <Download className="h-4 w-4 mr-2" />
+                  {exporting ? 'Exporting…' : 'Export'}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => handleExport('pdf')}>Download PDF</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleExport('excel')}>
+                  Download Excel
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleExport('csv')}>
+                  Download CSV
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
 
