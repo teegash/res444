@@ -5,6 +5,7 @@ import { ArrowLeft, Download, Loader2, Printer, Share2 } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import Sidebar from '@/components/dashboard/sidebar'
+import { Header } from '@/components/dashboard/header'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import {
@@ -371,10 +372,17 @@ export default function TenantStatementPage({ params }: { params: { id?: string 
   return (
     <div className="min-h-screen bg-slate-50 flex">
       <Sidebar />
-      <main className="flex-1 p-6 md:p-10">
+      <div className="flex-1 flex flex-col">
+        <Header />
+        <main className="flex-1 p-6 md:p-10">
         <div className="flex items-center justify-between mb-8">
           <div>
-            <Button variant="ghost" size="sm" className="mb-2 px-2 text-sm font-medium text-slate-600 hover:text-slate-900 w-auto" asChild>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="mb-2 px-2 text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 w-auto transition-colors"
+              asChild
+            >
               <Link href="/dashboard/tenants" className="flex items-center gap-2">
                 <ArrowLeft className="h-4 w-4" />
                 Back
@@ -416,6 +424,7 @@ export default function TenantStatementPage({ params }: { params: { id?: string 
 
         {renderContent()}
       </main>
+      </div>
     </div>
   )
 }
