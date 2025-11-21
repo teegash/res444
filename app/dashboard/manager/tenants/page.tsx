@@ -1,6 +1,7 @@
 'use client'
 
-import { ArrowLeft, Users, Plus, Search, Filter } from 'lucide-react'
+import { useState } from 'react'
+import { ArrowLeft, Users, Plus, Search, Filter, LayoutGrid, Rows4 } from 'lucide-react'
 import Link from 'next/link'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -9,6 +10,7 @@ import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 
 export default function TenantsManagementPage() {
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
   const tenants = [
     { id: 'john-kamau', name: 'John Kamau', unit: 'Unit A-101', property: 'Kilimani Heights', rent: 45000, status: 'Paid', phone: '+254 712 345 678', email: 'john.kamau@email.com', lease: 'Jan 1, 2024 - Dec 31, 2024', initials: 'JK' },
     { id: 'mary-wanjiku', name: 'Mary Wanjiku', unit: 'Unit B-205', property: 'Westlands Plaza', rent: 38000, status: 'Pending', phone: '+254 723 456 789', email: 'mary.wanjiku@email.com', lease: 'Mar 15, 2024 - Mar 14, 2025', initials: 'MW' },
@@ -48,8 +50,8 @@ export default function TenantsManagementPage() {
         {/* Search and Filter */}
         <Card>
           <CardContent className="pt-6">
-            <div className="flex gap-4">
-              <div className="flex-1 relative">
+            <div className="flex flex-col gap-4 md:flex-row md:items-center">
+              <div className="flex-1 relative w-full">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input 
                   placeholder="Search tenants by name, unit, or property..." 
@@ -60,84 +62,152 @@ export default function TenantsManagementPage() {
                 <Filter className="h-4 w-4 mr-2" />
                 Filter
               </Button>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant={viewMode === 'grid' ? 'default' : 'outline'}
+                  size="icon"
+                  onClick={() => setViewMode('grid')}
+                >
+                  <LayoutGrid className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant={viewMode === 'list' ? 'default' : 'outline'}
+                  size="icon"
+                  onClick={() => setViewMode('list')}
+                >
+                  <Rows4 className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
           </CardContent>
         </Card>
 
         {/* Tenants Grid */}
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {tenants.map((tenant) => (
-            <Card key={tenant.email} className="hover:shadow-lg transition-shadow">
-              <CardHeader className="pb-3">
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-3">
-                    <Avatar className="h-12 w-12 bg-blue-100">
-                      <AvatarFallback className="text-blue-600 font-semibold">
-                        {tenant.initials}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div>
-                      <CardTitle className="text-base">{tenant.name}</CardTitle>
-                      <CardDescription className="text-xs">
-                        {tenant.unit} • {tenant.property}
-                      </CardDescription>
+        {viewMode === 'grid' ? (
+          <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {tenants.map((tenant) => (
+              <Card key={tenant.email} className="hover:shadow-lg transition-shadow">
+                <CardHeader className="pb-3">
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center gap-3">
+                      <Avatar className="h-12 w-12 bg-blue-100">
+                        <AvatarFallback className="text-blue-600 font-semibold">
+                          {tenant.initials}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div>
+                        <CardTitle className="text-base">{tenant.name}</CardTitle>
+                        <CardDescription className="text-xs">
+                          {tenant.unit} • {tenant.property}
+                        </CardDescription>
+                      </div>
+                    </div>
+                    <Link href={`/dashboard/manager/statements/${tenant.id}`} prefetch>
+                      <Badge 
+                        variant={tenant.status === 'Paid' ? 'default' : tenant.status === 'Pending' ? 'secondary' : 'destructive'}
+                        className={`cursor-pointer hover:opacity-90 ${
+                          tenant.status === 'Paid'
+                            ? 'bg-green-600'
+                            : tenant.status === 'Pending'
+                              ? 'bg-yellow-600'
+                              : 'bg-red-600'
+                        }`}
+                      >
+                        {tenant.status}
+                      </Badge>
+                    </Link>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div>
+                    <p className="text-sm font-medium mb-1">Monthly Rent</p>
+                    <p className="text-2xl font-bold text-green-600">
+                      KES {tenant.rent.toLocaleString()}
+                    </p>
+                  </div>
+                  <div className="space-y-1 text-sm">
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                      <span className="text-xs">📞</span>
+                      <span>{tenant.phone}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                      <span className="text-xs">📧</span>
+                      <span className="truncate">{tenant.email}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                      <span className="text-xs">📅</span>
+                      <span className="text-xs">Lease: {tenant.lease}</span>
                     </div>
                   </div>
-                  <Link href={`/dashboard/manager/statements/${tenant.id}`} prefetch>
-                    <Badge 
-                      variant={tenant.status === 'Paid' ? 'default' : tenant.status === 'Pending' ? 'secondary' : 'destructive'}
-                      className={`cursor-pointer hover:opacity-90 ${
-                        tenant.status === 'Paid'
-                          ? 'bg-green-600'
-                          : tenant.status === 'Pending'
-                            ? 'bg-yellow-600'
-                            : 'bg-red-600'
-                      }`}
-                    >
-                      {tenant.status}
-                    </Badge>
-                  </Link>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div>
-                  <p className="text-sm font-medium mb-1">Monthly Rent</p>
-                  <p className="text-2xl font-bold text-green-600">
-                    KES {tenant.rent.toLocaleString()}
-                  </p>
-                </div>
-                <div className="space-y-1 text-sm">
-                  <div className="flex items-center gap-2 text-muted-foreground">
-                    <span className="text-xs">📞</span>
-                    <span>{tenant.phone}</span>
+                  <div className="flex gap-2 pt-3 border-t">
+                    <Button size="sm" variant="outline" className="flex-1">
+                      <span className="text-xs">👁️</span>
+                      <span className="ml-1">View Details</span>
+                    </Button>
+                    <Button size="sm" variant="outline" className="flex-1">
+                      <span className="text-xs">💬</span>
+                      <span className="ml-1">Contact</span>
+                    </Button>
+                    <Button size="sm" variant="outline">
+                      <span className="text-xs">💰</span>
+                      <span className="ml-1">Collect Rent</span>
+                    </Button>
                   </div>
-                  <div className="flex items-center gap-2 text-muted-foreground">
-                    <span className="text-xs">📧</span>
-                    <span className="truncate">{tenant.email}</span>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {tenants.map((tenant) => (
+              <Card key={`${tenant.email}-list`} className="hover:shadow-sm transition-shadow">
+                <CardContent className="py-4">
+                  <div className="grid grid-cols-1 md:grid-cols-5 gap-4 items-center">
+                    <div className="flex items-center gap-3">
+                      <Avatar className="h-10 w-10 bg-blue-100">
+                        <AvatarFallback className="text-blue-600 font-semibold">
+                          {tenant.initials}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div>
+                        <p className="font-semibold">{tenant.name}</p>
+                        <p className="text-xs text-muted-foreground">{tenant.unit}</p>
+                      </div>
+                    </div>
+                    <div className="text-sm">
+                      <p className="font-medium">{tenant.property}</p>
+                      <p className="text-xs text-muted-foreground">{tenant.phone}</p>
+                    </div>
+                    <div className="text-sm">
+                      <p className="font-medium">KES {tenant.rent.toLocaleString()}</p>
+                      <p className="text-xs text-muted-foreground">Monthly Rent</p>
+                    </div>
+                    <div className="text-sm">
+                      <p className="font-medium">{tenant.lease}</p>
+                      <p className="text-xs text-muted-foreground">Lease Period</p>
+                    </div>
+                    <div className="flex items-center gap-2 justify-end">
+                      <Link href={`/dashboard/manager/statements/${tenant.id}`} prefetch>
+                        <Badge 
+                          variant={tenant.status === 'Paid' ? 'default' : tenant.status === 'Pending' ? 'secondary' : 'destructive'}
+                          className={`cursor-pointer px-3 py-1 ${
+                            tenant.status === 'Paid'
+                              ? 'bg-green-600'
+                              : tenant.status === 'Pending'
+                                ? 'bg-yellow-600'
+                                : 'bg-red-600'
+                          }`}
+                        >
+                          {tenant.status}
+                        </Badge>
+                      </Link>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2 text-muted-foreground">
-                    <span className="text-xs">📅</span>
-                    <span className="text-xs">Lease: {tenant.lease}</span>
-                  </div>
-                </div>
-                <div className="flex gap-2 pt-3 border-t">
-                  <Button size="sm" variant="outline" className="flex-1">
-                    <span className="text-xs">👁️</span>
-                    <span className="ml-1">View Details</span>
-                  </Button>
-                  <Button size="sm" variant="outline" className="flex-1">
-                    <span className="text-xs">💬</span>
-                    <span className="ml-1">Contact</span>
-                  </Button>
-                  <Button size="sm" variant="outline">
-                    <span className="text-xs">💰</span>
-                    <span className="ml-1">Collect Rent</span>
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   )
