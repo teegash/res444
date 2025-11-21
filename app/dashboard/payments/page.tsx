@@ -1,7 +1,7 @@
 
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { Sidebar } from '@/components/dashboard/sidebar'
 import { Header } from '@/components/dashboard/header'
 import { Card, CardContent } from '@/components/ui/card'
@@ -51,10 +51,10 @@ export default function PaymentsPage() {
     }
   }
 
-  const handleIntegrationUpdate = (integration: IntegrationSummary | null) => {
+  const handleIntegrationUpdate = useCallback((integration: IntegrationSummary | null) => {
     setAutoSyncedAt(integration?.lastAutoCheck || null)
     setAutoCheckFrequency(Math.max(5, integration?.autoVerifyFrequencySeconds || 30))
-  }
+  }, [])
 
   return (
     <div className="flex min-h-screen bg-gray-50">
