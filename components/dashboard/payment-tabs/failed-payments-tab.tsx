@@ -121,9 +121,16 @@ export function FailedPaymentsTab({ payments, breakdown, loading }: FailedPaymen
                   <TableCell className="font-medium">{payment.tenantName}</TableCell>
                   <TableCell>{currencyFormatter.format(payment.amount)}</TableCell>
                   <TableCell>
-                    <Badge variant="destructive">
-                      {(payment.mpesaQueryStatus || payment.mpesaResponseCode || 'error').toUpperCase()}
-                    </Badge>
+                    <div className="space-y-1">
+                      <Badge variant="destructive">
+                        {(payment.mpesaResponseCode || payment.mpesaQueryStatus || 'error').toUpperCase()}
+                      </Badge>
+                      {(payment.mpesaQueryStatus || payment.notes) && (
+                        <p className="text-xs text-muted-foreground">
+                          {payment.mpesaQueryStatus || payment.notes}
+                        </p>
+                      )}
+                    </div>
                   </TableCell>
                   <TableCell>{payment.retryCount || 0}</TableCell>
                   <TableCell className="text-sm">
