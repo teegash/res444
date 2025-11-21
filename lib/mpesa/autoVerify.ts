@@ -358,7 +358,8 @@ async function verifyPayment(
 
       // If max retries reached, mark for manual review
       if (newRetryCount >= maxRetries) {
-        updateData.notes = `${payment.mpesa_receipt_number ? `Receipt: ${payment.mpesa_receipt_number}. ` : ''}Auto-verification failed after ${maxRetries} attempts. Status: ${queryResult.resultDesc || 'Unknown'}. Requires manual review.`
+        const reason = queryResult.resultDesc || queryResult.errorMessage || 'Timeout'
+        updateData.notes = `${payment.mpesa_receipt_number ? `Receipt: ${payment.mpesa_receipt_number}. ` : ''}Auto-verification failed after ${maxRetries} attempts. Reason: ${reason}.`
       }
 
       await supabase.from('payments').update(updateData).eq('id', payment.id)
