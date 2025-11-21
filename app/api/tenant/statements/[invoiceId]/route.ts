@@ -13,12 +13,22 @@ type StatementTransaction = {
   method?: string | null
 }
 
+function resolveInvoiceId(request: NextRequest, params?: { invoiceId?: string }) {
+  if (params?.invoiceId) {
+    return params.invoiceId
+  }
+  const urlParam = request.nextUrl.searchParams.get('invoiceId')
+  if (urlParam) return urlParam
+  const segments = request.nextUrl.pathname.split('/').filter(Boolean)
+  return segments[segments.length - 1]
+}
+
 export async function GET(
   request: NextRequest,
   { params }: { params: { invoiceId: string } }
 ) {
   try {
-    const invoiceId = params?.invoiceId || request.nextUrl.searchParams.get('invoiceId')
+    const invoiceId = resolveInvoiceId(request, params)
     if (!invoiceId) {
       return NextResponse.json({ success: false, error: 'Invoice ID is required.' }, { status: 400 })
     }

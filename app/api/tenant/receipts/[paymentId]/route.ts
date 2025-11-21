@@ -2,12 +2,22 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 
+function resolvePaymentId(request: NextRequest, params?: { paymentId?: string }) {
+  if (params?.paymentId) {
+    return params.paymentId
+  }
+  const urlParam = request.nextUrl.searchParams.get('paymentId')
+  if (urlParam) return urlParam
+  const segments = request.nextUrl.pathname.split('/').filter(Boolean)
+  return segments[segments.length - 1]
+}
+
 export async function GET(
   request: NextRequest,
   { params }: { params: { paymentId: string } }
 ) {
   try {
-    const paymentId = params?.paymentId || request.nextUrl.searchParams.get('paymentId')
+    const paymentId = resolvePaymentId(request, params)
     if (!paymentId) {
       return NextResponse.json({ success: false, error: 'Payment ID is required.' }, { status: 400 })
     }
