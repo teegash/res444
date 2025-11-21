@@ -3,11 +3,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ArrowLeft, Users, Plus, Search, Filter, LayoutGrid, Rows4, Loader2 } from 'lucide-react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 
 type ManagerTenantRecord = {
   tenant_user_id: string
@@ -55,6 +56,7 @@ export default function TenantsManagementPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
+  const router = useRouter()
 
   useEffect(() => {
     const fetchTenants = async () => {
@@ -94,18 +96,35 @@ export default function TenantsManagementPage() {
     })
   }, [tenants, searchQuery])
 
-const renderStatusBadge = (tenant: ManagerTenantRecord) => (
-  <Link href={`/dashboard/manager/statements/${tenant.tenant_user_id}`} prefetch>
-    <Button
-      size="sm"
-      className={`cursor-pointer px-3 py-1 text-white ${statusVariant(
-        tenant.payment_status
-      )} hover:opacity-90`}
-    >
-      {tenant.payment_status}
-    </Button>
-  </Link>
-)
+  const renderStatusBadge = (tenant: ManagerTenantRecord) => (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            size="sm"
+            className={`cursor-pointer px-3 py-1 text-white ${statusVariant(
+              tenant.payment_status
+            )} hover:opacity-90`}
+          >
+            {tenant.payment_status}
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent className="bg-slate-900 text-white border-none shadow-lg">
+          <p className="text-xs mb-2 max-w-xs">
+            {tenant.payment_status_detail || 'View complete payment statement for this tenant.'}
+          </p>
+          <Button
+            size="sm"
+            variant="secondary"
+            className="text-slate-900"
+            onClick={() => router.push(`/dashboard/manager/statements/${tenant.tenant_user_id}`)}
+          >
+            View Statement
+          </Button>
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  )
 
   const renderGrid = () => {
     if (loading) {
