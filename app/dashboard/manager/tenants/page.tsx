@@ -10,12 +10,12 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 
 export default function TenantsManagementPage() {
   const tenants = [
-    { name: 'John Kamau', unit: 'Unit A-101', property: 'Kilimani Heights', rent: 45000, status: 'Paid', phone: '+254 712 345 678', email: 'john.kamau@email.com', lease: 'Jan 1, 2024 - Dec 31, 2024', initials: 'JK' },
-    { name: 'Mary Wanjiku', unit: 'Unit B-205', property: 'Westlands Plaza', rent: 38000, status: 'Pending', phone: '+254 723 456 789', email: 'mary.wanjiku@email.com', lease: 'Mar 15, 2024 - Mar 14, 2025', initials: 'MW' },
-    { name: 'Peter Ochieng', unit: 'Unit C-301', property: 'Karen Villas', rent: 52000, status: 'Paid', phone: '+254 734 567 890', email: 'peter.ochieng@email.com', lease: 'Feb 1, 2024 - Jan 31, 2025', initials: 'PO' },
-    { name: 'Grace Akinyi', unit: 'Unit A-203', property: 'Kilimani Heights', rent: 41000, status: 'Overdue', phone: '+254 745 678 901', email: 'grace.akinyi@email.com', lease: 'Apr 1, 2024 - Mar 31, 2025', initials: 'GA' },
-    { name: 'David Kiprop', unit: 'Unit B-102', property: 'Eastlands Court', rent: 35000, status: 'Paid', phone: '+254 756 789 012', email: 'david.kiprop@email.com', lease: 'May 15, 2024 - May 14, 2025', initials: 'DK' },
-    { name: 'Sarah Muthoni', unit: 'Unit C-205', property: 'Karen Villas', rent: 48000, status: 'Paid', phone: '+254 767 890 123', email: 'sarah.muthoni@email.com', lease: 'Jan 15, 2024 - Jan 14, 2025', initials: 'SM' }
+    { id: 'john-kamau', name: 'John Kamau', unit: 'Unit A-101', property: 'Kilimani Heights', rent: 45000, status: 'Paid', phone: '+254 712 345 678', email: 'john.kamau@email.com', lease: 'Jan 1, 2024 - Dec 31, 2024', initials: 'JK' },
+    { id: 'mary-wanjiku', name: 'Mary Wanjiku', unit: 'Unit B-205', property: 'Westlands Plaza', rent: 38000, status: 'Pending', phone: '+254 723 456 789', email: 'mary.wanjiku@email.com', lease: 'Mar 15, 2024 - Mar 14, 2025', initials: 'MW' },
+    { id: 'peter-ochieng', name: 'Peter Ochieng', unit: 'Unit C-301', property: 'Karen Villas', rent: 52000, status: 'Paid', phone: '+254 734 567 890', email: 'peter.ochieng@email.com', lease: 'Feb 1, 2024 - Jan 31, 2025', initials: 'PO' },
+    { id: 'grace-akinyi', name: 'Grace Akinyi', unit: 'Unit A-203', property: 'Kilimani Heights', rent: 41000, status: 'Overdue', phone: '+254 745 678 901', email: 'grace.akinyi@email.com', lease: 'Apr 1, 2024 - Mar 31, 2025', initials: 'GA' },
+    { id: 'david-kiprop', name: 'David Kiprop', unit: 'Unit B-102', property: 'Eastlands Court', rent: 35000, status: 'Paid', phone: '+254 756 789 012', email: 'david.kiprop@email.com', lease: 'May 15, 2024 - May 14, 2025', initials: 'DK' },
+    { id: 'sarah-muthoni', name: 'Sarah Muthoni', unit: 'Unit C-205', property: 'Karen Villas', rent: 48000, status: 'Paid', phone: '+254 767 890 123', email: 'sarah.muthoni@email.com', lease: 'Jan 15, 2024 - Jan 14, 2025', initials: 'SM' }
   ]
 
   return (
@@ -83,16 +83,20 @@ export default function TenantsManagementPage() {
                       </CardDescription>
                     </div>
                   </div>
-                  <Badge 
-                    variant={tenant.status === 'Paid' ? 'default' : tenant.status === 'Pending' ? 'secondary' : 'destructive'}
-                    className={
-                      tenant.status === 'Paid' ? 'bg-green-600' : 
-                      tenant.status === 'Pending' ? 'bg-yellow-600' : 
-                      'bg-red-600'
-                    }
-                  >
-                    {tenant.status}
-                  </Badge>
+                  <Link href={`/dashboard/manager/statements/${tenant.id}`} prefetch>
+                    <Badge 
+                      variant={tenant.status === 'Paid' ? 'default' : tenant.status === 'Pending' ? 'secondary' : 'destructive'}
+                      className={`cursor-pointer hover:opacity-90 ${
+                        tenant.status === 'Paid'
+                          ? 'bg-green-600'
+                          : tenant.status === 'Pending'
+                            ? 'bg-yellow-600'
+                            : 'bg-red-600'
+                      }`}
+                    >
+                      {tenant.status}
+                    </Badge>
+                  </Link>
                 </div>
               </CardHeader>
               <CardContent className="space-y-3">

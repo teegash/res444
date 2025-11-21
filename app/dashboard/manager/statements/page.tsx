@@ -11,14 +11,14 @@ import { Sidebar } from '@/components/dashboard/sidebar'
 import { Header } from '@/components/dashboard/header'
 
 const statementsData = [
-  { id: 'STMT-JK-2024-H2', tenant: 'John Kamau', property: 'Kilimani Heights', unit: 'Unit A-101', period: 'July - December 2024', generated: 'Dec 31, 2024' },
-  { id: 'STMT-MW-2024-H2', tenant: 'Mary Wanjiku', property: 'Westlands Plaza', unit: 'Unit B-205', period: 'July - December 2024', generated: 'Dec 31, 2024' },
-  { id: 'STMT-PO-2024-H2', tenant: 'Peter Ochieng', property: 'Karen Villas', unit: 'Unit C-301', period: 'July - December 2024', generated: 'Dec 31, 2024' },
-  { id: 'STMT-GA-2024-H2', tenant: 'Grace Akinyi', property: 'Kilimani Heights', unit: 'Unit A-203', period: 'July - December 2024', generated: 'Dec 31, 2024' },
-  { id: 'STMT-DK-2024-H2', tenant: 'David Kiprop', property: 'Eastlands Court', unit: 'Unit B-102', period: 'July - December 2024', generated: 'Dec 31, 2024' },
-  { id: 'STMT-JK-2024-H1', tenant: 'John Kamau', property: 'Kilimani Heights', unit: 'Unit A-101', period: 'January - June 2024', generated: 'Jun 30, 2024' },
-  { id: 'STMT-MW-2024-H1', tenant: 'Mary Wanjiku', property: 'Westlands Plaza', unit: 'Unit B-205', period: 'January - June 2024', generated: 'Jun 30, 2024' },
-  { id: 'STMT-PO-2024-H1', tenant: 'Peter Ochieng', property: 'Karen Villas', unit: 'Unit C-301', period: 'January - June 2024', generated: 'Jun 30, 2024' },
+  { id: 'john-kamau', tenant: 'John Kamau', property: 'Kilimani Heights', unit: 'Unit A-101', period: 'July - December 2024', generated: 'Dec 31, 2024' },
+  { id: 'mary-wanjiku', tenant: 'Mary Wanjiku', property: 'Westlands Plaza', unit: 'Unit B-205', period: 'July - December 2024', generated: 'Dec 31, 2024' },
+  { id: 'peter-ochieng', tenant: 'Peter Ochieng', property: 'Karen Villas', unit: 'Unit C-301', period: 'July - December 2024', generated: 'Dec 31, 2024' },
+  { id: 'grace-akinyi', tenant: 'Grace Akinyi', property: 'Kilimani Heights', unit: 'Unit A-203', period: 'July - December 2024', generated: 'Dec 31, 2024' },
+  { id: 'david-kiprop', tenant: 'David Kiprop', property: 'Eastlands Court', unit: 'Unit B-102', period: 'July - December 2024', generated: 'Dec 31, 2024' },
+  { id: 'john-kamau', tenant: 'John Kamau', property: 'Kilimani Heights', unit: 'Unit A-101', period: 'January - June 2024', generated: 'Jun 30, 2024' },
+  { id: 'mary-wanjiku', tenant: 'Mary Wanjiku', property: 'Westlands Plaza', unit: 'Unit B-205', period: 'January - June 2024', generated: 'Jun 30, 2024' },
+  { id: 'peter-ochieng', tenant: 'Peter Ochieng', property: 'Karen Villas', unit: 'Unit C-301', period: 'January - June 2024', generated: 'Jun 30, 2024' },
 ]
 
 export default function StatementsPage() {

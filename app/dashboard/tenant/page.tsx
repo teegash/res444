@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { TenantHeader } from '@/components/dashboard/tenant/tenant-header'
 import { TenantInfoCards } from '@/components/dashboard/tenant/tenant-info-cards'
 import { TenantQuickActions } from '@/components/dashboard/tenant/tenant-quick-actions'
@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Calendar, Bell, TrendingUp, Clock, CheckCircle2, AlertCircle } from 'lucide-react'
+import { Calendar, TrendingUp, Clock, CheckCircle2 } from 'lucide-react'
 import Link from 'next/link'
 
 type TenantSummary = {
@@ -45,11 +45,21 @@ type TenantInvoiceRecord = {
   created_at?: string | null
 } | null
 
+type ActivityItem = {
+  id: string
+  title: string
+  description: string
+  dateLabel: string
+  tone: 'success' | 'warning' | 'info' | 'danger'
+  source: 'invoice' | 'maintenance'
+}
+
 export default function TenantDashboard() {
   const [summary, setSummary] = useState<TenantSummary>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [pendingInvoices, setPendingInvoices] = useState<TenantInvoiceRecord[]>([])
+  const [recentActivity, setRecentActivity] = useState<ActivityItem[]>([])
 
   const fetchSummary = useCallback(async () => {
     try {
@@ -99,6 +109,106 @@ export default function TenantDashboard() {
     fetchPendingInvoices()
   }, [fetchPendingInvoices])
 
+  const fetchRecentActivity = useCallback(async () => {
+    try {
+      const [invoicesResp, maintenanceResp] = await Promise.all([
+        fetch('/api/tenant/invoices', { cache: 'no-store' }),
+        fetch('/api/tenant/maintenance/requests', { cache: 'no-store' }),
+      ])
+
+      const invoicePayload = invoicesResp.ok ? await invoicesResp.json().catch(() => ({})) : { data: [] }
+      const maintenancePayload = maintenanceResp.ok ? await maintenanceResp.json().catch(() => ({})) : { data: [] }
+
+      const invoices: TenantInvoiceRecord[] = invoicePayload.data || []
+      const maintenanceRequests: Array<{
+        id: string
+        title: string
+        status: string
+        created_at?: string | null
+        updated_at?: string | null
+      }> = maintenancePayload.data || []
+
+      const invoiceItems: ActivityItem[] = invoices
+        .filter(Boolean)
+        .sort((a, b) => {
+          const aTime = a?.created_at ? new Date(a.created_at).getTime() : 0
+          const bTime = b?.created_at ? new Date(b.created_at).getTime() : 0
+          return bTime - aTime
+        })
+        .slice(0, 4)
+        .map((invoice) => {
+          const isPaid = Boolean(invoice?.status)
+          const isWater = invoice?.invoice_type === 'water'
+          const tone: ActivityItem['tone'] = isPaid ? 'success' : isWater ? 'info' : 'warning'
+          const title = isPaid
+            ? `${isWater ? 'Water bill' : 'Rent'} payment recorded`
+          : `${isWater ? 'Water bill' : 'Rent'} invoice pending`
+        const description = isPaid
+          ? `${invoice?.property_name || 'Your unit'} • receipt available`
+          : `Due ${invoice?.due_date ? new Date(invoice.due_date).toLocaleDateString(undefined, { month: 'long', day: 'numeric' }) : 'soon'}`
+        const dateSource = invoice?.created_at || invoice?.due_date
+        const dateLabel = dateSource
+          ? new Date(dateSource).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+          : '—'
+
+          return {
+            id: invoice?.id || crypto.randomUUID(),
+            title,
+            description,
+            dateLabel,
+            tone,
+            source: 'invoice',
+          }
+        })
+
+      const maintenanceItems: ActivityItem[] = (maintenanceRequests || [])
+        .sort((a, b) => {
+          const aTime = a?.updated_at ? new Date(a.updated_at).getTime() : a?.created_at ? new Date(a.created_at).getTime() : 0
+          const bTime = b?.updated_at ? new Date(b.updated_at).getTime() : b?.created_at ? new Date(b.created_at).getTime() : 0
+          return bTime - aTime
+        })
+        .slice(0, 4)
+        .map((request) => {
+          const status = (request.status || '').toLowerCase()
+          let tone: ActivityItem['tone'] = 'info'
+          if (status.includes('resolved') || status.includes('completed')) {
+            tone = 'success'
+          } else if (status.includes('urgent') || status.includes('pending')) {
+            tone = 'warning'
+          }
+          const dateSource = request.updated_at || request.created_at
+          const dateLabel = dateSource
+            ? new Date(dateSource).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+            : '—'
+
+          return {
+            id: request.id,
+            title: `Maintenance · ${request.title}`,
+            description: `Status: ${request.status}`,
+            dateLabel,
+            tone,
+            source: 'maintenance',
+          }
+        })
+
+      const combined = [...invoiceItems, ...maintenanceItems]
+        .sort((a, b) => {
+          const aTime = Date.parse(a.dateLabel) || 0
+          const bTime = Date.parse(b.dateLabel) || 0
+          return bTime - aTime
+        })
+        .slice(0, 4)
+
+      setRecentActivity(combined)
+    } catch (error) {
+      console.warn('[TenantDashboard] Failed to load recent activity', error)
+    }
+  }, [])
+
+  useEffect(() => {
+    fetchRecentActivity()
+  }, [fetchRecentActivity])
+
   const formatDate = (value: string | null | undefined) => {
     if (!value) return '—'
     const date = new Date(value)
@@ -129,37 +239,65 @@ export default function TenantDashboard() {
                 <Clock className="h-5 w-5 text-blue-600" />
                 Recent Activity
               </CardTitle>
-              <Link href="/dashboard/tenant/notices">
-                <Button variant="ghost" size="sm">View All</Button>
-              </Link>
+              <Button variant="outline" size="sm" className="gap-2" onClick={fetchRecentActivity}>
+                Refresh
+              </Button>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="flex items-start gap-3 p-3 rounded-lg bg-green-50 border border-green-100">
-                <CheckCircle2 className="h-5 w-5 text-green-600 mt-0.5" />
-                <div className="flex-1">
-                  <p className="text-sm font-medium">Payment Received</p>
-                  <p className="text-xs text-muted-foreground">Your December rent payment has been confirmed</p>
-                  <p className="text-xs text-muted-foreground mt-1">2 days ago</p>
+              {recentActivity.length === 0 ? (
+                <div className="text-sm text-muted-foreground text-center py-4">
+                  No recent invoices or payments yet.
                 </div>
-              </div>
-              
-              <div className="flex items-start gap-3 p-3 rounded-lg bg-blue-50 border border-blue-100">
-                <Bell className="h-5 w-5 text-blue-600 mt-0.5" />
-                <div className="flex-1">
-                  <p className="text-sm font-medium">New Notice Posted</p>
-                  <p className="text-xs text-muted-foreground">Building maintenance scheduled for this weekend</p>
-                  <p className="text-xs text-muted-foreground mt-1">5 days ago</p>
-                </div>
-              </div>
-              
-              <div className="flex items-start gap-3 p-3 rounded-lg bg-orange-50 border border-orange-100">
-                <AlertCircle className="h-5 w-5 text-orange-600 mt-0.5" />
-                <div className="flex-1">
-                  <p className="text-sm font-medium">Maintenance Update</p>
-                  <p className="text-xs text-muted-foreground">Your plumbing request is in progress</p>
-                  <p className="text-xs text-muted-foreground mt-1">1 week ago</p>
-                </div>
-              </div>
+              ) : (
+                recentActivity.map((activity) => {
+                  const badgeClass =
+                    activity.tone === 'success'
+                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-100'
+                      : activity.tone === 'danger'
+                        ? 'bg-red-50 text-red-700 border border-red-100'
+                        : activity.tone === 'info'
+                          ? 'bg-blue-50 text-blue-700 border border-blue-100'
+                          : 'bg-amber-50 text-amber-700 border border-amber-100'
+                  const iconBg =
+                    activity.tone === 'success'
+                      ? 'bg-emerald-100 text-emerald-600'
+                      : activity.tone === 'danger'
+                        ? 'bg-red-100 text-red-600'
+                        : activity.tone === 'info'
+                          ? 'bg-blue-100 text-blue-600'
+                          : 'bg-amber-100 text-amber-600'
+
+                  return (
+                    <div
+                      key={activity.id}
+                      className="flex items-start gap-3 p-3 rounded-lg bg-white border border-slate-100 shadow-sm"
+                    >
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center ${iconBg}`}>
+                        <CheckCircle2 className="h-5 w-5" />
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between">
+                          <p className="text-sm font-semibold">{activity.title}</p>
+                          <span className="text-xs text-muted-foreground">{activity.dateLabel}</span>
+                        </div>
+                        <p className="text-xs text-muted-foreground">{activity.description}</p>
+                        <div className={`mt-2 inline-flex items-center gap-2 text-xs font-medium px-3 py-1 rounded-full ${badgeClass}`}>
+                          <span className="w-2 h-2 rounded-full bg-current opacity-70" />
+                          {activity.source === 'maintenance'
+                            ? 'Maintenance Update'
+                            : activity.tone === 'success'
+                              ? 'Payment · Posted'
+                              : activity.tone === 'danger'
+                                ? 'Payment · Failed'
+                                : activity.tone === 'info'
+                                  ? 'Water Bill'
+                                  : 'Rent Invoice'}
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })
+              )}
             </CardContent>
           </Card>
 
