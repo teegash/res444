@@ -52,6 +52,8 @@ type ActivityItem = {
   dateLabel: string
   tone: 'success' | 'warning' | 'info' | 'danger'
   source: 'invoice' | 'maintenance'
+  timestamp: number
+  href: string
 }
 
 export default function TenantDashboard() {
@@ -151,6 +153,8 @@ export default function TenantDashboard() {
           ? new Date(dateSource).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
           : '—'
 
+          const timestamp = dateSource ? new Date(dateSource).getTime() : Date.now()
+          const invoiceHref = invoice?.id ? `/dashboard/tenant/payment?invoiceId=${invoice.id}` : '/dashboard/tenant/payment'
           return {
             id: invoice?.id || crypto.randomUUID(),
             title,
@@ -158,6 +162,8 @@ export default function TenantDashboard() {
             dateLabel,
             tone,
             source: 'invoice',
+            timestamp,
+            href: invoiceHref,
           }
         })
 
@@ -180,6 +186,7 @@ export default function TenantDashboard() {
           const dateLabel = dateSource
             ? new Date(dateSource).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
             : '—'
+          const timestamp = dateSource ? new Date(dateSource).getTime() : Date.now()
 
           return {
             id: request.id,
@@ -188,15 +195,13 @@ export default function TenantDashboard() {
             dateLabel,
             tone,
             source: 'maintenance',
+            timestamp,
+            href: '/dashboard/tenant/maintenance',
           }
         })
 
       const combined = [...invoiceItems, ...maintenanceItems]
-        .sort((a, b) => {
-          const aTime = Date.parse(a.dateLabel) || 0
-          const bTime = Date.parse(b.dateLabel) || 0
-          return bTime - aTime
-        })
+        .sort((a, b) => b.timestamp - a.timestamp)
         .slice(0, 4)
 
       setRecentActivity(combined)
@@ -268,9 +273,10 @@ export default function TenantDashboard() {
                           : 'bg-amber-100 text-amber-600'
 
                   return (
-                    <div
+                    <Link
                       key={activity.id}
-                      className="flex items-start gap-3 p-3 rounded-lg bg-white border border-slate-100 shadow-sm"
+                      href={activity.href}
+                      className="flex items-start gap-3 p-3 rounded-lg bg-white border border-slate-100 shadow-sm hover:border-slate-200 transition-colors"
                     >
                       <div className={`w-10 h-10 rounded-full flex items-center justify-center ${iconBg}`}>
                         <CheckCircle2 className="h-5 w-5" />
@@ -294,7 +300,7 @@ export default function TenantDashboard() {
                                   : 'Rent Invoice'}
                         </div>
                       </div>
-                    </div>
+                    </Link>
                   )
                 })
               )}
