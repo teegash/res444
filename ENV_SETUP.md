@@ -34,6 +34,16 @@ this should stop rent payment reminders and only send invoice for water
 ***
 In tenant dashboard, the pay rent button, make sure it goes to payment page but shows the rent amount, not the latest invoice, this will then be updated in payments showing the tenant has done a prepayment if its early and update the payment status to add a month or 2 before sending an invoice or rent reminder
 
+make sure that the rent invoices not paid after clicking pay rent are deleted, and autogenerate invoices every 1st of the month, if the status paid for months are 0 on the 1st of the month
+
+why is it when i click payrent for the 1st time it gives me an error, fix that.
+
+How do i know waterbills are paid, need a monitor for water bill payment in waterbill page.
+
+in the Tenant Management page in manager dashboard, make it such that when the 	Payment Status paid or unpaid butoon is clicked, the statement of the specific client is shown with history of all transactions done by the tenant, let the statement show type of transaction, either rent or water bill
+
+Also make the verified payments show legit details, it shows water payment paid and says covered for one month.
+
 make the lease agreement in tenant lease page to generate a more professional looking pdf document
 
 pay rent button in tenant portal,make it such that when it is clicked the payment page brings the rent amount available in lease, this should be called pay rent page - make it look exactly as the pay invoice page
