@@ -15,11 +15,14 @@ type TenantPaymentRecord = {
   amount_paid: number
   payment_method: string | null
   verified: boolean
+  status: string
   created_at: string | null
+  posted_at: string | null
   mpesa_receipt_number?: string | null
   bank_reference_number?: string | null
   months_paid: number
   invoice_type: string | null
+  payment_type: string | null
   due_date: string | null
   property_name: string | null
   unit_label: string | null
@@ -79,38 +82,84 @@ export default function PaymentHistoryPage() {
     fetchPayments()
   }, [fetchPayments])
 
+  const paymentStats = useMemo(() => {
+    const sixMonthsAgo = new Date()
+    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6)
+
+    const monthlyTotals = new Map<string, { total: number; onTime: boolean }>()
+    payments.forEach((payment) => {
+      if (!payment.verified) {
+        return
+      }
+      const paidBasis = payment.posted_at || payment.created_at
+      if (!paidBasis) return
+      const paidDate = new Date(paidBasis)
+      if (paidDate < sixMonthsAgo) {
+        return
+      }
+
+      const monthKey = `${paidDate.getUTCFullYear()}-${paidDate.getUTCMonth()}`
+      const entry = monthlyTotals.get(monthKey) || { total: 0, onTime: false }
+      entry.total += payment.amount_paid
+
+      if (payment.due_date) {
+        const dueDate = new Date(payment.due_date)
+        const graceDate = new Date(dueDate)
+        graceDate.setDate(graceDate.getDate() + 5)
+        if (paidDate <= graceDate) {
+          entry.onTime = true
+        }
+      }
+
+      monthlyTotals.set(monthKey, entry)
+    })
+
+    const hasSixMonths = monthlyTotals.size >= 6
+    if (!hasSixMonths) {
+      return {
+        hasSixMonths: false,
+        totalPaid: null,
+        onTimeRate: null,
+        averageMonthly: null,
+      }
+    }
+
+    const totalPaid = Array.from(monthlyTotals.values()).reduce((sum, month) => sum + month.total, 0)
+    const averageMonthly =
+      monthlyTotals.size > 0 ? Math.round(totalPaid / monthlyTotals.size) : null
+    const onTimeRate =
+      monthlyTotals.size > 0
+        ? Math.round(
+            (Array.from(monthlyTotals.values()).filter((month) => month.onTime).length /
+              monthlyTotals.size) *
+              100
+          )
+        : null
+
+    return {
+      hasSixMonths: true,
+      totalPaid,
+      onTimeRate,
+      averageMonthly,
+    }
+  }, [payments])
+
+  const { hasSixMonths, totalPaid: totalPaidLastSix, onTimeRate, averageMonthly } = paymentStats
+
   const filteredPayments = useMemo(() => {
     return payments.filter((payment) => {
       if (filterMethod !== 'all' && payment.payment_method !== filterMethod) return false
       if (searchMonth) {
         const label = payment.due_date
           ? new Date(payment.due_date).toLocaleDateString(undefined, { month: 'long' }).toLowerCase()
-          : ''
+          : payment.posted_at
+            ? new Date(payment.posted_at).toLocaleDateString(undefined, { month: 'long' }).toLowerCase()
+            : ''
         if (!label.includes(searchMonth.toLowerCase())) return false
       }
       return true
     })
   }, [payments, filterMethod, searchMonth])
-
-  const totalPaidLastSix = useMemo(() => {
-    const sixMonthsAgo = new Date()
-    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6)
-    return payments
-      .filter((p) => p.verified && p.created_at && new Date(p.created_at) >= sixMonthsAgo)
-      .reduce((sum, payment) => sum + payment.amount_paid, 0)
-  }, [payments])
-
-  const onTimeRate = useMemo(() => {
-    if (payments.length === 0) return 0
-    const onTime = payments.filter((p) => p.verified).length
-    return Math.round((onTime / payments.length) * 100)
-  }, [payments])
-
-  const averageMonthly = useMemo(() => {
-    if (payments.length === 0) return 0
-    const totalMonths = payments.reduce((acc, payment) => acc + payment.months_paid, 0)
-    return totalMonths > 0 ? Math.round(payments.reduce((sum, p) => sum + p.amount_paid, 0) / totalMonths) : 0
-  }, [payments])
 
   const statementSummaries = useMemo(() => {
     const map = new Map<string, { period: string; date: string; id: string }>()
@@ -162,19 +211,25 @@ export default function PaymentHistoryPage() {
           <Card>
             <CardHeader className="pb-3">
               <CardDescription>Total Paid (Last 6 months)</CardDescription>
-              <CardTitle className="text-3xl text-green-600">KES {totalPaidLastSix.toLocaleString()}</CardTitle>
+              <CardTitle className="text-3xl text-green-600">
+                {hasSixMonths && totalPaidLastSix !== null ? `KES ${totalPaidLastSix.toLocaleString()}` : 'Not enough history'}
+              </CardTitle>
             </CardHeader>
           </Card>
           <Card>
             <CardHeader className="pb-3">
               <CardDescription>On-time Payment Rate</CardDescription>
-              <CardTitle className="text-3xl text-blue-600">{onTimeRate}%</CardTitle>
+              <CardTitle className="text-3xl text-blue-600">
+                {hasSixMonths && onTimeRate !== null ? `${onTimeRate}%` : 'Not enough history'}
+              </CardTitle>
             </CardHeader>
           </Card>
           <Card>
             <CardHeader className="pb-3">
               <CardDescription>Avg. Monthly Payment</CardDescription>
-              <CardTitle className="text-3xl text-purple-600">KES {averageMonthly.toLocaleString()}</CardTitle>
+              <CardTitle className="text-3xl text-purple-600">
+                {hasSixMonths && averageMonthly !== null ? `KES ${averageMonthly.toLocaleString()}` : 'Not enough history'}
+              </CardTitle>
             </CardHeader>
           </Card>
         </div>
@@ -295,8 +350,8 @@ export default function PaymentHistoryPage() {
               filteredPayments.map((payment) => {
                 const labelDate = payment.due_date
                   ? new Date(payment.due_date).toLocaleDateString(undefined, { month: 'long', year: 'numeric' })
-                  : payment.created_at
-                    ? new Date(payment.created_at).toLocaleDateString(undefined, { month: 'long', year: 'numeric' })
+                  : payment.posted_at
+                    ? new Date(payment.posted_at).toLocaleDateString(undefined, { month: 'long', year: 'numeric' })
                     : 'Payment'
 
                 const reference =
@@ -305,6 +360,20 @@ export default function PaymentHistoryPage() {
                     : payment.payment_method === 'bank_transfer'
                       ? payment.bank_reference_number
                       : payment.invoice_id
+
+                const badgeClass =
+                  payment.status === 'failed'
+                    ? 'bg-red-100 text-red-700'
+                    : payment.status === 'verified'
+                      ? 'bg-green-100 text-green-700'
+                      : 'bg-yellow-100 text-yellow-700'
+
+                const badgeLabel =
+                  payment.status === 'failed'
+                    ? 'Failed'
+                    : payment.status === 'verified'
+                      ? 'Paid'
+                      : 'Pending'
 
                 return (
                   <div key={payment.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-accent/50 transition-colors">
@@ -318,8 +387,9 @@ export default function PaymentHistoryPage() {
                           {(payment.payment_method || 'Unknown').replace('_', ' ').toUpperCase()} • Ref:{' '}
                           {reference || '—'}
                         </p>
-                        <p className="text-xs text-muted-foreground">
-                          {payment.property_name || 'Property'} {payment.unit_label ? `· ${payment.unit_label}` : ''}
+                        <p className="text-xs text-muted-foreground capitalize">
+                          {payment.property_name || 'Property'} {payment.unit_label ? `· ${payment.unit_label}` : ''} •{' '}
+                          {(payment.payment_type || payment.invoice_type || 'rent').replace('_', ' ')}
                         </p>
                       </div>
                     </div>
@@ -327,12 +397,10 @@ export default function PaymentHistoryPage() {
                       <div className="text-right">
                         <p className="font-bold">KES {payment.amount_paid.toLocaleString()}</p>
                         <p className="text-xs text-muted-foreground">
-                          {payment.created_at ? new Date(payment.created_at).toLocaleDateString() : ''}
+                          {payment.posted_at ? new Date(payment.posted_at).toLocaleDateString() : ''}
                         </p>
                       </div>
-                      <Badge className={payment.verified ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}>
-                        {payment.verified ? 'Paid' : 'Pending'}
-                      </Badge>
+                      <Badge className={badgeClass}>{badgeLabel}</Badge>
                       <Link href={`/dashboard/tenant/receipts/${payment.id}`}>
                         <Button variant="outline" size="sm">
                           <FileText className="h-4 w-4 mr-2" />

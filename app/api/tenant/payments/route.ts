@@ -24,11 +24,14 @@ export async function GET() {
         amount_paid,
         payment_method,
         verified,
+        payment_date,
         created_at,
         mpesa_receipt_number,
         bank_reference_number,
         deposit_slip_url,
         months_paid,
+        mpesa_query_status,
+        mpesa_response_code,
         invoices (
           invoice_type,
           due_date,
@@ -63,6 +66,15 @@ export async function GET() {
         } | null
       } | null
 
+      const transactionStatus = payment.verified
+        ? 'verified'
+        : payment.mpesa_response_code && payment.mpesa_response_code !== '0'
+          ? 'failed'
+          : payment.mpesa_query_status &&
+              /fail|cancel|timeout|insufficient/i.test(payment.mpesa_query_status)
+            ? 'failed'
+            : 'pending'
+
       return {
         id: payment.id,
         invoice_id: payment.invoice_id,
@@ -70,10 +82,13 @@ export async function GET() {
         payment_method: payment.payment_method,
         verified: Boolean(payment.verified),
         created_at: payment.created_at,
+        posted_at: payment.payment_date || payment.created_at,
+        status: transactionStatus,
         mpesa_receipt_number: payment.mpesa_receipt_number,
         bank_reference_number: payment.bank_reference_number,
         months_paid: payment.months_paid || 1,
         invoice_type: invoice?.invoice_type || null,
+        payment_type: invoice?.invoice_type || null,
         due_date: invoice?.due_date || null,
         property_name: invoice?.leases?.apartment_units?.apartment_buildings?.name || null,
         unit_label: invoice?.leases?.apartment_units?.unit_number || null,

@@ -1,24 +1,268 @@
 'use client'
 
-import { useState } from 'react'
-import { ArrowLeft, Users, Plus, Search, Filter, LayoutGrid, Rows4 } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { ArrowLeft, Users, Plus, Search, Filter, LayoutGrid, Rows4, Loader2 } from 'lucide-react'
 import Link from 'next/link'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+
+type ManagerTenantRecord = {
+  tenant_user_id: string
+  full_name: string
+  phone_number: string | null
+  email: string
+  profile_picture_url: string | null
+  unit_label: string
+  unit: {
+    unit_number: string | null
+    building_name: string | null
+    building_location: string | null
+  } | null
+  monthly_rent: number | null
+  lease_status: string
+  lease_status_detail: string
+  lease_start_date: string | null
+  lease_end_date: string | null
+  payment_status: string
+  payment_status_detail: string
+  last_payment_date: string | null
+}
+
+function formatRent(value: number | null) {
+  if (typeof value !== 'number' || Number.isNaN(value)) {
+    return 'KES —'
+  }
+  return `KES ${value.toLocaleString()}`
+}
+
+function statusVariant(status: string) {
+  const normalized = status.toLowerCase()
+  if (normalized.includes('paid') || normalized.includes('current')) {
+    return 'bg-green-600'
+  }
+  if (normalized.includes('pending') || normalized.includes('partial')) {
+    return 'bg-yellow-600'
+  }
+  return 'bg-red-600'
+}
 
 export default function TenantsManagementPage() {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
-  const tenants = [
-    { id: 'john-kamau', name: 'John Kamau', unit: 'Unit A-101', property: 'Kilimani Heights', rent: 45000, status: 'Paid', phone: '+254 712 345 678', email: 'john.kamau@email.com', lease: 'Jan 1, 2024 - Dec 31, 2024', initials: 'JK' },
-    { id: 'mary-wanjiku', name: 'Mary Wanjiku', unit: 'Unit B-205', property: 'Westlands Plaza', rent: 38000, status: 'Pending', phone: '+254 723 456 789', email: 'mary.wanjiku@email.com', lease: 'Mar 15, 2024 - Mar 14, 2025', initials: 'MW' },
-    { id: 'peter-ochieng', name: 'Peter Ochieng', unit: 'Unit C-301', property: 'Karen Villas', rent: 52000, status: 'Paid', phone: '+254 734 567 890', email: 'peter.ochieng@email.com', lease: 'Feb 1, 2024 - Jan 31, 2025', initials: 'PO' },
-    { id: 'grace-akinyi', name: 'Grace Akinyi', unit: 'Unit A-203', property: 'Kilimani Heights', rent: 41000, status: 'Overdue', phone: '+254 745 678 901', email: 'grace.akinyi@email.com', lease: 'Apr 1, 2024 - Mar 31, 2025', initials: 'GA' },
-    { id: 'david-kiprop', name: 'David Kiprop', unit: 'Unit B-102', property: 'Eastlands Court', rent: 35000, status: 'Paid', phone: '+254 756 789 012', email: 'david.kiprop@email.com', lease: 'May 15, 2024 - May 14, 2025', initials: 'DK' },
-    { id: 'sarah-muthoni', name: 'Sarah Muthoni', unit: 'Unit C-205', property: 'Karen Villas', rent: 48000, status: 'Paid', phone: '+254 767 890 123', email: 'sarah.muthoni@email.com', lease: 'Jan 15, 2024 - Jan 14, 2025', initials: 'SM' }
-  ]
+  const [tenants, setTenants] = useState<ManagerTenantRecord[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
+
+  useEffect(() => {
+    const fetchTenants = async () => {
+      try {
+        setLoading(true)
+        const response = await fetch('/api/tenants', { cache: 'no-store' })
+        const payload = await response.json().catch(() => ({}))
+        if (!response.ok) {
+          throw new Error(payload.error || 'Failed to load tenants.')
+        }
+        setTenants(payload.data || [])
+        setError(null)
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Unable to load tenants.')
+        setTenants([])
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchTenants()
+  }, [])
+
+  const filteredTenants = useMemo(() => {
+    if (!searchQuery.trim()) {
+      return tenants
+    }
+    const term = searchQuery.toLowerCase()
+    return tenants.filter((tenant) => {
+      return (
+        tenant.full_name.toLowerCase().includes(term) ||
+        tenant.unit_label?.toLowerCase().includes(term) ||
+        tenant.unit?.building_name?.toLowerCase().includes(term) ||
+        tenant.payment_status.toLowerCase().includes(term) ||
+        tenant.phone_number?.toLowerCase().includes(term)
+      )
+    })
+  }, [tenants, searchQuery])
+
+  const renderStatusBadge = (tenant: ManagerTenantRecord) => (
+    <Link href={`/dashboard/manager/statements/${tenant.tenant_user_id}`} prefetch>
+      <Badge
+        className={`cursor-pointer px-3 py-1 ${statusVariant(tenant.payment_status)}`}
+      >
+        {tenant.payment_status}
+      </Badge>
+    </Link>
+  )
+
+  const renderGrid = () => {
+    if (loading) {
+      return (
+        <div className="flex items-center justify-center py-16">
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        </div>
+      )
+    }
+
+    if (error) {
+      return (
+        <Card>
+          <CardContent className="py-10 text-center space-y-3">
+            <p className="text-sm text-red-600">{error}</p>
+            <Button variant="outline" onClick={() => window.location.reload()}>
+              Retry
+            </Button>
+          </CardContent>
+        </Card>
+      )
+    }
+
+    if (filteredTenants.length === 0) {
+      return (
+        <Card>
+          <CardContent className="py-12 text-center text-sm text-muted-foreground">
+            No tenants match your criteria.
+          </CardContent>
+        </Card>
+      )
+    }
+
+    return (
+      <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        {filteredTenants.map((tenant) => (
+          <Card key={tenant.tenant_user_id} className="hover:shadow-lg transition-shadow">
+            <CardHeader className="pb-3">
+              <div className="flex items-start justify-between">
+                <div className="flex items-center gap-3">
+                  <Avatar className="h-12 w-12 bg-blue-100">
+                    {tenant.profile_picture_url ? (
+                      <AvatarImage src={tenant.profile_picture_url} alt={tenant.full_name} />
+                    ) : (
+                      <AvatarFallback className="text-blue-600 font-semibold">
+                        {tenant.full_name
+                          .split(' ')
+                          .map((chunk) => chunk[0])
+                          .join('')
+                          .slice(0, 2)
+                          .toUpperCase()}
+                      </AvatarFallback>
+                    )}
+                  </Avatar>
+                  <div>
+                    <CardTitle className="text-base">{tenant.full_name}</CardTitle>
+                    <CardDescription>{tenant.unit_label || 'Unit not assigned'}</CardDescription>
+                  </div>
+                </div>
+                {renderStatusBadge(tenant)}
+              </div>
+              <p className="text-xs text-muted-foreground mt-3">{tenant.payment_status_detail}</p>
+            </CardHeader>
+            <CardContent className="space-y-3 text-sm">
+              <div>
+                <p className="text-muted-foreground text-xs">Property</p>
+                <p className="font-medium">
+                  {tenant.unit?.building_name || 'Unassigned'}
+                  {tenant.unit?.building_location ? ` · ${tenant.unit.building_location}` : ''}
+                </p>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <p className="text-muted-foreground text-xs">Monthly Rent</p>
+                  <p className="font-semibold">{formatRent(tenant.monthly_rent)}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground text-xs">Last Payment</p>
+                  <p className="font-semibold">
+                    {tenant.last_payment_date ? new Date(tenant.last_payment_date).toLocaleDateString() : '—'}
+                  </p>
+                </div>
+              </div>
+              <div className="text-xs text-muted-foreground">
+                {tenant.phone_number && <p>📞 {tenant.phone_number}</p>}
+                {tenant.email && <p>📧 {tenant.email}</p>}
+              </div>
+              <div className="flex gap-2 pt-3 border-t">
+                <Button size="sm" variant="outline" className="flex-1">
+                  View Details
+                </Button>
+                <Button size="sm" variant="outline" className="flex-1">
+                  Contact
+                </Button>
+                <Button size="sm" variant="outline">
+                  Collect Rent
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    )
+  }
+
+  const renderList = () => {
+    if (loading || error) {
+      return renderGrid()
+    }
+
+    return (
+      <div className="space-y-4">
+        {filteredTenants.map((tenant) => (
+          <Card key={`${tenant.tenant_user_id}-list`} className="hover:shadow-sm transition-shadow">
+            <CardContent className="py-4">
+              <div className="grid grid-cols-1 md:grid-cols-5 gap-4 items-center">
+                <div className="flex items-center gap-3">
+                  <Avatar className="h-10 w-10 bg-blue-100">
+                    <AvatarFallback className="text-blue-600 font-semibold">
+                      {tenant.full_name
+                        .split(' ')
+                        .map((chunk) => chunk[0])
+                        .join('')
+                        .slice(0, 2)
+                        .toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div>
+                    <p className="font-semibold">{tenant.full_name}</p>
+                    <p className="text-xs text-muted-foreground">{tenant.unit_label || 'Unit pending'}</p>
+                  </div>
+                </div>
+                <div className="text-sm">
+                  <p className="font-medium">{tenant.unit?.building_name || 'Unassigned'}</p>
+                  <p className="text-xs text-muted-foreground">{tenant.phone_number || 'No phone on file'}</p>
+                </div>
+                <div className="text-sm">
+                  <p className="font-medium">{formatRent(tenant.monthly_rent)}</p>
+                  <p className="text-xs text-muted-foreground">Monthly Rent</p>
+                </div>
+                <div className="text-sm">
+                  <p className="font-medium">
+                    {tenant.lease_start_date
+                      ? `${new Date(tenant.lease_start_date).toLocaleDateString()} - ${
+                          tenant.lease_end_date ? new Date(tenant.lease_end_date).toLocaleDateString() : 'Open'
+                        }`
+                      : 'Lease pending'}
+                  </p>
+                  <p className="text-xs text-muted-foreground">Lease Period</p>
+                </div>
+                <div className="flex items-center justify-end gap-2">
+                  {renderStatusBadge(tenant)}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-blue-50/30 via-white to-white">
@@ -37,7 +281,7 @@ export default function TenantsManagementPage() {
               </div>
               <div>
                 <h1 className="text-2xl font-bold">Tenant Management</h1>
-                <p className="text-sm text-muted-foreground">Manage your tenants, track payments, and maintain relationships.</p>
+                <p className="text-sm text-muted-foreground">Manage tenants, monitor payments, and access statements.</p>
               </div>
             </div>
           </div>
@@ -47,15 +291,16 @@ export default function TenantsManagementPage() {
           </Button>
         </div>
 
-        {/* Search and Filter */}
         <Card>
           <CardContent className="pt-6">
             <div className="flex flex-col gap-4 md:flex-row md:items-center">
               <div className="flex-1 relative w-full">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input 
-                  placeholder="Search tenants by name, unit, or property..." 
+                <Input
+                  placeholder="Search tenants by name, unit, or property..."
                   className="pl-10"
+                  value={searchQuery}
+                  onChange={(event) => setSearchQuery(event.target.value)}
                 />
               </div>
               <Button variant="outline">
@@ -82,132 +327,7 @@ export default function TenantsManagementPage() {
           </CardContent>
         </Card>
 
-        {/* Tenants Grid */}
-        {viewMode === 'grid' ? (
-          <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {tenants.map((tenant) => (
-              <Card key={tenant.email} className="hover:shadow-lg transition-shadow">
-                <CardHeader className="pb-3">
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-3">
-                      <Avatar className="h-12 w-12 bg-blue-100">
-                        <AvatarFallback className="text-blue-600 font-semibold">
-                          {tenant.initials}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div>
-                        <CardTitle className="text-base">{tenant.name}</CardTitle>
-                        <CardDescription className="text-xs">
-                          {tenant.unit} • {tenant.property}
-                        </CardDescription>
-                      </div>
-                    </div>
-                    <Link href={`/dashboard/manager/statements/${tenant.id}`} prefetch>
-                      <Badge 
-                        variant={tenant.status === 'Paid' ? 'default' : tenant.status === 'Pending' ? 'secondary' : 'destructive'}
-                        className={`cursor-pointer hover:opacity-90 ${
-                          tenant.status === 'Paid'
-                            ? 'bg-green-600'
-                            : tenant.status === 'Pending'
-                              ? 'bg-yellow-600'
-                              : 'bg-red-600'
-                        }`}
-                      >
-                        {tenant.status}
-                      </Badge>
-                    </Link>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <div>
-                    <p className="text-sm font-medium mb-1">Monthly Rent</p>
-                    <p className="text-2xl font-bold text-green-600">
-                      KES {tenant.rent.toLocaleString()}
-                    </p>
-                  </div>
-                  <div className="space-y-1 text-sm">
-                    <div className="flex items-center gap-2 text-muted-foreground">
-                      <span className="text-xs">📞</span>
-                      <span>{tenant.phone}</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-muted-foreground">
-                      <span className="text-xs">📧</span>
-                      <span className="truncate">{tenant.email}</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-muted-foreground">
-                      <span className="text-xs">📅</span>
-                      <span className="text-xs">Lease: {tenant.lease}</span>
-                    </div>
-                  </div>
-                  <div className="flex gap-2 pt-3 border-t">
-                    <Button size="sm" variant="outline" className="flex-1">
-                      <span className="text-xs">👁️</span>
-                      <span className="ml-1">View Details</span>
-                    </Button>
-                    <Button size="sm" variant="outline" className="flex-1">
-                      <span className="text-xs">💬</span>
-                      <span className="ml-1">Contact</span>
-                    </Button>
-                    <Button size="sm" variant="outline">
-                      <span className="text-xs">💰</span>
-                      <span className="ml-1">Collect Rent</span>
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {tenants.map((tenant) => (
-              <Card key={`${tenant.email}-list`} className="hover:shadow-sm transition-shadow">
-                <CardContent className="py-4">
-                  <div className="grid grid-cols-1 md:grid-cols-5 gap-4 items-center">
-                    <div className="flex items-center gap-3">
-                      <Avatar className="h-10 w-10 bg-blue-100">
-                        <AvatarFallback className="text-blue-600 font-semibold">
-                          {tenant.initials}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div>
-                        <p className="font-semibold">{tenant.name}</p>
-                        <p className="text-xs text-muted-foreground">{tenant.unit}</p>
-                      </div>
-                    </div>
-                    <div className="text-sm">
-                      <p className="font-medium">{tenant.property}</p>
-                      <p className="text-xs text-muted-foreground">{tenant.phone}</p>
-                    </div>
-                    <div className="text-sm">
-                      <p className="font-medium">KES {tenant.rent.toLocaleString()}</p>
-                      <p className="text-xs text-muted-foreground">Monthly Rent</p>
-                    </div>
-                    <div className="text-sm">
-                      <p className="font-medium">{tenant.lease}</p>
-                      <p className="text-xs text-muted-foreground">Lease Period</p>
-                    </div>
-                    <div className="flex items-center gap-2 justify-end">
-                      <Link href={`/dashboard/manager/statements/${tenant.id}`} prefetch>
-                        <Badge 
-                          variant={tenant.status === 'Paid' ? 'default' : tenant.status === 'Pending' ? 'secondary' : 'destructive'}
-                          className={`cursor-pointer px-3 py-1 ${
-                            tenant.status === 'Paid'
-                              ? 'bg-green-600'
-                              : tenant.status === 'Pending'
-                                ? 'bg-yellow-600'
-                                : 'bg-red-600'
-                          }`}
-                        >
-                          {tenant.status}
-                        </Badge>
-                      </Link>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        )}
+        {viewMode === 'grid' ? renderGrid() : renderList()}
       </div>
     </div>
   )

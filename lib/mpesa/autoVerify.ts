@@ -346,6 +346,10 @@ async function verifyPayment(
       // Payment failed or pending
       const resultCode = queryResult.resultCode || 1
       const newRetryCount = payment.retry_count + 1
+      const fallbackReason =
+        queryResult.resultDesc ||
+        queryResult.errorMessage ||
+        (resultCode === 1037 ? 'M-Pesa request timed out' : `Auto verification error (code ${resultCode})`)
       // Update retry count
       const updateData: {
         retry_count: number
@@ -353,13 +357,16 @@ async function verifyPayment(
         notes?: string
       } = {
         retry_count: newRetryCount,
-        mpesa_query_status: queryResult.resultDesc || null,
+        mpesa_query_status: fallbackReason,
       }
 
       // If max retries reached, mark for manual review
       if (newRetryCount >= maxRetries) {
-        const reason = queryResult.resultDesc || queryResult.errorMessage || 'Timeout'
+        const reason = fallbackReason || 'Timeout'
         updateData.notes = `${payment.mpesa_receipt_number ? `Receipt: ${payment.mpesa_receipt_number}. ` : ''}Auto-verification failed after ${maxRetries} attempts. Reason: ${reason}.`
+        if (!fallbackReason) {
+          updateData.mpesa_query_status = `Auto verification timed out after ${maxRetries} attempts`
+        }
       }
 
       await supabase.from('payments').update(updateData).eq('id', payment.id)
