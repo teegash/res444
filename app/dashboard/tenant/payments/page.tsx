@@ -40,6 +40,18 @@ type TenantPaymentRecord = {
   unit_label: string | null
 }
 
+type TenantInvoiceRecord = {
+  id: string
+  amount: number
+  due_date: string | null
+  status: boolean
+  invoice_type: string | null
+  description: string | null
+  months_covered: number
+  property_name: string | null
+  unit_label: string | null
+}
+
 type TenantSummaryPayload = {
   profile: {
     full_name: string | null
@@ -62,6 +74,7 @@ type PendingInvoice = {
 
 export default function PaymentHistoryPage() {
   const [payments, setPayments] = useState<TenantPaymentRecord[]>([])
+  const [invoices, setInvoices] = useState<TenantInvoiceRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [filterMethod, setFilterMethod] = useState<string>('all')
@@ -73,9 +86,9 @@ export default function PaymentHistoryPage() {
   const fetchPayments = useCallback(async () => {
     try {
       setLoading(true)
-      const [paymentsResp, pendingResp, summaryResp] = await Promise.all([
+      const [paymentsResp, invoicesResp, summaryResp] = await Promise.all([
         fetch('/api/tenant/payments', { cache: 'no-store' }),
-        fetch('/api/tenant/invoices?status=pending', { cache: 'no-store' }),
+        fetch('/api/tenant/invoices', { cache: 'no-store' }),
         fetch('/api/tenant/summary', { cache: 'no-store' }),
       ])
 
@@ -86,18 +99,33 @@ export default function PaymentHistoryPage() {
       const paymentsPayload = await paymentsResp.json()
       setPayments(paymentsPayload.data || [])
 
-      if (pendingResp.ok) {
-        const pendingPayload = await pendingResp.json().catch(() => ({}))
-        const next = (pendingPayload.data || [])[0]
-        if (next) {
+      if (invoicesResp.ok) {
+        const invoicesPayload = await invoicesResp.json().catch(() => ({}))
+        const normalized: TenantInvoiceRecord[] = (invoicesPayload.data || []).map((invoice: any) => ({
+          id: invoice.id,
+          amount: Number(invoice.amount),
+          due_date: invoice.due_date,
+          status: Boolean(invoice.status),
+          invoice_type: invoice.invoice_type,
+          description: invoice.description,
+          months_covered: Number(invoice.months_covered || 0),
+          property_name: invoice.property_name || null,
+          unit_label: invoice.unit_label || null,
+        }))
+        setInvoices(normalized)
+        const nextPending = normalized.find((invoice) => !invoice.status)
+        if (nextPending) {
           setUpcomingInvoice({
-            id: next.id,
-            due_date: next.due_date,
-            amount: Number(next.amount),
+            id: nextPending.id,
+            due_date: nextPending.due_date,
+            amount: nextPending.amount,
           })
         } else {
           setUpcomingInvoice(null)
         }
+      } else {
+        setInvoices([])
+        setUpcomingInvoice(null)
       }
 
       if (summaryResp.ok) {
@@ -195,22 +223,37 @@ export default function PaymentHistoryPage() {
     })
   }, [payments, filterMethod, searchMonth])
 
+  const formatCoveragePeriod = useCallback((dueDate: string | null, monthsCovered: number) => {
+    if (!dueDate) {
+      return monthsCovered > 1 ? `${monthsCovered} months` : 'Current month'
+    }
+    const start = new Date(dueDate)
+    if (Number.isNaN(start.getTime())) {
+      return monthsCovered > 1 ? `${monthsCovered} months` : start.toLocaleDateString()
+    }
+
+    if (monthsCovered <= 1) {
+      return start.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })
+    }
+
+    const end = new Date(start)
+    end.setMonth(end.getMonth() + monthsCovered - 1)
+    const startLabel = start.toLocaleDateString(undefined, { month: 'short', year: 'numeric' })
+    const endLabel = end.toLocaleDateString(undefined, { month: 'short', year: 'numeric' })
+    return `${startLabel} – ${endLabel}`
+  }, [])
+
   const statementSummaries = useMemo(() => {
-    const map = new Map<string, { period: string; date: string; id: string }>()
-    payments.forEach((payment) => {
-      if (!payment.due_date) return
-      const date = new Date(payment.due_date)
-      const key = `${date.getFullYear()}-${date.getMonth()}`
-      if (!map.has(key)) {
-        map.set(key, {
-          period: date.toLocaleDateString(undefined, { month: 'long', year: 'numeric' }),
-          date: date.toLocaleDateString(),
-          id: payment.invoice_id || payment.id,
-        })
-      }
-    })
-    return Array.from(map.values()).slice(0, 4)
-  }, [payments])
+    return invoices
+      .filter((invoice) => invoice.status || invoice.months_covered > 0)
+      .map((invoice) => ({
+        id: invoice.id,
+        period: formatCoveragePeriod(invoice.due_date, Math.max(1, invoice.months_covered)),
+        date: invoice.due_date ? new Date(invoice.due_date).toLocaleDateString() : '',
+        monthsCovered: Math.max(1, invoice.months_covered),
+      }))
+      .slice(0, 4)
+  }, [invoices, formatCoveragePeriod])
 
   const tenantName = tenantSummary?.profile?.full_name || 'Tenant'
   const propertyLabel = tenantSummary?.lease?.unit_label

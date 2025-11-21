@@ -53,7 +53,7 @@ export async function GET(request: NextRequest) {
 
     const { data: invoices, error: invoiceError } = await adminSupabase
       .from('invoices')
-      .select('id, lease_id, amount, due_date, status, invoice_type, description, created_at')
+      .select('id, lease_id, amount, due_date, status, invoice_type, description, created_at, months_covered')
       .in('lease_id', leaseIds)
       .order('due_date', { ascending: true })
 
@@ -74,6 +74,7 @@ export async function GET(request: NextRequest) {
           invoice_type: invoice.invoice_type,
           description: invoice.description,
           created_at: invoice.created_at,
+          months_covered: invoice.months_covered || 0,
           unit_label: leaseMeta?.unit_number || null,
           property_name: building?.name || null,
           property_location: building?.location || null,

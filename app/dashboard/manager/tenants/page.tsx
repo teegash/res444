@@ -94,15 +94,18 @@ export default function TenantsManagementPage() {
     })
   }, [tenants, searchQuery])
 
-  const renderStatusBadge = (tenant: ManagerTenantRecord) => (
-    <Link href={`/dashboard/manager/statements/${tenant.tenant_user_id}`} prefetch>
-      <Badge
-        className={`cursor-pointer px-3 py-1 ${statusVariant(tenant.payment_status)}`}
-      >
-        {tenant.payment_status}
-      </Badge>
-    </Link>
-  )
+const renderStatusBadge = (tenant: ManagerTenantRecord) => (
+  <Link href={`/dashboard/manager/statements/${tenant.tenant_user_id}`} prefetch>
+    <Button
+      size="sm"
+      className={`cursor-pointer px-3 py-1 text-white ${statusVariant(
+        tenant.payment_status
+      )} hover:opacity-90`}
+    >
+      {tenant.payment_status}
+    </Button>
+  </Link>
+)
 
   const renderGrid = () => {
     if (loading) {
@@ -293,34 +296,42 @@ export default function TenantsManagementPage() {
 
         <Card>
           <CardContent className="pt-6">
-            <div className="flex flex-col gap-4 md:flex-row md:items-center">
-              <div className="flex-1 relative w-full">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search tenants by name, unit, or property..."
-                  className="pl-10"
-                  value={searchQuery}
-                  onChange={(event) => setSearchQuery(event.target.value)}
-                />
-              </div>
-              <Button variant="outline">
-                <Filter className="h-4 w-4 mr-2" />
-                Filter
-              </Button>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant={viewMode === 'grid' ? 'default' : 'outline'}
-                  size="icon"
-                  onClick={() => setViewMode('grid')}
-                >
-                  <LayoutGrid className="h-4 w-4" />
-                </Button>
-                <Button
-                  variant={viewMode === 'list' ? 'default' : 'outline'}
-                  size="icon"
-                  onClick={() => setViewMode('list')}
-                >
-                  <Rows4 className="h-4 w-4" />
+            <div className="flex flex-col gap-4">
+              <div className="flex flex-col gap-3 md:flex-row md:items-center">
+                <div className="flex flex-1 items-center gap-3">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Search tenants by name, unit, or property..."
+                      className="pl-10"
+                      value={searchQuery}
+                      onChange={(event) => setSearchQuery(event.target.value)}
+                    />
+                  </div>
+                  <div className="inline-flex rounded-lg border bg-white p-1 shadow-sm">
+                    <Button
+                      variant={viewMode === 'grid' ? 'default' : 'ghost'}
+                      size="icon"
+                      className="rounded-md"
+                      onClick={() => setViewMode('grid')}
+                      aria-label="Grid view"
+                    >
+                      <LayoutGrid className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant={viewMode === 'list' ? 'default' : 'ghost'}
+                      size="icon"
+                      className="rounded-md"
+                      onClick={() => setViewMode('list')}
+                      aria-label="List view"
+                    >
+                      <Rows4 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+                <Button variant="outline" className="w-full md:w-auto">
+                  <Filter className="h-4 w-4 mr-2" />
+                  Filter
                 </Button>
               </div>
             </div>
