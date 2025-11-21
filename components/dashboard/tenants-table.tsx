@@ -369,9 +369,7 @@ export function TenantsTable({ searchQuery = '', viewMode = 'list' }: TenantsTab
                       </p>
                     </div>
                     <Button variant="outline" size="sm" asChild>
-                      <Link href={`/dashboard/manager/statements/${tenant.tenant_user_id}`}>
-                        Stmt
-                      </Link>
+                      <Link href={`/dashboard/manager/statements/${tenant.tenant_user_id}`}>Stmt</Link>
                     </Button>
                   </div>
                   <div className="p-4 space-y-2 text-sm">
@@ -564,7 +562,8 @@ export function TenantsTable({ searchQuery = '', viewMode = 'list' }: TenantsTab
                 ))}
             </TableBody>
           </Table>
-        </div>
+          </div>
+        )}
       </div>
 
       {/* Send message modal */}
