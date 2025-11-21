@@ -1,21 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { startOfMonthUtc, addMonthsUtc, rentDueDateForPeriod, toIsoDate } from '@/lib/invoices/rentPeriods'
 
-function toDateKey(date: Date) {
-  const year = date.getUTCFullYear()
-  const month = String(date.getUTCMonth() + 1).padStart(2, '0')
-  const day = String(date.getUTCDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
-}
+async function selectExistingInvoice(
+  adminSupabase: ReturnType<typeof createAdminClient>,
+  leaseId: string,
+  periodStart: Date
+) {
+  const nextPeriod = addMonthsUtc(periodStart, 1)
 
-async function selectExistingInvoice(adminSupabase: ReturnType<typeof createAdminClient>, leaseId: string, dueDate: string) {
   const { data } = await adminSupabase
     .from('invoices')
     .select('id, amount, due_date, status, invoice_type, description, months_covered, lease_id')
     .eq('lease_id', leaseId)
     .eq('invoice_type', 'rent')
-    .eq('due_date', dueDate)
+    .gte('due_date', toIsoDate(periodStart))
+    .lt('due_date', toIsoDate(nextPeriod))
     .maybeSingle()
 
   return data
@@ -78,42 +79,39 @@ export async function GET(request: NextRequest) {
     }
 
     const today = new Date()
-    let dueDate = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1))
+    const currentPeriod = startOfMonthUtc(today)
 
+    let targetPeriod = currentPeriod
     if (lease.rent_paid_until) {
       const paidUntil = new Date(lease.rent_paid_until)
       if (!Number.isNaN(paidUntil.getTime())) {
-        const nextPeriod = new Date(paidUntil)
-        nextPeriod.setUTCMonth(nextPeriod.getUTCMonth() + 1)
-        nextPeriod.setUTCDate(1)
-        if (nextPeriod > dueDate) {
-          dueDate = nextPeriod
-        }
+        const paidStart = startOfMonthUtc(paidUntil)
+        const nextPeriod = addMonthsUtc(paidStart, 1)
+        targetPeriod = nextPeriod
       }
     }
 
-    const dueDateKey = toDateKey(dueDate)
-
-    let invoice = await selectExistingInvoice(adminSupabase, lease.id, dueDateKey)
+    let invoice = await selectExistingInvoice(adminSupabase, lease.id, targetPeriod)
 
     if (!invoice) {
-      const dueLabel = dueDate.toLocaleString('en-US', { month: 'long', year: 'numeric' })
-      const description = `Rent for ${dueLabel}`
-      const { data: created, error: createError } = await adminSupabase
-        .from('invoices')
-        .insert(
-          {
-            lease_id: lease.id,
-            invoice_type: 'rent',
-            amount: monthlyRent,
-            due_date: dueDateKey,
-            months_covered: 1,
-            status: false,
-            description,
-          },
-          { returning: 'representation' }
-        )
-        .single()
+        const dueLabel = targetPeriod.toLocaleString('en-US', { month: 'long', year: 'numeric' })
+        const dueDate = rentDueDateForPeriod(targetPeriod)
+        const description = `Rent for ${dueLabel}`
+        const { data: created, error: createError } = await adminSupabase
+          .from('invoices')
+          .insert(
+            {
+              lease_id: lease.id,
+              invoice_type: 'rent',
+              amount: monthlyRent,
+              due_date: dueDate,
+              months_covered: 1,
+              status: false,
+              description,
+            },
+            { returning: 'representation' }
+          )
+          .single()
 
       if (createError) {
         console.error('[RentInvoice] Insert error', createError.code, createError.message)

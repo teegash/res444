@@ -3,6 +3,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { invoiceStatusToBoolean } from '@/lib/invoices/status-utils'
+import { startOfMonthUtc, endOfMonthUtc, addMonthsUtc, toIsoDate, rentDueDateForPeriod } from '@/lib/invoices/rentPeriods'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database } from '@/lib/supabase/database.types'
 
@@ -26,6 +27,7 @@ export interface LeaseInfo {
   status: string
   start_date: string
   end_date: string | null
+  rent_paid_until?: string | null
 }
 
 export interface WaterBillInfo {
@@ -57,15 +59,6 @@ type InvoiceSupabaseClient = SupabaseClient<Database>
 
 function getInvoiceClient(client?: InvoiceSupabaseClient): InvoiceSupabaseClient {
   return client ?? createAdminClient()
-}
-
-/**
- * Calculate due date (5 days from today)
- */
-function calculateDueDate(): string {
-  const dueDate = new Date()
-  dueDate.setDate(dueDate.getDate() + 5)
-  return dueDate.toISOString().split('T')[0]
 }
 
 /**
@@ -105,24 +98,22 @@ async function getActiveLeases(): Promise<LeaseInfo[]> {
 async function invoiceExistsForMonth(
   leaseId: string,
   invoiceType: 'rent' | 'water',
-  month: string
+  periodStart: Date
 ): Promise<boolean> {
   try {
     const supabase = await createClient()
 
-    const monthStart = new Date(month)
-    monthStart.setDate(1)
-    const monthEnd = new Date(monthStart)
-    monthEnd.setMonth(monthEnd.getMonth() + 1)
-    monthEnd.setDate(0) // Last day of month
+    const startIso = toIsoDate(periodStart)
+    const nextStart = addMonthsUtc(periodStart, 1)
+    const nextIso = toIsoDate(nextStart)
 
     const { data: invoices } = await supabase
       .from('invoices')
       .select('id')
       .eq('lease_id', leaseId)
       .eq('invoice_type', invoiceType)
-      .gte('created_at', monthStart.toISOString())
-      .lte('created_at', monthEnd.toISOString())
+      .gte('due_date', startIso)
+      .lt('due_date', nextIso)
       .maybeSingle()
 
     return !!invoices
@@ -289,7 +280,11 @@ export async function generateMonthlyInvoices(
 
     // Use provided month or current month
     const currentDate = targetMonth ? new Date(targetMonth) : new Date()
-    const currentMonth = currentDate.toISOString().split('T')[0].substring(0, 7) // YYYY-MM
+    const periodStart = startOfMonthUtc(currentDate)
+    const periodEnd = endOfMonthUtc(periodStart)
+    const dueDate = rentDueDateForPeriod(periodStart)
+    const currentMonthKey = toIsoDate(periodStart).substring(0, 7)
+    const periodLabel = periodStart.toLocaleString('en-US', { month: 'long', year: 'numeric' })
     const isWithin5Days = isWithinFirst5Days(currentDate)
 
     // Get all active leases
@@ -320,23 +315,26 @@ export async function generateMonthlyInvoices(
     let totalAmount = 0
     const errors: string[] = []
 
-    const dueDate = calculateDueDate()
-
     // Process each lease
     for (const lease of activeLeases) {
       try {
+        const rentPaidUntilDate = lease.rent_paid_until ? new Date(lease.rent_paid_until) : null
+        if (rentPaidUntilDate && rentPaidUntilDate >= periodEnd) {
+          continue
+        }
+
         // Check if rent invoice already exists for this month
         const rentInvoiceExists = await invoiceExistsForMonth(
           lease.id,
           'rent',
-          currentMonth
+          periodStart
         )
 
         if (!rentInvoiceExists) {
           // Get pending water bills for this unit
           const pendingWaterBills = await getPendingWaterBills(
             lease.unit_id,
-            currentMonth
+            currentMonthKey
           )
 
           const totalWaterAmount = pendingWaterBills.reduce(
@@ -349,7 +347,7 @@ export async function generateMonthlyInvoices(
             lease.id,
             parseFloat(lease.monthly_rent.toString()),
             dueDate,
-            `Monthly rent for ${currentMonth}`
+            `Monthly rent for ${periodLabel}`
           )
 
           if (rentInvoiceId) {
@@ -364,7 +362,7 @@ export async function generateMonthlyInvoices(
                 .from('invoices')
                 .update({
                   amount: combinedAmount,
-                  description: `Monthly rent + water bill for ${currentMonth}`,
+                  description: `Monthly rent + water bill for ${periodLabel}`,
                 })
                 .eq('id', rentInvoiceId)
 
@@ -394,7 +392,7 @@ export async function generateMonthlyInvoices(
                     lease.id,
                     parseFloat(waterBill.amount.toString()),
                     dueDate,
-                    `Water bill for ${currentMonth}`
+                    `Water bill for ${periodLabel}`
                   )
 
                   if (waterInvoiceId) {

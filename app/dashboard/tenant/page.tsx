@@ -108,6 +108,7 @@ export default function TenantDashboard() {
 
   const nextInvoice = pendingInvoices[0] || null
   const hasPending = pendingInvoices.length > 0
+  const rentPaidUntil = summary?.lease?.rent_paid_until || null
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-blue-50/30 via-white to-orange-50/20">
@@ -181,6 +182,11 @@ export default function TenantDashboard() {
                 <p className="text-xs text-muted-foreground">
                   {nextInvoice ? formatDate(nextInvoice.due_date) : 'No outstanding payments'}
                 </p>
+                {rentPaidUntil && (
+                  <p className="text-xs text-blue-800 bg-blue-50 border border-blue-100 rounded-md px-2 py-1 mt-2">
+                    Rent covered through <span className="font-semibold">{formatDate(rentPaidUntil)}</span>
+                  </p>
+                )}
                 {hasPending ? (
                 <div className="space-y-3 mt-3">
                   {pendingInvoices.slice(0, 3).map((invoice, index) => {

@@ -44,8 +44,9 @@ export async function GET(request: NextRequest) {
       leases.map((lease) => [
         lease.id,
         {
-          ...lease.unit,
-          rent_paid_until: lease.rent_paid_until,
+          rent_paid_until: lease.rent_paid_until || null,
+          unit_number: lease.unit?.unit_number || null,
+          building: lease.unit?.building || null,
         },
       ])
     )
@@ -62,8 +63,8 @@ export async function GET(request: NextRequest) {
 
     const statusFilter = request.nextUrl.searchParams.get('status')
       const payload = (invoices || []).map((invoice) => {
-        const unit = leaseMap.get(invoice.lease_id as string)
-        const building = unit?.building
+        const leaseMeta = leaseMap.get(invoice.lease_id as string)
+        const building = leaseMeta?.building
         return {
           id: invoice.id,
           lease_id: invoice.lease_id,
@@ -73,10 +74,10 @@ export async function GET(request: NextRequest) {
           invoice_type: invoice.invoice_type,
           description: invoice.description,
           created_at: invoice.created_at,
-          unit_label: unit?.unit_number || null,
+          unit_label: leaseMeta?.unit_number || null,
           property_name: building?.name || null,
           property_location: building?.location || null,
-          lease_paid_until: unit?.lease?.rent_paid_until || null,
+          lease_paid_until: leaseMeta?.rent_paid_until || null,
         }
       })
 
