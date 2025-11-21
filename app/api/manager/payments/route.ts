@@ -4,6 +4,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { autoVerifyMpesaPayments } from '@/lib/mpesa/autoVerify'
 
 const MANAGER_ROLES = ['admin', 'manager', 'caretaker'] as const
+const AUTO_VERIFY_TIMEOUT_MINUTES = Number(process.env.MPESA_AUTO_VERIFY_TIMEOUT_MINUTES || '120')
 
 type ManagerContext = {
   adminSupabase: ReturnType<typeof createAdminClient>
@@ -35,6 +36,72 @@ async function getManagerContext(): Promise<ManagerContextResult> {
   }
 
   return { adminSupabase, user }
+}
+
+async function expireLongPendingMpesaPayments(adminSupabase: ReturnType<typeof createAdminClient>) {
+  if (AUTO_VERIFY_TIMEOUT_MINUTES <= 0) {
+    return
+  }
+
+  const cutoff = new Date(Date.now() - AUTO_VERIFY_TIMEOUT_MINUTES * 60 * 1000).toISOString()
+
+  const { data: stalePayments, error } = await adminSupabase
+    .from('payments')
+    .select('id, notes, mpesa_query_status, mpesa_response_code, last_status_check')
+    .eq('payment_method', 'mpesa')
+    .eq('verified', false)
+    .lte('created_at', cutoff)
+    .order('created_at', { ascending: true })
+    .limit(200)
+
+  if (error) {
+    console.error('[ManagerPayments] Failed to load stale M-Pesa payments', error)
+    return
+  }
+
+  if (!stalePayments || stalePayments.length === 0) {
+    return
+  }
+
+  const nowIso = new Date().toISOString()
+  const timeoutMessage = `Auto verification timed out after 2 hours`
+
+  await Promise.all(
+    stalePayments.map(async (payment) => {
+      const status = (payment.mpesa_query_status || '').toLowerCase()
+      const code = payment.mpesa_response_code || ''
+      const isStillAutoChecking =
+        !code ||
+        ['17', '1032', '1037'].includes(code) ||
+        status.length === 0 ||
+        status.includes('pending') ||
+        status.includes('auto')
+
+      if (!isStillAutoChecking) {
+        return
+      }
+
+      const noteLine = `[System] ${timeoutMessage} on ${new Date().toLocaleString()}`
+      const updatedNotes = payment.notes ? `${payment.notes}\n${noteLine}` : noteLine
+
+      const { error: updateError } = await adminSupabase
+        .from('payments')
+        .update({
+          mpesa_query_status: timeoutMessage,
+          mpesa_response_code: 'timeout',
+          last_status_check: nowIso,
+          notes: updatedNotes,
+        })
+        .eq('id', payment.id)
+
+      if (updateError) {
+        console.error('[ManagerPayments] Failed to mark payment as timed out', {
+          paymentId: payment.id,
+          error: updateError.message,
+        })
+      }
+    })
+  )
 }
 
 function mapPayment(
@@ -119,6 +186,8 @@ export async function GET() {
       return ctx.error
     }
     const { adminSupabase } = ctx
+
+    await expireLongPendingMpesaPayments(adminSupabase)
 
     const { data, error } = await adminSupabase
       .from('payments')

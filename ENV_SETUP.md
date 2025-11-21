@@ -31,20 +31,38 @@ also should auto update upon successful payment through using payment gateway fo
 autoupdate several months payments
 this should stop rent payment reminders and only send invoice for water
 
-***
+
 In tenant dashboard, the pay rent button, make sure it goes to payment page but shows the rent amount, not the latest invoice, this will then be updated in payments showing the tenant has done a prepayment if its early and update the payment status to add a month or 2 before sending an invoice or rent reminder
 
-make sure that the rent invoices not paid after clicking pay rent are deleted, and autogenerate invoices every 1st of the month, if the status paid for months are 0 on the 1st of the month
 
-why is it when i click payrent for the 1st time it gives me an error, fix that.
+make sure that the rent invoices not paid after clicking pay rent are deleted, and autogenerate invoices every 1st of the month, if the status "paid for months" are 0 on the 1st of the month ----- {make sure that the rent invoices not paid without confimed payment which are created when clicking pay rent are deleted, and also impliment autogenerate invoices every 1st of the month, if the status "paid for months" is 0 on the 1st day of the month, this means the tenant has not paid for the month yet}
 
-How do i know waterbills are paid, need a monitor for water bill payment in waterbill page.
 
-in the Tenant Management page in manager dashboard, make it such that when the 	Payment Status paid or unpaid butoon is clicked, the statement of the specific client is shown with history of all transactions done by the tenant, let the statement show type of transaction, either rent or water bill
 
-Also make the verified payments show legit details, it shows water payment paid and says covered for one month.
+*** (lets see if well implimented as it says with another tenant)
+In tenant dashboard, why is it when i click payrent for the 1st time it gives me an error, fix that. also in tenant dashboard Upcoming section, the rent invoice should only be sent if the rent has not been paid by 1st of the month, when pay rent is clicked after 1st, the same invoice is what is to populate the pay rent form, if that invoice is paid for, any other extra payment will create another invoice only upon successful payment and register as rent for the next month if its 1 month more, if its 3 months more it should reflect that as well
 
+
+in Payment Verification & Management page, the verified section make the tab type show in the table to show if the verified transaction is water bill or rent, also in the details modal in this verified tab in Payment Verification & Management page, make the modal say water bill paid in coverage, but in rent it shows how many months it has been paid, this should also update in tenant dashboard, can put a prepayment card which will show the date of rent paid until for the specific tenant, be keen
+
+-
+How do i know waterbills are paid, need a monitor for water bill payment in waterbill page. have a button at the bottom taking us to paid water bills page, let the water bill payments page be populated by database with data of paid and unpaid bills, make a search bar that can filter the water bills by property and also a search box that can search by 1st letter and unit number, also make a progress bar showing status of water bills paid, this status bar can have filters to see the paid bills vs unpaid bills to see the performance of payments ------------ {in water bills page, in the Create Water Bill Invoice form, on the right side let there be a button, this button should lead to the waterbill statement page, this is where the paid and unpaid waterbills are displayed, in this page, let it be populated by database with data of paid and unpaid bills, make a search bar that can filter the water bills by property and also a search box that can search by 1st letter and unit number, also make a progress bar showing status of water bills paid, this status bar can have filters to see the paid bills vs unpaid bills to see the performance of payments}
+
+
+let the water bill payments page be populated by database with data of paid and unpaid bills, make a search bar that can filter the water bills by property and also a search box that can search by 1st letter and unit number, also make a progress bar showing status of water bills paid, this status bar can have filters to see the paid bills vs unpaid bills to see the performance of payments
+
+
+make sure this is well implimented - in tenant dashboard Upcoming section, the rent invoice should only be sent if the rent has not been paid by 1st of the month, when pay rent is clicked after 1st, the same invoice is what is to populate the pay rent form, if that invoice is paid for, any other extra payment will create another invoice only upon successful payment and register as rent for the next month if its 1 month more, if its 3 months more it should reflect that as well
+
+
+in the Tenant Management page in manager dashboard, make it such that when the 	Payment Status blue paid or red unpaid status is clicked, it will navigate to a statement page of the specific tenant from where it was clicked in the list of tenants, a statement is shown with history of all transactions done by the tenant, let the statement show type of transaction, either rent or water bill --------- {in the Tenant Management page in manager dashboard, make it such that when the Payment Status blue paid or red unpaid status is clicked, it will navigate to a statement page of the specific tenant from where it was clicked in the list of tenants, a statement is shown with history of all transactions done by the tenant, let the statement show type of transaction, either rent or water bill}
+
+
+Also make the verified tab in payments page show legit details, it shows water payment as water paid and says covered for one month.
+
+***
 make the lease agreement in tenant lease page to generate a more professional looking pdf document
+
 
 pay rent button in tenant portal,make it such that when it is clicked the payment page brings the rent amount available in lease, this should be called pay rent page - make it look exactly as the pay invoice page
 

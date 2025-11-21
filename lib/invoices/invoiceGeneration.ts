@@ -1,7 +1,10 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { invoiceStatusToBoolean } from '@/lib/invoices/status-utils'
+import type { SupabaseClient } from '@supabase/supabase-js'
+import type { Database } from '@/lib/supabase/database.types'
 
 export interface InvoiceData {
   id: string
@@ -48,6 +51,12 @@ export interface GenerateMonthlyInvoicesResult {
     water_bills_included: number
     water_bills_separate: number
   }
+}
+
+type InvoiceSupabaseClient = SupabaseClient<Database>
+
+function getInvoiceClient(client?: InvoiceSupabaseClient): InvoiceSupabaseClient {
+  return client ?? createAdminClient()
 }
 
 /**
@@ -437,10 +446,11 @@ export async function generateMonthlyInvoices(
  * Calculate invoice status based on payments
  */
 export async function calculateInvoiceStatus(
-  invoiceId: string
+  invoiceId: string,
+  client?: InvoiceSupabaseClient
 ): Promise<boolean> {
   try {
-    const supabase = await createClient()
+    const supabase = getInvoiceClient(client)
 
     // Get invoice
     const { data: invoice, error: invoiceError } = await supabase
@@ -477,12 +487,13 @@ export async function calculateInvoiceStatus(
  * Update invoice status
  */
 export async function updateInvoiceStatus(
-  invoiceId: string
+  invoiceId: string,
+  client?: InvoiceSupabaseClient
 ): Promise<boolean> {
   try {
-    const supabase = await createClient()
+    const supabase = getInvoiceClient(client)
 
-    const newStatus = await calculateInvoiceStatus(invoiceId)
+    const newStatus = await calculateInvoiceStatus(invoiceId, supabase)
 
     const { error } = await supabase
       .from('invoices')
