@@ -77,7 +77,7 @@ async function getActiveLeases(): Promise<LeaseInfo[]> {
 
     const { data: leases, error } = await supabase
       .from('leases')
-      .select('id, unit_id, tenant_user_id, monthly_rent, status, start_date, end_date')
+      .select('id, unit_id, tenant_user_id, monthly_rent, status, start_date, end_date, rent_paid_until')
       .eq('status', 'active')
 
     if (error) {

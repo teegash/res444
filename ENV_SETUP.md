@@ -3,6 +3,15 @@ consider table structure
 research on perplexity, has the most information
 
 
+In premium - comment out the cron jobs code for me for mpesa automatic check payments, we will test on that later when we have premium account
+
+
+Removed the scheduled M-Pesa auto-verification job from vercel.json (we can’t literally comment inside JSON, so the cron entry was removed). Only the monthly invoice cron remains active. When you’re ready to re-enable the auto-check cron on a premium plan, just add the /api/cron/mpesa-auto-verify entry back with the desired schedule.
+
+
+cron scrypt in https://script.google.com/home/projects/13GDtxnaUc5lNhTPh3WCDadd5jK2C4OOxevcBBf-Hrplasxe48OtNV8Dv/edit
+
+
 to do ; 
 
 Tenant search bar ///
@@ -66,6 +75,8 @@ make the lease agreement in tenant lease page to generate a more professional lo
 
 pay rent button in tenant portal,make it such that when it is clicked the payment page brings the rent amount available in lease, this should be called pay rent page - make it look exactly as the pay invoice page
 
+
+***
 when clicking pay rent in tenant dashboard, if invoice doesnt exist, created one and mark it as paid for that current month, connect it well so that when rent is paid, if in a month where rent is still status paid, true, it will add 1 in the rent paid until in leases table, this resets and reduces by 1 to count for the coming month for rent, so if its reading 1 because the current month has been paid for then the rent paid until becomes 2 and then in the next month on 1st day of the month the rent paid until retiurns to 1 shoding only current month is paid for
 
 
