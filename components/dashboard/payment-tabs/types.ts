@@ -49,6 +49,10 @@ export type IntegrationSummary = {
   shortcodeMasked: string | null
   autoVerifyEnabled: boolean
   autoVerifyFrequencySeconds: number
+  maxRetries: number
+  queryTimeoutSeconds: number
+  lastTestedAt: string | null
+  lastTestStatus: string | null
   lastAutoCheck: string | null
   autoVerifiedToday: number
   pendingAmount: number

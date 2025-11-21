@@ -114,7 +114,12 @@ export function PaymentTabs({ refreshKey, onIntegrationUpdate }: PaymentTabsProp
       </TabsContent>
 
       <TabsContent value="status" className="mt-6">
-        <IntegrationStatusTab stats={data?.stats} integration={data?.integration} loading={loading} />
+        <IntegrationStatusTab
+          stats={data?.stats}
+          integration={data?.integration}
+          loading={loading}
+          onSettingsUpdated={fetchData}
+        />
       </TabsContent>
     </Tabs>
   )

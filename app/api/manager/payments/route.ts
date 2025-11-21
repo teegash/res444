@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { autoVerifyMpesaPayments } from '@/lib/mpesa/autoVerify'
+import { getMpesaSettings } from '@/lib/mpesa/settings'
 
 const MANAGER_ROLES = ['admin', 'manager', 'caretaker'] as const
 const AUTO_VERIFY_TIMEOUT_MINUTES = Number(process.env.MPESA_AUTO_VERIFY_TIMEOUT_MINUTES || '120')
@@ -186,6 +187,7 @@ export async function GET() {
       return ctx.error
     }
     const { adminSupabase } = ctx
+    const settings = await getMpesaSettings()
 
     await expireLongPendingMpesaPayments(adminSupabase)
 
@@ -318,8 +320,12 @@ export async function GET() {
       shortcodeMasked: process.env.MPESA_SHORTCODE
         ? process.env.MPESA_SHORTCODE.replace(/.(?=.{4})/g, '•')
         : null,
-      autoVerifyEnabled: process.env.MPESA_AUTO_VERIFY_ENABLED !== 'false',
-      autoVerifyFrequencySeconds: Number(process.env.MPESA_AUTO_VERIFY_INTERVAL || '30'),
+      autoVerifyEnabled: settings.auto_verify_enabled,
+      autoVerifyFrequencySeconds: settings.auto_verify_frequency_seconds,
+      maxRetries: settings.max_retries,
+      queryTimeoutSeconds: settings.query_timeout_seconds,
+      lastTestedAt: settings.last_tested_at,
+      lastTestStatus: settings.last_test_status,
       lastAutoCheck,
       autoVerifiedToday: verified.filter((payment) => {
         if (!payment.mpesaAutoVerified || !payment.verifiedAt) {
@@ -376,7 +382,9 @@ export async function POST(request: NextRequest) {
       return ctx.error
     }
 
-    const result = await autoVerifyMpesaPayments()
+    const settings = await getMpesaSettings()
+
+    const result = await autoVerifyMpesaPayments(settings)
 
     return NextResponse.json({
       success: result.success,

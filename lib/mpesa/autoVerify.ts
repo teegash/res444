@@ -4,6 +4,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { queryTransactionStatus, getDarajaConfig } from './queryStatus'
 import { updateInvoiceStatus, calculateInvoiceStatus } from '@/lib/invoices/invoiceGeneration'
 import { calculatePaidUntil } from '@/lib/payments/leaseHelpers'
+import { getMpesaSettings, MpesaSettings } from '@/lib/mpesa/settings'
 
 export interface PendingPayment {
   id: string
@@ -42,7 +43,7 @@ export interface AutoVerifyResult {
  * Get pending M-Pesa payments that need verification
  * Criteria: verified = FALSE, payment_method = 'mpesa', created > 24 hours ago
  */
-async function getPendingMpesaPayments(): Promise<PendingPayment[]> {
+async function getPendingMpesaPayments(maxRetries: number): Promise<PendingPayment[]> {
   try {
     const supabase = createAdminClient()
 
@@ -58,7 +59,7 @@ async function getPendingMpesaPayments(): Promise<PendingPayment[]> {
       .eq('payment_method', 'mpesa')
       .eq('verified', false)
       .or('mpesa_receipt_number.not.is.null,notes.ilike.%CheckoutRequestID%')
-      .lt('retry_count', parseInt(process.env.MPESA_MAX_RETRIES || '3')) // Only get payments that haven't exceeded max retries
+      .lt('retry_count', maxRetries) // Only get payments that haven't exceeded max retries
       .order('created_at', { ascending: true })
       .limit(100) // Limit to prevent overwhelming the API
 
@@ -159,7 +160,8 @@ async function createAuditLog(
  */
 async function verifyPayment(
   payment: PendingPayment,
-  config: ReturnType<typeof getDarajaConfig>
+  config: ReturnType<typeof getDarajaConfig>,
+  maxRetries: number
 ): Promise<{
   success: boolean
   verified: boolean
@@ -344,8 +346,6 @@ async function verifyPayment(
       // Payment failed or pending
       const resultCode = queryResult.resultCode || 1
       const newRetryCount = payment.retry_count + 1
-      const maxRetries = parseInt(process.env.MPESA_MAX_RETRIES || '3')
-
       // Update retry count
       const updateData: {
         retry_count: number
@@ -385,11 +385,11 @@ async function verifyPayment(
 /**
  * Auto-verify pending M-Pesa payments
  */
-export async function autoVerifyMpesaPayments(): Promise<AutoVerifyResult> {
+export async function autoVerifyMpesaPayments(settingsOverride?: MpesaSettings): Promise<AutoVerifyResult> {
   try {
-    // Check if auto-verify is enabled
-    const autoVerifyEnabled = process.env.MPESA_AUTO_VERIFY_ENABLED !== 'false'
-    if (!autoVerifyEnabled) {
+    const settings = settingsOverride ?? (await getMpesaSettings())
+
+    if (!settings.auto_verify_enabled) {
       return {
         success: true,
         checked_count: 0,
@@ -427,7 +427,7 @@ export async function autoVerifyMpesaPayments(): Promise<AutoVerifyResult> {
     }
 
     // Get pending payments
-    const pendingPayments = await getPendingMpesaPayments()
+    const pendingPayments = await getPendingMpesaPayments(settings.max_retries)
 
     if (pendingPayments.length === 0) {
       return {
@@ -457,14 +457,13 @@ export async function autoVerifyMpesaPayments(): Promise<AutoVerifyResult> {
         checkedCount++
 
         // Skip if already at max retries (will be handled separately)
-        const maxRetries = parseInt(process.env.MPESA_MAX_RETRIES || '3')
-        if (payment.retry_count >= maxRetries) {
+        if (payment.retry_count >= settings.max_retries) {
           skippedCount++
           continue
         }
 
         // Verify payment
-        const result = await verifyPayment(payment, config)
+        const result = await verifyPayment(payment, config, settings.max_retries)
 
         if (result.verified) {
           verifiedCount++

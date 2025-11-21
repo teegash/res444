@@ -51,7 +51,7 @@ How do i know waterbills are paid, need a monitor for water bill payment in wate
 
 let the water bill payments page be populated by database with data of paid and unpaid bills, make a search bar that can filter the water bills by property and also a search box that can search by 1st letter and unit number, also make a progress bar showing status of water bills paid, this status bar can have filters to see the paid bills vs unpaid bills to see the performance of payments
 
-
+***
 make sure this is well implimented - in tenant dashboard Upcoming section, the rent invoice should only be sent if the rent has not been paid by 1st of the month, when pay rent is clicked after 1st, the same invoice is what is to populate the pay rent form, if that invoice is paid for, any other extra payment will create another invoice only upon successful payment and register as rent for the next month if its 1 month more, if its 3 months more it should reflect that as well
 
 

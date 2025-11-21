@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { autoVerifyMpesaPayments } from '@/lib/mpesa/autoVerify'
+import { getMpesaSettings } from '@/lib/mpesa/settings'
 
 /**
  * M-Pesa Auto-Verification Cron Endpoint
@@ -31,9 +32,9 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Check if auto-verify is enabled
-    const autoVerifyEnabled = process.env.MPESA_AUTO_VERIFY_ENABLED !== 'false'
-    if (!autoVerifyEnabled) {
+    const settings = await getMpesaSettings()
+
+    if (!settings.auto_verify_enabled) {
       return NextResponse.json({
         success: true,
         message: 'M-Pesa auto-verification is disabled',
@@ -50,7 +51,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Run auto-verification
-    const result = await autoVerifyMpesaPayments()
+    const result = await autoVerifyMpesaPayments(settings)
 
     // Return result
     return NextResponse.json({
@@ -91,4 +92,3 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   return GET(request)
 }
-
