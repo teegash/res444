@@ -386,17 +386,41 @@ export default function PaymentHistoryPage() {
     return `${startLabel} – ${endLabel}`
   }, [])
 
-  const statementSummaries = useMemo(() => {
-    return invoices
-      .filter((invoice) => invoice.status || invoice.months_covered > 0)
-      .map((invoice) => ({
-        id: invoice.id,
-        period: formatCoveragePeriod(invoice.due_date, Math.max(1, invoice.months_covered)),
-        date: invoice.due_date ? new Date(invoice.due_date).toLocaleDateString() : '',
-        monthsCovered: Math.max(1, invoice.months_covered),
-      }))
-      .slice(0, 4)
-  }, [invoices, formatCoveragePeriod])
+  type MonthlyStatement = {
+    id: string
+    periodLabel: string
+    dateLabel: string
+    amount: number
+  }
+
+  const statementSummaries: MonthlyStatement[] = useMemo(() => {
+    const summaries: MonthlyStatement[] = []
+
+    const paymentsByMonth = payments.reduce((acc, payment) => {
+      if (!payment.verified || !payment.posted_at) return acc
+      const date = new Date(payment.posted_at)
+      if (Number.isNaN(date.getTime())) return acc
+      const key = `${date.getUTCFullYear()}-${date.getUTCMonth()}`
+      const bucket = acc.get(key) || { amount: 0, date }
+      bucket.amount += payment.amount_paid
+      bucket.date = date
+      acc.set(key, bucket)
+      return acc
+    }, new Map<string, { amount: number; date: Date }>())
+
+    const sortedKeys = Array.from(paymentsByMonth.keys()).sort((a, b) => (a > b ? -1 : 1))
+    sortedKeys.slice(0, 6).forEach((key) => {
+      const { amount, date } = paymentsByMonth.get(key)!
+      summaries.push({
+        id: key,
+        periodLabel: date.toLocaleDateString(undefined, { month: 'long', year: 'numeric' }),
+        dateLabel: date.toLocaleDateString(),
+        amount,
+      })
+    })
+
+    return summaries
+  }, [payments])
 
   const tenantName = tenantSummary?.profile?.full_name || 'Tenant'
   const propertyLabel = tenantSummary?.lease?.unit_label
@@ -629,20 +653,34 @@ export default function PaymentHistoryPage() {
               <p className="text-sm text-muted-foreground">No statements generated yet.</p>
             ) : (
               statementSummaries.map((statement) => (
-                <div key={statement.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-100 transition-colors">
+                <div
+                  key={statement.id}
+                  className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-100 transition-colors"
+                >
                   <div className="flex items-center gap-3">
                     <div className="p-2 bg-blue-100 rounded">
                       <FileText className="h-5 w-5 text-blue-600" />
                     </div>
                     <div>
-                      <p className="font-medium">Statement: {statement.period}</p>
-                      <p className="text-sm text-muted-foreground">Generated on {statement.date}</p>
+                      <p className="font-medium">Statement: {statement.periodLabel}</p>
+                      <p className="text-sm text-muted-foreground">
+                        Verified payments for {statement.dateLabel}
+                      </p>
                     </div>
                   </div>
-                  <Button variant="outline" size="sm" onClick={() => handleOpenStatement(statement.id)}>
-                    <FileText className="h-4 w-4 mr-2" />
-                    View Statement
-                  </Button>
+                  <div className="flex items-center gap-4">
+                    <p className="font-semibold text-green-600">
+                      KES {statement.amount.toLocaleString()}
+                    </p>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleOpenStatement(statement.id)}
+                    >
+                      <FileText className="h-4 w-4 mr-2" />
+                      View Statement
+                    </Button>
+                  </div>
                 </div>
               ))
             )}
