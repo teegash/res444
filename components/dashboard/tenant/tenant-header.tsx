@@ -131,18 +131,8 @@ export function TenantHeader({ summary, loading, onProfileUpdated }: TenantHeade
           table: 'communications',
           filter: `recipient_user_id=eq.${user.id}`,
         },
-        (payload) => {
-          const newNotification = payload?.new as NotificationItem | undefined
-          if (newNotification?.id && !newNotification.read) {
-            setNotifications((current) =>
-              sortNotifications([
-                newNotification,
-                ...current.filter((item) => item.id !== newNotification.id),
-              ])
-            )
-          } else {
-            fetchNotifications()
-          }
+        () => {
+          fetchNotifications()
         }
       )
       .subscribe()
@@ -160,7 +150,7 @@ export function TenantHeader({ summary, loading, onProfileUpdated }: TenantHeade
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ids: unreadIds }),
     })
-    setNotifications((current) => current.filter((notification) => !unreadIds.includes(notification.id)))
+    setNotifications([])
   }
 
   const handleNotificationClick = async (notification: NotificationItem) => {
