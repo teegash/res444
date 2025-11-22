@@ -51,7 +51,7 @@ export async function getTemplateContent(
   return content
 }
 
-export function clearTemplateCacheForOrg(organizationId: string) {
+export async function clearTemplateCacheForOrg(organizationId: string) {
   for (const key of templateCache.keys()) {
     if (key.startsWith(`${organizationId}::`)) {
       templateCache.delete(key)
