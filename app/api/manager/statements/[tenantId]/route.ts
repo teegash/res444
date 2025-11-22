@@ -57,6 +57,107 @@ function resolveTenantId(request: NextRequest, params?: { tenantId?: string }) {
   return segments.length > 0 ? segments[segments.length - 1] : null
 }
 
+const getMonthKey = (value: string | null) => {
+  if (!value) return null
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return null
+  return `${date.getUTCFullYear()}-${(date.getUTCMonth() + 1).toString().padStart(2, '0')}`
+}
+
+const startOfMonthUtc = (date: Date) => new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1))
+
+const addMonthsUtc = (date: Date, months: number) => {
+  const clone = new Date(date.getTime())
+  clone.setUTCMonth(clone.getUTCMonth() + months)
+  return startOfMonthUtc(clone)
+}
+
+const buildCoverageCharges = (
+  existingCharges: StatementTransaction[],
+  lease: {
+    monthly_rent?: number | null
+    rent_paid_until?: string | null
+    start_date?: string | null
+  } | null
+) => {
+  if (!lease?.monthly_rent || !lease.rent_paid_until) {
+    return []
+  }
+
+  const rentAmount = Number(lease.monthly_rent)
+  if (!Number.isFinite(rentAmount) || rentAmount <= 0) {
+    return []
+  }
+
+  const coverageEnd = startOfMonthUtc(new Date(lease.rent_paid_until))
+  const rentCharges = existingCharges
+    .filter((txn) => txn.payment_type === 'rent')
+    .sort((a, b) => {
+      const aTime = a.posted_at ? new Date(a.posted_at).getTime() : 0
+      const bTime = b.posted_at ? new Date(b.posted_at).getTime() : 0
+      return aTime - bTime
+    })
+
+  const chargedMonthKeys = new Set(
+    rentCharges
+      .map((txn) => getMonthKey(txn.posted_at))
+      .filter((key): key is string => Boolean(key))
+  )
+
+  const coverageCharges: StatementTransaction[] = []
+
+  const appendCoverageForRange = (fromDate: Date, toDate: Date) => {
+    let cursor = addMonthsUtc(fromDate, 1)
+    while (cursor < toDate && cursor <= coverageEnd) {
+      const key = getMonthKey(cursor.toISOString())
+      if (key && !chargedMonthKeys.has(key)) {
+        coverageCharges.push({
+          id: `coverage-${key}`,
+          kind: 'charge',
+          payment_type: 'rent',
+          payment_method: null,
+          status: 'covered',
+          posted_at: cursor.toISOString(),
+          description: `Rent coverage applied (${cursor.toLocaleDateString(undefined, {
+            month: 'long',
+            year: 'numeric',
+          })})`,
+          reference: `COV-${cursor.getUTCFullYear()}${(cursor.getUTCMonth() + 1).toString().padStart(2, '0')}`,
+          amount: rentAmount,
+        })
+        chargedMonthKeys.add(key)
+      }
+      cursor = addMonthsUtc(cursor, 1)
+    }
+  }
+
+  if (rentCharges.length > 0) {
+    for (let index = 0; index < rentCharges.length - 1; index += 1) {
+      const current = rentCharges[index]
+      const next = rentCharges[index + 1]
+      if (!current.posted_at || !next.posted_at) continue
+      const currentMonth = startOfMonthUtc(new Date(current.posted_at))
+      const nextMonth = startOfMonthUtc(new Date(next.posted_at))
+      if (addMonthsUtc(currentMonth, 1) < nextMonth) {
+        appendCoverageForRange(currentMonth, nextMonth)
+      }
+    }
+
+    const lastCharge = rentCharges[rentCharges.length - 1]
+    if (lastCharge?.posted_at) {
+      const lastChargeMonth = startOfMonthUtc(new Date(lastCharge.posted_at))
+      if (lastChargeMonth < coverageEnd) {
+        appendCoverageForRange(lastChargeMonth, addMonthsUtc(coverageEnd, 1))
+      }
+    }
+  } else if (lease.start_date) {
+    const startMonth = startOfMonthUtc(new Date(lease.start_date))
+    appendCoverageForRange(addMonthsUtc(startMonth, -1), addMonthsUtc(coverageEnd, 1))
+  }
+
+  return coverageCharges
+}
+
 export async function GET(
   request: NextRequest,
   { params }: { params: { tenantId: string } }
@@ -205,6 +306,11 @@ export async function GET(
         amount: Number(invoice.amount || 0),
       }
     })
+
+    const coverageCharges = buildCoverageCharges(chargeTransactions, lease)
+    if (coverageCharges.length > 0) {
+      chargeTransactions.push(...coverageCharges)
+    }
 
     const paymentTransactions: StatementTransaction[] = (paymentRows || []).map((payment) => {
       const invoice = payment.invoices as { invoice_type: string | null; due_date: string | null; status: string | null } | null

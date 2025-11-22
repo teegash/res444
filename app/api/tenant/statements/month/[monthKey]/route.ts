@@ -42,6 +42,31 @@ export async function GET(
 
     const admin = createAdminClient()
 
+    const { data: leaseRecord, error: leaseError } = await admin
+      .from('leases')
+      .select(
+        `
+        id,
+        monthly_rent,
+        rent_paid_until,
+        start_date,
+        apartment_units (
+          unit_number,
+          apartment_buildings (
+            name,
+            location
+          )
+        )
+      `
+      )
+      .eq('tenant_user_id', user.id)
+      .eq('status', 'active')
+      .maybeSingle()
+
+    if (leaseError) {
+      throw leaseError
+    }
+
     const { data: invoices, error: invoiceError } = await admin
       .from('invoices')
       .select(
@@ -149,6 +174,29 @@ export async function GET(
       })
     })
 
+    const hasRentCharge = charges.some(
+      (charge) => (charge.category || '').toLowerCase() === 'rent'
+    )
+    const rentPaidUntilDate = leaseRecord?.rent_paid_until ? new Date(leaseRecord.rent_paid_until) : null
+    const monthStart = new Date(periodStartIso)
+    const coverageActive =
+      rentPaidUntilDate !== null && !Number.isNaN(rentPaidUntilDate.getTime()) && rentPaidUntilDate >= monthStart
+
+    if (!hasRentCharge && coverageActive && leaseRecord?.monthly_rent) {
+      transactions.push({
+        id: `coverage-${monthKey}`,
+        type: 'charge',
+        description: `Rent coverage applied (${monthStart.toLocaleDateString(undefined, {
+          month: 'long',
+          year: 'numeric',
+        })})`,
+        reference: 'COVERAGE',
+        amount: Number(leaseRecord.monthly_rent),
+        category: 'rent',
+        posted_at: monthStart.toISOString(),
+      })
+    }
+
     transactions.sort((a, b) => {
       const aTime = a.posted_at ? new Date(a.posted_at).getTime() : 0
       const bTime = b.posted_at ? new Date(b.posted_at).getTime() : 0
@@ -168,7 +216,7 @@ export async function GET(
       }
     })
 
-    const property = invoices?.[0]?.leases?.apartment_units
+    const propertySource = invoices?.[0]?.leases?.apartment_units || leaseRecord?.apartment_units
     const summary = {
       openingBalance: 0,
       totalCharges: charges.reduce((sum, charge) => sum + charge.amount, 0),
@@ -186,15 +234,24 @@ export async function GET(
         periodLabel: periodStart.toLocaleDateString(undefined, { month: 'long', year: 'numeric' }),
         periodStart: periodStart.toISOString(),
         periodEnd: periodEnd.toISOString(),
-        property: property
+        property: propertySource
           ? {
-              property_name: property.apartment_buildings?.name || null,
-              property_location: property.apartment_buildings?.location || null,
-              unit_number: property.unit_number || null,
+              property_name: propertySource.apartment_buildings?.name || null,
+              property_location: propertySource.apartment_buildings?.location || null,
+              unit_number: propertySource.unit_number || null,
             }
           : null,
         transactions: enrichedTransactions,
         summary,
+        coverage: {
+          rent_paid_until: leaseRecord?.rent_paid_until || null,
+          coverage_label: leaseRecord?.rent_paid_until
+            ? new Date(leaseRecord.rent_paid_until).toLocaleDateString(undefined, {
+                month: 'long',
+                year: 'numeric',
+              })
+            : null,
+        },
       },
     })
   } catch (error) {

@@ -103,6 +103,10 @@ type StatementDetails = {
     posted_at: string | null
     balance_after: number
   }>
+  coverage?: {
+    rent_paid_until: string | null
+    coverage_label: string | null
+  }
 }
 
 type ReceiptDetails = {
@@ -824,6 +828,11 @@ export default function PaymentHistoryPage() {
                 <div>
                   <DialogTitle>Account Statement</DialogTitle>
                   <DialogDescription>Detailed breakdown of the selected invoice.</DialogDescription>
+                  {statementDetails?.coverage?.coverage_label ? (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Rent covered through {statementDetails.coverage.coverage_label}
+                    </p>
+                  ) : null}
                 </div>
                 {statementDetails && (
                   <div className="flex gap-2">
@@ -895,10 +904,16 @@ export default function PaymentHistoryPage() {
                       </p>
                     </div>
                     <div className="rounded-lg border p-4 bg-slate-50">
-                      <p className="text-xs text-muted-foreground">Closing Balance</p>
-                      <p className="text-lg font-bold text-green-600">
-                        KES {statementDetails.summary.closingBalance.toLocaleString()}
-                      </p>
+                    <p className="text-xs text-muted-foreground">Closing Balance</p>
+                    <p
+                      className={`text-lg font-bold ${
+                        statementDetails.summary.closingBalance < 0
+                          ? 'text-green-600'
+                          : 'text-red-600'
+                      }`}
+                    >
+                      KES {Math.abs(statementDetails.summary.closingBalance).toLocaleString()}
+                    </p>
                     </div>
                   </div>
 
