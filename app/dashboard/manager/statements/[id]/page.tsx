@@ -329,7 +329,8 @@ export default function TenantStatementPage({ params }: { params: { id?: string 
                     <th className="text-left p-3 font-semibold text-sm">Type</th>
                     <th className="text-left p-3 font-semibold text-sm">Description</th>
                     <th className="text-left p-3 font-semibold text-sm">Reference</th>
-                    <th className="text-right p-3 font-semibold text-sm">Amount</th>
+                    <th className="text-right p-3 font-semibold text-sm">Debit</th>
+                    <th className="text-right p-3 font-semibold text-sm">Credit</th>
                     <th className="text-right p-3 font-semibold text-sm">Balance</th>
                   </tr>
                 </thead>
@@ -337,28 +338,36 @@ export default function TenantStatementPage({ params }: { params: { id?: string 
                   {transactions.length === 0 ? (
                     <tr>
                       <td
-                        colSpan={6}
+                        colSpan={7}
                         className="text-center text-sm text-muted-foreground py-8"
                       >
                         No transactions recorded for this period.
                       </td>
                     </tr>
                   ) : (
-                    transactions.map((transaction) => (
-                      <tr key={transaction.id} className="border-b last:border-0">
-                        <td className="p-3 text-sm">{formatDate(transaction.posted_at)}</td>
-                        <td className="p-3 text-sm capitalize">{transaction.payment_type || transaction.kind}</td>
-                        <td className="p-3 text-sm">{transaction.description}</td>
-                        <td className="p-3 text-sm">{transaction.reference || '—'}</td>
-                        <td className="p-3 text-sm text-right font-medium">
-                          {transaction.amount < 0 ? '-' : ''}
-                          {formatCurrency(Math.abs(transaction.amount))}
-                        </td>
-                        <td className="p-3 text-sm text-right">
-                          {formatCurrency(transaction.balance_after ?? 0)}
-                        </td>
-                      </tr>
-                    ))
+                    transactions.map((transaction) => {
+                      const isCredit = transaction.amount < 0
+                      const displayAmount = formatCurrency(Math.abs(transaction.amount))
+                      return (
+                        <tr key={transaction.id} className="border-b last:border-0">
+                          <td className="p-3 text-sm">{formatDate(transaction.posted_at)}</td>
+                          <td className="p-3 text-sm capitalize">
+                            {transaction.payment_type || transaction.kind}
+                          </td>
+                          <td className="p-3 text-sm">{transaction.description}</td>
+                          <td className="p-3 text-sm">{transaction.reference || '—'}</td>
+                          <td className="p-3 text-sm text-right text-slate-900">
+                            {isCredit ? '—' : displayAmount}
+                          </td>
+                          <td className="p-3 text-sm text-right text-green-600">
+                            {isCredit ? displayAmount : '—'}
+                          </td>
+                          <td className="p-3 text-sm text-right">
+                            {formatCurrency(transaction.balance_after ?? 0)}
+                          </td>
+                        </tr>
+                      )
+                    })
                   )}
                 </tbody>
               </table>

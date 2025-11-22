@@ -903,32 +903,39 @@ export default function PaymentHistoryPage() {
                           <tr>
                             <th className="text-left p-3 font-semibold">Date</th>
                             <th className="text-left p-3 font-semibold">Description</th>
-                            <th className="text-left p-3 font-semibold">Reference</th>
-                            <th className="text-right p-3 font-semibold">Amount</th>
-                            <th className="text-right p-3 font-semibold">Balance</th>
+                        <th className="text-left p-3 font-semibold">Reference</th>
+                        <th className="text-right p-3 font-semibold">Debit</th>
+                        <th className="text-right p-3 font-semibold">Credit</th>
+                        <th className="text-right p-3 font-semibold">Balance</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {statementDetails.transactions.map((txn) => {
+                        const isCredit = txn.amount < 0
+                        const formattedAmount = `KES ${Math.abs(txn.amount).toLocaleString()}`
+                        return (
+                          <tr key={txn.id} className="border-b last:border-0">
+                            <td className="p-3">
+                              {txn.posted_at ? new Date(txn.posted_at).toLocaleDateString() : '—'}
+                            </td>
+                            <td className="p-3 capitalize">{txn.description}</td>
+                            <td className="p-3">{txn.reference || '—'}</td>
+                            <td className="p-3 text-right text-slate-900">
+                              {isCredit ? '—' : formattedAmount}
+                            </td>
+                            <td className="p-3 text-right text-green-600">
+                              {isCredit ? formattedAmount : '—'}
+                            </td>
+                            <td className="p-3 text-right font-medium">
+                              KES {(txn.balance_after || 0).toLocaleString()}
+                            </td>
                           </tr>
-                        </thead>
-                        <tbody>
-                          {statementDetails.transactions.map((txn) => (
-                            <tr key={txn.id} className="border-b last:border-0">
-                              <td className="p-3">
-                                {txn.posted_at ? new Date(txn.posted_at).toLocaleDateString() : '—'}
-                              </td>
-                              <td className="p-3 capitalize">{txn.description}</td>
-                              <td className="p-3">{txn.reference || '—'}</td>
-                              <td className={`p-3 text-right ${txn.amount < 0 ? 'text-green-600' : 'text-slate-900'}`}>
-                                {txn.amount < 0 ? '-' : ''}
-                                KES {Math.abs(txn.amount).toLocaleString()}
-                              </td>
-                              <td className="p-3 text-right font-medium">
-                                KES {(txn.balance_after || 0).toLocaleString()}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
                 </>
               ) : null}
             </div>
