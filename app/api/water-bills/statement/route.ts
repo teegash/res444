@@ -56,27 +56,46 @@ export async function GET() {
     const waterBills = data || []
     const unitIds = Array.from(new Set(waterBills.map((row) => row.unit?.id).filter(Boolean))) as string[]
 
-    const unitLeaseMap = new Map<string, { lease_id: string; tenant_user_id: string | null }>()
-    const leaseById = new Map<string, { lease_id: string; tenant_user_id: string | null }>()
+    type LeaseSummary = {
+      lease_id: string
+      tenant_user_id: string | null
+      unit_id: string | null
+      start_date: string | null
+      end_date: string | null
+    }
 
-    const registerLease = (leaseRow?: { id?: string; unit_id?: string | null; tenant_user_id?: string | null }) => {
+    const leasesByUnit = new Map<string, LeaseSummary[]>()
+    const leaseById = new Map<string, LeaseSummary>()
+
+    const registerLease = (leaseRow?: {
+      id?: string
+      unit_id?: string | null
+      tenant_user_id?: string | null
+      start_date?: string | null
+      end_date?: string | null
+    }) => {
       if (!leaseRow?.id) return
-      const summary = {
+      const summary: LeaseSummary = {
         lease_id: leaseRow.id,
         tenant_user_id: leaseRow.tenant_user_id ?? null,
+        unit_id: leaseRow.unit_id ?? null,
+        start_date: leaseRow.start_date ?? null,
+        end_date: leaseRow.end_date ?? null,
       }
 
       leaseById.set(summary.lease_id, summary)
 
-      if (leaseRow.unit_id && !unitLeaseMap.has(leaseRow.unit_id)) {
-        unitLeaseMap.set(leaseRow.unit_id, summary)
+      if (summary.unit_id) {
+        const list = leasesByUnit.get(summary.unit_id) || []
+        list.push(summary)
+        leasesByUnit.set(summary.unit_id, list)
       }
     }
 
     if (unitIds.length > 0) {
       const { data: leaseRows } = await admin
         .from('leases')
-        .select('id, unit_id, tenant_user_id, status, start_date')
+        .select('id, unit_id, tenant_user_id, status, start_date, end_date')
         .in('unit_id', unitIds)
         .order('start_date', { ascending: false })
 
@@ -96,17 +115,27 @@ export async function GET() {
     if (missingLeaseIds.length > 0) {
       const { data: invoiceLeases } = await admin
         .from('leases')
-        .select('id, unit_id, tenant_user_id, status, start_date')
+        .select('id, unit_id, tenant_user_id, status, start_date, end_date')
         .in('id', missingLeaseIds)
 
       invoiceLeases?.forEach(registerLease)
     }
 
+    leasesByUnit.forEach((list) =>
+      list.sort((a, b) => {
+        const aDate = a.start_date ? new Date(a.start_date).getTime() : 0
+        const bDate = b.start_date ? new Date(b.start_date).getTime() : 0
+        return bDate - aDate
+      })
+    )
+
     const tenantIdSet = new Set<string>()
-    unitLeaseMap.forEach((value) => {
-      if (value.tenant_user_id) {
-        tenantIdSet.add(value.tenant_user_id)
-      }
+    leasesByUnit.forEach((list) => {
+      list.forEach((value) => {
+        if (value.tenant_user_id) {
+          tenantIdSet.add(value.tenant_user_id)
+        }
+      })
     })
     leaseById.forEach((value) => {
       if (value.tenant_user_id) {
@@ -136,13 +165,44 @@ export async function GET() {
       })
     }
 
+    const getLeaseForBill = (unitId: string | null | undefined, billingMonth: string | null) => {
+      if (!unitId) return null
+      const candidates = leasesByUnit.get(unitId)
+      if (!candidates || candidates.length === 0) {
+        return null
+      }
+
+      if (!billingMonth) {
+        return candidates[0]
+      }
+
+      const periodStart = new Date(billingMonth)
+      periodStart.setUTCHours(0, 0, 0, 0)
+      const periodEnd = new Date(Date.UTC(periodStart.getUTCFullYear(), periodStart.getUTCMonth() + 1, 0))
+
+      return (
+        candidates.find((lease) => {
+          const leaseStart = lease.start_date ? new Date(lease.start_date) : null
+          const leaseEnd = lease.end_date ? new Date(lease.end_date) : null
+
+          if (leaseStart && leaseStart > periodEnd) {
+            return false
+          }
+          if (leaseEnd && leaseEnd < periodStart) {
+            return false
+          }
+          return true
+        }) || candidates[0]
+      )
+    }
+
     const items = waterBills.map((row) => {
       const building = row.unit?.apartment_buildings
       const invoice = row.invoice
       const isPaid = Boolean(invoice?.status)
-      const leaseFromUnit = row.unit?.id ? unitLeaseMap.get(row.unit.id) : null
       const leaseFromInvoice = invoice?.lease_id ? leaseById.get(invoice.lease_id) : null
-      const leaseInfo = leaseFromUnit ?? leaseFromInvoice
+      const leaseFromUnit = getLeaseForBill(row.unit?.id, row.billing_month)
+      const leaseInfo = leaseFromInvoice ?? leaseFromUnit
       let tenantInfo = leaseInfo?.tenant_user_id ? tenantProfileMap.get(leaseInfo.tenant_user_id) : null
 
       return {

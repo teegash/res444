@@ -313,7 +313,8 @@ export async function POST(request: NextRequest) {
       recipient_user_id: user.id,
       related_entity_type: 'maintenance_request',
       related_entity_id: inserted.id,
-      message_text: 'Maintenance request received. We will update you soon.',
+      message_text:
+        'Thank you for submitting your maintenance request. Our property team will reach out shortly.',
       message_type: 'in_app',
       read: false,
     })

@@ -79,13 +79,12 @@ export function TenantHeader({ summary, loading, onProfileUpdated }: TenantHeade
   const supabase = useMemo(() => createClient(), [])
   const { toast } = useToast()
   const [notifications, setNotifications] = useState<NotificationItem[]>([])
+  const [unreadCount, setUnreadCount] = useState(0)
   const [sheetOpen, setSheetOpen] = useState(false)
   const [uploadOpen, setUploadOpen] = useState(false)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
-
-  const unreadCount = notifications.filter((n) => !n.read).length
 
   const sortNotifications = useCallback((items: NotificationItem[]) => {
     return [...items].sort((a, b) => {
@@ -110,6 +109,9 @@ export function TenantHeader({ summary, loading, onProfileUpdated }: TenantHeade
       const rows: NotificationItem[] = Array.isArray(payload.data) ? payload.data : []
       const unread = rows.filter((item) => !item.read)
       setNotifications(sortNotifications(unread))
+      setUnreadCount(
+        typeof payload.unreadCount === 'number' ? payload.unreadCount : unread.length
+      )
     } catch (error) {
       console.error('[TenantHeader] fetch notifications failed', error)
     }
@@ -118,6 +120,12 @@ export function TenantHeader({ summary, loading, onProfileUpdated }: TenantHeade
   useEffect(() => {
     fetchNotifications()
   }, [fetchNotifications])
+
+  useEffect(() => {
+    if (sheetOpen) {
+      fetchNotifications()
+    }
+  }, [sheetOpen, fetchNotifications])
 
   useEffect(() => {
     if (!user?.id) return
@@ -151,6 +159,7 @@ export function TenantHeader({ summary, loading, onProfileUpdated }: TenantHeade
       body: JSON.stringify({ ids: unreadIds }),
     })
     setNotifications([])
+    setUnreadCount(0)
   }
 
   const handleNotificationClick = async (notification: NotificationItem) => {
@@ -165,6 +174,7 @@ export function TenantHeader({ summary, loading, onProfileUpdated }: TenantHeade
       } else {
         setNotifications((current) => current.filter((item) => item.id !== notification.id))
       }
+      setUnreadCount((prev) => Math.max(0, prev - 1))
       setSheetOpen(false)
       const invoiceId =
         notification.related_entity_id &&
