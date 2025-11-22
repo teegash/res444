@@ -155,137 +155,74 @@ export default function LeasePage() {
       return
     }
 
-    const doc = new jsPDF({ unit: 'pt', format: 'a4' })
-    const pageWidth = doc.internal.pageSize.getWidth()
-    const marginX = 48
-    let cursorY = 160
+    const summary = [
+      { label: 'Property', value: propertyName },
+      { label: 'Unit', value: unitLabel },
+      { label: 'Location', value: propertyLocation },
+      { label: 'Lease Period', value: leasePeriod },
+      { label: 'Status', value: leaseStatus },
+      { label: 'Monthly Rent', value: monthlyRent },
+    ]
 
-    const brandPrimary = '#1d4ed8'
-    const brandDark = '#0f172a'
-    const muted = '#475569'
+    const sections = [
+      {
+        title: 'Lease Terms',
+        rows: [
+          { label: 'Start Date', value: formatDate(lease.start_date) },
+          { label: 'End Date', value: formatDate(lease.end_date) },
+          { label: 'Monthly Rent', value: monthlyRent },
+          { label: 'Deposit Amount', value: depositAmount },
+          { label: 'Auto Renewal', value: autoRenewEnabled ? 'Enabled' : 'Disabled' },
+        ],
+      },
+      {
+        title: 'Property Details',
+        rows: [
+          { label: 'Property Name', value: propertyName },
+          { label: 'Location', value: propertyLocation },
+          { label: 'Unit Label', value: unitLabel },
+          { label: 'Lease ID', value: lease.id },
+        ],
+      },
+      {
+        title: 'Documents & Metadata',
+        rows: [
+          { label: 'Agreement Uploaded', value: agreementUrl ? 'Available' : 'Not provided' },
+          { label: 'Last Updated', lease.updated_at ? formatDate(lease.updated_at) : '—' },
+          {
+            label: 'Rent Scheduling',
+            value: lease.rent_auto_populated ? 'Auto-generated' : 'Manual invoices',
+          },
+        ],
+      },
+    ]
 
-    const headerHeight = 130
-    doc.setFillColor(29, 78, 216)
-    doc.rect(0, 0, pageWidth, headerHeight, 'F')
+    const notes = [
+      'This PDF is a tenant portal copy of your executed lease.',
+      'Contact your property manager if any term appears inaccurate.',
+    ]
 
-    doc.setTextColor('#ffffff')
-    doc.setFontSize(26)
-    doc.text('RentalKenya • Lease Agreement', marginX, 60)
-    doc.setFontSize(12)
-    doc.setTextColor('#bfdbfe')
-    doc.text('Tenant Portal Certified Copy', marginX, 85)
-    doc.text(`Generated on ${new Date().toLocaleString()}`, marginX, 105)
-
-    doc.setDrawColor(255, 255, 255)
-    doc.setLineWidth(1)
-    doc.line(marginX, 115, pageWidth - marginX, 115)
-
-    // Summary card
-    const summaryHeight = 70
-    doc.setFillColor(248, 250, 252)
-    doc.roundedRect(
-      marginX - 10,
-      headerHeight + 15,
-      pageWidth - marginX * 2 + 20,
-      summaryHeight,
-      8,
-      8,
-      'F'
-    )
-    doc.setDrawColor(226, 232, 240)
-    doc.roundedRect(
-      marginX - 10,
-      headerHeight + 15,
-      pageWidth - marginX * 2 + 20,
-      summaryHeight,
-      8,
-      8,
-      'S'
-    )
-    doc.setFontSize(13)
-    doc.setTextColor(brandDark)
-    doc.text(`Property: ${propertyName}`, marginX, headerHeight + 40)
-    doc.text(`Unit: ${unitLabel}`, pageWidth / 2, headerHeight + 40)
-    doc.setFontSize(11)
-    doc.setTextColor(muted)
-    doc.text(`Location: ${propertyLocation}`, marginX, headerHeight + 60)
-    doc.text(`Lease Status: ${leaseStatus}`, pageWidth / 2, headerHeight + 60)
-    doc.setTextColor(brandPrimary)
-    doc.text(
-      `Coverage: ${leasePeriod || '—'}`,
-      marginX,
-      headerHeight + summaryHeight,
-      { maxWidth: pageWidth - marginX * 2 }
-    )
-
-    const addHeading = (text: string) => {
-      doc.setFontSize(16)
-      doc.setTextColor(brandDark)
-      doc.text(text, marginX, cursorY)
-      cursorY += 18
-      doc.setDrawColor(226, 232, 240)
-      doc.setLineWidth(0.8)
-      doc.line(marginX, cursorY, pageWidth - marginX, cursorY)
-      cursorY += 14
-    }
-
-    const addRow = (label: string, value?: string | null) => {
-      doc.setFontSize(11)
-      doc.setTextColor(muted)
-      doc.text(`${label}:`, marginX, cursorY)
-      doc.setTextColor(brandDark)
-      doc.text(value || '—', marginX + 150, cursorY)
-      cursorY += 18
-    }
-
-    cursorY += 12
-
-    addHeading('Property & Tenant')
-    addRow('Property', propertyName)
-    addRow('Location', propertyLocation)
-    addRow('Unit', unitLabel)
-    addRow('Tenant ID', lease.id)
-
-    cursorY += 12
-    addHeading('Lease Terms')
-    addRow('Lease Period', leasePeriod)
-    addRow('Monthly Rent', monthlyRent)
-    addRow('Deposit', depositAmount)
-    addRow('Status', leaseStatus)
-    addRow('Auto-Renew', autoRenewEnabled ? 'Enabled' : 'Disabled')
-
-    cursorY += 12
-    addHeading('Documents & Metadata')
-    addRow('Agreement on File', agreementUrl ? 'Available' : 'Not provided')
-    addRow('Last Updated', lease.updated_at ? formatDate(lease.updated_at) : '—')
-
-    cursorY += 18
-    addHeading('Professional Notes')
-    doc.setFontSize(11)
-    doc.setTextColor(brandDark)
-    doc.text(
-      [
-        '• This summary reflects active data from your tenant portal.',
-        '• Keep this PDF for personal reference. Official copies remain with management.',
-        '• Contact your property manager for amendments, renewals, or clarifications.',
-      ],
-      marginX,
-      cursorY,
-      { maxWidth: pageWidth - marginX * 2, lineHeightFactor: 1.5 }
-    )
-    cursorY += 70
-
-    doc.setFontSize(10)
-    doc.setTextColor('#94a3b8')
-    doc.text(
-      'Generated by RentalKenya • Secure Tenant Portal • rentalkenya.com',
-      marginX,
-      cursorY,
-      { maxWidth: pageWidth - marginX * 2 }
-    )
-
-    doc.save(`lease-summary-${lease.id}.pdf`)
-  }, [lease, propertyName, propertyLocation, unitLabel, leasePeriod, monthlyRent, depositAmount, leaseStatus, autoRenewEnabled, agreementUrl, toast])
+    exportLeasePdf({
+      fileName: 'lease-agreement.pdf',
+      headerTitle: 'Tenant Lease Agreement',
+      headerSubtitle: 'Certified tenant portal copy',
+      summary,
+      sections,
+      notes,
+    })
+  }, [
+    lease,
+    propertyName,
+    propertyLocation,
+    unitLabel,
+    leasePeriod,
+    leaseStatus,
+    monthlyRent,
+    depositAmount,
+    autoRenewEnabled,
+    agreementUrl,
+    toast,
+  ])
 
   const handleDownload = async () => {
     setDownloading(true)

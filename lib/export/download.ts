@@ -17,6 +17,55 @@ type PdfOptions = {
   footerNote?: string
 }
 
+const BRAND_PRIMARY_RGB: [number, number, number] = [37, 99, 235] // #2563eb
+const BRAND_ACCENT_RGB: [number, number, number] = [241, 245, 249]
+const BRAND_DARK = '#0f172a'
+const BRAND_MUTED = '#475569'
+const PAGE_MARGIN = 48
+
+function drawPremiumHeader(doc: jsPDF, title?: string, subtitle?: string) {
+  const pageWidth = doc.internal.pageSize.getWidth()
+  const headerHeight = 90
+  doc.setFillColor(...BRAND_PRIMARY_RGB)
+  doc.rect(0, 0, pageWidth, headerHeight, 'F')
+
+  doc.setTextColor('#ffffff')
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(20)
+  doc.text(title || 'RentalKenya Report', PAGE_MARGIN, 50)
+
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(11)
+  if (subtitle) {
+    doc.text(subtitle, PAGE_MARGIN, 70)
+  }
+  doc.text(`Generated • ${new Date().toLocaleString()}`, pageWidth - PAGE_MARGIN, 70, {
+    align: 'right',
+  })
+
+  return headerHeight
+}
+
+function drawFooter(doc: jsPDF, footerNote?: string) {
+  const pageWidth = doc.internal.pageSize.getWidth()
+  const pageHeight = doc.internal.pageSize.getHeight()
+  const footerY = pageHeight - 30
+
+  doc.setTextColor(BRAND_MUTED)
+  doc.setFont('helvetica', 'italic')
+  doc.setFontSize(10)
+
+  if (footerNote) {
+    doc.text(footerNote, PAGE_MARGIN, footerY, {
+      maxWidth: pageWidth - PAGE_MARGIN * 2,
+    })
+  }
+
+  doc.text(`Page ${doc.internal.getNumberOfPages()}`, pageWidth - PAGE_MARGIN, footerY, {
+    align: 'right',
+  })
+}
+
 function normalizeValue(value: string | number | null | undefined) {
   if (value === null || value === undefined) {
     return ''
@@ -78,37 +127,34 @@ export function exportRowsAsPDF<T>(
     format: 'a4',
   })
 
-  const marginLeft = 40
-  let cursorY = 50
-
-  if (options?.title) {
-    doc.setFontSize(18)
-    doc.setFont('helvetica', 'bold')
-    doc.text(options.title, marginLeft, cursorY)
-    cursorY += 22
-  }
-
-  if (options?.subtitle) {
-    doc.setFontSize(11)
-    doc.setFont('helvetica', 'normal')
-    doc.text(options.subtitle, marginLeft, cursorY)
-    cursorY += 18
-  }
+  const headerHeight = drawPremiumHeader(doc, options?.title, options?.subtitle)
+  let cursorY = headerHeight + 30
 
   autoTable(doc, {
     startY: cursorY,
+    theme: 'striped',
+    margin: { left: PAGE_MARGIN, right: PAGE_MARGIN },
     head: [columns.map((col) => col.header)],
     body: data.map((row) => columns.map((col) => normalizeValue(col.accessor(row)))),
     styles: {
       fontSize: 10,
       cellPadding: 6,
+      font: 'helvetica',
     },
     headStyles: {
-      fillColor: [16, 185, 129],
+      fillColor: BRAND_PRIMARY_RGB,
+      textColor: [255, 255, 255],
+      fontStyle: 'bold',
       halign: 'left',
     },
     bodyStyles: {
       halign: 'left',
+      textColor: BRAND_DARK,
+      fillColor: BRAND_ACCENT_RGB,
+      lineColor: [226, 232, 240],
+    },
+    alternateRowStyles: {
+      fillColor: [255, 255, 255],
     },
     columnStyles: columns.reduce<Record<number, { halign: 'left' | 'right' | 'center' }>>((acc, col, index) => {
       if (col.align) {
@@ -119,18 +165,7 @@ export function exportRowsAsPDF<T>(
     stylesAlign: 'left',
   })
 
-  if (options?.footerNote) {
-    doc.setFontSize(10)
-    doc.setFont('helvetica', 'italic')
-    doc.text(
-      options.footerNote,
-      marginLeft,
-      doc.internal.pageSize.getHeight() - 30,
-      {
-        maxWidth: doc.internal.pageSize.getWidth() - marginLeft * 2,
-      }
-    )
-  }
+  drawFooter(doc, options?.footerNote)
 
   doc.save(filename.endsWith('.pdf') ? filename : `${filename}.pdf`)
 }

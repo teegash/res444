@@ -202,62 +202,88 @@ export default function WaterBillsPage() {
       setDownloading(true)
       const doc = new jsPDF({ unit: 'pt', format: 'a4' })
       const pageWidth = doc.internal.pageSize.getWidth()
-      const pageHeight = doc.internal.pageSize.getHeight()
 
-      const primaryColor = '#4682B4'
-      const accentColor = '#e3f2fd'
-      const textColor = '#1f2937'
-      const backgroundColor = '#f4f8ff'
+      const headerHeight = 110
+      doc.setFillColor(37, 99, 235)
+      doc.rect(0, 0, pageWidth, headerHeight, 'F')
 
-      doc.setFillColor(backgroundColor)
-      doc.rect(0, 0, pageWidth, pageHeight, 'F')
-
-      doc.setFillColor(primaryColor)
-      doc.rect(0, 0, pageWidth, 110, 'F')
-
-      doc.setFontSize(24)
       doc.setTextColor('#ffffff')
-      doc.text('Water Consumption Invoice', 40, 55)
-
-      doc.setFontSize(12)
-      doc.text(`Invoice Date: ${new Date().toLocaleDateString()}`, 40, 80)
-      doc.text(`Due Date: ${computeDueDate()}`, 40, 98)
-
-      doc.setFillColor('#ffffff')
-      doc.roundedRect(40, 125, pageWidth - 80, 350, 12, 12, 'F')
-
-      doc.setTextColor(primaryColor)
-      doc.setFontSize(16)
-      doc.text(selectedUnitData.tenant?.name || 'Tenant', 60, 155)
+      doc.setFontSize(24)
+      doc.text('Water Consumption Invoice', 48, 60)
       doc.setFontSize(11)
-      doc.setTextColor(textColor)
-      doc.text(`Property: ${selectedPropertyData?.name || 'N/A'}`, 60, 175)
-      doc.text(`Unit: ${selectedUnitData.unit_number || 'N/A'}`, 60, 190)
-      doc.text(`Phone: ${selectedUnitData.tenant?.phone || 'N/A'}`, 60, 205)
-      doc.text(`Email: ${selectedUnitData.tenant?.email || 'N/A'}`, 60, 220)
+      doc.text(`Invoice Date: ${new Date().toLocaleDateString()}`, 48, 82)
+      doc.text(`Due Date: ${computeDueDate()}`, 48, 98)
 
-      doc.setFillColor(accentColor)
-      doc.roundedRect(60, 245, pageWidth - 120, 120, 8, 8, 'F')
+      const summaryRows = [
+        { label: 'Property', value: selectedPropertyData?.name || '—' },
+        { label: 'Unit', value: selectedUnitData.unit_number || '—' },
+        { label: 'Tenant', value: selectedUnitData.tenant?.name || '—' },
+        { label: 'Contact', value: selectedUnitData.tenant?.phone || '—' },
+      ]
+
+      doc.setFillColor(255, 255, 255)
+      doc.roundedRect(40, headerHeight + 10, pageWidth - 80, 120, 12, 12, 'F')
+      doc.setDrawColor(226, 232, 240)
+      doc.roundedRect(40, headerHeight + 10, pageWidth - 80, 120, 12, 12, 'S')
       doc.setFontSize(12)
-      doc.setTextColor(textColor)
-      doc.text(`Previous Reading: ${previousReading || '-'}`, 75, 275)
-      doc.text(`Current Reading: ${currentReading || '-'}`, 75, 295)
-      doc.text(`Units Consumed: ${unitsConsumed.toFixed(2)} units`, 75, 315)
-      doc.text(`Rate per Unit: ${formatCurrency(pricePerUnit)}`, 75, 335)
+      doc.setTextColor('#0f172a')
+      summaryRows.forEach((item, index) => {
+        const x = 60 + (index % 2) * ((pageWidth - 120) / 2)
+        const y = headerHeight + 38 + Math.floor(index / 2) * 28
+        doc.setTextColor('#94a3b8')
+        doc.text(item.label, x, y)
+        doc.setTextColor('#0f172a')
+        doc.setFont('helvetica', 'bold')
+        doc.text(item.value, x, y + 15, { maxWidth: (pageWidth - 160) / 2 })
+        doc.setFont('helvetica', 'normal')
+      })
 
-      doc.setFontSize(18)
-      doc.setTextColor(primaryColor)
-      doc.text(`Total Due: ${formatCurrency(totalAmount)}`, 75, 375)
+      let cursorY = headerHeight + 160
+      const addSection = (title: string, rows: Array<{ label: string; value: string }>) => {
+        doc.setFont('helvetica', 'bold')
+        doc.setFontSize(14)
+        doc.setTextColor('#0f172a')
+        doc.text(title, 48, cursorY)
+        cursorY += 12
+        doc.setDrawColor(226, 232, 240)
+        doc.line(48, cursorY, pageWidth - 48, cursorY)
+        cursorY += 18
+        doc.setFont('helvetica', 'normal')
+        doc.setFontSize(11)
+        rows.forEach((row) => {
+          if (cursorY > doc.internal.pageSize.getHeight() - 80) {
+            doc.addPage()
+            cursorY = 60
+          }
+          doc.setTextColor('#94a3b8')
+          doc.text(row.label, 48, cursorY)
+          doc.setTextColor('#0f172a')
+          const wrapped = doc.splitTextToSize(row.value, pageWidth - 96)
+          doc.text(wrapped, 48, cursorY + 14)
+          cursorY += 18 + wrapped.length * 12
+        })
+        cursorY += 6
+      }
 
-      doc.setFontSize(12)
-      doc.setTextColor(textColor)
-      doc.text('Notes', 60, 410)
-      doc.setFontSize(11)
-      doc.text(notes || 'No additional notes provided.', 60, 430, { maxWidth: pageWidth - 120 })
+      addSection('Meter Details', [
+        { label: 'Previous Reading', value: previousReading || '—' },
+        { label: 'Current Reading', value: currentReading || '—' },
+        { label: 'Units Consumed', value: `${unitsConsumed.toFixed(2)} units` },
+        { label: 'Rate per Unit', value: formatCurrency(pricePerUnit) },
+      ])
+
+      addSection('Charges', [
+        { label: 'Total Due', value: formatCurrency(totalAmount) },
+        { label: 'Notes', value: notes || 'No additional notes provided.' },
+      ])
 
       doc.setFontSize(10)
-      doc.setTextColor('#6b7280')
-      doc.text('Thank you for staying current with your utilities.', 60, 500)
+      doc.setTextColor('#94a3b8')
+      doc.text(
+        'Thank you for staying current with your utilities • RentalKenya Utility Desk',
+        48,
+        doc.internal.pageSize.getHeight() - 30
+      )
 
       doc.save(`water-invoice-${selectedUnitData.unit_number || selectedUnitData.id}-${Date.now()}.pdf`)
       setDownloading(false)

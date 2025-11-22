@@ -16,7 +16,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Loader2, ArrowLeft, Download, Calendar, FileText } from 'lucide-react'
 import { useToast } from '@/components/ui/use-toast'
-import jsPDF from 'jspdf'
+import { exportLeasePdf } from '@/lib/pdf/leaseDocument'
 
 interface LeaseResponse {
   tenant: {
@@ -223,69 +223,68 @@ export default function TenantLeaseManagementPage() {
       return
     }
 
-    const doc = new jsPDF({ unit: 'pt', format: 'a4' })
-    const pageWidth = doc.internal.pageSize.getWidth()
-
-    const primary = '#4682B4'
-    const accent = '#e8f1fb'
-    const slate = '#1f2937'
-
-    doc.setFillColor(primary)
-    doc.rect(0, 0, pageWidth, 110, 'F')
-    doc.setTextColor('#ffffff')
-    doc.setFontSize(24)
-    doc.text('Lease Agreement Summary', 40, 55)
-    doc.setFontSize(12)
-    doc.text(`Generated: ${new Date().toLocaleDateString()}`, 40, 80)
-
-    doc.setFillColor('#ffffff')
-    doc.roundedRect(40, 130, pageWidth - 80, 360, 12, 12, 'F')
-
-    doc.setTextColor(primary)
-    doc.setFontSize(18)
-    doc.text(tenant.full_name || 'Tenant', 60, 165)
-    doc.setFontSize(12)
-    doc.setTextColor(slate)
-    doc.text(`Tenant ID: ${tenant.id}`, 60, 185)
-    doc.text(`Phone: ${tenant.phone_number || 'N/A'}`, 60, 205)
-    doc.text(`Address: ${tenant.address || 'N/A'}`, 60, 225)
-
-    doc.setFillColor(accent)
-    doc.roundedRect(60, 250, pageWidth - 120, 140, 8, 8, 'F')
-    doc.setTextColor(slate)
-    doc.setFontSize(13)
     const buildingLabel = lease?.unit?.building?.name
-      ? `${lease.unit.building.name}${lease.unit.building.location ? ` • ${lease.unit.building.location}` : ''}`
-      : 'Not linked to a property'
-    doc.text(`Property: ${buildingLabel}`, 75, 280)
-    doc.text(`Unit: ${lease?.unit?.unit_number || 'Unassigned'}`, 75, 300)
-    doc.text(`Start Date: ${lease?.start_date || startDate || 'Not set'}`, 75, 320)
-    doc.text(`End Date: ${lease?.end_date || 'Not set'}`, 75, 340)
-    doc.text(`Duration: ${durationMonths} months`, 75, 360)
+      ? `${lease.unit.building.name}${
+          lease.unit.building.location ? ` • ${lease.unit.building.location}` : ''
+        }`
+      : 'Unassigned'
+    const leasePeriod =
+      lease.start_date && lease.end_date
+        ? `${new Date(lease.start_date).toLocaleDateString()} – ${new Date(
+            lease.end_date
+          ).toLocaleDateString()}`
+        : '—'
 
-    doc.setFontSize(16)
-    doc.setTextColor(primary)
-    doc.text(`Monthly Rent: ${formatCurrency(monthlyRent)}`, 75, 390)
-    doc.text(`Deposit: ${formatCurrency(depositAmount)}`, 75, 415)
+    const summary = [
+      { label: 'Tenant', value: tenant.full_name || 'Tenant' },
+      { label: 'Tenant ID', value: tenant.id },
+      { label: 'Property', value: buildingLabel },
+      { label: 'Unit', value: lease.unit?.unit_number || '—' },
+      { label: 'Lease Period', value: leasePeriod },
+      { label: 'Monthly Rent', value: formatCurrency(lease.monthly_rent) },
+    ]
 
-    doc.setFontSize(12)
-    doc.setTextColor(slate)
-    doc.text('Status', 60, 450)
-    doc.setFontSize(11)
-    doc.text(
-      leaseSummary?.status ? leaseSummary.status.toUpperCase() : 'UNASSIGNED',
-      60,
-      468
-    )
-    doc.setTextColor('#4b5563')
-    doc.text(leaseSummary?.detail || 'No lease on file.', 60, 486, { maxWidth: pageWidth - 120 })
+    const sections = [
+      {
+        title: 'Contact & Identification',
+        rows: [
+          { label: 'Phone', value: tenant.phone_number || '—' },
+          { label: 'Address', value: tenant.address || '—' },
+          { label: 'Lease ID', value: lease.id },
+        ],
+      },
+      {
+        title: 'Lease Terms',
+        rows: [
+          { label: 'Start Date', value: lease.start_date || startDate || '—' },
+          { label: 'End Date', value: lease.end_date || '—' },
+          { label: 'Deposit Amount', value: formatCurrency(lease.deposit_amount) },
+          { label: 'Lease Status', value: lease.status || leaseSummary?.status || '—' },
+          { label: 'Duration (months)', value: durationMonths },
+        ],
+      },
+      {
+        title: 'Unit & Building',
+        rows: [
+          { label: 'Property', value: buildingLabel },
+          { label: 'Unit Category', value: lease.unit?.unit_price_category || '—' },
+        ],
+      },
+    ]
 
-    doc.setFontSize(10)
-    doc.setTextColor('#9ca3af')
-    doc.text('Generated from the Rentalk tenant management system.', 60, 520)
+    const notes = [
+      'Use this summary when renewing, adjusting rent, or onboarding caretakers.',
+      'Ensure prepaid rent schedules align with payment receipts before issuing new invoices.',
+    ]
 
-    const filename = `lease-${tenant.full_name?.replace(/\s+/g, '-') || tenant.id}-${Date.now()}.pdf`
-    doc.save(filename)
+    exportLeasePdf({
+      fileName: `tenant-lease-${tenant.id}.pdf`,
+      headerTitle: 'Manager Lease Summary',
+      headerSubtitle: tenant.full_name || 'Tenant record',
+      summary,
+      sections,
+      notes,
+    })
   }
 
   if (!tenantId) {

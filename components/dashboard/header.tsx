@@ -247,13 +247,16 @@ export function Header() {
                   <p className="text-center text-muted-foreground py-8">No notifications</p>
                 ) : (
                   notifications.map((notification) => {
-                    const isPayment =
-                      (notification.related_entity_type || '').toLowerCase() === 'payment'
+                    const type = (notification.related_entity_type || '').toLowerCase()
+                    const isPayment = type === 'payment'
+                    const isMaintenance = type === 'maintenance_request'
                     const rowClasses = isPayment
                       ? 'bg-red-500/10 border-red-200'
-                      : notification.read
-                        ? 'bg-background border-border'
-                        : 'bg-primary/5 border-primary/20'
+                      : isMaintenance
+                        ? 'bg-orange-500/10 border-orange-200'
+                        : notification.read
+                          ? 'bg-background border-border'
+                          : 'bg-primary/5 border-primary/20'
 
                     return (
                     <button
@@ -265,12 +268,22 @@ export function Header() {
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex-1">
                           <p className="font-medium text-sm flex items-center gap-2">
-                            {isPayment && (
+                            {isPayment ? (
                               <Badge className="bg-red-500/80 text-white rounded-full px-2 py-0.5">
                                 Payment alert
                               </Badge>
-                            )}
-                            <span>{isPayment ? 'Payment notice' : 'New tenant message'}</span>
+                            ) : isMaintenance ? (
+                              <Badge className="bg-orange-500/80 text-white rounded-full px-2 py-0.5">
+                                Maintenance request
+                              </Badge>
+                            ) : null}
+                            <span>
+                              {isPayment
+                                ? 'Payment notice'
+                                : isMaintenance
+                                  ? 'Maintenance update'
+                                  : 'New tenant message'}
+                            </span>
                           </p>
                           <p className="text-xs text-muted-foreground mt-2 leading-relaxed">
                             {notification.message_text}
