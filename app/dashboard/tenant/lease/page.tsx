@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { useToast } from '@/components/ui/use-toast'
 import { Switch } from '@/components/ui/switch'
-import jsPDF from 'jspdf'
+import { exportLeasePdf } from '@/lib/pdf/leaseDocument'
 
 type LeaseDetails = {
   id: string

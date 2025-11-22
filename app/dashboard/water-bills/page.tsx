@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import Link from 'next/link'
 import { Sidebar } from '@/components/dashboard/sidebar'
 import { Header } from '@/components/dashboard/header'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -325,13 +326,22 @@ export default function WaterBillsPage() {
         <main className="flex-1 p-8 overflow-auto">
           {/* Header */}
           <div className="mb-8">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="p-2 bg-blue-100 rounded-lg">
-                <Droplet className="h-6 w-6 text-[#4682B4]" />
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div>
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="p-2 bg-blue-100 rounded-lg">
+                    <Droplet className="h-6 w-6 text-[#4682B4]" />
+                  </div>
+                  <h1 className="text-3xl font-bold">Create Water Bill Invoice</h1>
+                </div>
+                <p className="text-muted-foreground">
+                  Generate and send water bill invoices to tenants
+                </p>
               </div>
-              <h1 className="text-3xl font-bold">Create Water Bill Invoice</h1>
+              <Button asChild variant="outline" className="w-full md:w-auto">
+                <Link href="/dashboard/water-bills/statements">View water bill statements</Link>
+              </Button>
             </div>
-            <p className="text-muted-foreground">Generate and send water bill invoices to tenants</p>
           </div>
 
           <div className="max-w-4xl space-y-4">
