@@ -5,6 +5,7 @@ import { queryTransactionStatus, getDarajaConfig } from './queryStatus'
 import { updateInvoiceStatus, calculateInvoiceStatus } from '@/lib/invoices/invoiceGeneration'
 import { calculatePaidUntil } from '@/lib/payments/leaseHelpers'
 import { getMpesaSettings, MpesaSettings } from '@/lib/mpesa/settings'
+import { logNotification } from '@/lib/communications/notifications'
 
 export interface PendingPayment {
   id: string
@@ -288,7 +289,7 @@ async function verifyPayment(
       // Get invoice details
       const { data: invoice } = await supabase
         .from('invoices')
-        .select('id, amount, due_date, lease_id')
+        .select('id, amount, due_date, lease_id, invoice_type')
         .eq('id', payment.invoice_id)
         .single()
 
@@ -334,6 +335,15 @@ async function verifyPayment(
             invoice.id,
             receiptNumber || transactionId
           )
+
+          const typeLabel = invoice.invoice_type === 'water' ? 'Water bill' : 'Rent'
+          await logNotification({
+            senderUserId: null,
+            recipientUserId: payment.tenant_user_id,
+            messageText: `${typeLabel} payment of KES ${Number(payment.amount_paid).toLocaleString()} confirmed.`,
+            relatedEntityType: 'payment',
+            relatedEntityId: payment.id,
+          })
         }
       }
 

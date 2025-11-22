@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { parseCallbackData } from '@/lib/mpesa/daraja'
 import { updateInvoiceStatus } from '@/lib/invoices/invoiceGeneration'
 import { calculatePaidUntil } from '@/lib/payments/leaseHelpers'
+import { logNotification } from '@/lib/communications/notifications'
 
 /**
  * M-Pesa Daraja API callback handler
@@ -58,7 +59,8 @@ export async function POST(request: NextRequest) {
           id,
           amount,
           due_date,
-          lease_id
+          lease_id,
+          invoice_type
         )
       `
       )
@@ -84,7 +86,8 @@ export async function POST(request: NextRequest) {
             id,
             amount,
             due_date,
-            lease_id
+            lease_id,
+            invoice_type
           )
         `
         )
@@ -193,6 +196,15 @@ export async function POST(request: NextRequest) {
       }).catch((error) => {
         console.error('Error sending SMS confirmation:', error)
         // Don't fail the callback if SMS fails
+      })
+
+      const typeLabel = invoice.invoice_type === 'water' ? 'Water bill' : 'Rent'
+      await logNotification({
+        senderUserId: null,
+        recipientUserId: payment.tenant_user_id,
+        messageText: `${typeLabel} payment of KES ${Number(payment.amount_paid).toLocaleString()} confirmed.`,
+        relatedEntityType: 'payment',
+        relatedEntityId: payment.id,
       })
 
       console.log('Payment verified successfully:', {

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/rbac/routeGuards'
 import { createClient } from '@/lib/supabase/server'
 import { updateInvoiceStatus } from '@/lib/invoices/invoiceGeneration'
+import { logNotification } from '@/lib/communications/notifications'
 
 export async function POST(request: NextRequest) {
   try {
@@ -38,6 +39,7 @@ export async function POST(request: NextRequest) {
         `
         id,
         amount,
+        invoice_type,
         status,
         due_date,
         lease:leases (
@@ -107,6 +109,15 @@ export async function POST(request: NextRequest) {
         .update({ rent_paid_until: paidUntil.toISOString().split('T')[0] })
         .eq('id', lease.id)
     }
+
+    const typeLabel = invoice.invoice_type === 'water' ? 'Water bill' : 'Rent'
+    await logNotification({
+      senderUserId: userId,
+      recipientUserId: userId,
+      messageText: `${typeLabel} payment of KES ${Number(amount).toLocaleString()} confirmed.`,
+      relatedEntityType: 'payment',
+      relatedEntityId: payment.id,
+    })
 
     return NextResponse.json({
       success: true,

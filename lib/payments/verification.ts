@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { updateInvoiceStatus, calculateInvoiceStatus } from '@/lib/invoices/invoiceGeneration'
+import { logNotification } from '@/lib/communications/notifications'
 
 export interface VerifyPaymentRequest {
   invoice_id: string
@@ -171,7 +172,8 @@ export async function approvePayment(
           id,
           amount,
           due_date,
-          lease_id
+          lease_id,
+          invoice_type
         )
       `
       )
@@ -247,6 +249,15 @@ export async function approvePayment(
       parseFloat(payment.amount_paid.toString()),
       'approved'
     )
+
+    const typeLabel = (invoice as { invoice_type?: string | null })?.invoice_type === 'water' ? 'Water bill' : 'Rent'
+    await logNotification({
+      senderUserId: verifiedByUserId,
+      recipientUserId: payment.tenant_user_id,
+      messageText: `${typeLabel} payment of KES ${Number(payment.amount_paid).toLocaleString()} confirmed.`,
+      relatedEntityType: 'payment',
+      relatedEntityId: paymentId,
+    })
 
     return {
       success: true,
