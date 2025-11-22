@@ -19,7 +19,12 @@ type WaterBillRecord = {
   property_id: string | null
   property_name: string | null
   property_location: string | null
+  unit_id: string | null
   unit_number: string | null
+  tenant_id: string | null
+  tenant_name: string | null
+  tenant_phone: string | null
+  tenant_email: string | null
   billing_month: string | null
   amount: number
   status: 'paid' | 'unpaid'
@@ -93,11 +98,12 @@ export default function WaterBillStatementsPage() {
       if (!search) return true
       const propertyInitial = record.property_name?.[0]?.toLowerCase() || ''
       const unitValue = record.unit_number?.toLowerCase() || ''
-      const propertyName = record.property_name?.toLowerCase() || ''
+      const tenantInitial = record.tenant_name?.[0]?.toLowerCase() || ''
       return (
         propertyInitial === search ||
+        tenantInitial === search ||
         unitValue.includes(search) ||
-        propertyName.startsWith(search)
+        (record.tenant_name || '').toLowerCase().startsWith(search)
       )
     })
 
@@ -251,11 +257,11 @@ export default function WaterBillStatementsPage() {
                 </Select>
               </div>
               <div className="space-y-2 md:col-span-2">
-                <Label>Search property initial or unit number</Label>
+                <Label>Search tenant initial or unit number</Label>
                 <Input
                   value={searchTerm}
                   onChange={(event) => setSearchTerm(event.target.value)}
-                  placeholder="e.g. A or 12B"
+                  placeholder="Type first letter of tenant or unit number"
                 />
               </div>
             </CardContent>
@@ -280,6 +286,7 @@ export default function WaterBillStatementsPage() {
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="text-left text-xs text-muted-foreground border-b">
+                        <th className="py-2">Tenant</th>
                         <th className="py-2">Property</th>
                         <th className="py-2">Unit</th>
                         <th className="py-2">Billing Month</th>
@@ -291,6 +298,12 @@ export default function WaterBillStatementsPage() {
                     <tbody>
                       {filteredRecords.map((record) => (
                         <tr key={record.id} className="border-b last:border-0">
+                          <td className="py-3">
+                            <p className="font-medium">{record.tenant_name}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {record.tenant_phone || record.tenant_email || '—'}
+                            </p>
+                          </td>
                           <td className="py-3">
                             <p className="font-medium">{record.property_name}</p>
                             <p className="text-xs text-muted-foreground">{record.property_location}</p>

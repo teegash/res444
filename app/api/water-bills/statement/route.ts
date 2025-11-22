@@ -2,32 +2,6 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 
-type SupabaseWaterBillRow = {
-  id: string
-  billing_month: string | null
-  amount: number | null
-  status: string | null
-  units_consumed: number | null
-  notes: string | null
-  created_at: string | null
-  unit: {
-    id: string
-    unit_number: string | null
-    building_id: string | null
-    apartment_buildings: {
-      id: string
-      name: string | null
-      location: string | null
-    } | null
-  } | null
-  invoice: {
-    id: string
-    status: boolean | null
-    due_date: string | null
-    amount: number | null
-  } | null
-}
-
 export async function GET() {
   try {
     const supabase = await createClient()
@@ -78,10 +52,74 @@ export async function GET() {
       throw error
     }
 
-    const items = (data as SupabaseWaterBillRow[] | null)?.map((row) => {
+    const waterBills = data || []
+    const unitIds = Array.from(new Set(waterBills.map((row) => row.unit?.id).filter(Boolean))) as string[]
+
+    let unitLeaseMap = new Map<
+      string,
+      {
+        lease_id: string
+        tenant_user_id: string | null
+      }
+    >()
+
+    if (unitIds.length > 0) {
+      const { data: leaseRows } = await admin
+        .from('leases')
+        .select('id, unit_id, tenant_user_id, status, start_date')
+        .in('unit_id', unitIds)
+        .in('status', ['active', 'pending'])
+        .order('start_date', { ascending: false })
+
+      if (leaseRows) {
+        for (const leaseRow of leaseRows) {
+          if (!leaseRow.unit_id) continue
+          if (!unitLeaseMap.has(leaseRow.unit_id)) {
+            unitLeaseMap.set(leaseRow.unit_id, {
+              lease_id: leaseRow.id,
+              tenant_user_id: leaseRow.tenant_user_id,
+            })
+          }
+        }
+      }
+    }
+
+    const tenantIds = Array.from(
+      new Set(
+        Array.from(unitLeaseMap.values())
+          .map((item) => item.tenant_user_id)
+          .filter(Boolean)
+      )
+    ) as string[]
+
+    let tenantProfileMap = new Map<
+      string,
+      { name: string; email: string | null; phone_number: string | null }
+    >()
+
+    if (tenantIds.length > 0) {
+      const { data: tenantProfiles } = await admin
+        .from('user_profiles')
+        .select('id, full_name, email, phone_number')
+        .in('id', tenantIds)
+
+      tenantProfiles?.forEach((profile) => {
+        tenantProfileMap.set(profile.id, {
+          name: profile.full_name || 'Tenant',
+          email: profile.email || null,
+          phone_number: profile.phone_number || null,
+        })
+      })
+    }
+
+    const items = waterBills.map((row) => {
       const building = row.unit?.apartment_buildings
       const invoice = row.invoice
       const isPaid = Boolean(invoice?.status)
+      const leaseInfo = row.unit?.id ? unitLeaseMap.get(row.unit.id) : null
+      const tenantInfo =
+        leaseInfo?.tenant_user_id ? tenantProfileMap.get(leaseInfo.tenant_user_id) : null
+
       return {
         id: row.id,
         billing_month: row.billing_month,
@@ -92,12 +130,17 @@ export async function GET() {
         property_id: building?.id || row.unit?.building_id || null,
         property_name: building?.name || 'Unassigned',
         property_location: building?.location || '—',
+        unit_id: row.unit?.id || null,
         unit_number: row.unit?.unit_number || '—',
+        tenant_id: leaseInfo?.tenant_user_id || null,
+        tenant_name: tenantInfo?.name || 'Unassigned tenant',
+        tenant_phone: tenantInfo?.phone_number || null,
+        tenant_email: tenantInfo?.email || null,
         invoice_due_date: invoice?.due_date || null,
         invoice_id: invoice?.id || null,
         status: isPaid ? 'paid' : 'unpaid',
       }
-    }) || []
+    })
 
     const paidCount = items.filter((item) => item.status === 'paid').length
     const unpaidCount = items.filter((item) => item.status === 'unpaid').length
