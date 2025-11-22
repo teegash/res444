@@ -100,7 +100,8 @@ export function Header() {
         throw new Error('Failed to fetch notifications.')
       }
       const payload = await response.json()
-      setNotifications(sortNotifications(payload.data || []))
+      const unread = (payload.data || []).filter((item: NotificationItem) => !item.read)
+      setNotifications(sortNotifications(unread))
     } catch (error) {
       console.error('[Header] notifications fetch failed', error)
     }

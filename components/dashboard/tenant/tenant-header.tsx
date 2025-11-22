@@ -107,7 +107,8 @@ export function TenantHeader({ summary, loading, onProfileUpdated }: TenantHeade
         throw new Error('Failed to load notifications.')
       }
       const payload = await response.json()
-      setNotifications(sortNotifications(payload.data || []))
+      const unread = (payload.data || []).filter((item: NotificationItem) => !item.read)
+      setNotifications(sortNotifications(unread))
     } catch (error) {
       console.error('[TenantHeader] fetch notifications failed', error)
     }
