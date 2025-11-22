@@ -41,7 +41,8 @@ export async function GET() {
           id,
           status,
           due_date,
-          amount
+          amount,
+          lease_id
         )
       `
       )
@@ -55,42 +56,65 @@ export async function GET() {
     const waterBills = data || []
     const unitIds = Array.from(new Set(waterBills.map((row) => row.unit?.id).filter(Boolean))) as string[]
 
-    let unitLeaseMap = new Map<
-      string,
-      {
-        lease_id: string
-        tenant_user_id: string | null
+    const unitLeaseMap = new Map<string, { lease_id: string; tenant_user_id: string | null }>()
+    const leaseById = new Map<string, { lease_id: string; tenant_user_id: string | null }>()
+
+    const registerLease = (leaseRow?: { id?: string; unit_id?: string | null; tenant_user_id?: string | null }) => {
+      if (!leaseRow?.id) return
+      const summary = {
+        lease_id: leaseRow.id,
+        tenant_user_id: leaseRow.tenant_user_id ?? null,
       }
-    >()
+
+      leaseById.set(summary.lease_id, summary)
+
+      if (leaseRow.unit_id && !unitLeaseMap.has(leaseRow.unit_id)) {
+        unitLeaseMap.set(leaseRow.unit_id, summary)
+      }
+    }
 
     if (unitIds.length > 0) {
       const { data: leaseRows } = await admin
         .from('leases')
         .select('id, unit_id, tenant_user_id, status, start_date')
         .in('unit_id', unitIds)
-        .in('status', ['active', 'pending'])
         .order('start_date', { ascending: false })
 
-      if (leaseRows) {
-        for (const leaseRow of leaseRows) {
-          if (!leaseRow.unit_id) continue
-          if (!unitLeaseMap.has(leaseRow.unit_id)) {
-            unitLeaseMap.set(leaseRow.unit_id, {
-              lease_id: leaseRow.id,
-              tenant_user_id: leaseRow.tenant_user_id,
-            })
-          }
-        }
-      }
+      leaseRows?.forEach(registerLease)
     }
 
-    const tenantIds = Array.from(
+    const invoiceLeaseIds = Array.from(
       new Set(
-        Array.from(unitLeaseMap.values())
-          .map((item) => item.tenant_user_id)
-          .filter(Boolean)
+        waterBills
+          .map((row) => row.invoice?.lease_id)
+          .filter((leaseId): leaseId is string => Boolean(leaseId))
       )
-    ) as string[]
+    )
+
+    const missingLeaseIds = invoiceLeaseIds.filter((leaseId) => !leaseById.has(leaseId))
+
+    if (missingLeaseIds.length > 0) {
+      const { data: invoiceLeases } = await admin
+        .from('leases')
+        .select('id, unit_id, tenant_user_id, status, start_date')
+        .in('id', missingLeaseIds)
+
+      invoiceLeases?.forEach(registerLease)
+    }
+
+    const tenantIdSet = new Set<string>()
+    unitLeaseMap.forEach((value) => {
+      if (value.tenant_user_id) {
+        tenantIdSet.add(value.tenant_user_id)
+      }
+    })
+    leaseById.forEach((value) => {
+      if (value.tenant_user_id) {
+        tenantIdSet.add(value.tenant_user_id)
+      }
+    })
+
+    const tenantIds = Array.from(tenantIdSet)
 
     let tenantProfileMap = new Map<
       string,
@@ -100,10 +124,13 @@ export async function GET() {
     if (tenantIds.length > 0) {
       const { data: tenantProfiles } = await admin
         .from('user_profiles')
-        .select('id, full_name, email, phone_number')
+        .select('id, full_name, email, phone_number, role')
         .in('id', tenantIds)
 
       tenantProfiles?.forEach((profile) => {
+        if (profile.role && profile.role !== 'tenant') {
+          return
+        }
         tenantProfileMap.set(profile.id, {
           name: profile.full_name || 'Tenant',
           email: profile.email || null,
@@ -116,7 +143,9 @@ export async function GET() {
       const building = row.unit?.apartment_buildings
       const invoice = row.invoice
       const isPaid = Boolean(invoice?.status)
-      const leaseInfo = row.unit?.id ? unitLeaseMap.get(row.unit.id) : null
+      const leaseFromUnit = row.unit?.id ? unitLeaseMap.get(row.unit.id) : null
+      const leaseFromInvoice = invoice?.lease_id ? leaseById.get(invoice.lease_id) : null
+      const leaseInfo = leaseFromUnit ?? leaseFromInvoice
       const tenantInfo =
         leaseInfo?.tenant_user_id ? tenantProfileMap.get(leaseInfo.tenant_user_id) : null
 
