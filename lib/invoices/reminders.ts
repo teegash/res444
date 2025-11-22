@@ -1,6 +1,8 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { getTemplateContent } from '@/lib/sms/templateStore'
+import { renderTemplateContent } from '@/lib/sms/templateRenderer'
 
 export interface ReminderData {
   user_id: string
@@ -59,6 +61,9 @@ async function getUnpaidInvoicesForReminder(): Promise<
     due_date: string
     tenant_user_id: string
     tenant_phone: string | null
+    tenant_name: string
+    property_name: string | null
+    organization_id: string | null
   }>
 > {
   try {
@@ -72,15 +77,26 @@ async function getUnpaidInvoicesForReminder(): Promise<
         lease_id,
         amount,
         due_date,
+        status,
+        invoice_type,
         leases (
           tenant_user_id,
           user_profiles (
-            phone_number
+            phone_number,
+            full_name
+          ),
+          apartment_units (
+            unit_number,
+            apartment_buildings (
+              name,
+              organization_id
+            )
           )
         )
       `
       )
-      .eq('status', false)
+      .eq('invoice_type', 'rent')
+      .or('status.eq.unpaid,status.eq.overdue,status.is.null,status.eq.false')
 
     if (error || !invoices) {
       return []
@@ -90,7 +106,11 @@ async function getUnpaidInvoicesForReminder(): Promise<
       const lease = invoice.leases as
         | {
             tenant_user_id: string
-            user_profiles: { phone_number: string } | null
+            user_profiles: { phone_number: string | null; full_name: string | null } | null
+            apartment_units: {
+              unit_number: string | null
+              apartment_buildings: { name: string | null; organization_id: string | null } | null
+            } | null
           }
         | null
 
@@ -101,6 +121,9 @@ async function getUnpaidInvoicesForReminder(): Promise<
         due_date: invoice.due_date,
         tenant_user_id: lease?.tenant_user_id || '',
         tenant_phone: lease?.user_profiles?.phone_number || null,
+        tenant_name: lease?.user_profiles?.full_name || 'Tenant',
+        property_name: lease?.apartment_units?.apartment_buildings?.name || lease?.apartment_units?.unit_number || null,
+        organization_id: lease?.apartment_units?.apartment_buildings?.organization_id || null,
       }
     })
   } catch (error) {
@@ -189,24 +212,6 @@ function formatDate(dateStr: string): string {
 }
 
 /**
- * Generate rent payment reminder message
- */
-function generateRentReminderMessage(
-  amount: number,
-  dueDate: string,
-  isOverdue: boolean
-): string {
-  const formattedAmount = formatCurrency(amount)
-  const formattedDate = formatDate(dueDate)
-
-  if (isOverdue) {
-    return `RentalKenya: Your rent payment of ${formattedAmount} is OVERDUE (due ${formattedDate}). Please make payment immediately to avoid penalties.`
-  } else {
-    return `RentalKenya: Reminder - Your rent payment of ${formattedAmount} is due on ${formattedDate}. Please make payment to avoid late fees.`
-  }
-}
-
-/**
  * Send rent payment reminders
  * Called on 1st, 5th, and 7th of month
  */
@@ -226,6 +231,7 @@ export async function sendRentPaymentReminders(
 
     let remindersSent = 0
     const errors: string[] = []
+    const templateCache = new Map<string, string>()
 
     for (const invoice of unpaidInvoices) {
       try {
@@ -238,13 +244,23 @@ export async function sendRentPaymentReminders(
         const dueDate = new Date(invoice.due_date)
         const isOverdue = dueDate < today
 
-        // Only send reminders for rent invoices
-        // Filter by invoice type if needed (for now, assume all are rent)
-        const message = generateRentReminderMessage(
-          invoice.amount,
-          invoice.due_date,
-          isOverdue
-        )
+        const cacheId = `${invoice.organization_id || 'global'}`
+        if (!templateCache.has(cacheId)) {
+          const template = await getTemplateContent(invoice.organization_id, 'rent_payment')
+          templateCache.set(cacheId, template)
+        }
+
+        const template = templateCache.get(cacheId)!
+        const formattedAmount = formatCurrency(invoice.amount)
+        const formattedDate = formatDate(invoice.due_date)
+        const message = renderTemplateContent(template, {
+          '[TENANT_NAME]': invoice.tenant_name || 'Tenant',
+          '[AMOUNT]': formattedAmount,
+          '[DUE_DATE]': formattedDate,
+          '[INVOICE_ID]': invoice.id.substring(0, 8).toUpperCase(),
+          '[PROPERTY_NAME]': invoice.property_name || 'your unit',
+          '[STATUS]': isOverdue ? 'OVERDUE' : 'DUE',
+        })
 
         // Create reminder record first
         const reminderCreated = await createReminder({
