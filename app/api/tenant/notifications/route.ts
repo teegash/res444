@@ -21,7 +21,6 @@ export async function GET() {
         'id, sender_user_id, recipient_user_id, message_text, read, created_at, related_entity_type, related_entity_id, message_type'
       )
       .eq('recipient_user_id', user.id)
-      .or('message_type.eq.in_app,message_type.eq.sms,message_type.is.null')
       .order('created_at', { descending: true })
       .limit(30)
 
