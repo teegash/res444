@@ -13,10 +13,18 @@ function summarizeLeaseState(lease: any) {
   const start = lease.start_date ? new Date(lease.start_date) : null
   const end = lease.end_date ? new Date(lease.end_date) : null
 
-  if (start && start <= today && (!end || end >= today)) {
-    return {
-      status: 'valid',
-      detail: 'Lease is currently active.',
+  if (start && start <= today) {
+    if (!end) {
+      return {
+        status: 'invalid',
+        detail: 'Lease end date is missing and must be configured.',
+      }
+    }
+    if (end >= today) {
+      return {
+        status: 'valid',
+        detail: 'Lease is currently active.',
+      }
     }
   }
 
