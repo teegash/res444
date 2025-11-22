@@ -311,11 +311,19 @@ export default function TenantStatementPage({ params }: { params: { id?: string 
           <div className="grid md:grid-cols-2 gap-6 mb-8 p-6 bg-blue-50 rounded-lg">
             <div>
               <p className="text-sm text-muted-foreground mb-1">Opening Balance</p>
-              <p className="text-2xl font-bold">{formatCurrency(openingBalance)}</p>
+              <p className="text-2xl font-bold">
+                KES {Math.abs(openingBalance).toLocaleString()}
+              </p>
             </div>
             <div className="text-right">
               <p className="text-sm text-muted-foreground mb-1">Closing Balance</p>
-              <p className="text-2xl font-bold text-green-600">{formatCurrency(closingBalance)}</p>
+              <p
+                className={`text-2xl font-bold ${
+                  closingBalance < 0 ? 'text-green-600' : 'text-red-600'
+                }`}
+              >
+                KES {Math.abs(closingBalance).toLocaleString()}
+              </p>
             </div>
           </div>
 
@@ -348,6 +356,10 @@ export default function TenantStatementPage({ params }: { params: { id?: string 
                     transactions.map((transaction) => {
                       const isCredit = transaction.amount < 0
                       const displayAmount = formatCurrency(Math.abs(transaction.amount))
+                      const balanceRaw = transaction.balance_after ?? 0
+                      const balanceText = `KES ${Math.abs(balanceRaw).toLocaleString()}`
+                      const balanceClass =
+                        balanceRaw < 0 ? 'text-green-600' : 'text-red-600'
                       return (
                         <tr key={transaction.id} className="border-b last:border-0">
                           <td className="p-3 text-sm">{formatDate(transaction.posted_at)}</td>
@@ -362,8 +374,8 @@ export default function TenantStatementPage({ params }: { params: { id?: string 
                           <td className="p-3 text-sm text-right text-green-600">
                             {isCredit ? displayAmount : '—'}
                           </td>
-                          <td className="p-3 text-sm text-right">
-                            {formatCurrency(transaction.balance_after ?? 0)}
+                          <td className={`p-3 text-sm text-right font-semibold ${balanceClass}`}>
+                            {balanceText}
                           </td>
                         </tr>
                       )

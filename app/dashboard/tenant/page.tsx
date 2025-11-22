@@ -45,13 +45,28 @@ type TenantInvoiceRecord = {
   created_at?: string | null
 } | null
 
+type TenantPaymentActivity = {
+  id: string
+  invoice_id: string | null
+  amount_paid: number
+  payment_method: string | null
+  status: string
+  posted_at: string | null
+  created_at: string | null
+  invoice_type: string | null
+  payment_type: string | null
+  property_name: string | null
+  unit_label: string | null
+}
+
 type ActivityItem = {
   id: string
   title: string
   description: string
   dateLabel: string
-  tone: 'success' | 'warning' | 'info' | 'danger'
-  source: 'invoice' | 'maintenance'
+  tone: 'success' | 'warning' | 'info' | 'danger' | 'rent' | 'water' | 'maintenance'
+  source: 'invoice' | 'maintenance' | 'payment'
+  tagLabel: string
   timestamp: number
   href: string
 }
@@ -113,13 +128,15 @@ export default function TenantDashboard() {
 
   const fetchRecentActivity = useCallback(async () => {
     try {
-      const [invoicesResp, maintenanceResp] = await Promise.all([
+      const [invoicesResp, maintenanceResp, paymentsResp] = await Promise.all([
         fetch('/api/tenant/invoices', { cache: 'no-store' }),
         fetch('/api/tenant/maintenance/requests', { cache: 'no-store' }),
+        fetch('/api/tenant/payments', { cache: 'no-store' }),
       ])
 
       const invoicePayload = invoicesResp.ok ? await invoicesResp.json().catch(() => ({})) : { data: [] }
       const maintenancePayload = maintenanceResp.ok ? await maintenanceResp.json().catch(() => ({})) : { data: [] }
+      const paymentsPayload = paymentsResp.ok ? await paymentsResp.json().catch(() => ({})) : { data: [] }
 
       const invoices: TenantInvoiceRecord[] = invoicePayload.data || []
       const maintenanceRequests: Array<{
@@ -129,9 +146,19 @@ export default function TenantDashboard() {
         created_at?: string | null
         updated_at?: string | null
       }> = maintenancePayload.data || []
+      const payments: TenantPaymentActivity[] = paymentsPayload.data || []
+
+      const verifiedPayments = (payments || []).filter(
+        (payment) => (payment.status || '').toLowerCase() === 'verified'
+      )
+
+      const paidInvoiceIds = new Set(
+        verifiedPayments.map((payment) => payment.invoice_id).filter((id): id is string => Boolean(id))
+      )
 
       const invoiceItems: ActivityItem[] = invoices
         .filter(Boolean)
+        .filter((invoice) => !invoice?.status && !paidInvoiceIds.has(invoice?.id || ''))
         .sort((a, b) => {
           const aTime = a?.created_at ? new Date(a.created_at).getTime() : 0
           const bTime = b?.created_at ? new Date(b.created_at).getTime() : 0
@@ -139,15 +166,17 @@ export default function TenantDashboard() {
         })
         .slice(0, 4)
         .map((invoice) => {
-          const isPaid = Boolean(invoice?.status)
           const isWater = invoice?.invoice_type === 'water'
-          const tone: ActivityItem['tone'] = isPaid ? 'success' : isWater ? 'info' : 'warning'
-          const title = isPaid
-            ? `${isWater ? 'Water bill' : 'Rent'} payment recorded`
-          : `${isWater ? 'Water bill' : 'Rent'} invoice pending`
-        const description = isPaid
-          ? `${invoice?.property_name || 'Your unit'} • receipt available`
-          : `Due ${invoice?.due_date ? new Date(invoice.due_date).toLocaleDateString(undefined, { month: 'long', day: 'numeric' }) : 'soon'}`
+          const tone: ActivityItem['tone'] = isWater ? 'water' : 'rent'
+          const title = `${isWater ? 'Water bill' : 'Rent'} invoice pending`
+          const description = `Due ${
+            invoice?.due_date
+              ? new Date(invoice.due_date).toLocaleDateString(undefined, {
+                  month: 'long',
+                  day: 'numeric',
+                })
+              : 'soon'
+          }`
         const dateSource = invoice?.created_at || invoice?.due_date
         const dateLabel = dateSource
           ? new Date(dateSource).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
@@ -162,8 +191,41 @@ export default function TenantDashboard() {
             dateLabel,
             tone,
             source: 'invoice',
+            tagLabel: isWater ? 'Water Bill' : 'Rent Invoice',
             timestamp,
             href: invoiceHref,
+          }
+        })
+
+      const paymentItems: ActivityItem[] = verifiedPayments
+        .sort((a, b) => {
+          const aTime = a?.posted_at ? new Date(a.posted_at).getTime() : a?.created_at ? new Date(a.created_at).getTime() : 0
+          const bTime = b?.posted_at ? new Date(b.posted_at).getTime() : b?.created_at ? new Date(b.created_at).getTime() : 0
+          return bTime - aTime
+        })
+        .slice(0, 4)
+        .map((payment) => {
+          const type = (payment.invoice_type || payment.payment_type || 'rent').toLowerCase()
+          const isWater = type === 'water'
+          const tone: ActivityItem['tone'] = isWater ? 'water' : 'rent'
+          const postedAt = payment.posted_at || payment.created_at
+          const dateLabel = postedAt
+            ? new Date(postedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+            : '—'
+          const timestamp = postedAt ? new Date(postedAt).getTime() : Date.now()
+          const amountLabel = `KES ${Number(payment.amount_paid || 0).toLocaleString()}`
+          const methodLabel = (payment.payment_method || 'M-Pesa').replace('_', ' ')
+
+          return {
+            id: `payment-${payment.id}`,
+            title: `${isWater ? 'Water bill' : 'Rent'} payment successful`,
+            description: `${amountLabel} • via ${methodLabel}`,
+            dateLabel,
+            tone,
+            source: 'payment',
+            tagLabel: `${isWater ? 'Water' : 'Rent'} Payment`,
+            timestamp,
+            href: '/dashboard/tenant/payments',
           }
         })
 
@@ -176,33 +238,30 @@ export default function TenantDashboard() {
         .slice(0, 4)
         .map((request) => {
           const status = (request.status || '').toLowerCase()
-          let tone: ActivityItem['tone'] = 'info'
-          if (status.includes('resolved') || status.includes('completed')) {
-            tone = 'success'
-          } else if (status.includes('urgent') || status.includes('pending')) {
-            tone = 'warning'
-          }
+          const tone: ActivityItem['tone'] = 'maintenance'
           const dateSource = request.updated_at || request.created_at
           const dateLabel = dateSource
             ? new Date(dateSource).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
             : '—'
           const timestamp = dateSource ? new Date(dateSource).getTime() : Date.now()
+          const statusLabel = status ? status.replace(/_/g, ' ') : 'Update posted'
 
           return {
             id: request.id,
             title: `Maintenance · ${request.title}`,
-            description: `Status: ${request.status}`,
+            description: `Status: ${statusLabel}`,
             dateLabel,
             tone,
             source: 'maintenance',
+            tagLabel: `Maintenance · ${statusLabel}`,
             timestamp,
             href: '/dashboard/tenant/maintenance',
           }
         })
 
-      const combined = [...invoiceItems, ...maintenanceItems]
+      const combined = [...paymentItems, ...invoiceItems, ...maintenanceItems]
         .sort((a, b) => b.timestamp - a.timestamp)
-        .slice(0, 4)
+        .slice(0, 6)
 
       setRecentActivity(combined)
     } catch (error) {
@@ -251,27 +310,31 @@ export default function TenantDashboard() {
             <CardContent className="space-y-4">
               {recentActivity.length === 0 ? (
                 <div className="text-sm text-muted-foreground text-center py-4">
-                  No recent invoices or payments yet.
+                  No recent invoices, payments, or maintenance updates yet.
                 </div>
               ) : (
                 recentActivity.map((activity) => {
+                  const tone = activity.tone
                   const badgeClass =
-                    activity.tone === 'success'
+                    tone === 'rent' || tone === 'success'
                       ? 'bg-emerald-50 text-emerald-700 border border-emerald-100'
-                      : activity.tone === 'danger'
+                      : tone === 'danger'
                         ? 'bg-red-50 text-red-700 border border-red-100'
-                        : activity.tone === 'info'
+                        : tone === 'water' || tone === 'info'
                           ? 'bg-blue-50 text-blue-700 border border-blue-100'
-                          : 'bg-amber-50 text-amber-700 border border-amber-100'
+                          : tone === 'maintenance'
+                            ? 'bg-orange-50 text-orange-700 border border-orange-100'
+                            : 'bg-amber-50 text-amber-700 border border-amber-100'
                   const iconBg =
-                    activity.tone === 'success'
+                    tone === 'rent' || tone === 'success'
                       ? 'bg-emerald-100 text-emerald-600'
-                      : activity.tone === 'danger'
+                      : tone === 'danger'
                         ? 'bg-red-100 text-red-600'
-                        : activity.tone === 'info'
+                        : tone === 'water' || tone === 'info'
                           ? 'bg-blue-100 text-blue-600'
-                          : 'bg-amber-100 text-amber-600'
-
+                          : tone === 'maintenance'
+                            ? 'bg-orange-100 text-orange-600'
+                            : 'bg-amber-100 text-amber-600'
                   return (
                     <Link
                       key={activity.id}
@@ -287,17 +350,11 @@ export default function TenantDashboard() {
                           <span className="text-xs text-muted-foreground">{activity.dateLabel}</span>
                         </div>
                         <p className="text-xs text-muted-foreground">{activity.description}</p>
-                        <div className={`mt-2 inline-flex items-center gap-2 text-xs font-medium px-3 py-1 rounded-full ${badgeClass}`}>
+                        <div
+                          className={`mt-2 inline-flex items-center gap-2 text-xs font-medium px-3 py-1 rounded-full ${badgeClass}`}
+                        >
                           <span className="w-2 h-2 rounded-full bg-current opacity-70" />
-                          {activity.source === 'maintenance'
-                            ? 'Maintenance Update'
-                            : activity.tone === 'success'
-                              ? 'Payment · Posted'
-                              : activity.tone === 'danger'
-                                ? 'Payment · Failed'
-                                : activity.tone === 'info'
-                                  ? 'Water Bill'
-                                  : 'Rent Invoice'}
+                          {activity.tagLabel}
                         </div>
                       </div>
                     </Link>

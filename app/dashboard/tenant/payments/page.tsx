@@ -854,12 +854,18 @@ export default function PaymentHistoryPage() {
                         {new Date(statementDetails.periodEnd).toLocaleDateString()}
                       </p>
                     </div>
-                    <div className="text-right">
-                      <p className="text-muted-foreground mb-1">Closing Balance</p>
-                      <p className="font-semibold text-green-700">
-                        KES {statementDetails.summary.closingBalance.toLocaleString()}
-                      </p>
-                    </div>
+                <div className="text-right">
+                  <p className="text-muted-foreground mb-1">Closing Balance</p>
+                  <p
+                    className={
+                      statementDetails.summary.closingBalance < 0
+                        ? 'font-semibold text-green-700'
+                        : 'font-semibold text-red-600'
+                    }
+                  >
+                    KES {Math.abs(statementDetails.summary.closingBalance).toLocaleString()}
+                  </p>
+                </div>
                     <div>
                       <p className="text-muted-foreground mb-1">Property</p>
                       <p className="font-semibold">
@@ -913,6 +919,10 @@ export default function PaymentHistoryPage() {
                       {statementDetails.transactions.map((txn) => {
                         const isCredit = txn.amount < 0
                         const formattedAmount = `KES ${Math.abs(txn.amount).toLocaleString()}`
+                        const balanceRaw = txn.balance_after ?? 0
+                        const balanceFormatted = `KES ${Math.abs(balanceRaw).toLocaleString()}`
+                        const balanceClass =
+                          balanceRaw < 0 ? 'text-green-600' : 'text-red-600'
                         return (
                           <tr key={txn.id} className="border-b last:border-0">
                             <td className="p-3">
@@ -926,8 +936,8 @@ export default function PaymentHistoryPage() {
                             <td className="p-3 text-right text-green-600">
                               {isCredit ? formattedAmount : '—'}
                             </td>
-                            <td className="p-3 text-right font-medium">
-                              KES {(txn.balance_after || 0).toLocaleString()}
+                            <td className={`p-3 text-right font-semibold ${balanceClass}`}>
+                              {balanceFormatted}
                             </td>
                           </tr>
                         )

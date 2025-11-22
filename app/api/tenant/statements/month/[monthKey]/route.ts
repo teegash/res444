@@ -50,6 +50,7 @@ export async function GET(
         invoice_type,
         amount,
         due_date,
+        created_at,
         status,
         description,
         leases!inner (
@@ -118,7 +119,7 @@ export async function GET(
       reference: invoice.id.slice(0, 8).toUpperCase(),
       amount: Number(invoice.amount || 0),
       category: invoice.invoice_type || 'rent',
-      posted_at: invoice.due_date,
+      posted_at: invoice.created_at || invoice.due_date,
     }))
 
     transactions.push(...charges)

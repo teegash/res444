@@ -128,12 +128,13 @@ export async function GET(
       due_date: string | null
       status: string | null
       description: string | null
+      created_at?: string | null
     }> = []
 
     if (leaseId) {
       const { data: invoiceRows, error: invoiceError } = await adminSupabase
         .from('invoices')
-        .select('id, invoice_type, amount, due_date, status, description')
+        .select('id, invoice_type, amount, due_date, status, description, created_at')
         .eq('lease_id', leaseId)
         .order('due_date', { ascending: true })
         .limit(48)
@@ -149,6 +150,7 @@ export async function GET(
         due_date: invoice.due_date,
         status: invoice.status,
         description: invoice.description,
+        created_at: invoice.created_at,
       }))
     }
 
@@ -184,7 +186,7 @@ export async function GET(
     }
 
     const chargeTransactions: StatementTransaction[] = invoices.map((invoice) => {
-      const postedAt = invoice.due_date
+      const postedAt = invoice.created_at || invoice.due_date
       const typeLabel = invoice.invoice_type || 'rent'
       const description =
         typeLabel === 'water'
