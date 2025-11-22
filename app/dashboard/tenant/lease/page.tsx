@@ -188,7 +188,7 @@ export default function LeasePage() {
         title: 'Documents & Metadata',
         rows: [
           { label: 'Agreement Uploaded', value: agreementUrl ? 'Available' : 'Not provided' },
-          { label: 'Last Updated', lease.updated_at ? formatDate(lease.updated_at) : '—' },
+          { label: 'Last Updated', value: lease.updated_at ? formatDate(lease.updated_at) : '—' },
           {
             label: 'Rent Scheduling',
             value: lease.rent_auto_populated ? 'Auto-generated' : 'Manual invoices',
