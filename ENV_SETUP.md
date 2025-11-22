@@ -14,6 +14,16 @@ cron scrypt in https://script.google.com/home/projects/13GDtxnaUc5lNhTPh3WCDadd5
 
 to do ; 
 
+add tenant success after adding tenant
+
+water bill payments should show covered for the previous month, so if i pay november 1st it for the month of October
+
+in tenant management page, make it such that the delete button in the tenant remove tenant will delete data from database and archive it somewhere, give me instuctions on how accomplish this
+
+add totals at the bottom in account statements in the monthly payment statements, also include the tenant details like name and property and unit in the statement
+
+impliment the statements for download have correct dates for the payment, not invoice date, also make sure the columns are implimented as the pages with debit and credit columns with respective colour coding
+
 Tenant search bar ///
 Lease page and export feature /// need to change the pdf doc view
 Tenant edit ///
@@ -40,7 +50,7 @@ also should auto update upon successful payment through using payment gateway fo
 autoupdate several months payments
 this should stop rent payment reminders and only send invoice for water
 
-
+***
 In tenant dashboard, the pay rent button, make sure it goes to payment page but shows the rent amount, not the latest invoice, this will then be updated in payments showing the tenant has done a prepayment if its early and update the payment status to add a month or 2 before sending an invoice or rent reminder
 
 
@@ -54,17 +64,21 @@ In tenant dashboard, why is it when i click payrent for the 1st time it gives me
 
 in Payment Verification & Management page, the verified section make the tab type show in the table to show if the verified transaction is water bill or rent, also in the details modal in this verified tab in Payment Verification & Management page, make the modal say water bill paid in coverage, but in rent it shows how many months it has been paid, this should also update in tenant dashboard, can put a prepayment card which will show the date of rent paid until for the specific tenant, be keen
 
--
+-****
 How do i know waterbills are paid, need a monitor for water bill payment in waterbill page. have a button at the bottom taking us to paid water bills page, let the water bill payments page be populated by database with data of paid and unpaid bills, make a search bar that can filter the water bills by property and also a search box that can search by 1st letter and unit number, also make a progress bar showing status of water bills paid, this status bar can have filters to see the paid bills vs unpaid bills to see the performance of payments ------------ {in water bills page, in the Create Water Bill Invoice form, on the right side let there be a button, this button should lead to the waterbill statement page, this is where the paid and unpaid waterbills are displayed, in this page, let it be populated by database with data of paid and unpaid bills, make a search bar that can filter the water bills by property and also a search box that can search by 1st letter and unit number, also make a progress bar showing status of water bills paid, this status bar can have filters to see the paid bills vs unpaid bills to see the performance of payments}
 
+when i try to open in tenant management page the tenant Tenant Statement page in the manager dashboard, i get this error - Tenant ID is required.
+Also getting this error when clicking on grid view in tenant page - Application error: a client-side exception has occurred while loading res1212-xd8e-6mrdrx0cb-teegashs-projects.vercel.app (see the browser console for more information).
 
+*****
 let the water bill payments page be populated by database with data of paid and unpaid bills, make a search bar that can filter the water bills by property and also a search box that can search by 1st letter and unit number, also make a progress bar showing status of water bills paid, this status bar can have filters to see the paid bills vs unpaid bills to see the performance of payments
 
 ***
 make sure this is well implimented - in tenant dashboard Upcoming section, the rent invoice should only be sent if the rent has not been paid by 1st of the month, when pay rent is clicked after 1st, the same invoice is what is to populate the pay rent form, if that invoice is paid for, any other extra payment will create another invoice only upon successful payment and register as rent for the next month if its 1 month more, if its 3 months more it should reflect that as well
 
 
-in the Tenant Management page in manager dashboard, make it such that when the 	Payment Status blue paid or red unpaid status is clicked, it will navigate to a statement page of the specific tenant from where it was clicked in the list of tenants, a statement is shown with history of all transactions done by the tenant, let the statement show type of transaction, either rent or water bill --------- {in the Tenant Management page in manager dashboard, make it such that when the Payment Status blue paid or red unpaid status is clicked, it will navigate to a statement page of the specific tenant from where it was clicked in the list of tenants, a statement is shown with history of all transactions done by the tenant, let the statement show type of transaction, either rent or water bill}
+****
+in the Tenant Management page in manager dashboard, make it such that when the 	Payment Status blue paid or red unpaid status is clicked, it will navigate to a statement page of the specific tenant from where it was clicked in the list of tenants, a statement is shown with history of all transactions done by the tenant, let the statement show type of transaction, either rent or water bill --------- {}
 
 
 Also make the verified tab in payments page show legit details, it shows water payment as water paid and says covered for one month.
@@ -80,12 +94,14 @@ pay rent button in tenant portal,make it such that when it is clicked the paymen
 when clicking pay rent in tenant dashboard, if invoice doesnt exist, created one and mark it as paid for that current month, connect it well so that when rent is paid, if in a month where rent is still status paid, true, it will add 1 in the rent paid until in leases table, this resets and reduces by 1 to count for the coming month for rent, so if its reading 1 because the current month has been paid for then the rent paid until becomes 2 and then in the next month on 1st day of the month the rent paid until retiurns to 1 shoding only current month is paid for
 
 
+***
 (Pending) Hook up manager notification clicks to open the maintenance page pre-focused on the relevant request; we can wire that next by checking the related_entity_type when handling clicks in components/dashboard/header.tsx.
 
 
 Skip payments, will work on it later
 Later will work on Africas talking short code/ sender ID
 tenant delete should be implimented well and actually delete the tenant from the system
+
 
 Communications hub, announcements tab should have the option of choosing which apartment building to send announcement to, or all buildings, gives a list of all properties with a select option and whichever properties are selected the anouncements are sent to those tenants.
 
