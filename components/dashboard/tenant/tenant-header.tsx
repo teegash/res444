@@ -108,16 +108,8 @@ export function TenantHeader({ summary, loading, onProfileUpdated }: TenantHeade
       }
       const payload = await response.json()
       const rows: NotificationItem[] = Array.isArray(payload.data) ? payload.data : []
-      setNotifications((current) => {
-        const merged = new Map<string, NotificationItem>()
-        rows.forEach((row) => merged.set(row.id, row))
-        current.forEach((existing) => {
-          if (!merged.has(existing.id)) {
-            merged.set(existing.id, existing)
-          }
-        })
-        return sortNotifications(Array.from(merged.values()))
-      })
+      const unread = rows.filter((item) => !item.read)
+      setNotifications(sortNotifications(unread))
     } catch (error) {
       console.error('[TenantHeader] fetch notifications failed', error)
     }
@@ -141,7 +133,7 @@ export function TenantHeader({ summary, loading, onProfileUpdated }: TenantHeade
         },
         (payload) => {
           const newNotification = payload?.new as NotificationItem | undefined
-          if (newNotification?.id) {
+          if (newNotification?.id && !newNotification.read) {
             setNotifications((current) =>
               sortNotifications([
                 newNotification,
@@ -168,13 +160,7 @@ export function TenantHeader({ summary, loading, onProfileUpdated }: TenantHeade
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ids: unreadIds }),
     })
-    setNotifications((current) =>
-      sortNotifications(
-        current.map((notification) =>
-          unreadIds.includes(notification.id) ? { ...notification, read: true } : notification
-        )
-      )
-    )
+    setNotifications((current) => current.filter((notification) => !unreadIds.includes(notification.id)))
   }
 
   const handleNotificationClick = async (notification: NotificationItem) => {
@@ -185,17 +171,9 @@ export function TenantHeader({ summary, loading, onProfileUpdated }: TenantHeade
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ ids: [notification.id] }),
         })
-        setNotifications((current) =>
-          sortNotifications(
-            current.map((item) => (item.id === notification.id ? { ...item, read: true } : item))
-          )
-        )
+        setNotifications((current) => current.filter((item) => item.id !== notification.id))
       } else {
-        setNotifications((current) =>
-          sortNotifications(
-            current.map((item) => (item.id === notification.id ? { ...item, read: true } : item))
-          )
-        )
+        setNotifications((current) => current.filter((item) => item.id !== notification.id))
       }
       setSheetOpen(false)
       const invoiceId =

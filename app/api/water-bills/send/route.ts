@@ -114,21 +114,35 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const { data: invoice, error: invoiceError } = await adminSupabase
+    const { data: existingInvoice } = await adminSupabase
       .from('invoices')
-      .insert({
-        lease_id: lease.id,
-        invoice_type: 'water',
-        amount: Number(totalAmount),
-        due_date: dueDateDisplay,
-        status: false,
-        description: `Water invoice ${invoiceRef} for ${propertyName || 'unit'} ${unitNumber || ''}`.trim(),
-      })
       .select('id')
-      .single()
+      .eq('lease_id', lease.id)
+      .eq('invoice_type', 'water')
+      .eq('due_date', dueDateDisplay)
+      .maybeSingle()
 
-    if (invoiceError || !invoice) {
-      throw invoiceError || new Error('Failed to create invoice record.')
+    let invoiceId = existingInvoice?.id || null
+
+    if (!invoiceId) {
+      const { data: invoice, error: invoiceError } = await adminSupabase
+        .from('invoices')
+        .insert({
+          lease_id: lease.id,
+          invoice_type: 'water',
+          amount: Number(totalAmount),
+          due_date: dueDateDisplay,
+          status: false,
+          description: `Water invoice ${invoiceRef} for ${propertyName || 'unit'} ${unitNumber || ''}`.trim(),
+        })
+        .select('id')
+        .single()
+
+      if (invoiceError || !invoice) {
+        throw invoiceError || new Error('Failed to create invoice record.')
+      }
+
+      invoiceId = invoice.id
     }
 
     const dueDateObj = new Date(dueDateDisplay)
@@ -147,7 +161,7 @@ export async function POST(request: NextRequest) {
           units_consumed: Number(unitsConsumed),
           amount: Number(totalAmount),
           status: 'invoiced_separately',
-          added_to_invoice_id: invoice.id,
+          added_to_invoice_id: invoiceId,
           added_by: user.id,
           added_at: new Date().toISOString(),
           is_estimated: false,
@@ -160,7 +174,7 @@ export async function POST(request: NextRequest) {
       sender_user_id: user.id,
       recipient_user_id: tenantUserId,
       related_entity_type: 'payment',
-      related_entity_id: invoice.id,
+      related_entity_id: invoiceId,
       message_text: `A new water bill (${invoiceRef}) for ${propertyName || 'your unit'} is due on ${dueDateDisplay}.`,
       message_type: 'in_app',
       read: false,
@@ -172,7 +186,7 @@ export async function POST(request: NextRequest) {
       senderUserId: user.id,
       recipientUserId: tenantUserId,
       relatedEntityType: 'payment',
-      relatedEntityId: invoice.id,
+      relatedEntityId: invoiceId,
     })
 
     if (!smsResult.success) {
@@ -187,7 +201,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      data: { communicationId: smsResult.communicationId, invoiceId: invoice.id },
+      data: { communicationId: smsResult.communicationId, invoiceId },
     })
   } catch (error) {
     console.error('[WaterBill.Send] Failed to send invoice SMS', error)
