@@ -1,14 +1,14 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import Link from 'next/link'
+import { formatDistanceToNow } from 'date-fns'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
-import { MessageSquare, Send, SettingsIcon, Bell } from 'lucide-react'
+import { Send, SettingsIcon, Loader2 } from 'lucide-react'
 import {
   Table,
   TableBody,
@@ -57,6 +57,14 @@ type PropertySummary = {
   occupiedUnits: number
 }
 
+type InboxItem = {
+  tenantId: string
+  tenantName: string
+  lastMessage: string
+  lastCreatedAt: string | null
+  unreadCount: number
+}
+
 export default function CommunicationsPage() {
   const router = useRouter()
   const { toast } = useToast()
@@ -77,11 +85,10 @@ export default function CommunicationsPage() {
   const [selectedProperties, setSelectedProperties] = useState<string[]>([])
   const [propertiesLoading, setPropertiesLoading] = useState(false)
   const [announcementSending, setAnnouncementSending] = useState(false)
-
-  const messages = [
-    { id: 1, tenant: 'John Doe', message: 'Payment received for Unit 101', date: '2024-11-10', type: 'info' },
-    { id: 2, tenant: 'Jane Smith', message: 'Maintenance scheduled for tomorrow', date: '2024-11-09', type: 'alert' },
-  ]
+  const [inbox, setInbox] = useState<InboxItem[]>([])
+  const [inboxLoading, setInboxLoading] = useState(false)
+  const [inboxError, setInboxError] = useState<string | null>(null)
+  const [searchTerm, setSearchTerm] = useState('')
 
   const fetchTemplates = async () => {
     try {
@@ -117,9 +124,29 @@ export default function CommunicationsPage() {
     }
   }
 
+  const fetchInbox = async () => {
+    try {
+      setInboxLoading(true)
+      setInboxError(null)
+      const response = await fetch('/api/communications/messages', { cache: 'no-store' })
+      const payload = await response.json()
+      if (!response.ok) {
+        throw new Error(payload.error || 'Failed to load messages.')
+      }
+      setInbox(Array.isArray(payload.data) ? payload.data : [])
+    } catch (error) {
+      setInboxError(
+        error instanceof Error ? error.message : 'Unable to load messages right now.'
+      )
+    } finally {
+      setInboxLoading(false)
+    }
+  }
+
   useEffect(() => {
     fetchTemplates()
     fetchProperties()
+    fetchInbox()
   }, [])
 
   const handleSaveTemplate = async () => {
@@ -258,6 +285,22 @@ export default function CommunicationsPage() {
     }
   }
 
+  const filteredInbox = useMemo(() => {
+    const term = searchTerm.trim().toLowerCase()
+    if (!term) return inbox
+    return inbox.filter((item) => {
+      const fields = [item.tenantName, item.lastMessage]
+      return fields.some((value) => (value ? value.toLowerCase().includes(term) : false))
+    })
+  }, [inbox, searchTerm])
+
+  const formatRelative = (value: string | null) => {
+    if (!value) return '—'
+    const date = new Date(value)
+    if (Number.isNaN(date.getTime())) return '—'
+    return formatDistanceToNow(date, { addSuffix: true })
+  }
+
   const templatesMemo = useMemo(() => smsTemplates, [smsTemplates])
 
   return (
@@ -280,33 +323,84 @@ export default function CommunicationsPage() {
           {/* Messages Tab */}
           <TabsContent value="messages" className="space-y-4">
             <Card>
-              <CardHeader>
-                <CardTitle>Message Inbox</CardTitle>
+              <CardHeader className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <CardTitle>Message Inbox</CardTitle>
+                  <p className="text-sm text-muted-foreground">Latest tenant conversations</p>
+                </div>
+                <div className="flex items-center gap-2 w-full md:w-96">
+                  <Input
+                    value={searchTerm}
+                    onChange={(event) => setSearchTerm(event.target.value)}
+                    placeholder="Search tenant or message"
+                  />
+                  <Button variant="outline" size="sm" onClick={fetchInbox} disabled={inboxLoading}>
+                    {inboxLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Refresh'}
+                  </Button>
+                </div>
               </CardHeader>
               <CardContent>
                 <div className="border rounded-lg overflow-hidden">
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>From</TableHead>
-                        <TableHead>Message</TableHead>
-                        <TableHead>Date</TableHead>
-                        <TableHead>Type</TableHead>
+                        <TableHead>Tenant</TableHead>
+                        <TableHead>Latest message</TableHead>
+                        <TableHead>Updated</TableHead>
+                        <TableHead>Status</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {messages.map((msg) => (
-                        <TableRow key={msg.id}>
-                          <TableCell className="font-medium">{msg.tenant}</TableCell>
-                          <TableCell>{msg.message}</TableCell>
-                          <TableCell className="text-sm">{msg.date}</TableCell>
-                          <TableCell>
-                            <Badge variant={msg.type === 'info' ? 'default' : 'secondary'}>
-                              {msg.type}
-                            </Badge>
+                      {inboxLoading ? (
+                        <TableRow>
+                          <TableCell colSpan={4} className="py-6 text-center text-sm text-muted-foreground">
+                            <div className="flex items-center justify-center gap-2">
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                              Loading inbox…
+                            </div>
                           </TableCell>
                         </TableRow>
-                      ))}
+                      ) : inboxError ? (
+                        <TableRow>
+                          <TableCell colSpan={4} className="py-6 text-center text-sm text-muted-foreground">
+                            {inboxError}
+                          </TableCell>
+                        </TableRow>
+                      ) : filteredInbox.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={4} className="py-6 text-center text-sm text-muted-foreground">
+                            No conversations yet.
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        filteredInbox.map((item) => (
+                          <TableRow
+                            key={item.tenantId}
+                            className="cursor-pointer hover:bg-muted/40"
+                            onClick={() =>
+                              router.push(`/dashboard/tenants/${item.tenantId}/messages?tenantId=${item.tenantId}`)
+                            }
+                          >
+                            <TableCell className="font-medium">
+                              <div className="flex items-center gap-2">
+                                <span>{item.tenantName}</span>
+                                {item.unreadCount > 0 && (
+                                  <Badge variant="secondary" className="text-xs">
+                                    {item.unreadCount} new
+                                  </Badge>
+                                )}
+                              </div>
+                            </TableCell>
+                            <TableCell className="max-w-xs truncate">{item.lastMessage}</TableCell>
+                            <TableCell className="text-sm text-muted-foreground">
+                              {formatRelative(item.lastCreatedAt)}
+                            </TableCell>
+                            <TableCell className="text-xs uppercase text-muted-foreground">
+                              Conversation
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      )}
                     </TableBody>
                   </Table>
                 </div>

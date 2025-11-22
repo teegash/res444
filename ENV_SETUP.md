@@ -24,6 +24,8 @@ add totals at the bottom in account statements in the monthly payment statements
 
 impliment the statements for download have correct dates for the payment, not invoice date, also make sure the columns are implimented as the pages with debit and credit columns with respective colour coding
 
+the tenant name not showing in waterbill payment statement, fix this error
+
 Tenant search bar ///
 Lease page and export feature /// need to change the pdf doc view
 Tenant edit ///
@@ -107,7 +109,8 @@ Communications hub, announcements tab should have the option of choosing which a
 
 communications hub page in manager dashboard, the sms reminders should actuakly hook to templates of the sms being sent as reminders or invoices, be very keen and make sure they work
 
-
+***
+-------in the messages the communicaton hub, i want to make the page fully functional, the sms tab is well implimented and fully functional, make the other 2 tabs fully functional, in this communications hub in the messages tab, make sure it shows all the latest messages of the tenants that have been communicating with managers in a list, so that the latest message will preview and when clicked it will navigate to the exaxt tenant conversation, be keen implimenting
 communications hub in messages page in tenant dashboard, the messages tab, make sure it shows all the latest messages of the tenants that have been communicating with managers
 
 In Send Notice page, make the form fuction fully, table being used is the communication table, intergrate email, sms and app notification that when they are selected in form, they actually send the form to the specific tenant using the selected medium

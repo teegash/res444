@@ -38,6 +38,7 @@ import { createClient } from '@/lib/supabase/client'
 
 interface NotificationItem {
   id: string
+  sender_user_id?: string | null
   message_text: string
   created_at: string
   read: boolean
@@ -99,6 +100,15 @@ export function TenantHeader({ summary, loading, onProfileUpdated }: TenantHeade
     })
   }, [])
 
+  const syncNotifications = useCallback(
+    (items: NotificationItem[]) => {
+      const sorted = sortNotifications(items)
+      setNotifications(sorted)
+      setUnreadCount(sorted.filter((item) => !item.read).length)
+    },
+    [sortNotifications]
+  )
+
   const fetchNotifications = useCallback(async () => {
     try {
       const response = await fetch('/api/tenant/notifications', { cache: 'no-store' })
@@ -107,15 +117,28 @@ export function TenantHeader({ summary, loading, onProfileUpdated }: TenantHeade
       }
       const payload = await response.json()
       const rows: NotificationItem[] = Array.isArray(payload.data) ? payload.data : []
-      const unread = rows.filter((item) => !item.read)
-      setNotifications(sortNotifications(unread))
-      setUnreadCount(
-        typeof payload.unreadCount === 'number' ? payload.unreadCount : unread.length
-      )
+      syncNotifications(rows)
     } catch (error) {
       console.error('[TenantHeader] fetch notifications failed', error)
     }
-  }, [sortNotifications])
+  }, [syncNotifications])
+
+  const handleNewNotification = useCallback(
+    (record: NotificationItem | null) => {
+      if (!record) {
+        fetchNotifications()
+        return
+      }
+      setNotifications((current) => {
+        const withoutDuplicate = current.filter((item) => item.id !== record.id)
+        return sortNotifications([record, ...withoutDuplicate])
+      })
+      if (!record.read) {
+        setUnreadCount((prev) => prev + 1)
+      }
+    },
+    [fetchNotifications, sortNotifications]
+  )
 
   useEffect(() => {
     fetchNotifications()
@@ -139,8 +162,9 @@ export function TenantHeader({ summary, loading, onProfileUpdated }: TenantHeade
           table: 'communications',
           filter: `recipient_user_id=eq.${user.id}`,
         },
-        () => {
-          fetchNotifications()
+        (payload) => {
+          const record = (payload as { new?: NotificationItem }).new || null
+          handleNewNotification(record)
         }
       )
       .subscribe()
@@ -148,18 +172,24 @@ export function TenantHeader({ summary, loading, onProfileUpdated }: TenantHeade
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [fetchNotifications, supabase, user?.id])
+  }, [handleNewNotification, supabase, user?.id])
 
   const markAllAsRead = async () => {
     const unreadIds = notifications.filter((n) => !n.read).map((n) => n.id)
     if (unreadIds.length === 0) return
-    await fetch('/api/tenant/notifications', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ids: unreadIds }),
-    })
-    setNotifications([])
-    setUnreadCount(0)
+    try {
+      await fetch('/api/tenant/notifications', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: unreadIds }),
+      })
+      setNotifications((current) =>
+        sortNotifications(current.map((item) => ({ ...item, read: true })))
+      )
+      setUnreadCount(0)
+    } catch (error) {
+      console.error('[TenantHeader] mark all as read failed', error)
+    }
   }
 
   const handleNotificationClick = async (notification: NotificationItem) => {
@@ -170,11 +200,17 @@ export function TenantHeader({ summary, loading, onProfileUpdated }: TenantHeade
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ ids: [notification.id] }),
         })
-        setNotifications((current) => current.filter((item) => item.id !== notification.id))
-      } else {
-        setNotifications((current) => current.filter((item) => item.id !== notification.id))
       }
-      setUnreadCount((prev) => Math.max(0, prev - 1))
+      setNotifications((current) =>
+        sortNotifications(
+          current.map((item) =>
+            item.id === notification.id ? { ...item, read: true } : item
+          )
+        )
+      )
+      if (!notification.read) {
+        setUnreadCount((prev) => Math.max(0, prev - 1))
+      }
       setSheetOpen(false)
       const invoiceId =
         notification.related_entity_id &&

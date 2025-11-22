@@ -2,6 +2,16 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 
+const startOfMonthUtc = (date: Date) => new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1))
+const addMonthsUtc = (date: Date, months: number) =>
+  new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + months, 1))
+const getMonthKey = (iso?: string | null) => {
+  if (!iso) return null
+  const parsed = new Date(iso)
+  if (Number.isNaN(parsed.getTime())) return null
+  return `${parsed.getUTCFullYear()}-${(parsed.getUTCMonth() + 1).toString().padStart(2, '0')}`
+}
+
 type StatementTransaction = {
   id: string
   type: 'charge' | 'payment'
@@ -11,6 +21,91 @@ type StatementTransaction = {
   posted_at: string | null
   status?: string
   method?: string | null
+}
+
+function buildCoverageCharges(
+  existingCharges: StatementTransaction[],
+  lease?: {
+    monthly_rent: number | null
+    rent_paid_until: string | null
+    start_date: string | null
+  }
+) {
+  if (!lease?.monthly_rent || !lease.rent_paid_until) {
+    return []
+  }
+
+  const rentAmount = Number(lease.monthly_rent)
+  if (!Number.isFinite(rentAmount) || rentAmount <= 0) {
+    return []
+  }
+
+  const coverageEnd = startOfMonthUtc(new Date(lease.rent_paid_until))
+  const rentCharges = existingCharges
+    .filter((txn) => txn.type === 'charge')
+    .sort((a, b) => {
+      const aTime = a.posted_at ? new Date(a.posted_at).getTime() : 0
+      const bTime = b.posted_at ? new Date(b.posted_at).getTime() : 0
+      return aTime - bTime
+    })
+
+  const chargedMonthKeys = new Set(
+    rentCharges
+      .map((txn) => getMonthKey(txn.posted_at))
+      .filter((key): key is string => Boolean(key))
+  )
+
+  const coverageCharges: StatementTransaction[] = []
+
+  const appendCoverageForRange = (fromDate: Date, toDate: Date) => {
+    let cursor = addMonthsUtc(fromDate, 1)
+    while (cursor < toDate && cursor <= coverageEnd) {
+      const key = getMonthKey(cursor.toISOString())
+      if (key && !chargedMonthKeys.has(key)) {
+        coverageCharges.push({
+          id: `coverage-${key}`,
+          type: 'charge',
+          description: `Rent coverage applied (${cursor.toLocaleDateString(undefined, {
+            month: 'long',
+            year: 'numeric',
+          })})`,
+          reference: `COV-${cursor.getUTCFullYear()}${(cursor.getUTCMonth() + 1)
+            .toString()
+            .padStart(2, '0')}`,
+          amount: rentAmount,
+          posted_at: cursor.toISOString(),
+        })
+        chargedMonthKeys.add(key)
+      }
+      cursor = addMonthsUtc(cursor, 1)
+    }
+  }
+
+  if (rentCharges.length > 0) {
+    for (let index = 0; index < rentCharges.length - 1; index += 1) {
+      const current = rentCharges[index]
+      const next = rentCharges[index + 1]
+      if (!current.posted_at || !next.posted_at) continue
+      const currentMonth = startOfMonthUtc(new Date(current.posted_at))
+      const nextMonth = startOfMonthUtc(new Date(next.posted_at))
+      if (addMonthsUtc(currentMonth, 1) < nextMonth) {
+        appendCoverageForRange(currentMonth, nextMonth)
+      }
+    }
+
+    const lastCharge = rentCharges[rentCharges.length - 1]
+    if (lastCharge?.posted_at) {
+      const lastChargeMonth = startOfMonthUtc(new Date(lastCharge.posted_at))
+      if (lastChargeMonth < coverageEnd) {
+        appendCoverageForRange(lastChargeMonth, addMonthsUtc(coverageEnd, 1))
+      }
+    }
+  } else if (lease.start_date) {
+    const startMonth = startOfMonthUtc(new Date(lease.start_date))
+    appendCoverageForRange(addMonthsUtc(startMonth, -1), addMonthsUtc(coverageEnd, 1))
+  }
+
+  return coverageCharges
 }
 
 function resolveInvoiceId(request: NextRequest, params?: { invoiceId?: string }) {
@@ -169,6 +264,17 @@ export async function GET(
         status,
         method,
       })
+    }
+
+    if (invoice.invoice_type !== 'water') {
+      const coverageCharges = buildCoverageCharges(transactions, {
+        monthly_rent: lease?.monthly_rent || null,
+        rent_paid_until: lease?.rent_paid_until || null,
+        start_date: lease?.start_date || null,
+      })
+      if (coverageCharges.length > 0) {
+        transactions.push(...coverageCharges)
+      }
     }
 
     transactions.sort((a, b) => {
