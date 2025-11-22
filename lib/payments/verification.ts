@@ -1,8 +1,9 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
-import { updateInvoiceStatus, calculateInvoiceStatus } from '@/lib/invoices/invoiceGeneration'
+import { updateInvoiceStatus } from '@/lib/invoices/invoiceGeneration'
 import { logNotification } from '@/lib/communications/notifications'
+import { processRentPrepayment } from '@/lib/payments/prepayment'
 
 export interface VerifyPaymentRequest {
   invoice_id: string
@@ -167,6 +168,7 @@ export async function approvePayment(
         tenant_user_id,
         amount_paid,
         verified,
+        payment_date,
         months_paid,
         invoices (
           id,
@@ -195,7 +197,13 @@ export async function approvePayment(
       }
     }
 
-    const invoice = payment.invoices as { id: string; amount: number } | null
+    const invoice = payment.invoices as {
+      id: string
+      amount: number
+      lease_id: string
+      due_date?: string | null
+      invoice_type?: 'rent' | 'water'
+    } | null
 
     if (!invoice) {
       return {
@@ -229,28 +237,47 @@ export async function approvePayment(
     // 4. Update invoice status
     const monthsPaid = payment.months_paid || 1
 
-    await supabase.from('invoices').update({ months_covered: monthsPaid }).eq('id', invoice.id)
-    await updateInvoiceStatus(invoice.id)
+    let primaryInvoiceId = invoice.id
+    const invoiceType = invoice.invoice_type || 'rent'
 
-    if (invoice.due_date && invoice.lease_id) {
-      const dueDate = new Date(invoice.due_date)
-      const paidUntil = new Date(dueDate)
-      paidUntil.setMonth(paidUntil.getMonth() + monthsPaid - 1)
-      await supabase
-        .from('leases')
-        .update({ rent_paid_until: paidUntil.toISOString().split('T')[0] })
-        .eq('id', invoice.lease_id)
+    if (invoiceType === 'rent') {
+      const prepaymentResult = await processRentPrepayment({
+        paymentId: paymentId,
+        leaseId: invoice.lease_id,
+        tenantUserId: payment.tenant_user_id,
+        amountPaid: Number(payment.amount_paid),
+        monthsPaid,
+        paymentDate: payment.payment_date ? new Date(payment.payment_date) : new Date(),
+        paymentMethod: 'bank_transfer',
+      })
+
+      if (!prepaymentResult.success) {
+        await supabase
+          .from('payments')
+          .update({ verified: false, verified_by: null, verified_at: null })
+          .eq('id', paymentId)
+
+        return {
+          success: false,
+          error: 'Payment recorded but rent allocation failed. Please retry or contact support.',
+        }
+      }
+
+      primaryInvoiceId = prepaymentResult.appliedInvoices[0] || invoice.id
+    } else {
+      await supabase.from('invoices').update({ months_covered: monthsPaid }).eq('id', invoice.id)
+      await updateInvoiceStatus(invoice.id)
     }
 
     // 5. Send notification to tenant
     await sendPaymentVerificationNotification(
       payment.tenant_user_id,
-      invoice.id,
+      primaryInvoiceId,
       parseFloat(payment.amount_paid.toString()),
       'approved'
     )
 
-    const typeLabel = (invoice as { invoice_type?: string | null })?.invoice_type === 'water' ? 'Water bill' : 'Rent'
+    const typeLabel = invoiceType === 'water' ? 'Water bill' : 'Rent'
     await logNotification({
       senderUserId: verifiedByUserId,
       recipientUserId: payment.tenant_user_id,
@@ -264,7 +291,7 @@ export async function approvePayment(
       message: 'Payment verified successfully',
       data: {
         payment_id: paymentId,
-        invoice_id: invoice.id,
+        invoice_id: primaryInvoiceId,
         amount: parseFloat(payment.amount_paid.toString()),
         verified: true,
       },

@@ -3,6 +3,7 @@ import { requireAuth } from '@/lib/rbac/routeGuards'
 import { createClient } from '@/lib/supabase/server'
 import { updateInvoiceStatus } from '@/lib/invoices/invoiceGeneration'
 import { logNotification } from '@/lib/communications/notifications'
+import { processRentPrepayment } from '@/lib/payments/prepayment'
 
 export async function POST(request: NextRequest) {
   try {
@@ -97,17 +98,30 @@ export async function POST(request: NextRequest) {
       throw paymentError || new Error('Failed to record payment')
     }
 
-    await supabase.from('invoices').update({ months_covered: monthsCovered }).eq('id', invoice_id)
-    await updateInvoiceStatus(invoice_id)
+    let primaryInvoiceId = invoice_id
+    if (invoice.invoice_type === 'rent') {
+      const prepaymentResult = await processRentPrepayment({
+        paymentId: payment.id,
+        leaseId: lease.id,
+        tenantUserId: userId,
+        amountPaid: amount,
+        monthsPaid: monthsCovered,
+        paymentDate: new Date(now),
+        paymentMethod: 'card',
+      })
 
-    if (invoice.due_date) {
-      const dueDate = new Date(invoice.due_date)
-      const paidUntil = new Date(dueDate)
-      paidUntil.setMonth(paidUntil.getMonth() + monthsCovered - 1)
-      await supabase
-        .from('leases')
-        .update({ rent_paid_until: paidUntil.toISOString().split('T')[0] })
-        .eq('id', lease.id)
+      if (!prepaymentResult.success) {
+        console.error('[CardPayment] Failed to apply rent prepayment', prepaymentResult.validationErrors)
+        return NextResponse.json(
+          { success: false, error: 'Payment recorded but rent allocation failed. Please contact support.' },
+          { status: 500 }
+        )
+      }
+
+      primaryInvoiceId = prepaymentResult.appliedInvoices[0] || invoice_id
+    } else {
+      await supabase.from('invoices').update({ months_covered: monthsCovered }).eq('id', invoice_id)
+      await updateInvoiceStatus(invoice_id)
     }
 
     const typeLabel = invoice.invoice_type === 'water' ? 'Water bill' : 'Rent'

@@ -42,7 +42,17 @@ export async function GET() {
           status,
           due_date,
           amount,
-          lease_id
+          lease_id,
+          lease:leases (
+            id,
+            tenant_user_id,
+            profile:user_profiles (
+              id,
+              full_name,
+              email,
+              phone_number
+            )
+          )
         )
       `
       )
@@ -140,11 +150,28 @@ export async function GET() {
       const building = row.unit?.apartment_buildings
       const invoice = row.invoice
       const isPaid = Boolean(invoice?.status)
+      const invoiceLease = invoice?.lease as
+        | {
+            id: string
+            tenant_user_id: string | null
+            profile?: { full_name: string | null; email: string | null; phone_number: string | null } | null
+          }
+        | null
       const leaseFromUnit = row.unit?.id ? unitLeaseMap.get(row.unit.id) : null
       const leaseFromInvoice = invoice?.lease_id ? leaseById.get(invoice.lease_id) : null
-      const leaseInfo = leaseFromUnit ?? leaseFromInvoice
-      const tenantInfo =
-        leaseInfo?.tenant_user_id ? tenantProfileMap.get(leaseInfo.tenant_user_id) : null
+      const leaseFallback = invoiceLease
+        ? { lease_id: invoiceLease.id, tenant_user_id: invoiceLease.tenant_user_id }
+        : null
+      const leaseInfo = leaseFromUnit ?? leaseFromInvoice ?? leaseFallback
+      let tenantInfo = leaseInfo?.tenant_user_id ? tenantProfileMap.get(leaseInfo.tenant_user_id) : null
+
+      if (!tenantInfo && invoiceLease?.profile) {
+        tenantInfo = {
+          name: invoiceLease.profile.full_name || 'Tenant',
+          email: invoiceLease.profile.email || null,
+          phone_number: invoiceLease.profile.phone_number || null,
+        }
+      }
 
       return {
         id: row.id,

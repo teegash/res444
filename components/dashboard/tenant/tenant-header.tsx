@@ -108,7 +108,16 @@ export function TenantHeader({ summary, loading, onProfileUpdated }: TenantHeade
       }
       const payload = await response.json()
       const rows: NotificationItem[] = Array.isArray(payload.data) ? payload.data : []
-      setNotifications(sortNotifications(rows))
+      setNotifications((current) => {
+        const merged = new Map<string, NotificationItem>()
+        rows.forEach((row) => merged.set(row.id, row))
+        current.forEach((existing) => {
+          if (!merged.has(existing.id)) {
+            merged.set(existing.id, existing)
+          }
+        })
+        return sortNotifications(Array.from(merged.values()))
+      })
     } catch (error) {
       console.error('[TenantHeader] fetch notifications failed', error)
     }
@@ -130,8 +139,18 @@ export function TenantHeader({ summary, loading, onProfileUpdated }: TenantHeade
           table: 'communications',
           filter: `recipient_user_id=eq.${user.id}`,
         },
-        () => {
-          fetchNotifications()
+        (payload) => {
+          const newNotification = payload?.new as NotificationItem | undefined
+          if (newNotification?.id) {
+            setNotifications((current) =>
+              sortNotifications([
+                newNotification,
+                ...current.filter((item) => item.id !== newNotification.id),
+              ])
+            )
+          } else {
+            fetchNotifications()
+          }
         }
       )
       .subscribe()

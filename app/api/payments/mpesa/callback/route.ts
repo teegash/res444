@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { parseCallbackData } from '@/lib/mpesa/daraja'
 import { updateInvoiceStatus } from '@/lib/invoices/invoiceGeneration'
-import { calculatePaidUntil } from '@/lib/payments/leaseHelpers'
+import { processRentPrepayment } from '@/lib/payments/prepayment'
 import { logNotification } from '@/lib/communications/notifications'
 
 /**
@@ -54,6 +54,7 @@ export async function POST(request: NextRequest) {
         tenant_user_id,
         amount_paid,
         months_paid,
+        payment_date,
         mpesa_receipt_number,
         invoices (
           id,
@@ -81,6 +82,7 @@ export async function POST(request: NextRequest) {
           tenant_user_id,
           amount_paid,
           months_paid,
+          payment_date,
           mpesa_receipt_number,
           invoices (
             id,
@@ -114,7 +116,13 @@ export async function POST(request: NextRequest) {
     // 4. Handle payment result
     if (parsed.resultCode === 0) {
       // Payment successful
-      const invoice = payment.invoices as { id: string; amount: number; due_date: string | null; lease_id: string } | null
+      const invoice = payment.invoices as {
+        id: string
+        amount: number
+        due_date: string | null
+        lease_id: string
+        invoice_type?: 'rent' | 'water'
+      } | null
 
       if (!invoice) {
         console.error('Invoice not found for payment:', payment.id)
@@ -162,37 +170,38 @@ export async function POST(request: NextRequest) {
 
       // 6. Update invoice coverage and status
       const monthsPaid = payment.months_paid || 1
-      await supabase
-        .from('invoices')
-        .update({ months_covered: monthsPaid })
-        .eq('id', invoice.id)
+      let primaryInvoiceId = invoice.id
 
-      await updateInvoiceStatus(invoice.id)
+      if (invoice.invoice_type === 'rent') {
+        const prepaymentResult = await processRentPrepayment({
+          paymentId: payment.id,
+          leaseId: invoice.lease_id,
+          tenantUserId: payment.tenant_user_id,
+          amountPaid: Number(payment.amount_paid),
+          monthsPaid,
+          paymentDate: payment.payment_date ? new Date(payment.payment_date) : new Date(),
+          paymentMethod: 'mpesa',
+        })
 
-      const { data: lease } = await supabase
-        .from('leases')
-        .select('id, rent_paid_until')
-        .eq('id', invoice.lease_id)
-        .maybeSingle()
-
-      const nextPaidUntil = calculatePaidUntil(
-        lease?.rent_paid_until || null,
-        invoice.due_date,
-        monthsPaid
-      )
-
-      if (nextPaidUntil) {
+        if (!prepaymentResult.success) {
+          console.error('[MpesaCallback] Failed to process rent prepayment', prepaymentResult.validationErrors)
+        } else {
+          primaryInvoiceId = prepaymentResult.appliedInvoices[0] || invoice.id
+        }
+      } else {
         await supabase
-          .from('leases')
-          .update({ rent_paid_until: nextPaidUntil })
-          .eq('id', invoice.lease_id)
+          .from('invoices')
+          .update({ months_covered: monthsPaid })
+          .eq('id', invoice.id)
+
+        await updateInvoiceStatus(invoice.id)
       }
 
       // 7. Send SMS confirmation (async, don't wait)
       sendPaymentConfirmationSMS(payment.tenant_user_id, {
         amount: parseFloat(payment.amount_paid.toString()),
         receiptNumber: parsed.receiptNumber || 'N/A',
-        invoiceId: invoice.id,
+        invoiceId: primaryInvoiceId,
       }).catch((error) => {
         console.error('Error sending SMS confirmation:', error)
         // Don't fail the callback if SMS fails

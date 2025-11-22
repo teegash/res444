@@ -3,7 +3,7 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { queryTransactionStatus, getDarajaConfig } from './queryStatus'
 import { updateInvoiceStatus, calculateInvoiceStatus } from '@/lib/invoices/invoiceGeneration'
-import { calculatePaidUntil } from '@/lib/payments/leaseHelpers'
+import { processRentPrepayment } from '@/lib/payments/prepayment'
 import { getMpesaSettings, MpesaSettings } from '@/lib/mpesa/settings'
 import { logNotification } from '@/lib/communications/notifications'
 
@@ -17,6 +17,8 @@ export interface PendingPayment {
   created_at: string
   last_status_check: string | null
   notes?: string | null
+  months_paid?: number | null
+  payment_date?: string | null
 }
 
 export interface AutoVerifyResult {
@@ -56,7 +58,7 @@ async function getPendingMpesaPayments(maxRetries: number): Promise<PendingPayme
     // 4. Have a receipt number OR checkout request ID in notes
     const { data: payments, error } = await supabase
       .from('payments')
-      .select('id, invoice_id, tenant_user_id, amount_paid, mpesa_receipt_number, retry_count, created_at, last_status_check, notes')
+      .select('id, invoice_id, tenant_user_id, amount_paid, mpesa_receipt_number, retry_count, created_at, last_status_check, notes, months_paid, payment_date')
       .eq('payment_method', 'mpesa')
       .eq('verified', false)
       .or('mpesa_receipt_number.not.is.null,notes.ilike.%CheckoutRequestID%')
@@ -294,45 +296,43 @@ async function verifyPayment(
         .single()
 
       if (invoice) {
-        // Calculate invoice status
-        const invoiceStatus = await calculateInvoiceStatus(invoice.id)
-
-        // Update invoice status
-        await updateInvoiceStatus(invoice.id)
-
         const monthsPaid = payment.months_paid || 1
-        await supabase
-          .from('invoices')
-          .update({ months_covered: monthsPaid })
-          .eq('id', invoice.id)
+        let invoiceStatus = false
+        let targetInvoiceId = invoice.id
 
-        if (invoice.lease_id) {
-          const { data: lease } = await supabase
-            .from('leases')
-            .select('id, rent_paid_until')
-            .eq('id', invoice.lease_id)
-            .maybeSingle()
+        if (invoice.invoice_type === 'rent') {
+          const prepaymentResult = await processRentPrepayment({
+            paymentId: payment.id,
+            leaseId: invoice.lease_id,
+            tenantUserId: payment.tenant_user_id,
+            amountPaid: Number(payment.amount_paid),
+            monthsPaid,
+            paymentDate: payment.payment_date ? new Date(payment.payment_date) : new Date(),
+            paymentMethod: 'mpesa',
+          })
 
-          const nextPaidUntil = calculatePaidUntil(
-            lease?.rent_paid_until || null,
-            invoice.due_date || null,
-            monthsPaid
-          )
-
-          if (nextPaidUntil) {
-            await supabase
-              .from('leases')
-              .update({ rent_paid_until: nextPaidUntil })
-              .eq('id', invoice.lease_id)
+          if (!prepaymentResult.success) {
+            console.error('[MpesaAutoVerify] Failed to process rent prepayment', prepaymentResult.validationErrors)
+          } else {
+            targetInvoiceId = prepaymentResult.appliedInvoices[0] || invoice.id
+            await updateInvoiceStatus(targetInvoiceId)
+            invoiceStatus = await calculateInvoiceStatus(targetInvoiceId)
           }
+        } else {
+          await supabase
+            .from('invoices')
+            .update({ months_covered: monthsPaid })
+            .eq('id', invoice.id)
+
+          await updateInvoiceStatus(invoice.id)
+          invoiceStatus = await calculateInvoiceStatus(invoice.id)
         }
 
-        // If invoice is fully paid, send SMS
         if (invoiceStatus) {
           await sendPaymentConfirmationSMS(
             payment.tenant_user_id,
             parseFloat(payment.amount_paid.toString()),
-            invoice.id,
+            targetInvoiceId,
             receiptNumber || transactionId
           )
 
