@@ -55,6 +55,7 @@ export async function POST(request: NextRequest) {
         amount_paid,
         months_paid,
         payment_date,
+        notes,
         mpesa_receipt_number,
         invoices (
           id,
@@ -83,6 +84,7 @@ export async function POST(request: NextRequest) {
           amount_paid,
           months_paid,
           payment_date,
+          notes,
           mpesa_receipt_number,
           invoices (
             id,

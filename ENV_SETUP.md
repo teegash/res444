@@ -107,6 +107,7 @@ Communications hub, announcements tab should have the option of choosing which a
 
 communications hub page in manager dashboard, the sms reminders should actuakly hook to templates of the sms being sent as reminders or invoices, be very keen and make sure they work
 
+
 communications hub in messages page in tenant dashboard, the messages tab, make sure it shows all the latest messages of the tenants that have been communicating with managers
 
 In Send Notice page, make the form fuction fully, table being used is the communication table, intergrate email, sms and app notification that when they are selected in form, they actually send the form to the specific tenant using the selected medium

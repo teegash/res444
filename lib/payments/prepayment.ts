@@ -41,6 +41,7 @@ interface PaymentRecord {
   amount_paid: number | string
   payment_date: string | null
   months_paid: number | null
+  notes?: string | null
   verified: boolean | null
 }
 
@@ -426,7 +427,7 @@ export async function processRentPrepayment(
         .maybeSingle(),
       admin
         .from('payments')
-        .select('id, invoice_id, tenant_user_id, amount_paid, payment_date, months_paid, verified')
+        .select('id, invoice_id, tenant_user_id, amount_paid, payment_date, months_paid, notes, verified')
         .eq('id', input.paymentId)
         .maybeSingle(),
     ])
@@ -491,12 +492,13 @@ export async function processRentPrepayment(
       }
     }
 
-    if (paymentRecord.invoice_id && paymentRecord.months_paid && paymentRecord.months_paid >= monthsPaid) {
+    const PREPAYMENT_FLAG = '[prepayment_applied]'
+    if (paymentRecord.notes?.includes(PREPAYMENT_FLAG)) {
       const applied = await fetchProcessedInvoiceChain(
         admin,
         input.leaseId,
-        paymentRecord.invoice_id,
-        paymentRecord.months_paid
+        paymentRecord.invoice_id || input.paymentId,
+        paymentRecord.months_paid || monthsPaid
       )
       const nextDue = await computeNextDueDateInternal(admin, input.leaseId)
       return {
@@ -632,6 +634,16 @@ export async function processRentPrepayment(
         .from('leases')
         .update({ rent_paid_until: rentPaidUntil })
         .eq('id', input.leaseId)
+    }
+
+    if (!paymentRecord.notes?.includes(PREPAYMENT_FLAG)) {
+      const updatedNotes = paymentRecord.notes
+        ? `${paymentRecord.notes}\n${PREPAYMENT_FLAG}`
+        : PREPAYMENT_FLAG
+      await admin
+        .from('payments')
+        .update({ notes: updatedNotes })
+        .eq('id', input.paymentId)
     }
 
     const nextDue = await computeNextDueDateInternal(admin, input.leaseId)
