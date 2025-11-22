@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { getCoverageRangeLabel } from '@/lib/payments/leaseHelpers'
 
 const MANAGER_ROLES = ['admin', 'manager', 'caretaker'] as const
 
@@ -46,6 +47,7 @@ type StatementTransaction = {
   reference: string | null
   amount: number
   balance_after?: number
+  coverage_label?: string | null
 }
 
 function resolveTenantId(request: NextRequest, params?: { tenantId?: string }) {
@@ -271,6 +273,7 @@ export async function GET(
         notes,
         mpesa_query_status,
         mpesa_response_code,
+        months_paid,
         invoices (
           invoice_type,
           due_date,
@@ -331,7 +334,10 @@ export async function GET(
           : 'pending'
 
       const methodLabel = (method || 'payment').replace('_', ' ')
-      const description = `${paymentType === 'water' ? 'Water' : 'Rent'} Payment (${methodLabel})`
+      const coverageLabel = getCoverageRangeLabel(invoice?.due_date || payment.payment_date || null, payment.months_paid || 1)
+      const description = `${paymentType === 'water' ? 'Water' : 'Rent'} Payment (${methodLabel})${
+        coverageLabel ? ` • ${coverageLabel}` : ''
+      }`
 
       return {
         id: payment.id,
@@ -343,6 +349,7 @@ export async function GET(
         description,
         reference,
         amount: -Number(payment.amount_paid || 0),
+        coverage_label: coverageLabel || null,
       }
     })
 

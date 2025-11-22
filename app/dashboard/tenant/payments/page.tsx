@@ -102,6 +102,7 @@ type StatementDetails = {
     amount: number
     posted_at: string | null
     balance_after: number
+    coverage_label?: string | null
   }>
   coverage?: {
     rent_paid_until: string | null
@@ -943,7 +944,14 @@ export default function PaymentHistoryPage() {
                             <td className="p-3">
                               {txn.posted_at ? new Date(txn.posted_at).toLocaleDateString() : '—'}
                             </td>
-                            <td className="p-3 capitalize">{txn.description}</td>
+                            <td className="p-3 capitalize">
+                              <p>{txn.description}</p>
+                              {txn.coverage_label ? (
+                                <p className="text-xs text-muted-foreground mt-1">
+                                  Coverage: {txn.coverage_label}
+                                </p>
+                              ) : null}
+                            </td>
                             <td className="p-3">{txn.reference || '—'}</td>
                             <td className="p-3 text-right text-slate-900">
                               {isCredit ? '—' : formattedAmount}

@@ -32,6 +32,7 @@ type StatementTransaction = {
   reference: string | null
   amount: number
   balance_after?: number
+  coverage_label?: string | null
 }
 
 type StatementPayload = {
@@ -366,7 +367,14 @@ export default function TenantStatementPage({ params }: { params: { id?: string 
                           <td className="p-3 text-sm capitalize">
                             {transaction.payment_type || transaction.kind}
                           </td>
-                          <td className="p-3 text-sm">{transaction.description}</td>
+                        <td className="p-3 text-sm">
+                          <p>{transaction.description}</p>
+                          {transaction.coverage_label ? (
+                            <p className="text-xs text-muted-foreground mt-1">
+                              Coverage: {transaction.coverage_label}
+                            </p>
+                          ) : null}
+                        </td>
                           <td className="p-3 text-sm">{transaction.reference || '—'}</td>
                           <td className="p-3 text-sm text-right text-slate-900">
                             {isCredit ? '—' : displayAmount}

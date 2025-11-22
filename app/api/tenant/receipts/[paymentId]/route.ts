@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { getCoverageRangeLabel } from '@/lib/payments/leaseHelpers'
 
 function resolvePaymentId(request: NextRequest, params?: { paymentId?: string }) {
   if (params?.paymentId) {
@@ -112,22 +113,9 @@ export async function GET(
       .maybeSingle()
 
     const coverageMonths = Number(payment.months_paid || 1)
-    const coverageStart = invoice?.due_date ? new Date(invoice.due_date) : null
-    let coverageLabel = 'Current billing period'
-
-    if (coverageStart && !Number.isNaN(coverageStart.getTime())) {
-      if (coverageMonths <= 1) {
-        coverageLabel = coverageStart.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })
-      } else {
-        const end = new Date(coverageStart)
-        end.setMonth(end.getMonth() + coverageMonths - 1)
-        const startLabel = coverageStart.toLocaleDateString(undefined, { month: 'short', year: 'numeric' })
-        const endLabel = end.toLocaleDateString(undefined, { month: 'short', year: 'numeric' })
-        coverageLabel = `${startLabel} – ${endLabel}`
-      }
-    } else if (coverageMonths > 1) {
-      coverageLabel = `${coverageMonths} months`
-    }
+    const coverageLabel =
+      getCoverageRangeLabel(invoice?.due_date || payment.payment_date || payment.created_at, coverageMonths) ||
+      (coverageMonths > 1 ? `${coverageMonths} months` : 'Current billing period')
 
     return NextResponse.json({
       success: true,

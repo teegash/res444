@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { getCoverageRangeLabel } from '@/lib/payments/leaseHelpers'
 
 const formatDateKey = (input: string) => {
   const [yearStr, monthStr] = input.split('-')
@@ -112,7 +113,11 @@ export async function GET(
         mpesa_receipt_number,
         bank_reference_number,
         mpesa_query_status,
-        mpesa_response_code
+        mpesa_response_code,
+        months_paid,
+        invoice:invoices (
+          due_date
+        )
       `
       )
       .eq('tenant_user_id', user.id)
@@ -125,15 +130,16 @@ export async function GET(
     }
 
     const transactions: Array<{
-      id: string
-      type: 'charge' | 'payment'
-      description: string
-      reference: string | null
-      amount: number
-      category: string | null
-      posted_at: string | null
-      balance_after?: number
-    }> = []
+    id: string
+    type: 'charge' | 'payment'
+    description: string
+    reference: string | null
+    amount: number
+    category: string | null
+    posted_at: string | null
+    balance_after?: number
+    coverage_label?: string | null
+  }> = []
 
     const charges = (invoices || []).map((invoice) => ({
       id: invoice.id,
@@ -156,13 +162,18 @@ export async function GET(
           ? 'failed'
           : payment.mpesa_query_status || 'pending'
 
+      const coverageLabel = getCoverageRangeLabel(
+        (payment.invoice as { due_date: string | null } | null)?.due_date,
+        payment.months_paid || 1
+      )
+
       transactions.push({
         id: payment.id,
         type: 'payment',
         description:
           status === 'failed'
             ? `Failed Payment (${payment.payment_method || 'manual'})`
-            : `Payment (${payment.payment_method || 'manual'})`,
+            : `Payment (${payment.payment_method || 'manual'})${coverageLabel ? ` • ${coverageLabel}` : ''}`,
         reference:
           payment.mpesa_receipt_number ||
           payment.bank_reference_number ||
@@ -171,6 +182,7 @@ export async function GET(
         amount: -Number(payment.amount_paid || 0),
         category: 'payment',
         posted_at: payment.payment_date || payment.created_at,
+        coverage_label: coverageLabel,
       })
     })
 
