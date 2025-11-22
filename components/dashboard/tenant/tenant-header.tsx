@@ -107,8 +107,8 @@ export function TenantHeader({ summary, loading, onProfileUpdated }: TenantHeade
         throw new Error('Failed to load notifications.')
       }
       const payload = await response.json()
-      const unread = (payload.data || []).filter((item: NotificationItem) => !item.read)
-      setNotifications(sortNotifications(unread))
+      const rows: NotificationItem[] = Array.isArray(payload.data) ? payload.data : []
+      setNotifications(sortNotifications(rows))
     } catch (error) {
       console.error('[TenantHeader] fetch notifications failed', error)
     }
@@ -149,7 +149,13 @@ export function TenantHeader({ summary, loading, onProfileUpdated }: TenantHeade
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ids: unreadIds }),
     })
-    setNotifications([])
+    setNotifications((current) =>
+      sortNotifications(
+        current.map((notification) =>
+          unreadIds.includes(notification.id) ? { ...notification, read: true } : notification
+        )
+      )
+    )
   }
 
   const handleNotificationClick = async (notification: NotificationItem) => {
@@ -160,9 +166,17 @@ export function TenantHeader({ summary, loading, onProfileUpdated }: TenantHeade
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ ids: [notification.id] }),
         })
-        setNotifications((current) => current.filter((item) => item.id !== notification.id))
+        setNotifications((current) =>
+          sortNotifications(
+            current.map((item) => (item.id === notification.id ? { ...item, read: true } : item))
+          )
+        )
       } else {
-        setNotifications((current) => current.filter((item) => item.id !== notification.id))
+        setNotifications((current) =>
+          sortNotifications(
+            current.map((item) => (item.id === notification.id ? { ...item, read: true } : item))
+          )
+        )
       }
       setSheetOpen(false)
       const invoiceId =

@@ -124,13 +124,10 @@ export async function GET() {
     if (tenantIds.length > 0) {
       const { data: tenantProfiles } = await admin
         .from('user_profiles')
-        .select('id, full_name, email, phone_number, role')
+        .select('id, full_name, email, phone_number')
         .in('id', tenantIds)
 
       tenantProfiles?.forEach((profile) => {
-        if (profile.role && profile.role !== 'tenant') {
-          return
-        }
         tenantProfileMap.set(profile.id, {
           name: profile.full_name || 'Tenant',
           email: profile.email || null,
