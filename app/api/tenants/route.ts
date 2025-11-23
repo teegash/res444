@@ -292,6 +292,7 @@ export async function GET() {
               id: unit.id,
               unit_number: unit.unit_number,
               unit_price_category: unit.unit_price_category,
+              building_id: building?.id || '',
               building_name: building?.name || '',
               building_location: building?.location || '',
             }

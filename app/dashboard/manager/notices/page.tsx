@@ -74,7 +74,7 @@ export default function ManagerNoticesPage() {
     const byProperty =
       propertyFilter === 'all'
         ? tenants
-        : tenants.filter((tenant) => tenant.buildingId === propertyId)
+        : tenants.filter((tenant) => tenant.buildingId === propertyId || (!tenant.buildingId && propertyId === 'unknown'))
     if (!term) return byProperty
     return byProperty.filter((tenant) =>
       [tenant.name, tenant.property].some((value) => value?.toLowerCase().includes(term))
@@ -85,7 +85,11 @@ export default function ManagerNoticesPage() {
     const values = Array.from(
       new Set(
         tenants
-          .map((t) => (t.buildingId ? `${t.buildingId}:::${t.property || 'Property'}` : t.property || ''))
+          .map((t) => {
+            if (t.buildingId) return `${t.buildingId}:::${t.property || 'Property'}`
+            if (t.property) return `unknown:::${t.property}`
+            return ''
+          })
           .filter((p): p is string => Boolean(p))
       )
     )
@@ -381,21 +385,21 @@ export default function ManagerNoticesPage() {
                       onChange={(e) => setSearch(e.target.value)}
                     />
                     <Select value={propertyFilter} onValueChange={setPropertyFilter}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Filter by property" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All properties</SelectItem>
-                        {propertyOptions.map((property) => {
-                          const [id, name] = property.split(':::')
-                          return (
-                            <SelectItem key={property} value={property}>
-                              {name || property}
-                            </SelectItem>
-                          )
-                        })}
-                      </SelectContent>
-                    </Select>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Filter by property" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All properties</SelectItem>
+                          {propertyOptions.map((property) => {
+                            const [id, name] = property.split(':::')
+                            return (
+                              <SelectItem key={property} value={property}>
+                                {name || property}
+                              </SelectItem>
+                            )
+                          })}
+                        </SelectContent>
+                      </Select>
                     <div className="max-h-56 overflow-y-auto border rounded-lg divide-y">
                       {tenantsLoading ? (
                         <div className="p-4 flex items-center gap-2 text-sm text-muted-foreground">

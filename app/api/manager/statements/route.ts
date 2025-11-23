@@ -35,9 +35,6 @@ export async function GET(request: NextRequest) {
               )
             )
           )
-        ),
-        tenant:user_profiles!tenant_user_id (
-          full_name
         )
       `
       )
@@ -52,12 +49,33 @@ export async function GET(request: NextRequest) {
       throw error
     }
 
+    const tenantIds = Array.from(
+      new Set(
+        (data || [])
+          .map((row) => row.tenant_user_id)
+          .filter((id): id is string => Boolean(id))
+      )
+    )
+
+    let profileMap = new Map<string, string>()
+    if (tenantIds.length > 0) {
+      const { data: profiles, error: profileError } = await admin
+        .from('user_profiles')
+        .select('id, full_name')
+        .in('id', tenantIds)
+      if (profileError) throw profileError
+      profileMap = new Map((profiles || []).map((p) => [p.id, p.full_name || 'Tenant']))
+    }
+
     const rows = (data || [])
       .map((row) => {
         const building = row.invoices?.leases?.unit?.building
         const unitNumber = row.invoices?.leases?.unit?.unit_number || ''
         const tenantName =
-          row.tenant?.full_name || row.invoices?.leases?.tenant_user_id || row.tenant_user_id || 'Tenant'
+          profileMap.get(row.tenant_user_id || '') ||
+          row.invoices?.leases?.tenant_user_id ||
+          row.tenant_user_id ||
+          'Tenant'
         const unitLabel = unitNumber && building?.name ? `${unitNumber} • ${building.name}` : unitNumber || ''
         return {
           id: row.id,

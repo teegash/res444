@@ -81,6 +81,13 @@ export default function StatementsPage() {
     loadStatements()
   }, [period, propertyId])
 
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      loadStatements()
+    }, 250)
+    return () => clearTimeout(timer)
+  }, [searchQuery])
+
   const handleExport = (format: 'pdf' | 'excel' | 'csv') => {
     const fileBase = `statements-${period}-${propertyId}-${new Date().toISOString().slice(0, 10)}`
     const columns = [
