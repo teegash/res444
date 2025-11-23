@@ -40,22 +40,23 @@ function GaugeCard({
   const percent = Math.min(Math.max(value, 0), 100)
   return (
     <Card className="relative overflow-hidden bg-white shadow-lg border-0">
-      <CardContent className="p-4 flex flex-col items-center gap-2">
-        <div
-          className="relative w-28 h-28 rounded-full flex items-center justify-center"
-          style={{
-            background: `conic-gradient(${color} ${percent * 3.6}deg, #e5e7eb ${percent * 3.6}deg 360deg)`,
-          }}
-        >
-          <div className="absolute inset-2 rounded-full bg-white flex items-center justify-center">
-            <div className="text-center">
-              <p className="text-2xl font-bold" style={{ color }}>
+      <CardContent className="p-4 flex flex-col items-center gap-3">
+        <p className="text-sm font-medium text-muted-foreground">{title}</p>
+        <div className="relative w-32 h-16 overflow-hidden">
+          <div
+            className="absolute left-0 bottom-0 w-32 h-32 rounded-full flex items-center justify-center"
+            style={{
+              background: `conic-gradient(${color} ${percent * 1.8}deg, #e5e7eb ${percent * 1.8}deg 180deg)`,
+              borderRadius: '9999px',
+            }}
+          >
+            <div className="absolute inset-3 bg-white rounded-full flex items-center justify-center">
+              <p className="text-lg font-bold" style={{ color }}>
                 {value.toFixed(1)}%
               </p>
             </div>
           </div>
         </div>
-        <p className="text-sm font-medium text-muted-foreground">{title}</p>
       </CardContent>
     </Card>
   )
@@ -120,9 +121,11 @@ export default function ReportsPage() {
           name: p.name,
           location: p.location,
           revenue: p.revenue || 0,
-          avg: totals.avgRent || 0,
+          avg: p.avg || payload.data?.totals?.avgRent || 0,
+          billed: p.billed || 0,
           occupancy: p.occupancy || 0,
           collectionRate: p.collectionRate || 0,
+          units: p.units || 0,
         })) || []
       setProperties(mapped)
     } catch (err) {
@@ -144,9 +147,10 @@ export default function ReportsPage() {
   const exportRows = filteredProperties.map((p) => ({
     property: p.name,
     revenue: `KES ${p.revenue.toLocaleString()}`,
-    avgUnit: `KES ${p.avg.toLocaleString()}`,
-    occupancy: `${p.occupancy}%`,
-    collection: `${p.collectionRate}%`,
+    expected: p.billed ? `KES ${p.billed.toLocaleString()}` : '—',
+    avgUnit: `KES ${(p.avg || totals.avgRent).toLocaleString()}`,
+    occupancy: `${(p.occupancy || 0).toFixed(1)}%`,
+    collection: `${(p.collectionRate || 0).toFixed(1)}%`,
   }))
 
   const handleExport = (format: 'pdf' | 'excel' | 'csv') => {
@@ -158,15 +162,19 @@ export default function ReportsPage() {
       { header: 'Occupancy', accessor: (row: any) => row.occupancy },
       { header: 'Collection', accessor: (row: any) => row.collection },
     ]
+    const summaryRows = [
+      ['TOTALS', `KES ${totals.revenue.toLocaleString()}`, '', `KES ${Math.round(totals.avgRent).toLocaleString()}`, `${(totals.occupancyRate || 0).toFixed(1)}%`, `${(totals.collectionRate || 0).toFixed(1)}%`],
+    ]
     if (format === 'pdf') {
       exportRowsAsPDF(filename, columns, exportRows, {
         title: 'Portfolio Performance',
         subtitle: `Period: ${period}, Scope: ${propertyScope}`,
+        summaryRows,
       })
     } else if (format === 'excel') {
-      exportRowsAsExcel(filename, columns, exportRows)
+      exportRowsAsExcel(filename, columns, exportRows, summaryRows)
     } else {
-      exportRowsAsCSV(filename, columns, exportRows)
+      exportRowsAsCSV(filename, columns, exportRows, summaryRows)
     }
   }
 
@@ -282,23 +290,29 @@ export default function ReportsPage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {filteredProperties.map((item) => (
-                  <div key={item.name} className="space-y-1">
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="font-medium">{item.name}</span>
-                      <span className="font-bold">KES {(item.revenue / 1000000).toFixed(2)}M</span>
+                {filteredProperties.map((item) => {
+                  const expected = item.billed || item.revenue || 1
+                  const fill = expected === 0 ? 0 : Math.min(100, (item.revenue / expected) * 100)
+                  return (
+                    <div key={item.name} className="space-y-1">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="font-medium">{item.name}</span>
+                        <span className="font-bold">
+                          {item.revenue.toLocaleString()} / {expected.toLocaleString()}
+                        </span>
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-3">
+                        <div
+                          className="h-3 rounded-full transition-all"
+                          style={{
+                            width: `${fill}%`,
+                            background: 'linear-gradient(90deg,#10b981,#2563eb)',
+                          }}
+                        />
+                      </div>
                     </div>
-                    <div className="w-full bg-gray-200 rounded-full h-3">
-                      <div
-                        className="h-3 rounded-full transition-all"
-                        style={{
-                          width: `${Math.min(100, item.revenue / 2500000 * 100)}%`,
-                          background: 'linear-gradient(90deg,#10b981,#2563eb)',
-                        }}
-                      />
-                    </div>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             </CardContent>
           </Card>

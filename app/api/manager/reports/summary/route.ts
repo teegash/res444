@@ -108,7 +108,7 @@ export async function GET(request: NextRequest) {
     let totalRevenue = 0
     const propertyRevenue = new Map<
       string,
-      { name: string; location: string | null; amount: number; collectionRate: number }
+      { name: string; location: string | null; amount: number; billed: number; occupancyCount: number; units: number }
     >()
 
     payments?.forEach((payment: PaymentRow) => {
@@ -120,7 +120,9 @@ export async function GET(request: NextRequest) {
         name: building.name || 'Property',
         location: building.location,
         amount: 0,
-        collectionRate: 0,
+        billed: 0,
+        occupancyCount: 0,
+        units: buildingUnitTotals.get(building.id) || 0,
       }
       current.amount += amount
       propertyRevenue.set(building.id, current)
@@ -134,9 +136,7 @@ export async function GET(request: NextRequest) {
       const building = lease.unit?.building
       if (building?.id) {
         const unitsForBuilding = buildingUnitTotals.get(building.id) || 0
-        if (unitsForBuilding > 0) {
-          totalUnits += unitsForBuilding / (buildingUnitTotals.get(building.id) ? 1 : 1)
-        }
+        totalUnits += unitsForBuilding > 0 ? unitsForBuilding : 1
         totalOccupancy += 1
       }
       const rent = Number(lease.monthly_rent || 0)
@@ -144,6 +144,19 @@ export async function GET(request: NextRequest) {
         const current = propertyCollection.get(building.id) || { collected: 0, billed: 0 }
         current.billed += rent
         propertyCollection.set(building.id, current)
+
+        const revenueEntry = propertyRevenue.get(building.id) || {
+          name: building.name || 'Property',
+          location: building.location,
+          amount: 0,
+          billed: 0,
+          occupancyCount: 0,
+          units: buildingUnitTotals.get(building.id) || 0,
+        }
+        revenueEntry.billed += rent
+        revenueEntry.occupancyCount += 1
+        revenueEntry.units = buildingUnitTotals.get(building.id) || revenueEntry.units
+        propertyRevenue.set(building.id, revenueEntry)
       }
     })
 
@@ -183,6 +196,9 @@ export async function GET(request: NextRequest) {
         location: entry.location,
         revenue: entry.amount,
         collectionRate: collectionPct,
+        billed: entry.billed,
+        occupancy: entry.units === 0 ? 0 : (entry.occupancyCount / entry.units) * 100,
+        units: entry.units,
       }
     })
 

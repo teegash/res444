@@ -178,7 +178,7 @@ export default function TenantInvoicePaymentPage() {
             <h1 className="text-2xl font-bold">Pay Water Bill</h1>
           </div>
           <Badge className={`ml-auto ${invoice.is_paid ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-            {invoice.is_paid ? 'true' : 'false'}
+            {invoice.is_paid ? 'Paid' : 'Unpaid'}
           </Badge>
         </div>
 
@@ -214,8 +214,8 @@ export default function TenantInvoicePaymentPage() {
               </p>
             </div>
             <div className="flex items-center gap-3 text-sm">
-              <span className="text-muted-foreground">Payment status flag</span>
-              <Badge variant={invoice.is_paid ? 'default' : 'outline'}>{invoice.is_paid ? 'true' : 'false'}</Badge>
+              <span className="text-muted-foreground">Payment status</span>
+              <Badge variant={invoice.is_paid ? 'default' : 'outline'}>{invoice.is_paid ? 'Paid' : 'Unpaid'}</Badge>
             </div>
           </CardContent>
         </Card>

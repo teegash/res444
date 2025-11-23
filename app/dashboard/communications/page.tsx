@@ -406,7 +406,7 @@ export default function CommunicationsPage() {
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="border rounded-lg overflow-hidden">
+                    <div className="border rounded-lg overflow-hidden shadow-sm bg-white">
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -570,7 +570,7 @@ export default function CommunicationsPage() {
 
           {/* Announcements Tab */}
           <TabsContent value="announcements" className="space-y-4">
-            <Card>
+            <Card className="shadow-lg">
               <CardHeader>
                 <CardTitle>Emergency Announcements</CardTitle>
               </CardHeader>
@@ -654,7 +654,7 @@ export default function CommunicationsPage() {
             </Card>
 
                 {/* Past Announcements */}
-                <Card>
+                <Card className="shadow-sm">
                   <CardHeader>
                     <CardTitle>Announcement History</CardTitle>
                   </CardHeader>

@@ -18,9 +18,10 @@ export async function GET() {
     const admin = createAdminClient()
     const { data, error } = await admin
       .from('communications')
-      .select('id, message_text, created_at, message_type')
+      .select('id, message_text, created_at, message_type, related_entity_type')
       .eq('sender_user_id', user.id)
       .eq('message_type', 'in_app')
+      .eq('related_entity_type', 'announcement')
       .order('created_at', { ascending: false })
       .limit(30)
 
@@ -131,6 +132,7 @@ export async function POST(request: NextRequest) {
       recipient_user_id: tenantId,
       message_text: message.trim(),
       message_type: 'in_app',
+      related_entity_type: 'announcement',
       read: false,
     }))
 
@@ -169,6 +171,7 @@ export async function POST(request: NextRequest) {
             message: message.trim(),
             senderUserId: user.id,
             recipientUserId: tenantId,
+            relatedEntityType: 'announcement',
           })
         })
       )

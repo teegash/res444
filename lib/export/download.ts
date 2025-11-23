@@ -15,6 +15,7 @@ type PdfOptions = {
   title?: string
   subtitle?: string
   footerNote?: string
+  summaryRows?: Array<Array<string | number>>
 }
 
 const BRAND_PRIMARY_RGB: [number, number, number] = [37, 99, 235] // #2563eb
@@ -87,7 +88,12 @@ function downloadBlob(filename: string, blob: Blob) {
   setTimeout(() => URL.revokeObjectURL(link.href), 0)
 }
 
-export function exportRowsAsCSV<T>(filename: string, columns: ExportColumn<T>[], data: T[]) {
+export function exportRowsAsCSV<T>(
+  filename: string,
+  columns: ExportColumn<T>[],
+  data: T[],
+  summaryRows?: Array<Array<string | number>>
+) {
   const headers = columns.map((col) => col.header)
   const rows = data.map((row) =>
     columns.map((col) => {
@@ -101,14 +107,22 @@ export function exportRowsAsCSV<T>(filename: string, columns: ExportColumn<T>[],
     })
   )
 
-  const csvContent = [headers.join(','), ...rows.map((row) => row.join(','))].join('\n')
+  const summary = summaryRows?.map((row) => row.map((cell) => `${cell}`)) || []
+
+  const csvContent = [headers.join(','), ...rows.map((row) => row.join(',')), ...summary.map((r) => r.join(','))].join('\n')
   downloadBlob(filename.endsWith('.csv') ? filename : `${filename}.csv`, new Blob([csvContent], { type: 'text/csv;charset=utf-8;' }))
 }
 
-export function exportRowsAsExcel<T>(filename: string, columns: ExportColumn<T>[], data: T[]) {
+export function exportRowsAsExcel<T>(
+  filename: string,
+  columns: ExportColumn<T>[],
+  data: T[],
+  summaryRows?: Array<Array<string | number>>
+) {
   const aoa = [
     columns.map((col) => col.header),
     ...data.map((row) => columns.map((col) => normalizeValue(col.accessor(row)))),
+    ...(summaryRows || []),
   ]
   const worksheet = XLSX.utils.aoa_to_sheet(aoa)
   const workbook = XLSX.utils.book_new()
@@ -135,7 +149,10 @@ export function exportRowsAsPDF<T>(
     theme: 'striped',
     margin: { left: PAGE_MARGIN, right: PAGE_MARGIN },
     head: [columns.map((col) => col.header)],
-    body: data.map((row) => columns.map((col) => normalizeValue(col.accessor(row)))),
+    body: [
+      ...data.map((row) => columns.map((col) => normalizeValue(col.accessor(row)))),
+      ...(options?.summaryRows || []),
+    ],
     styles: {
       fontSize: 10,
       cellPadding: 6,

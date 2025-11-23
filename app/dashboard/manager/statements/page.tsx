@@ -92,15 +92,18 @@ export default function StatementsPage() {
       { header: 'Method', accessor: (row: StatementRow) => row.method },
       { header: 'Receipt', accessor: (row: StatementRow) => row.receipt || '' },
     ]
+    const totalAmount = filtered.reduce((sum, row) => sum + Number(row.amount || 0), 0)
+    const summaryRows = [['', '', '', `Total`, `KES ${totalAmount.toLocaleString()}`, '', '']]
     if (format === 'pdf') {
       exportRowsAsPDF(fileBase, columns, filtered, {
         title: 'Tenant Payment Statements',
         subtitle: `Period: ${period}, Property: ${propertyId}`,
+        summaryRows,
       })
     } else if (format === 'excel') {
-      exportRowsAsExcel(fileBase, columns, filtered)
+      exportRowsAsExcel(fileBase, columns, filtered, summaryRows)
     } else {
-      exportRowsAsCSV(fileBase, columns, filtered)
+      exportRowsAsCSV(fileBase, columns, filtered, summaryRows)
     }
   }
 
