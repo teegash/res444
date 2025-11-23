@@ -390,7 +390,7 @@ export default function WaterBillsPage() {
         <Header />
         <main className="flex-1 p-8 overflow-auto">
           {/* Header */}
-          <div className="mb-8 grid lg:grid-cols-[2fr,1fr] gap-6 items-start">
+          <div className="mb-8 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div>
               <div className="flex items-center gap-3 mb-2">
                 <div className="p-2 bg-blue-100 rounded-lg">
@@ -402,90 +402,19 @@ export default function WaterBillsPage() {
                 Generate and send water bill invoices to tenants
               </p>
             </div>
-            <div className="flex flex-col gap-3 items-start">
-              <Button asChild variant="outline" className="w-full">
-                <Link href="/dashboard/water-bills/statements">View water bill statements</Link>
-              </Button>
-              <Card className="w-full">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-lg">Recent water bill payments</CardTitle>
-                  <p className="text-sm text-muted-foreground">Latest 6 payments recorded</p>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  {historyLoading && (
-                    <div className="space-y-3">
-                      <SkeletonLoader height={18} width="70%" />
-                      <SkeletonLoader height={18} width="60%" />
-                      <SkeletonLoader height={18} width="80%" />
-                      <SkeletonLoader height={18} width="75%" />
-                      <SkeletonLoader height={18} width="68%" />
-                      <SkeletonLoader height={18} width="66%" />
-                    </div>
-                  )}
-                  {!historyLoading && historyError && (
-                    <Alert variant="destructive">
-                      <AlertDescription>{historyError}</AlertDescription>
-                    </Alert>
-                  )}
-                  {!historyLoading && !historyError && history.length === 0 && (
-                    <p className="text-sm text-muted-foreground">No payments recorded yet.</p>
-                  )}
-                  {!historyLoading &&
-                    !historyError &&
-                    history.map((item) => (
-                      <div
-                        key={item.id}
-                        className="flex items-start justify-between rounded-lg border bg-white p-3 shadow-sm"
-                      >
-                        <div className="space-y-1">
-                          <div className="font-semibold text-slate-800">
-                            {item.tenant_name || 'Tenant'} • {item.unit_number || 'Unit'}
-                          </div>
-                          <div className="text-xs text-muted-foreground">
-                            {item.property_name || 'Property'} •{' '}
-                            {item.billing_month
-                              ? new Date(item.billing_month).toLocaleDateString(undefined, {
-                                  month: 'short',
-                                  year: 'numeric',
-                                })
-                              : '—'}
-                          </div>
-                          <div className="text-xs text-muted-foreground">
-                            Due{' '}
-                            {item.invoice_due_date
-                              ? new Date(item.invoice_due_date).toLocaleDateString()
-                              : '—'}
-                          </div>
-                        </div>
-                        <div className="text-right space-y-1">
-                          <div className="font-semibold text-slate-900">
-                            {formatCurrency(item.amount)}
-                          </div>
-                          <Badge
-                            className={
-                              item.status === 'paid'
-                                ? 'bg-emerald-600 text-white hover:bg-emerald-500'
-                                : 'bg-orange-500 text-white hover:bg-orange-400'
-                            }
-                          >
-                            {item.status === 'paid' ? 'Paid' : 'Unpaid'}
-                          </Badge>
-                        </div>
-                      </div>
-                    ))}
-                </CardContent>
-              </Card>
-            </div>
+            <Button asChild variant="outline" className="w-full md:w-auto md:ml-auto">
+              <Link href="/dashboard/water-bills/statements">View water bill statements</Link>
+            </Button>
           </div>
 
-          <div className="max-w-6xl space-y-4">
-            {formError && (
-              <Alert variant="destructive">
-                <AlertDescription>{formError}</AlertDescription>
-              </Alert>
-            )}
-
+          <div className="max-w-6xl grid lg:grid-cols-[2fr,1fr] gap-6">
             <div className="space-y-4">
+              {formError && (
+                <Alert variant="destructive">
+                  <AlertDescription>{formError}</AlertDescription>
+                </Alert>
+              )}
+
               <div className="space-y-4">
                 {invoiceSent ? (
                   <Card>
@@ -721,6 +650,78 @@ export default function WaterBillsPage() {
                 )}
               </div>
 
+            </div>
+
+            <div className="space-y-4">
+              <Card className="w-full">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-lg">Recent water bill payments</CardTitle>
+                  <p className="text-sm text-muted-foreground">Latest 6 payments recorded</p>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {historyLoading && (
+                    <div className="space-y-3">
+                      <SkeletonLoader height={18} width="70%" />
+                      <SkeletonLoader height={18} width="60%" />
+                      <SkeletonLoader height={18} width="80%" />
+                      <SkeletonLoader height={18} width="75%" />
+                      <SkeletonLoader height={18} width="68%" />
+                      <SkeletonLoader height={18} width="66%" />
+                    </div>
+                  )}
+                  {!historyLoading && historyError && (
+                    <Alert variant="destructive">
+                      <AlertDescription>{historyError}</AlertDescription>
+                    </Alert>
+                  )}
+                  {!historyLoading && !historyError && history.length === 0 && (
+                    <p className="text-sm text-muted-foreground">No payments recorded yet.</p>
+                  )}
+                  {!historyLoading &&
+                    !historyError &&
+                    history.map((item) => (
+                      <div
+                        key={item.id}
+                        className="flex items-start justify-between rounded-lg border bg-white p-3 shadow-sm"
+                      >
+                        <div className="space-y-1">
+                          <div className="font-semibold text-slate-800">
+                            {item.tenant_name || 'Tenant'} • {item.unit_number || 'Unit'}
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {item.property_name || 'Property'} •{' '}
+                            {item.billing_month
+                              ? new Date(item.billing_month).toLocaleDateString(undefined, {
+                                  month: 'short',
+                                  year: 'numeric',
+                                })
+                              : '—'}
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            Due{' '}
+                            {item.invoice_due_date
+                              ? new Date(item.invoice_due_date).toLocaleDateString()
+                              : '—'}
+                          </div>
+                        </div>
+                        <div className="text-right space-y-1">
+                          <div className="font-semibold text-slate-900">
+                            {formatCurrency(item.amount)}
+                          </div>
+                          <Badge
+                            className={
+                              item.status === 'paid'
+                                ? 'bg-emerald-600 text-white hover:bg-emerald-500'
+                                : 'bg-orange-500 text-white hover:bg-orange-400'
+                            }
+                          >
+                            {item.status === 'paid' ? 'Paid' : 'Unpaid'}
+                          </Badge>
+                        </div>
+                      </div>
+                    ))}
+                </CardContent>
+              </Card>
             </div>
           </div>
         </main>

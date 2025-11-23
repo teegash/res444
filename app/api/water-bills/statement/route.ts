@@ -229,7 +229,7 @@ export async function GET() {
     if (tenantIds.length > 0) {
       const baseQuery = admin
         .from('user_profiles')
-        .select('id, full_name, email, phone_number, role')
+        .select('id, full_name, phone_number, role')
         .in('id', tenantIds)
 
       let tenantProfiles: any[] | null = null
@@ -254,7 +254,7 @@ export async function GET() {
       tenantProfiles?.forEach((profile) => {
         tenantProfileMap.set(profile.id, {
           name: profile.full_name || 'Tenant',
-          email: profile.email || null,
+          email: (profile as any).email || null,
           phone_number: profile.phone_number || null,
         })
       })

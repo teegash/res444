@@ -59,6 +59,14 @@ begin
     _months_paid := 1;
   end if;
 
+  if _amount_paid is null or _amount_paid <= 0 then
+    raise exception 'Amount paid must be greater than zero';
+  end if;
+
+  if _payment_date::date > current_date then
+    raise exception 'Payment date cannot be in the future';
+  end if;
+
   select * into v_lease
   from leases
   where id = _lease_id
@@ -66,6 +74,10 @@ begin
 
   if not found then
     raise exception 'Lease not found';
+  end if;
+
+  if coalesce(v_lease.status::text, 'inactive') <> 'active' then
+    raise exception 'Lease is not active';
   end if;
 
   -- Determine coverage start (pointer-driven)
@@ -79,6 +91,10 @@ begin
   );
 
   v_monthly_rent := coalesce(v_lease.monthly_rent::numeric, 0);
+
+  if v_monthly_rent <= 0 then
+    raise exception 'Monthly rent is not configured for this lease';
+  end if;
 
   -- Create missing invoices for coverage months
   with months as (
