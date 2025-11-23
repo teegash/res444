@@ -42,7 +42,10 @@ export async function GET() {
           status,
           due_date,
           amount,
-          lease_id
+          lease_id,
+          leases (
+            tenant_user_id
+          )
         )
       `
       )
@@ -239,6 +242,13 @@ export async function GET() {
       })
     }
 
+    const invoiceLeaseTenant = new Map<string, string | null>()
+    waterBills.forEach((row) => {
+      if (row.invoice?.lease_id && (row.invoice as any)?.leases?.tenant_user_id) {
+        invoiceLeaseTenant.set(row.invoice.lease_id, (row.invoice as any).leases.tenant_user_id)
+      }
+    })
+
     const items = waterBills.map((row) => {
       const building = row.unit?.apartment_buildings
       const invoice = row.invoice
@@ -247,6 +257,9 @@ export async function GET() {
       const leaseFromUnit = getLeaseForBill(row.unit?.id, row.billing_month)
       const leaseInfo = leaseFromInvoice ?? leaseFromUnit
       let tenantId = leaseInfo?.tenant_user_id || null
+      if (!tenantId && invoice?.lease_id) {
+        tenantId = invoiceLeaseTenant.get(invoice.lease_id) || null
+      }
       if (!tenantId && invoice?.id) {
         tenantId = invoiceTenantMap.get(invoice.id) || null
       }
