@@ -42,6 +42,7 @@ export async function GET(request: NextRequest) {
         id,
         monthly_rent,
         rent_paid_until,
+        next_rent_due_date,
         unit:apartment_units (
           id,
           unit_number,
@@ -91,7 +92,12 @@ export async function GET(request: NextRequest) {
       .maybeSingle()
 
     let targetPeriod = currentPeriod
-    if (earliestUnpaid?.due_date) {
+    if (lease.next_rent_due_date) {
+      const pointer = new Date(lease.next_rent_due_date)
+      if (!Number.isNaN(pointer.getTime())) {
+        targetPeriod = startOfMonthUtc(pointer)
+      }
+    } else if (earliestUnpaid?.due_date) {
       const unpaidDue = new Date(earliestUnpaid.due_date)
       if (!Number.isNaN(unpaidDue.getTime())) {
         targetPeriod = startOfMonthUtc(unpaidDue)
@@ -105,21 +111,7 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    const dueDay = (() => {
-      if (earliestUnpaid?.due_date) {
-        const d = new Date(earliestUnpaid.due_date)
-        if (!Number.isNaN(d.getTime())) {
-          return Math.min(Math.max(1, d.getUTCDate()), 28)
-        }
-      }
-      return 5
-    })()
-    const dueDate = (() => {
-      const due = new Date(targetPeriod)
-      const monthEnd = new Date(Date.UTC(due.getUTCFullYear(), due.getUTCMonth() + 1, 0))
-      due.setUTCDate(Math.min(dueDay, monthEnd.getUTCDate()))
-      return toIsoDate(due)
-    })()
+    const dueDate = toIsoDate(targetPeriod)
     let invoice = await selectExistingInvoice(adminSupabase, lease.id, targetPeriod)
 
     if (!invoice) {
@@ -190,6 +182,7 @@ export async function GET(request: NextRequest) {
         lease: {
           monthly_rent: monthlyRent,
           rent_paid_until: lease.rent_paid_until,
+          next_rent_due_date: lease.next_rent_due_date,
         },
       },
     })

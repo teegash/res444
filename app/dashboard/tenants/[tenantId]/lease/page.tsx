@@ -14,7 +14,7 @@ import {
 } from '@/components/ui/select'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import { Loader2, ArrowLeft, Download, Calendar, FileText } from 'lucide-react'
+import { Loader2, ArrowLeft, Download, Calendar, FileText, UploadCloud } from 'lucide-react'
 import { useToast } from '@/components/ui/use-toast'
 import { exportLeasePdf } from '@/lib/pdf/leaseDocument'
 
@@ -34,6 +34,7 @@ interface LeaseResponse {
     monthly_rent: number | null
     deposit_amount: number | null
     status: string | null
+    lease_agreement_url?: string | null
     unit?: {
       id: string
       unit_number: string | null
@@ -90,6 +91,8 @@ export default function TenantLeaseManagementPage() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [data, setData] = useState<LeaseResponse | null>(null)
+  const [uploading, setUploading] = useState(false)
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
 
   const [startDate, setStartDate] = useState('')
   const [durationMonths, setDurationMonths] = useState('12')
@@ -105,6 +108,55 @@ export default function TenantLeaseManagementPage() {
     const endDate = new Date(end)
     if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) return 12
     return (endDate.getFullYear() - startDate.getFullYear()) * 12 + (endDate.getMonth() - startDate.getMonth())
+  }
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    setSelectedFile(file || null)
+  }
+
+  const handleUpload = async () => {
+    if (!tenantId || !selectedFile) return
+    try {
+      setUploading(true)
+      const formData = new FormData()
+      formData.append('file', selectedFile)
+      if (data?.lease?.id) {
+        formData.append('lease_id', data.lease.id)
+      }
+
+      const response = await fetch(`/api/tenants/${tenantId}/lease/upload`, {
+        method: 'POST',
+        body: formData,
+      })
+      const payload = await response.json().catch(() => ({}))
+      if (!response.ok || !payload.success) {
+        throw new Error(payload.error || 'Failed to upload document.')
+      }
+
+      setData((prev) =>
+        prev
+          ? {
+              ...prev,
+              lease: prev.lease ? { ...prev.lease, lease_agreement_url: payload.url } : prev.lease,
+            }
+          : prev
+      )
+      toast({
+        title: 'Lease document uploaded',
+        description: 'Tenants can now download the scanned lease in their portal.',
+      })
+      setSelectedFile(null)
+    } catch (err) {
+      console.error('[ManagerLease] upload failed', err)
+      toast({
+        title: 'Upload failed',
+        description: err instanceof Error ? err.message : 'Could not upload lease document.',
+        variant: 'destructive',
+      })
+    } finally {
+      setUploading(false)
+    }
   }
 
   useEffect(() => {
@@ -427,6 +479,53 @@ export default function TenantLeaseManagementPage() {
           </div>
 
           <div className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>Lease Documents</CardTitle>
+                <CardDescription>Upload a signed/ scanned lease for tenant access.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3 text-sm">
+                <div className="flex items-center justify-between rounded-lg border p-3 bg-slate-50">
+                  <div>
+                    <p className="font-semibold">Current file</p>
+                    <p className="text-xs text-muted-foreground">
+                      {data?.lease?.lease_agreement_url ? 'Tenant can download this file.' : 'No file uploaded yet.'}
+                    </p>
+                  </div>
+                  {data?.lease?.lease_agreement_url ? (
+                    <Button asChild variant="outline" size="sm">
+                      <a href={data.lease.lease_agreement_url} target="_blank" rel="noreferrer" className="gap-2 flex items-center">
+                        <Download className="h-4 w-4" />
+                        View file
+                      </a>
+                    </Button>
+                  ) : null}
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs uppercase tracking-wide text-muted-foreground">Upload lease (PDF or image)</label>
+                  <Input type="file" accept=".pdf,image/*" onChange={handleFileChange} />
+                  {selectedFile && (
+                    <p className="text-xs text-muted-foreground">
+                      Ready to upload: <span className="font-medium text-slate-900">{selectedFile.name}</span>
+                    </p>
+                  )}
+                </div>
+
+                <Button
+                  onClick={handleUpload}
+                  disabled={uploading || !selectedFile}
+                  className="w-full gap-2"
+                >
+                  {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <UploadCloud className="h-4 w-4" />}
+                  {uploading ? 'Uploading…' : 'Upload lease document'}
+                </Button>
+                <p className="text-xs text-muted-foreground">
+                  Uploaded files are stored securely and exposed as a download link in the tenant portal’s lease page.
+                </p>
+              </CardContent>
+            </Card>
+
             <Card>
               <CardHeader>
                 <CardTitle>Lease Notes</CardTitle>

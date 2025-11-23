@@ -93,6 +93,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
         monthly_rent,
         deposit_amount,
         status,
+        lease_agreement_url,
         unit:apartment_units (
           id,
           unit_number,
