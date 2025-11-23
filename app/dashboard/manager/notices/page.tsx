@@ -14,7 +14,6 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Badge } from '@/components/ui/badge'
 import { useToast } from '@/components/ui/use-toast'
 import { SkeletonLoader, SkeletonTable } from '@/components/ui/skeletons'
-import { SkeletonLoader, SkeletonTable } from '@/components/ui/skeletons'
 
 type TenantOption = {
   id: string
