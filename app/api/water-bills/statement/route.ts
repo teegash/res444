@@ -132,42 +132,6 @@ export async function GET() {
       })
     )
 
-    const tenantIdSet = new Set<string>()
-    leasesByUnit.forEach((list) => {
-      list.forEach((value) => {
-        if (value.tenant_user_id) {
-          tenantIdSet.add(value.tenant_user_id)
-        }
-      })
-    })
-    leaseById.forEach((value) => {
-      if (value.tenant_user_id) {
-        tenantIdSet.add(value.tenant_user_id)
-      }
-    })
-
-    const tenantIds = Array.from(tenantIdSet)
-
-    let tenantProfileMap = new Map<
-      string,
-      { name: string; email: string | null; phone_number: string | null }
-    >()
-
-    if (tenantIds.length > 0) {
-      const { data: tenantProfiles } = await admin
-        .from('user_profiles')
-        .select('id, full_name, email, phone_number')
-        .in('id', tenantIds)
-
-      tenantProfiles?.forEach((profile) => {
-        tenantProfileMap.set(profile.id, {
-          name: profile.full_name || 'Tenant',
-          email: profile.email || null,
-          phone_number: profile.phone_number || null,
-        })
-      })
-    }
-
     const getLeaseForBill = (unitId: string | null | undefined, billingMonth: string | null) => {
       if (!unitId) return null
       const candidates = leasesByUnit.get(unitId)
@@ -224,16 +188,52 @@ export async function GET() {
       })
     }
 
-    const payerTenantIds = Array.from(new Set(invoiceTenantMap.values()))
-    const missingProfiles = payerTenantIds.filter((id) => !tenantProfileMap.has(id))
+    const invoiceLeaseTenant = new Map<string, string | null>()
+    waterBills.forEach((row) => {
+      if (row.invoice?.lease_id && (row.invoice as any)?.leases?.tenant_user_id) {
+        invoiceLeaseTenant.set(row.invoice.lease_id, (row.invoice as any).leases.tenant_user_id)
+      }
+    })
 
-    if (missingProfiles.length > 0) {
-      const { data: payerProfiles } = await admin
+    const tenantIdSet = new Set<string>()
+    leasesByUnit.forEach((list) => {
+      list.forEach((value) => {
+        if (value.tenant_user_id) {
+          tenantIdSet.add(value.tenant_user_id)
+        }
+      })
+    })
+    leaseById.forEach((value) => {
+      if (value.tenant_user_id) {
+        tenantIdSet.add(value.tenant_user_id)
+      }
+    })
+    invoiceLeaseTenant.forEach((tenantId) => {
+      if (tenantId) {
+        tenantIdSet.add(tenantId)
+      }
+    })
+    invoiceTenantMap.forEach((tenantId) => {
+      if (tenantId) {
+        tenantIdSet.add(tenantId)
+      }
+    })
+
+    const tenantIds = Array.from(tenantIdSet)
+
+    let tenantProfileMap = new Map<
+      string,
+      { name: string; email: string | null; phone_number: string | null }
+    >()
+
+    if (tenantIds.length > 0) {
+      const { data: tenantProfiles } = await admin
         .from('user_profiles')
         .select('id, full_name, email, phone_number')
-        .in('id', missingProfiles)
+        .in('id', tenantIds)
+        .eq('role', 'tenant')
 
-      payerProfiles?.forEach((profile) => {
+      tenantProfiles?.forEach((profile) => {
         tenantProfileMap.set(profile.id, {
           name: profile.full_name || 'Tenant',
           email: profile.email || null,
@@ -241,13 +241,6 @@ export async function GET() {
         })
       })
     }
-
-    const invoiceLeaseTenant = new Map<string, string | null>()
-    waterBills.forEach((row) => {
-      if (row.invoice?.lease_id && (row.invoice as any)?.leases?.tenant_user_id) {
-        invoiceLeaseTenant.set(row.invoice.lease_id, (row.invoice as any).leases.tenant_user_id)
-      }
-    })
 
     const items = waterBills.map((row) => {
       const building = row.unit?.apartment_buildings
