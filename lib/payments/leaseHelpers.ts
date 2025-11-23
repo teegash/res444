@@ -31,10 +31,10 @@ export function calculatePaidUntil(
   const existing = parseDate(leasePaidUntil)
   const dueDate = parseDate(invoiceDueDate)
 
-  const coverageStart = dueDate
-    ? startOfMonthUtc(dueDate)
-    : existing
-      ? startOfMonthUtc(existing)
+  const coverageStart = existing
+    ? addMonthsUtc(startOfMonthUtc(existing), 1)
+    : dueDate
+      ? startOfMonthUtc(dueDate)
       : startOfMonthUtc(new Date())
 
   const coverageEnd = endOfMonthFromStart(addMonthsUtc(coverageStart, monthsPaid - 1))
