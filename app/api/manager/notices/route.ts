@@ -150,14 +150,16 @@ export async function GET() {
     const profiles = await fetchTenantProfiles(admin, recipientIds)
     const profileMap = new Map(profiles.map((profile) => [profile.id, profile.full_name || 'Tenant']))
 
-    const payload = (data || []).map((row) => ({
-      id: row.id,
-      recipientId: row.recipient_user_id,
-      recipientName: profileMap.get(row.recipient_user_id || '') || 'Tenant',
-      message: row.message_text,
-      channel: row.message_type,
-      created_at: row.created_at,
-    }))
+    const payload = (data || [])
+      .filter((row) => (row.message_text || '').startsWith('[NOTICE]'))
+      .map((row) => ({
+        id: row.id,
+        recipientId: row.recipient_user_id,
+        recipientName: profileMap.get(row.recipient_user_id || '') || 'Tenant',
+        message: (row.message_text || '').replace(/^\[NOTICE\]\s*/, ''),
+        channel: row.message_type,
+        created_at: row.created_at,
+      }))
 
     return NextResponse.json({ success: true, data: payload })
   } catch (error) {
@@ -186,6 +188,7 @@ export async function POST(request: NextRequest) {
       message,
       notice_type,
       channels = {},
+      property_id,
     }: {
       tenant_ids?: string[]
       send_all?: boolean
@@ -193,6 +196,7 @@ export async function POST(request: NextRequest) {
       message?: string
       notice_type?: string
       channels?: Channels
+      property_id?: string | null
     } = body || {}
 
     if (!message || !message.toString().trim()) {
@@ -206,15 +210,28 @@ export async function POST(request: NextRequest) {
     let recipientIds: string[] = tenantIdsInput
 
     if (send_all || tenantIdsInput.length === 0) {
-      const { data: tenants, error } = await admin
-        .from('user_profiles')
-        .select('id')
-        .eq('role', 'tenant')
+      const leaseQuery = admin
+        .from('leases')
+        .select('tenant_user_id, unit:apartment_units ( building_id )')
+        .in('status', ['active', 'pending'])
 
-      if (error) {
-        throw error
+      const { data: leaseTenants, error: leaseError } = await leaseQuery
+      if (leaseError) {
+        throw leaseError
       }
-      recipientIds = (tenants || []).map((row) => row.id).filter(Boolean)
+
+      const filteredLeases =
+        property_id && property_id !== 'all'
+          ? (leaseTenants || []).filter((lease) => lease.unit?.building_id === property_id)
+          : leaseTenants || []
+
+      recipientIds = Array.from(
+        new Set(
+          (filteredLeases || [])
+            .map((lease) => lease.tenant_user_id)
+            .filter((id): id is string => Boolean(id))
+        )
+      )
     }
 
     recipientIds = Array.from(new Set(recipientIds))
@@ -226,7 +243,7 @@ export async function POST(request: NextRequest) {
     }
 
     const subject = title?.toString().trim() || 'Tenant Notice'
-    const textBody = `${subject}\n\n${message.toString().trim()}`
+    const textBody = `[NOTICE] ${subject}\n\n${message.toString().trim()}`
     const relatedEntityType = ['maintenance_request', 'payment', 'lease'].includes(
       (notice_type || '').toLowerCase()
     )
@@ -267,7 +284,7 @@ export async function POST(request: NextRequest) {
           }
           return sendSMSWithLogging({
             phoneNumber: phone,
-            message: message.toString().trim(),
+            message: textBody,
             senderUserId: user.id,
             recipientUserId: id,
             relatedEntityType: relatedEntityType || undefined,

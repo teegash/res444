@@ -151,6 +151,7 @@ export function CommunicationsTab() {
   const formattedMessages = messages.map((message) => ({
     ...message,
     isTenant: message.sender_user_id === user?.id,
+    isNotice: (message.message_text || '').startsWith('[NOTICE]'),
     timestamp: message.created_at
       ? format(new Date(message.created_at), 'MMM d, yyyy • h:mm a')
       : '',
@@ -211,13 +212,15 @@ export function CommunicationsTab() {
                 >
                   <div
                     className={`px-4 py-3 rounded-2xl ${
-                      message.isTenant
-                        ? 'bg-primary text-primary-foreground rounded-tr-sm'
-                        : 'bg-muted text-foreground rounded-tl-sm'
+                      message.isNotice
+                        ? 'bg-red-50 text-red-700 border border-red-200'
+                        : message.isTenant
+                          ? 'bg-primary text-primary-foreground rounded-tr-sm'
+                          : 'bg-muted text-foreground rounded-tl-sm'
                     }`}
                   >
                     <p className="text-sm leading-relaxed whitespace-pre-line">
-                      {message.message_text}
+                      {message.message_text.replace(/^\[NOTICE\]\s*/, '')}
                     </p>
                   </div>
                   <span className="text-xs text-muted-foreground mt-1 px-1">{message.timestamp}</span>

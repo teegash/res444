@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { ArrowLeft, Download } from 'lucide-react'
 import { Sidebar } from '@/components/dashboard/sidebar'
@@ -37,11 +37,14 @@ const periods = [
 export default function OccupancyReportPage() {
   const [period, setPeriod] = useState('quarter')
   const [property, setProperty] = useState('all')
+  const [rows, setRows] = useState<OccupancyRow[]>(occupancyRows)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const filtered = useMemo(() => {
-    const scope = property === 'all' ? occupancyRows : occupancyRows.filter((row) => row.property === property)
+    const scope = property === 'all' ? rows : rows.filter((row) => row.property === property)
     return scope
-  }, [property])
+  }, [property, rows])
 
   const totals = useMemo(() => {
     const occupied = filtered.reduce((sum, row) => sum + row.occupied, 0)
@@ -75,6 +78,29 @@ export default function OccupancyReportPage() {
       exportRowsAsCSV(filename, columns, rows)
     }
   }
+
+  const loadData = async () => {
+    try {
+      setLoading(true)
+      setError(null)
+      const response = await fetch(
+        `/api/manager/reports/occupancy?period=${period}&property=${encodeURIComponent(property)}`
+      )
+      const payload = await response.json()
+      if (!response.ok) {
+        throw new Error(payload.error || 'Failed to load occupancy data.')
+      }
+      setRows(payload.data || [])
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to load occupancy data.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    loadData()
+  }, [period, property])
 
   return (
     <div className="flex min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50">
@@ -162,6 +188,13 @@ export default function OccupancyReportPage() {
               <CardDescription>Current occupancy and churn signals.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              {loading ? (
+                <div className="text-sm text-muted-foreground">Loading…</div>
+              ) : error ? (
+                <div className="text-sm text-red-600">{error}</div>
+              ) : filtered.length === 0 ? (
+                <div className="text-sm text-muted-foreground">No occupancy data.</div>
+              ) : null}
               {filtered.map((row) => {
                 const rate = row.total === 0 ? 0 : (row.occupied / row.total) * 100
                 return (

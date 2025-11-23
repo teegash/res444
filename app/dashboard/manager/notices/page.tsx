@@ -18,6 +18,7 @@ type TenantOption = {
   id: string
   name: string
   property?: string | null
+  buildingId?: string | null
 }
 
 type NoticeLog = {
@@ -69,10 +70,11 @@ export default function ManagerNoticesPage() {
 
   const filteredTenants = useMemo(() => {
     const term = search.trim().toLowerCase()
+    const [propertyId] = propertyFilter === 'all' ? ['all'] : propertyFilter.split(':::')
     const byProperty =
       propertyFilter === 'all'
         ? tenants
-        : tenants.filter((tenant) => (tenant.property || '').toLowerCase() === propertyFilter.toLowerCase())
+        : tenants.filter((tenant) => tenant.buildingId === propertyId)
     if (!term) return byProperty
     return byProperty.filter((tenant) =>
       [tenant.name, tenant.property].some((value) => value?.toLowerCase().includes(term))
@@ -83,9 +85,8 @@ export default function ManagerNoticesPage() {
     const values = Array.from(
       new Set(
         tenants
-          .map((t) => t.property)
+          .map((t) => (t.buildingId ? `${t.buildingId}:::${t.property || 'Property'}` : t.property || ''))
           .filter((p): p is string => Boolean(p))
-          .map((p) => p as string)
       )
     )
     return values
@@ -118,6 +119,7 @@ export default function ManagerNoticesPage() {
             tenant.unit?.unit_number ||
             tenant.unit_label ||
             null,
+          buildingId: tenant.unit?.building_id || null,
         })) || []
       setTenants(options)
     } catch (error) {
@@ -189,6 +191,7 @@ export default function ManagerNoticesPage() {
             sms: sendSms,
             in_app: sendApp,
           },
+          property_id: propertyFilter === 'all' ? null : propertyFilter.split(':::')[0] || null,
         }),
       })
       const payload = await response.json()
@@ -382,9 +385,131 @@ export default function ManagerNoticesPage() {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="all">All properties</SelectItem>
-                        {propertyOptions.map((property) => (
-                          <SelectItem key={property} value={property}>
-                            {property}
+                        {propertyOptions.map((property) => {
+                          const [id, name] = property.split(':::')
+                          return (
+                            <SelectItem key={property} value={property}>
+                              {name || property}
+                            </SelectItem>
+                          )
+                        })}
+                      </SelectContent>
+                    </Select>
+                    <div className="max-h-56 overflow-y-auto border rounded-lg divide-y">
+                      {tenantsLoading ? (
+                        <div className="p-4 flex items-center gap-2 text-sm text-muted-foreground">
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          Loading tenants…
+                        </div>
+                      ) : filteredTenants.length === 0 ? (
+                        <div className="p-4 text-sm text-muted-foreground">No tenants found.</div>
+                      ) : (
+                        filteredTenants.map((tenant) => (
+                          <label
+                            key={tenant.id}
+                            className="flex items-center gap-3 px-3 py-2 hover:bg-slate-50 cursor-pointer"
+                          >
+                            <Checkbox
+                              checked={sendAll || selectedTenants.includes(tenant.id)}
+                              onCheckedChange={(checked) => toggleTenant(tenant.id, Boolean(checked))}
+                              disabled={sendAll}
+                            />
+                            <div className="flex-1">
+                              <p className="text-sm font-medium">{tenant.name}</p>
+                              <p className="text-xs text-muted-foreground">{tenant.property || 'No unit linked'}</p>
+                            </div>
+                          </label>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  {templates.map((template) => (
+                    <Button
+                      key={template.title}
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setTitle(template.title)
+                        setMessage(template.message)
+                        setNoticeType(template.notice_type)
+                      }}
+                    >
+                      <Plus className="h-3 w-3 mr-2" />
+                      Use {template.title}
+                    </Button>
+                  ))}
+                </div>
+
+                <Button className="w-full h-12 text-base" onClick={handleSubmit} disabled={sending}>
+                  {sending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Plus className="h-4 w-4 mr-2" />}
+                  Send Notice
+                </Button>
+              </CardContent>
+            </Card>
+
+            <Card className="border-0 shadow-lg bg-white/80 backdrop-blur h-full">
+              <CardHeader>
+                <CardTitle>Recent notices</CardTitle>
+                <CardDescription>Last messages you sent</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3 max-h-80 overflow-y-auto pr-2">
+                {noticesLoading ? (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Loading notices…
+                  </div>
+                ) : recentNotices.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No notices sent yet.</p>
+                ) : (
+                  recentNotices.map((notice) => (
+                    <div
+                      key={notice.id}
+                      className="p-4 rounded-lg border bg-gradient-to-r from-slate-50 to-white shadow-sm"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="font-semibold">{notice.recipientName}</p>
+                          <p className="text-sm text-muted-foreground line-clamp-2 mt-1">
+                            {notice.message}
+                          </p>
+                        </div>
+                        <Badge variant="secondary" className="capitalize">
+                          {notice.channel || 'notice'}
+                        </Badge>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-2">
+                        {notice.created_at
+                          ? new Date(notice.created_at).toLocaleString()
+                          : '—'}
+                      </p>
+                    </div>
+                  ))
+                )}
+              </CardContent>
+              <CardContent className="pt-0">
+                <div className="border rounded-xl bg-slate-900 text-white p-4 shadow-inner">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Sparkles className="h-5 w-5 text-amber-300" />
+                    <p className="font-semibold">Pro tip</p>
+                  </div>
+                  <p className="text-sm text-slate-100">
+                    Blend channels for critical notices and keep messages short for SMS. Use property filters to stay precise.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+          </>
+          )}
+        </main>
+      </div>
+    </div>
+  )
+}
                           </SelectItem>
                         ))}
                       </SelectContent>

@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Sidebar } from '@/components/dashboard/sidebar'
 import { Header } from '@/components/dashboard/header'
 import { TrendingUp, TrendingDown, BarChart3, Eye, ArrowUpRight, Download } from 'lucide-react'
@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
 import { exportRowsAsCSV, exportRowsAsExcel, exportRowsAsPDF } from '@/lib/export/download'
+import { useToast } from '@/components/ui/use-toast'
 
 type PropertyMetric = {
   name: string
@@ -71,30 +72,82 @@ function GaugeCard({
 export default function ReportsPage() {
   const [period, setPeriod] = useState('quarter')
   const [propertyScope, setPropertyScope] = useState('all')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [properties, setProperties] = useState<typeof propertyMetrics>(propertyMetrics)
+  const [totals, setTotals] = useState({
+    revenue: 0,
+    occupancyRate: 0,
+    collectionRate: 0,
+    avgRent: 0,
+  })
+  const { toast } = useToast()
 
   const filteredProperties = useMemo(() => {
-    if (propertyScope === 'all') return propertyMetrics
-    return propertyMetrics.filter((p) => p.name === propertyScope)
-  }, [propertyScope])
+    if (propertyScope === 'all') return properties
+    return properties.filter((p) => p.name === propertyScope || p.id === propertyScope)
+  }, [propertyScope, properties])
 
   const summary = useMemo(() => {
     const totalRevenue = filteredProperties.reduce((sum, p) => sum + p.revenue, 0)
     const occupancy =
-      filteredProperties.reduce((sum, p) => sum + p.occupancy, 0) /
-      (filteredProperties.length || 1)
+      filteredProperties.reduce((sum, p) => sum + (p.occupancy || 0), 0) /
+      Math.max(1, filteredProperties.length)
     const collection =
-      filteredProperties.reduce((sum, p) => sum + p.collectionRate, 0) /
-      (filteredProperties.length || 1)
+      filteredProperties.reduce((sum, p) => sum + (p.collectionRate || 0), 0) /
+      Math.max(1, filteredProperties.length)
     const avgRent =
-      filteredProperties.reduce((sum, p) => sum + p.avg, 0) /
-      (filteredProperties.length || 1)
+      filteredProperties.reduce((sum, p) => sum + (p.avg || totals.avgRent), 0) /
+      Math.max(1, filteredProperties.length)
     return {
       totalRevenue,
       occupancy,
       collection,
       avgRent,
     }
-  }, [filteredProperties])
+  }, [filteredProperties, totals.avgRent])
+
+  const loadSummary = async () => {
+    try {
+      setLoading(true)
+      setError(null)
+      const response = await fetch(`/api/manager/reports/summary?period=${period}`, { cache: 'no-store' })
+      const payload = await response.json()
+      if (!response.ok) {
+        throw new Error(payload.error || 'Failed to load reports.')
+      }
+      setTotals({
+        revenue: payload.data?.totals?.revenue || 0,
+        occupancyRate: payload.data?.totals?.occupancyRate || 0,
+        collectionRate: payload.data?.totals?.collectionRate || 0,
+        avgRent: payload.data?.totals?.avgRent || 0,
+      })
+      const mapped =
+        (payload.data?.properties || []).map((p: any) => ({
+          id: p.id,
+          name: p.name,
+          location: p.location,
+          revenue: p.revenue || 0,
+          avg: totals.avgRent || 0,
+          occupancy: p.occupancy || 0,
+          collectionRate: p.collectionRate || 0,
+        })) || []
+      setProperties(mapped)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to load data')
+      toast({
+        title: 'Unable to load reports',
+        description: err instanceof Error ? err.message : 'Please try again later.',
+        variant: 'destructive',
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    loadSummary()
+  }, [period])
 
   const exportRows = filteredProperties.map((p) => ({
     property: p.name,
@@ -189,12 +242,23 @@ export default function ReportsPage() {
                 </div>
               </CardHeader>
             </Card>
-            <GaugeCard title="Occupancy rate" value={summary.occupancy} subtitle="Portfolio avg." />
-            <GaugeCard title="Collection rate" value={summary.collection} subtitle="Rent collected" color="#2563eb" />
+            <GaugeCard
+              title="Occupancy rate"
+              value={summary.occupancy || totals.occupancyRate}
+              subtitle="Portfolio avg."
+            />
+            <GaugeCard
+              title="Collection rate"
+              value={summary.collection || totals.collectionRate}
+              subtitle="Rent collected"
+              color="#2563eb"
+            />
             <Card className="bg-white shadow-lg border-0">
               <CardHeader className="pb-3">
                 <CardDescription>Avg. Rent / Unit</CardDescription>
-                <CardTitle className="text-3xl text-orange-600">KES {Math.round(summary.avgRent).toLocaleString()}</CardTitle>
+                <CardTitle className="text-3xl text-orange-600">
+                  KES {Math.round(summary.avgRent || totals.avgRent).toLocaleString()}
+                </CardTitle>
                 <div className="flex items-center text-xs text-green-600">
                   <ArrowUpRight className="h-3 w-3 mr-1" />
                   Healthy uplift

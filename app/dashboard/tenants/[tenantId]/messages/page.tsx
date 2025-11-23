@@ -238,16 +238,21 @@ export default function ManagerTenantMessagesPage() {
                   ) : (
                     messages.map((message) => {
                       const isManager = message.sender_user_id === user?.id
+                      const isNotice = (message.message_text || '').startsWith('[NOTICE]')
                       return (
                         <div key={message.id} className={`flex ${isManager ? 'justify-end' : 'justify-start'}`}>
                           <div
                             className={`max-w-[70%] rounded-2xl px-4 py-2 text-sm ${
-                              isManager
-                                ? 'bg-primary text-primary-foreground rounded-tr-sm'
-                                : 'bg-white text-foreground rounded-tl-sm border border-slate-200'
+                              isNotice
+                                ? 'bg-red-50 text-red-700 border border-red-200'
+                                : isManager
+                                  ? 'bg-primary text-primary-foreground rounded-tr-sm'
+                                  : 'bg-white text-foreground rounded-tl-sm border border-slate-200'
                             }`}
                           >
-                            <p className="whitespace-pre-line">{message.message_text}</p>
+                            <p className="whitespace-pre-line">
+                              {message.message_text.replace(/^\[NOTICE\]\s*/, '')}
+                            </p>
                             <span
                               className={`block text-[10px] mt-1 ${
                                 isManager ? 'text-white/80' : 'text-muted-foreground'

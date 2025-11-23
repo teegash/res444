@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { ArrowLeft, Download, TrendingUp } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -41,11 +41,14 @@ const periods = [
 export default function RevenueReportPage() {
   const [period, setPeriod] = useState('quarter')
   const [property, setProperty] = useState('all')
+  const [rows, setRows] = useState<RevenueRow[]>(revenueRows)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const filtered = useMemo(() => {
-    const scope = property === 'all' ? revenueRows : revenueRows.filter((row) => row.property === property)
+    const scope = property === 'all' ? rows : rows.filter((row) => row.property === property || row.propertyId === property)
     return scope
-  }, [property])
+  }, [property, rows])
 
   const totals = useMemo(() => {
     const total = filtered.reduce((sum, row) => sum + row.amount, 0)
@@ -80,6 +83,40 @@ export default function RevenueReportPage() {
       exportRowsAsCSV(filename, columns, filtered)
     }
   }
+
+  const loadData = async () => {
+    try {
+      setLoading(true)
+      setError(null)
+      const response = await fetch(
+        `/api/manager/reports/revenue?period=${period}&property=${encodeURIComponent(property)}`
+      )
+      const payload = await response.json()
+      if (!response.ok) {
+        throw new Error(payload.error || 'Failed to load revenue data.')
+      }
+      const mapped: RevenueRow[] =
+        (payload.data || []).map((row: any) => ({
+          id: row.id,
+          property: row.property,
+          propertyId: row.propertyId,
+          amount: row.amount,
+          period,
+          month: row.payment_date
+            ? new Date(row.payment_date).toLocaleString('default', { month: 'short' })
+            : '—',
+        })) || []
+      setRows(mapped)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to load revenue data.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    loadData()
+  }, [period, property])
 
   return (
     <div className="flex min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50">
@@ -171,6 +208,13 @@ export default function RevenueReportPage() {
               <CardDescription>Revenue summed per property.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              {loading ? (
+                <div className="text-sm text-muted-foreground">Loading…</div>
+              ) : error ? (
+                <div className="text-sm text-red-600">{error}</div>
+              ) : filtered.length === 0 ? (
+                <div className="text-sm text-muted-foreground">No revenue data.</div>
+              ) : null}
               {byProperty.map(([name, amount]) => (
                 <div key={name} className="space-y-2">
                   <div className="flex items-center justify-between text-sm">

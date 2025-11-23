@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { ArrowLeft, Download } from 'lucide-react'
 import { Sidebar } from '@/components/dashboard/sidebar'
@@ -38,11 +38,14 @@ const periods = [
 export default function FinancialStatementPage() {
   const [period, setPeriod] = useState('quarter')
   const [property, setProperty] = useState('all')
+  const [rowsState, setRowsState] = useState<StatementRow[]>(rows)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const filtered = useMemo(() => {
-    if (property === 'all') return rows
-    return rows.filter((row) => row.property === property)
-  }, [property])
+    if (property === 'all') return rowsState
+    return rowsState.filter((row) => row.property === property)
+  }, [property, rowsState])
 
   const summary = useMemo(() => {
     const income = filtered.reduce((sum, row) => sum + row.income, 0)
@@ -71,6 +74,29 @@ export default function FinancialStatementPage() {
       exportRowsAsCSV(filename, columns, filtered)
     }
   }
+
+  const loadData = async () => {
+    try {
+      setLoading(true)
+      setError(null)
+      const response = await fetch(
+        `/api/manager/reports/financial?period=${period}&property=${encodeURIComponent(property)}`
+      )
+      const payload = await response.json()
+      if (!response.ok) {
+        throw new Error(payload.error || 'Failed to load financial data.')
+      }
+      setRowsState(payload.data || [])
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to load financial data.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    loadData()
+  }, [period, property])
 
   return (
     <div className="flex min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50">
@@ -158,6 +184,13 @@ export default function FinancialStatementPage() {
               <CardDescription>Income, expenses, and net by month.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              {loading ? (
+                <div className="text-sm text-muted-foreground">Loading…</div>
+              ) : error ? (
+                <div className="text-sm text-red-600">{error}</div>
+              ) : filtered.length === 0 ? (
+                <div className="text-sm text-muted-foreground">No statement data.</div>
+              ) : null}
               {filtered.map((row) => (
                 <div key={`${row.property}-${row.month}`} className="p-3 rounded-lg border flex items-center justify-between">
                   <div>
