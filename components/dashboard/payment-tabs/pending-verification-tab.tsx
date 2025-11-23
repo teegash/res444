@@ -14,6 +14,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { AlertCircle, CheckCircle2 } from 'lucide-react'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { PaymentRecord } from '@/components/dashboard/payment-tabs/types'
+import { SkeletonTable } from '@/components/ui/skeletons'
 
 const currencyFormatter = new Intl.NumberFormat('en-KE', {
   style: 'currency',

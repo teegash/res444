@@ -33,6 +33,7 @@ import {
   exportRowsAsPDF,
   ExportColumn,
 } from '@/lib/export/download'
+import { SkeletonTable } from '@/components/ui/skeletons'
 
 const currencyFormatter = new Intl.NumberFormat('en-KE', {
   style: 'currency',
