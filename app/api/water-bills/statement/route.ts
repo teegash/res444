@@ -227,11 +227,29 @@ export async function GET() {
     >()
 
     if (tenantIds.length > 0) {
-      const { data: tenantProfiles } = await admin
+      const baseQuery = admin
         .from('user_profiles')
-        .select('id, full_name, email, phone_number')
+        .select('id, full_name, email, phone_number, role')
         .in('id', tenantIds)
-        .eq('role', 'tenant')
+
+      let tenantProfiles: any[] | null = null
+      let queryError: any = null
+
+      // Try role-scoped fetch first (if role column exists)
+      const withRole = await baseQuery.eq('role', 'tenant')
+      tenantProfiles = withRole.data
+      queryError = withRole.error
+
+      // Fallback: if role column missing/error or no rows returned, fetch without role filter
+      if (queryError?.message?.includes('role') || (tenantProfiles?.length ?? 0) === 0) {
+        const fallback = await baseQuery
+        tenantProfiles = fallback.data
+        queryError = fallback.error
+      }
+
+      if (queryError) {
+        console.warn('[WaterBills.Statement] tenant profile fetch warning', queryError)
+      }
 
       tenantProfiles?.forEach((profile) => {
         tenantProfileMap.set(profile.id, {
