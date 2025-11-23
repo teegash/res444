@@ -55,7 +55,7 @@ export default function WaterBillsPage() {
   const [invoiceSent, setInvoiceSent] = useState(false)
   const [historyLoading, setHistoryLoading] = useState(true)
   const [historyError, setHistoryError] = useState<string | null>(null)
-  const [history, setHistory] = useState<
+  const [paymentHistory, setPaymentHistory] = useState<
     Array<{
       id: string
       tenant_name: string | null
@@ -119,7 +119,7 @@ export default function WaterBillsPage() {
           })
           .slice(0, 6)
 
-        setHistory(
+        setPaymentHistory(
           paidOrRecent.map((r) => ({
             id: r.id,
             tenant_name: r.tenant_name || null,
@@ -134,7 +134,7 @@ export default function WaterBillsPage() {
         )
       } catch (err) {
         setHistoryError(err instanceof Error ? err.message : 'Unable to load payment history.')
-        setHistory([])
+        setPaymentHistory([])
       } finally {
         setHistoryLoading(false)
       }
@@ -674,12 +674,12 @@ export default function WaterBillsPage() {
                       <AlertDescription>{historyError}</AlertDescription>
                     </Alert>
                   )}
-                  {!historyLoading && !historyError && history.length === 0 && (
+                  {!historyLoading && !historyError && paymentHistory.length === 0 && (
                     <p className="text-sm text-muted-foreground">No payments recorded yet.</p>
                   )}
                   {!historyLoading &&
                     !historyError &&
-                    history.map((item) => (
+                    paymentHistory.map((item) => (
                       <div
                         key={item.id}
                         className="flex items-start justify-between rounded-lg border bg-white p-3 shadow-sm"

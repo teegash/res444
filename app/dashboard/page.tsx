@@ -1,39 +1,18 @@
 'use client'
 
-import { Suspense, useCallback, useEffect, useState } from 'react'
+import { Suspense, useCallback, useEffect, useMemo, useState } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { Sidebar } from '@/components/dashboard/sidebar'
 import { Header } from '@/components/dashboard/header'
-import { Crown, Building2, Users, DollarSign, Wrench } from 'lucide-react'
+import { Crown, Building2, Users, DollarSign, Wrench, ArrowUpRight, ArrowDownRight, Droplet, FileText, BarChart3, MessageSquare } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import Link from 'next/link'
-import { Line, LineChart, Bar, BarChart, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell, Pie, PieChart } from 'recharts'
+import { Bar, BarChart, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, Pie, PieChart } from 'recharts'
 import { OrganizationSetupModal } from '@/components/dashboard/organization-setup-modal'
 import { useAuth } from '@/lib/auth/context'
 import { SkeletonLoader, SkeletonPropertyCard, SkeletonTable } from '@/components/ui/skeletons'
-
-const revenueData = [
-  { month: 'Jul', revenue: 800000, expenses: 520000 },
-  { month: 'Aug', revenue: 850000, expenses: 525000 },
-  { month: 'Sep', revenue: 820000, expenses: 520000 },
-  { month: 'Oct', revenue: 900000, expenses: 530000 },
-  { month: 'Nov', revenue: 950000, expenses: 535000 },
-  { month: 'Dec', revenue: 1000000, expenses: 540000 },
-]
-
-const propertyRevenueData = [
-  { name: 'Westlands', revenue: 1000000 },
-  { name: 'Karen', revenue: 750000 },
-  { name: 'Eastlands', revenue: 500000 },
-  { name: 'Kilimani', revenue: 350000 },
-]
-
-const paymentData = [
-  { name: 'Paid', value: 44, color: '#22c55e' },
-  { name: 'Pending', value: 3, color: '#eab308' },
-  { name: 'Overdue', value: 1, color: '#ef4444' },
-]
+import { formatCurrency } from '@/lib/format/currency'
 
 export default function DashboardPage() {
   return (
@@ -164,8 +143,68 @@ function DashboardContent() {
     }
   }, [pathname, router, searchParams, setupParam])
 
-  const totalPayments = paymentData.reduce((acc, item) => acc + item.value, 0)
-  const collectedPercentage = Math.round((paymentData[0].value / totalPayments) * 100)
+  const [overview, setOverview] = useState<{
+    summary: {
+      totalProperties: number
+      totalTenants: number
+      monthlyRevenue: number
+      revenueDelta: number | null
+      pendingRequests: number
+      paidInvoices: number
+      pendingPayments: number
+    }
+    revenue: {
+      series: { label: string; key: string; revenue: number }[]
+      currentMonthRevenue: number
+      prevMonthRevenue: number
+    }
+    propertyRevenue: { name: string; revenue: number }[]
+    payments: { paid: number; pending: number }
+    maintenance: Array<{
+      id: string
+      title: string
+      status: string
+      priority: string
+      created_at: string | null
+      property: string
+      unit: string
+    }>
+  } | null>(null)
+  const [overviewError, setOverviewError] = useState<string | null>(null)
+
+  const revenueSeries = overview?.revenue?.series || []
+  const propertyRevenue = overview?.propertyRevenue || []
+  const paymentData = useMemo(
+    () => [
+      { name: 'Paid', value: overview?.payments?.paid || 0, color: '#22c55e' },
+      { name: 'Pending', value: overview?.payments?.pending || 0, color: '#eab308' },
+    ],
+    [overview?.payments]
+  )
+
+  const collectedPercentage = useMemo(() => {
+    const total = paymentData.reduce((acc, item) => acc + item.value, 0)
+    if (total === 0) return 0
+    return Math.round((paymentData[0].value / total) * 100)
+  }, [paymentData])
+
+  useEffect(() => {
+    const loadOverview = async () => {
+      try {
+        setOverviewError(null)
+        const res = await fetch('/api/dashboard/manager/overview', { cache: 'no-store' })
+        const json = await res.json()
+        if (!res.ok || !json.success) {
+          throw new Error(json.error || 'Failed to load dashboard data')
+        }
+        setOverview(json)
+      } catch (err) {
+        setOverviewError(err instanceof Error ? err.message : 'Unable to load dashboard data')
+        setOverview(null)
+      }
+    }
+    loadOverview()
+  }, [])
 
   if (loadingOrg) {
     return (
@@ -197,12 +236,12 @@ function DashboardContent() {
         <main className="flex-1 p-6 overflow-auto">
           <div className="max-w-7xl mx-auto space-y-6">
             {/* Welcome Header */}
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="flex items-center gap-3 mb-2">
-                  <Crown className="w-8 h-8 text-[#4682B4]" />
-                  <h1 className="text-3xl font-bold text-gray-900">
-                    Welcome back, Manager
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="flex items-center gap-3 mb-2">
+                    <Crown className="w-8 h-8 text-[#4682B4]" />
+                    <h1 className="text-3xl font-bold text-gray-900">
+                      Welcome back, Manager
                   </h1>
                 </div>
                 <p className="text-gray-600">
@@ -224,6 +263,14 @@ function DashboardContent() {
               </Link>
             </div>
 
+            {overviewError && (
+              <Card className="border-red-200 bg-red-50">
+                <CardContent className="py-4 text-red-700 text-sm">
+                  {overviewError}
+                </CardContent>
+              </Card>
+            )}
+
             {/* Metrics Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               <Card>
@@ -231,8 +278,8 @@ function DashboardContent() {
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm text-gray-600 mb-1">Total Properties</p>
-                      <p className="text-3xl font-bold">12</p>
-                      <p className="text-sm text-green-600 mt-1">↑ +2 from last month</p>
+                      <p className="text-3xl font-bold">{overview?.summary?.totalProperties ?? '—'}</p>
+                      <p className="text-sm text-green-600 mt-1">Portfolio snapshot</p>
                     </div>
                     <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
                       <Building2 className="w-6 h-6 text-[#4682B4]" />
@@ -246,8 +293,8 @@ function DashboardContent() {
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm text-gray-600 mb-1">Active Tenants</p>
-                      <p className="text-3xl font-bold">48</p>
-                      <p className="text-sm text-green-600 mt-1">↑ +5 from last month</p>
+                      <p className="text-3xl font-bold">{overview?.summary?.totalTenants ?? '—'}</p>
+                      <p className="text-sm text-green-600 mt-1">Live occupants</p>
                     </div>
                     <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
                       <Users className="w-6 h-6 text-green-600" />
@@ -261,8 +308,21 @@ function DashboardContent() {
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm text-gray-600 mb-1">Monthly Revenue</p>
-                      <p className="text-3xl font-bold">KES 2.4M</p>
-                      <p className="text-sm text-green-600 mt-1">↑ +12% from last month</p>
+                      <p className="text-3xl font-bold">
+                        {overview ? formatCurrency(overview.summary.monthlyRevenue || 0, 'KES') : '—'}
+                      </p>
+                      {overview?.summary?.revenueDelta !== null ? (
+                        <p
+                          className={`text-sm mt-1 flex items-center gap-1 ${
+                            (overview.summary.revenueDelta || 0) >= 0 ? 'text-green-600' : 'text-red-600'
+                          }`}
+                        >
+                          {(overview.summary.revenueDelta || 0) >= 0 ? <ArrowUpRight className="h-4 w-4" /> : <ArrowDownRight className="h-4 w-4" />}
+                          {Math.abs(overview.summary.revenueDelta || 0).toFixed(1)}% vs last month
+                        </p>
+                      ) : (
+                        <p className="text-sm text-gray-500 mt-1">Trend pending</p>
+                      )}
                     </div>
                     <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center">
                       <DollarSign className="w-6 h-6 text-orange-600" />
@@ -276,8 +336,8 @@ function DashboardContent() {
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm text-gray-600 mb-1">Pending Requests</p>
-                      <p className="text-3xl font-bold">7</p>
-                      <p className="text-sm text-green-600 mt-1">-3 from last month</p>
+                      <p className="text-3xl font-bold">{overview?.summary?.pendingRequests ?? '—'}</p>
+                      <p className="text-sm text-gray-500 mt-1">Open maintenance</p>
                     </div>
                     <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
                       <Wrench className="w-6 h-6 text-red-600" />
@@ -304,30 +364,50 @@ function DashboardContent() {
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <ResponsiveContainer width="100%" height={300}>
-                    <LineChart data={revenueData}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                      <XAxis dataKey="month" stroke="#6b7280" />
-                      <YAxis stroke="#6b7280" />
-                      <Tooltip />
-                      <Legend />
-                      <Line 
-                        type="monotone" 
-                        dataKey="revenue" 
-                        stroke="#4682B4" 
-                        strokeWidth={2}
-                        dot={{ fill: '#4682B4', r: 4 }}
-                        name="Revenue"
+                  <ResponsiveContainer width="100%" height={320}>
+                    <BarChart data={revenueSeries}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#eef2f7" vertical={false} />
+                      <XAxis dataKey="label" stroke="#94a3b8" />
+                      <YAxis stroke="#94a3b8" tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
+                      <Tooltip
+                        content={({ active, payload }) => {
+                          if (!active || !payload?.length) return null
+                          const current = payload[0].payload as { revenue: number; label: string; key: string }
+                          const index = revenueSeries.findIndex((m) => m.key === current.key)
+                          const prev = index > 0 ? revenueSeries[index - 1] : null
+                          const delta =
+                            prev && prev.revenue !== 0
+                              ? ((current.revenue - prev.revenue) / prev.revenue) * 100
+                              : null
+                          return (
+                            <div className="rounded-xl bg-white px-3 py-2 shadow-md border border-gray-200">
+                              <p className="text-xs text-gray-500">{current.key}</p>
+                              <p className="text-lg font-semibold text-gray-900">{formatCurrency(current.revenue, 'KES')}</p>
+                              {delta !== null && (
+                                <p
+                                  className={`text-xs flex items-center gap-1 ${
+                                    delta >= 0 ? 'text-green-600' : 'text-red-600'
+                                  }`}
+                                >
+                                  {delta >= 0 ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
+                                  {Math.abs(delta).toFixed(1)}% vs prev month
+                                </p>
+                              )}
+                            </div>
+                          )
+                        }}
                       />
-                      <Line 
-                        type="monotone" 
-                        dataKey="expenses" 
-                        stroke="#ef4444" 
-                        strokeWidth={2}
-                        dot={{ fill: '#ef4444', r: 4 }}
-                        name="Expenses"
-                      />
-                    </LineChart>
+                      <Bar dataKey="revenue" radius={[10, 10, 6, 6]}>
+                        {revenueSeries.map((entry, index) => (
+                          <Cell
+                            key={`bar-${entry.key}`}
+                            fill={index === revenueSeries.length - 1 ? '#7c3aed' : '#c7d2fe'}
+                            stroke="#7c3aed"
+                            strokeWidth={index === revenueSeries.length - 1 ? 1.5 : 0}
+                          />
+                        ))}
+                      </Bar>
+                    </BarChart>
                   </ResponsiveContainer>
                 </CardContent>
               </Card>
@@ -346,13 +426,13 @@ function DashboardContent() {
                 </CardHeader>
                 <CardContent>
                   <ResponsiveContainer width="100%" height={300}>
-                    <BarChart data={propertyRevenueData}>
+                    <BarChart data={propertyRevenue}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                       <XAxis dataKey="name" stroke="#6b7280" />
                       <YAxis stroke="#6b7280" />
                       <Tooltip />
                       <Bar dataKey="revenue" radius={[8, 8, 0, 0]}>
-                        {propertyRevenueData.map((entry, index) => (
+                        {propertyRevenue.map((entry, index) => (
                           <Cell key={`cell-${index}`} fill="#4682B4" />
                         ))}
                       </Bar>
@@ -364,97 +444,96 @@ function DashboardContent() {
 
             {/* Bottom Row */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Occupancy Rates */}
+              {/* Maintenance */}
               <Card>
                 <CardHeader>
                   <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-                      <Building2 className="w-6 h-6 text-green-600" />
+                    <div className="w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center">
+                      <Wrench className="w-5 h-5 text-red-600" />
                     </div>
                     <div>
-                      <CardTitle className="text-xl">Occupancy Rates</CardTitle>
-                      <CardDescription>Current occupancy status by property</CardDescription>
+                      <CardTitle className="text-lg">Recent Maintenance</CardTitle>
+                      <CardDescription>Latest reported issues</CardDescription>
                     </div>
                   </div>
                 </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    {[
-                      { name: 'Kilimani Heights', rate: 90, occupied: 27, total: 30 },
-                      { name: 'Westlands Plaza', rate: 85, occupied: 17, total: 20 },
-                      { name: 'Karen Villas', rate: 75, occupied: 9, total: 12 },
-                      { name: 'Eastlands Gardens', rate: 95, occupied: 23, total: 24 },
-                    ].map((property) => (
-                      <div key={property.name}>
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="font-medium">{property.name}</span>
-                          <span className="font-bold">{property.rate}%</span>
+                <CardContent className="space-y-3">
+                  {overview?.maintenance?.length ? (
+                    overview.maintenance.map((item) => (
+                      <div
+                        key={item.id}
+                        className="flex items-start justify-between rounded-lg border border-gray-100 p-3 bg-white"
+                      >
+                        <div>
+                          <p className="font-semibold text-gray-900">{item.title}</p>
+                          <p className="text-sm text-gray-600">
+                            {item.property} • {item.unit}
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            {item.created_at
+                              ? new Date(item.created_at).toLocaleString()
+                              : '—'}
+                          </p>
                         </div>
-                        <div className="w-full bg-gray-200 rounded-full h-2">
-                          <div 
-                            className="bg-green-600 h-2 rounded-full" 
-                            style={{ width: `${property.rate}%` }}
-                          />
+                        <div className="flex flex-col items-end gap-2">
+                          <span
+                            className={cn(
+                              'text-xs px-2 py-1 rounded-full font-medium',
+                              item.status === 'resolved'
+                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-100'
+                                : 'bg-amber-50 text-amber-700 border border-amber-100'
+                            )}
+                          >
+                            {item.status}
+                          </span>
+                          <span
+                            className={cn(
+                              'text-xs px-2 py-1 rounded-full font-medium capitalize',
+                              item.priority === 'high'
+                                ? 'bg-red-50 text-red-700 border border-red-100'
+                                : item.priority === 'low'
+                                  ? 'bg-gray-50 text-gray-700 border border-gray-100'
+                                  : 'bg-blue-50 text-blue-700 border border-blue-100'
+                            )}
+                          >
+                            {item.priority} priority
+                          </span>
                         </div>
-                        <p className="text-sm text-gray-600 mt-1">{property.occupied} of {property.total} units occupied</p>
                       </div>
-                    ))}
-                  </div>
+                    ))
+                  ) : (
+                    <p className="text-sm text-gray-500">No recent maintenance requests.</p>
+                  )}
                 </CardContent>
               </Card>
 
-              <Card>
-                <CardHeader>
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                      <DollarSign className="w-6 h-6 text-[#4682B4]" />
-                    </div>
-                    <div>
-                      <CardTitle className="text-xl">Payment Status</CardTitle>
-                      <CardDescription>Current payment status distribution</CardDescription>
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex flex-col items-center">
-                    <div className="relative">
-                      <ResponsiveContainer width={300} height={200}>
-                        <PieChart>
-                          <Pie
-                            data={paymentData}
-                            cx={150}
-                            cy={150}
-                            startAngle={180}
-                            endAngle={0}
-                            innerRadius={80}
-                            outerRadius={120}
-                            dataKey="value"
-                          >
-                            {paymentData.map((entry, index) => (
-                              <Cell key={`cell-${index}`} fill={entry.color} />
-                            ))}
-                          </Pie>
-                        </PieChart>
-                      </ResponsiveContainer>
-                      <div className="absolute top-24 left-1/2 transform -translate-x-1/2 text-center">
-                        <p className="text-5xl font-bold text-[#4682B4]">{collectedPercentage}%</p>
-                        <p className="text-sm text-gray-600">Collected</p>
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-3 gap-8 mt-4 w-full">
-                      {paymentData.map((item) => (
-                        <div key={item.name} className="text-center">
-                          <div className="flex items-center justify-center gap-2 mb-1">
-                            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color }} />
-                            <span className="text-sm text-gray-600">{item.name}</span>
+              {/* Quick menu */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {[
+                  { label: 'Water Bill History', href: '/dashboard/water-bills/statements', icon: Droplet, color: 'from-blue-500 to-cyan-500' },
+                  { label: 'Financial Statements', href: '/dashboard/manager/statements', icon: FileText, color: 'from-emerald-500 to-green-500' },
+                  { label: 'Occupancy Report', href: '/dashboard/manager/reports/occupancy', icon: BarChart3, color: 'from-violet-500 to-indigo-500' },
+                  { label: 'Tenant Messages', href: '/dashboard/communications', icon: MessageSquare, color: 'from-orange-500 to-amber-500' },
+                ].map((item) => {
+                  const Icon = item.icon
+                  return (
+                    <Link key={item.label} href={item.href}>
+                      <Card className="h-full hover:shadow-lg transition-shadow border-0 bg-gradient-to-br text-white relative overflow-hidden">
+                        <div className={`absolute inset-0 opacity-90 bg-gradient-to-br ${item.color}`} />
+                        <CardContent className="relative z-10 flex items-center gap-3 py-6">
+                          <div className="p-3 bg-white/15 rounded-xl backdrop-blur">
+                            <Icon className="h-5 w-5" />
                           </div>
-                          <p className="text-2xl font-bold">{item.value}</p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+                          <div>
+                            <p className="font-semibold">{item.label}</p>
+                            <p className="text-xs text-white/80">Open</p>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </Link>
+                  )
+                })}
+              </div>
             </div>
           </div>
         </main>

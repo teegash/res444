@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { useState, useEffect, useMemo } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
-import { LayoutDashboard, Building2, Users, CreditCard, Droplet, Wrench, MessageSquare, Bell, BarChart3, FileText, Settings, LogOut, Lock, Unlock } from 'lucide-react'
+import { LayoutDashboard, Building2, Users, CreditCard, Droplet, Wrench, MessageSquare, Bell, BarChart3, FileText, Settings, LogOut, Lock, Unlock, Receipt } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/lib/auth/context'
 
@@ -14,6 +14,7 @@ const menuItems = [
   { icon: Users, label: 'Tenants', href: '/dashboard/tenants' },
   { icon: CreditCard, label: 'Payments', href: '/dashboard/payments' },
   { icon: Droplet, label: 'Water Bills', href: '/dashboard/water-bills' },
+  { icon: Receipt, label: 'Expenses', href: '/dashboard/manager/expenses' },
   { icon: Wrench, label: 'Maintenance', href: '/dashboard/maintenance' },
   { icon: MessageSquare, label: 'Messages', href: '/dashboard/communications' },
   { icon: Bell, label: 'Notices', href: '/dashboard/manager/notices' },
