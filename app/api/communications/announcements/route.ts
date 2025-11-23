@@ -3,6 +3,39 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sendSMSWithLogging } from '@/lib/sms/smsService'
 
+export async function GET() {
+  try {
+    const supabase = await createClient()
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser()
+
+    if (authError || !user) {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const admin = createAdminClient()
+    const { data, error } = await admin
+      .from('communications')
+      .select('id, message_text, created_at, message_type')
+      .eq('sender_user_id', user.id)
+      .eq('message_type', 'in_app')
+      .order('created_at', { ascending: false })
+      .limit(30)
+
+    if (error) throw error
+
+    return NextResponse.json({ success: true, data: data || [] })
+  } catch (error) {
+    console.error('[Announcements.GET] Failed to fetch announcements history', error)
+    return NextResponse.json(
+      { success: false, error: 'Failed to load announcements.' },
+      { status: 500 }
+    )
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient()

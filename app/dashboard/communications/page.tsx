@@ -91,6 +91,8 @@ export default function CommunicationsPage() {
     sms_failed?: number
   } | null>(null)
   const [sendSms, setSendSms] = useState(false)
+  const [announcementHistory, setAnnouncementHistory] = useState<Array<{ id: string; message_text: string; created_at: string | null }>>([])
+  const [historyLoading, setHistoryLoading] = useState(false)
   const [inbox, setInbox] = useState<InboxItem[]>([])
   const [inboxLoading, setInboxLoading] = useState(false)
   const [inboxError, setInboxError] = useState<string | null>(null)
@@ -154,7 +156,23 @@ export default function CommunicationsPage() {
     fetchTemplates()
     fetchProperties()
     fetchInbox()
+    fetchAnnouncementHistory()
   }, [])
+
+  const fetchAnnouncementHistory = async () => {
+    try {
+      setHistoryLoading(true)
+      const response = await fetch('/api/communications/announcements', { cache: 'no-store' })
+      const payload = await response.json()
+      if (response.ok) {
+        setAnnouncementHistory(Array.isArray(payload.data) ? payload.data : [])
+      }
+    } catch (error) {
+      console.error('[Communications] Failed to load announcement history', error)
+    } finally {
+      setHistoryLoading(false)
+    }
+  }
 
   const handleSaveTemplate = async () => {
     if (!editingTemplate) return
@@ -284,6 +302,7 @@ export default function CommunicationsPage() {
         throw new Error(payload.error || 'Failed to send announcement.')
       }
       setAnnouncementResult(payload.data || { recipients: 0 })
+      fetchAnnouncementHistory()
       setActiveTab('announcements')
       setNewMessage('')
       setSelectedProperties([])
@@ -634,20 +653,30 @@ export default function CommunicationsPage() {
               </CardContent>
             </Card>
 
-          {/* Past Announcements */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Announcement History</CardTitle>
-            </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div className="p-4 border rounded-lg">
-                    <p className="font-medium">Water Maintenance Notice</p>
-                    <p className="text-sm text-muted-foreground">Sent on 2024-11-08 to all tenants</p>
-                  </div>
-              </div>
-            </CardContent>
-          </Card>
+                {/* Past Announcements */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Announcement History</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {historyLoading ? (
+                      <p className="text-sm text-muted-foreground">Loading history…</p>
+                    ) : announcementHistory.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">No announcements yet.</p>
+                    ) : (
+                      <div className="space-y-3 max-h-64 overflow-y-auto pr-1">
+                        {announcementHistory.map((item) => (
+                          <div key={item.id} className="p-3 border rounded-lg bg-muted/30">
+                            <p className="text-sm font-medium line-clamp-2">{item.message_text}</p>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              {item.created_at ? new Date(item.created_at).toLocaleString() : ''}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
         </TabsContent>
         </Tabs>
             </>

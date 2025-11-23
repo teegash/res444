@@ -31,18 +31,16 @@ const propertyMetrics: PropertyMetric[] = [
 function GaugeCard({
   title,
   value,
-  subtitle,
   color = '#10b981',
 }: {
   title: string
   value: number
-  subtitle: string
   color?: string
 }) {
   const percent = Math.min(Math.max(value, 0), 100)
   return (
     <Card className="relative overflow-hidden bg-white shadow-lg border-0">
-      <CardContent className="p-5 flex items-center gap-4">
+      <CardContent className="p-4 flex flex-col items-center gap-2">
         <div
           className="relative w-28 h-28 rounded-full flex items-center justify-center"
           style={{
@@ -54,16 +52,10 @@ function GaugeCard({
               <p className="text-2xl font-bold" style={{ color }}>
                 {value.toFixed(1)}%
               </p>
-              <p className="text-xs text-muted-foreground">{subtitle}</p>
             </div>
           </div>
         </div>
-        <div className="space-y-1">
-          <p className="text-sm text-muted-foreground">{title}</p>
-          <p className="text-xs text-muted-foreground">
-            Gauge updates with the selected period and property set.
-          </p>
-        </div>
+        <p className="text-sm font-medium text-muted-foreground">{title}</p>
       </CardContent>
     </Card>
   )
@@ -234,7 +226,7 @@ export default function ReportsPage() {
               <CardHeader className="pb-3">
                 <CardDescription>Total Revenue</CardDescription>
                 <CardTitle className="text-3xl text-green-700">
-                  KES {(summary.totalRevenue / 1000000).toFixed(1)}M
+                  KES {Math.round(totals.revenue).toLocaleString()}
                 </CardTitle>
                 <div className="flex items-center text-xs text-green-600">
                   <TrendingUp className="h-3 w-3 mr-1" />
