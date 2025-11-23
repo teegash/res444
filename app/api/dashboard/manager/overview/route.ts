@@ -48,7 +48,7 @@ export async function GET() {
     const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 11, 1))
     const startIso = start.toISOString().split('T')[0]
 
-    const [propertiesRes, tenantsRes, invoicesRes, paymentsRes, maintenanceRes, expensesRes] = await Promise.all([
+    const [propertiesRes, tenantsRes, invoicesRes, paymentsRes, maintenanceRes, expensesRes, unitsRes] = await Promise.all([
       admin.from('apartment_buildings').select('id, name'),
       admin.from('user_profiles').select('id').eq('role', 'tenant'),
       admin
@@ -73,7 +73,9 @@ export async function GET() {
         )
         .eq('invoice_type', 'rent')
         .gte('due_date', startIso),
-      admin.from('payments').select('id, amount_paid, verified, payment_date'),
+      admin
+        .from('payments')
+        .select('id, amount_paid, verified, payment_date, mpesa_response_code, mpesa_query_status'),
       admin
         .from('maintenance_requests')
         .select(
@@ -98,12 +100,22 @@ export async function GET() {
         .from('expenses')
         .select('id, amount, incurred_at, property_id')
         .gte('incurred_at', startIso),
+      admin
+        .from('apartment_units')
+        .select(
+          `
+          id,
+          building_id,
+          leases!left ( status )
+        `
+        ),
     ])
 
     const invoices = (invoicesRes.data || []) as InvoiceRow[]
-    const payments = (paymentsRes.data || []) as PaymentRow[]
+    const payments = (paymentsRes.data || []) as any[]
     const maintenance = (maintenanceRes.data || []) as MaintenanceRow[]
     const expenses = expensesRes.data || []
+    const units = unitsRes.data || []
 
     // Revenue by month (last 12 months)
     const months: { label: string; key: string; revenue: number }[] = []
@@ -155,8 +167,14 @@ export async function GET() {
     }))
 
     // Payment status distribution
+    const failedCount = payments.filter(
+      (p) =>
+        !p.verified &&
+        ((p.mpesa_response_code && p.mpesa_response_code !== '0') ||
+          (p.mpesa_query_status && /fail|cancel|timeout|insufficient/i.test(p.mpesa_query_status)))
+    ).length
     const paidCount = payments.filter((p) => p.verified).length
-    const pendingCount = payments.filter((p) => !p.verified).length
+    const pendingCount = payments.filter((p) => !p.verified && !failedCount).length
 
     // Recent maintenance mapped
     const maintenanceItems = maintenance.map((m) => ({
@@ -173,6 +191,23 @@ export async function GET() {
     const totalTenants = tenantsRes.data?.length || 0
     const totalRevenue = months.reduce((sum, m) => sum + m.revenue, 0)
     const totalPaidInvoices = invoices.filter((i) => i.status === true).length
+    const occupancyMap = new Map<string, { total: number; occupied: number }>()
+    units.forEach((unit: any) => {
+      const bid = unit.building_id || 'unassigned'
+      const bucket = occupancyMap.get(bid) || { total: 0, occupied: 0 }
+      bucket.total += 1
+      const hasActiveLease = Array.isArray(unit.leases)
+        ? unit.leases.some((l: any) => (l?.status || '').toLowerCase() === 'active')
+        : false
+      if (hasActiveLease) bucket.occupied += 1
+      occupancyMap.set(bid, bucket)
+    })
+    const occupancy = Array.from(occupancyMap.entries()).map(([buildingId, counts]) => ({
+      building_id: buildingId,
+      property_name: propertiesRes.data?.find((p) => p.id === buildingId)?.name || 'Unassigned',
+      total_units: counts.total,
+      occupied_units: counts.occupied,
+    }))
 
     return NextResponse.json({
       success: true,
@@ -201,8 +236,10 @@ export async function GET() {
       payments: {
         paid: paidCount,
         pending: pendingCount,
+        failed: failedCount,
       },
       maintenance: maintenanceItems,
+      occupancy,
     })
   } catch (error) {
     console.error('[DashboardOverview] failed to load overview', error)

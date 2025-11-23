@@ -8,7 +8,7 @@ import { Crown, Building2, Users, DollarSign, Wrench, ArrowUpRight, ArrowDownRig
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import Link from 'next/link'
-import { Bar, BarChart, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, Pie, PieChart, ComposedChart, Line } from 'recharts'
+import { Bar, BarChart, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, Pie, PieChart, LineChart, Line } from 'recharts'
 import { OrganizationSetupModal } from '@/components/dashboard/organization-setup-modal'
 import { useAuth } from '@/lib/auth/context'
 import { SkeletonLoader, SkeletonPropertyCard, SkeletonTable } from '@/components/ui/skeletons'
@@ -175,6 +175,8 @@ function DashboardContent() {
     }>
   } | null>(null)
   const [overviewError, setOverviewError] = useState<string | null>(null)
+  const [topTenants, setTopTenants] = useState<Array<{ tenant_id: string; name: string; on_time_rate: number; payments: number }>>([])
+  const [ratingsError, setRatingsError] = useState<string | null>(null)
 
   const revenueSeries = overview?.revenue?.series || []
   const expensesSeries = overview?.expenses?.monthly || []
@@ -183,6 +185,7 @@ function DashboardContent() {
     () => [
       { name: 'Paid', value: overview?.payments?.paid || 0, color: '#22c55e' },
       { name: 'Pending', value: overview?.payments?.pending || 0, color: '#eab308' },
+      { name: 'Failed', value: overview?.payments?.failed || 0, color: '#ef4444' },
     ],
     [overview?.payments]
   )
@@ -231,6 +234,24 @@ function DashboardContent() {
       }
     }
     loadOverview()
+  }, [])
+
+  useEffect(() => {
+    const loadRatings = async () => {
+      try {
+        setRatingsError(null)
+        const res = await fetch('/api/dashboard/manager/tenant-ratings', { cache: 'no-store' })
+        const json = await res.json()
+        if (!res.ok || !json.success) {
+          throw new Error(json.error || 'Failed to load tenant ratings')
+        }
+        setTopTenants((json.data || []).slice(0, 3))
+      } catch (err) {
+        setRatingsError(err instanceof Error ? err.message : 'Unable to load tenant ratings')
+        setTopTenants([])
+      }
+    }
+    loadRatings()
   }, [])
 
   if (loadingOrg) {
@@ -392,38 +413,11 @@ function DashboardContent() {
                 </CardHeader>
                 <CardContent>
                   <ResponsiveContainer width="100%" height={320}>
-                    <BarChart data={revenueSeries}>
+                    <BarChart data={revenueSeries} barCategoryGap={16}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#eef2f7" vertical={false} />
                       <XAxis dataKey="label" stroke="#94a3b8" />
                       <YAxis stroke="#94a3b8" tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
-                      <Tooltip
-                        content={({ active, payload }) => {
-                          if (!active || !payload?.length) return null
-                          const current = payload[0].payload as { revenue: number; label: string; key: string }
-                          const index = revenueSeries.findIndex((m) => m.key === current.key)
-                          const prev = index > 0 ? revenueSeries[index - 1] : null
-                          const delta =
-                            prev && prev.revenue !== 0
-                              ? ((current.revenue - prev.revenue) / prev.revenue) * 100
-                              : null
-                          return (
-                            <div className="rounded-xl bg-white px-3 py-2 shadow-md border border-gray-200">
-                              <p className="text-xs text-gray-500">{current.key}</p>
-                              <p className="text-lg font-semibold text-gray-900">{formatCurrency(current.revenue, 'KES')}</p>
-                              {delta !== null && (
-                                <p
-                                  className={`text-xs flex items-center gap-1 ${
-                                    delta >= 0 ? 'text-green-600' : 'text-red-600'
-                                  }`}
-                                >
-                                  {delta >= 0 ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
-                                  {Math.abs(delta).toFixed(1)}% vs prev month
-                                </p>
-                              )}
-                            </div>
-                          )
-                        }}
-                      />
+                      <Tooltip cursor={false} />
                       <Bar dataKey="revenue" radius={[10, 10, 6, 6]}>
                         {revenueSeries.map((entry, index) => (
                           <Cell
@@ -453,20 +447,26 @@ function DashboardContent() {
                 </CardHeader>
                 <CardContent>
                   <ResponsiveContainer width="100%" height={320}>
-                    <ComposedChart data={revenueExpenseSeries}>
+                    <LineChart data={revenueExpenseSeries}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#eef2f7" vertical={false} />
                       <XAxis dataKey="label" stroke="#94a3b8" />
                       <YAxis stroke="#94a3b8" tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
                       <Tooltip />
-                      <Bar dataKey="revenue" fill="#7c3aed" radius={[10, 10, 6, 6]} />
+                      <Line
+                        type="monotone"
+                        dataKey="revenue"
+                        stroke="#16a34a"
+                        strokeWidth={3}
+                        dot={{ r: 4, fill: '#16a34a' }}
+                      />
                       <Line
                         type="monotone"
                         dataKey="expenses"
                         stroke="#ef4444"
-                        strokeWidth={2}
+                        strokeWidth={3}
                         dot={{ r: 4, fill: '#ef4444' }}
                       />
-                    </ComposedChart>
+                    </LineChart>
                   </ResponsiveContainer>
                 </CardContent>
               </Card>
@@ -481,25 +481,40 @@ function DashboardContent() {
                       <Building2 className="w-6 h-6 text-orange-600" />
                     </div>
                     <div>
-                      <CardTitle className="text-xl">Property Revenue Comparison</CardTitle>
-                      <CardDescription>Revenue generated by each property</CardDescription>
+                      <CardTitle className="text-xl">Top On-Time Tenants</CardTitle>
+                      <CardDescription>Based on rent payment timeliness</CardDescription>
                     </div>
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <ResponsiveContainer width="100%" height={300}>
-                    <BarChart data={propertyRevenue}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                      <XAxis dataKey="name" stroke="#6b7280" />
-                      <YAxis stroke="#6b7280" />
-                      <Tooltip />
-                      <Bar dataKey="revenue" radius={[8, 8, 0, 0]}>
-                        {propertyRevenue.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill="#4682B4" />
-                        ))}
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
+                  <div className="space-y-3">
+                    {ratingsError && <p className="text-sm text-red-600">{ratingsError}</p>}
+                    {!ratingsError && topTenants.length === 0 && (
+                      <p className="text-sm text-gray-500">No tenant ratings yet.</p>
+                    )}
+                    {topTenants.map((tenant) => {
+                      const rate = tenant.on_time_rate || 0
+                      let dot = 'bg-red-500'
+                      if (rate >= 95) dot = 'bg-green-500'
+                      else if (rate >= 87) dot = 'bg-yellow-400'
+                      else if (rate >= 80) dot = 'bg-orange-500'
+                      return (
+                        <div
+                          key={tenant.tenant_id}
+                          className="flex items-center justify-between rounded-lg border border-gray-100 p-3"
+                        >
+                          <div className="flex items-center gap-3">
+                            <span className={`w-3 h-3 rounded-full ${dot}`} aria-hidden />
+                            <div>
+                              <p className="font-semibold text-gray-900">{tenant.name}</p>
+                              <p className="text-xs text-gray-500">{tenant.payments} payments</p>
+                            </div>
+                          </div>
+                          <p className="font-semibold text-gray-900">{rate}% on time</p>
+                        </div>
+                      )
+                    })}
+                  </div>
                 </CardContent>
               </Card>
 
@@ -511,7 +526,7 @@ function DashboardContent() {
                     </div>
                     <div>
                       <CardTitle className="text-xl">Income per Property</CardTitle>
-                      <CardDescription>Progress share of total rent collected</CardDescription>
+                      <CardDescription>Rent paid vs potential (units × rent) this month</CardDescription>
                     </div>
                   </div>
                 </CardHeader>
@@ -696,8 +711,10 @@ function DashboardContent() {
                   )}
                 </CardContent>
               </Card>
+            </div>
 
-              {/* Quick menu */}
+            {/* Quick menu + Top tenants */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {[
                   { label: 'Water Bill History', href: '/dashboard/water-bills/statements', icon: Droplet, color: 'from-blue-500 to-cyan-500' },
@@ -724,6 +741,48 @@ function DashboardContent() {
                   )
                 })}
               </div>
+
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
+                      <Users className="w-5 h-5 text-purple-600" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-lg">Top On-Time Tenants</CardTitle>
+                      <CardDescription>Based on rent payment timeliness</CardDescription>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {ratingsError && <p className="text-sm text-red-600">{ratingsError}</p>}
+                  {!ratingsError && topTenants.length === 0 && (
+                    <p className="text-sm text-gray-500">No tenant ratings yet.</p>
+                  )}
+                  {topTenants.map((tenant) => {
+                    const rate = tenant.on_time_rate || 0
+                    let dot = 'bg-red-500'
+                    if (rate >= 95) dot = 'bg-green-500'
+                    else if (rate >= 87) dot = 'bg-yellow-400'
+                    else if (rate >= 80) dot = 'bg-orange-500'
+                    return (
+                      <div
+                        key={tenant.tenant_id}
+                        className="flex items-center justify-between rounded-lg border border-gray-100 p-3"
+                      >
+                        <div className="flex items-center gap-3">
+                          <span className={`w-3 h-3 rounded-full ${dot}`} aria-hidden />
+                          <div>
+                            <p className="font-semibold text-gray-900">{tenant.name}</p>
+                            <p className="text-xs text-gray-500">{tenant.payments} payments</p>
+                          </div>
+                        </div>
+                        <p className="font-semibold text-gray-900">{rate}% on time</p>
+                      </div>
+                    )
+                  })}
+                </CardContent>
+              </Card>
             </div>
           </div>
         </main>

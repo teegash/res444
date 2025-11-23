@@ -78,6 +78,8 @@ export default function TenantDashboard() {
   const [error, setError] = useState<string | null>(null)
   const [pendingInvoices, setPendingInvoices] = useState<TenantInvoiceRecord[]>([])
   const [recentActivity, setRecentActivity] = useState<ActivityItem[]>([])
+  const [tenantPayments, setTenantPayments] = useState<TenantPaymentActivity[]>([])
+  const [maintenanceCount, setMaintenanceCount] = useState<number>(0)
 
   const fetchSummary = useCallback(async () => {
     try {
@@ -265,8 +267,12 @@ export default function TenantDashboard() {
         .slice(0, 6)
 
       setRecentActivity(combined)
+      setTenantPayments(payments)
+      setMaintenanceCount(maintenanceRequests.length)
     } catch (error) {
       console.warn('[TenantDashboard] Failed to load recent activity', error)
+      setTenantPayments([])
+      setMaintenanceCount(0)
     }
   }, [])
 
@@ -284,6 +290,28 @@ export default function TenantDashboard() {
   const nextInvoice = pendingInvoices[0] || null
   const hasPending = pendingInvoices.length > 0
   const rentPaidUntil = summary?.lease?.rent_paid_until || null
+
+  const paymentsMade = tenantPayments.length
+  const onTimeRate = useMemo(() => {
+    if (!tenantPayments.length) return 0
+    let onTime = 0
+    tenantPayments.forEach((payment) => {
+      const p: any = payment as any
+      const due = p?.due_date ? new Date(p.due_date) : p?.invoices?.due_date ? new Date(p.invoices.due_date) : null
+      const paid = p?.posted_at ? new Date(p.posted_at) : p?.payment_date ? new Date(p.payment_date) : p?.created_at ? new Date(p.created_at) : null
+      if (due && paid && paid.getTime() <= due.getTime()) {
+        onTime += 1
+      }
+    })
+    return Math.round((onTime / tenantPayments.length) * 100)
+  }, [tenantPayments])
+
+  const ratingDot = useMemo(() => {
+    if (onTimeRate >= 95) return 'bg-green-500'
+    if (onTimeRate >= 87) return 'bg-yellow-400'
+    if (onTimeRate >= 80) return 'bg-orange-500'
+    return 'bg-red-500'
+  }, [onTimeRate])
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-blue-50/30 via-white to-orange-50/20">
@@ -463,19 +491,22 @@ export default function TenantDashboard() {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div>
                 <p className="text-sm opacity-90">Payments Made</p>
-                <p className="text-2xl font-bold">12</p>
+                <p className="text-2xl font-bold">{paymentsMade}</p>
               </div>
               <div>
                 <p className="text-sm opacity-90">On-time Rate</p>
-                <p className="text-2xl font-bold">100%</p>
+                <div className="flex items-center gap-2">
+                  <span className={`w-3 h-3 rounded-full ${ratingDot}`} aria-hidden />
+                  <p className="text-2xl font-bold">{onTimeRate}%</p>
+                </div>
               </div>
               <div>
                 <p className="text-sm opacity-90">Maintenance</p>
-                <p className="text-2xl font-bold">3</p>
+                <p className="text-2xl font-bold">{maintenanceCount}</p>
               </div>
               <div>
                 <p className="text-sm opacity-90">Messages</p>
-                <p className="text-2xl font-bold">8</p>
+                <p className="text-2xl font-bold">{recentActivity.length}</p>
               </div>
             </div>
           </CardContent>
