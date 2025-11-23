@@ -8,11 +8,12 @@ import { Crown, Building2, Users, DollarSign, Wrench, ArrowUpRight, ArrowDownRig
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import Link from 'next/link'
-import { Bar, BarChart, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, Pie, PieChart } from 'recharts'
+import { Bar, BarChart, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, Pie, PieChart, ComposedChart, Line } from 'recharts'
 import { OrganizationSetupModal } from '@/components/dashboard/organization-setup-modal'
 import { useAuth } from '@/lib/auth/context'
 import { SkeletonLoader, SkeletonPropertyCard, SkeletonTable } from '@/components/ui/skeletons'
 import { formatCurrency } from '@/lib/format/currency'
+import { cn } from '@/lib/utils'
 
 export default function DashboardPage() {
   return (
@@ -160,6 +161,9 @@ function DashboardContent() {
     }
     propertyRevenue: { name: string; revenue: number }[]
     payments: { paid: number; pending: number }
+    expenses?: {
+      monthly: { label: string; key: string; expenses: number }[]
+    }
     maintenance: Array<{
       id: string
       title: string
@@ -173,6 +177,7 @@ function DashboardContent() {
   const [overviewError, setOverviewError] = useState<string | null>(null)
 
   const revenueSeries = overview?.revenue?.series || []
+  const expensesSeries = overview?.expenses?.monthly || []
   const propertyRevenue = overview?.propertyRevenue || []
   const paymentData = useMemo(
     () => [
@@ -187,6 +192,28 @@ function DashboardContent() {
     if (total === 0) return 0
     return Math.round((paymentData[0].value / total) * 100)
   }, [paymentData])
+
+  const revenueExpenseSeries = useMemo(() => {
+    return revenueSeries.map((r) => {
+      const expense = expensesSeries.find((e) => e.key === r.key)
+      return {
+        ...r,
+        expenses: expense?.expenses || 0,
+      }
+    })
+  }, [revenueSeries, expensesSeries])
+
+  const incomeProgress = useMemo(() => {
+    if (!propertyRevenue.length) return []
+    const total = propertyRevenue.reduce((sum, item) => sum + item.revenue, 0)
+    return propertyRevenue
+      .slice()
+      .sort((a, b) => b.revenue - a.revenue)
+      .map((item) => ({
+        ...item,
+        percent: total ? Math.round((item.revenue / total) * 100) : 0,
+      }))
+  }, [propertyRevenue])
 
   useEffect(() => {
     const loadOverview = async () => {
@@ -359,7 +386,7 @@ function DashboardContent() {
                     </div>
                     <div>
                       <CardTitle className="text-xl">Revenue Trends</CardTitle>
-                      <CardDescription>Monthly revenue, expenses, and profit over the last 6 months</CardDescription>
+                      <CardDescription>Month-by-month rent revenue</CardDescription>
                     </div>
                   </div>
                 </CardHeader>
@@ -415,12 +442,47 @@ function DashboardContent() {
               <Card>
                 <CardHeader>
                   <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 bg-indigo-100 rounded-lg flex items-center justify-center">
+                      <DollarSign className="w-6 h-6 text-indigo-600" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-xl">Revenue vs Expenses</CardTitle>
+                      <CardDescription>Single-month prepayments reflected live</CardDescription>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <ResponsiveContainer width="100%" height={320}>
+                    <ComposedChart data={revenueExpenseSeries}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#eef2f7" vertical={false} />
+                      <XAxis dataKey="label" stroke="#94a3b8" />
+                      <YAxis stroke="#94a3b8" tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
+                      <Tooltip />
+                      <Bar dataKey="revenue" fill="#7c3aed" radius={[10, 10, 6, 6]} />
+                      <Line
+                        type="monotone"
+                        dataKey="expenses"
+                        stroke="#ef4444"
+                        strokeWidth={2}
+                        dot={{ r: 4, fill: '#ef4444' }}
+                      />
+                    </ComposedChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Property insights row */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center gap-3">
                     <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center">
                       <Building2 className="w-6 h-6 text-orange-600" />
                     </div>
                     <div>
                       <CardTitle className="text-xl">Property Revenue Comparison</CardTitle>
-                      <CardDescription>Monthly revenue generated by each property</CardDescription>
+                      <CardDescription>Revenue generated by each property</CardDescription>
                     </div>
                   </div>
                 </CardHeader>
@@ -438,6 +500,134 @@ function DashboardContent() {
                       </Bar>
                     </BarChart>
                   </ResponsiveContainer>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
+                      <DollarSign className="w-6 h-6 text-green-600" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-xl">Income per Property</CardTitle>
+                      <CardDescription>Progress share of total rent collected</CardDescription>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {incomeProgress.length ? (
+                    incomeProgress.map((item) => (
+                      <div key={item.name}>
+                        <div className="flex items-center justify-between mb-1">
+                          <p className="font-medium text-gray-900">{item.name}</p>
+                          <p className="text-sm text-gray-600">{formatCurrency(item.revenue, 'KES')}</p>
+                        </div>
+                        <div className="w-full bg-gray-100 h-2 rounded-full overflow-hidden">
+                          <div
+                            className="h-2 rounded-full bg-gradient-to-r from-[#7c3aed] to-[#4f46e5]"
+                            style={{ width: `${Math.min(item.percent, 100)}%` }}
+                          />
+                        </div>
+                        <p className="text-xs text-gray-500 mt-1">{item.percent}% of total</p>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-sm text-gray-500">No property income to display yet.</p>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Payment status & occupancy (payment focus) */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                      <DollarSign className="w-6 h-6 text-[#4682B4]" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-xl">Payment Status</CardTitle>
+                      <CardDescription>Verified vs pending rent payments</CardDescription>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex flex-col items-center">
+                    <div className="relative">
+                      <ResponsiveContainer width={300} height={220}>
+                        <PieChart>
+                          <Pie
+                            data={paymentData}
+                            cx={150}
+                            cy={150}
+                            startAngle={180}
+                            endAngle={0}
+                            innerRadius={80}
+                            outerRadius={120}
+                            dataKey="value"
+                          >
+                            {paymentData.map((entry, index) => (
+                              <Cell key={`cell-${index}`} fill={entry.color} />
+                            ))}
+                          </Pie>
+                        </PieChart>
+                      </ResponsiveContainer>
+                      <div className="absolute top-24 left-1/2 transform -translate-x-1/2 text-center">
+                        <p className="text-5xl font-bold text-[#4682B4]">{collectedPercentage}%</p>
+                        <p className="text-sm text-gray-600">Verified</p>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-6 mt-4 w-full">
+                      {paymentData.map((item) => (
+                        <div key={item.name} className="text-center">
+                          <div className="flex items-center justify-center gap-2 mb-1">
+                            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color }} />
+                            <span className="text-sm text-gray-600">{item.name}</span>
+                          </div>
+                          <p className="text-2xl font-bold">{item.value}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
+                      <Building2 className="w-6 h-6 text-green-600" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-xl">Occupancy Snapshot</CardTitle>
+                      <CardDescription>Top properties by collected rent share</CardDescription>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {incomeProgress.length ? (
+                    incomeProgress.slice(0, 4).map((item) => (
+                      <div key={item.name}>
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="font-semibold text-gray-900">{item.name}</p>
+                            <p className="text-xs text-gray-500">{formatCurrency(item.revenue, 'KES')}</p>
+                          </div>
+                          <span className="text-sm font-medium text-gray-700">{item.percent}%</span>
+                        </div>
+                        <div className="w-full bg-gray-100 h-2 rounded-full overflow-hidden">
+                          <div
+                            className="h-2 rounded-full bg-gradient-to-r from-green-500 to-emerald-600"
+                            style={{ width: `${Math.min(item.percent, 100)}%` }}
+                          />
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-sm text-gray-500">No occupancy data to display yet.</p>
+                  )}
                 </CardContent>
               </Card>
             </div>

@@ -48,7 +48,7 @@ export async function GET() {
     const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 11, 1))
     const startIso = start.toISOString().split('T')[0]
 
-    const [propertiesRes, tenantsRes, invoicesRes, paymentsRes, maintenanceRes] = await Promise.all([
+    const [propertiesRes, tenantsRes, invoicesRes, paymentsRes, maintenanceRes, expensesRes] = await Promise.all([
       admin.from('apartment_buildings').select('id, name'),
       admin.from('user_profiles').select('id').eq('role', 'tenant'),
       admin
@@ -94,11 +94,16 @@ export async function GET() {
         )
         .order('created_at', { ascending: false })
         .limit(6),
+      admin
+        .from('expenses')
+        .select('id, amount, incurred_at, property_id')
+        .gte('incurred_at', startIso),
     ])
 
     const invoices = (invoicesRes.data || []) as InvoiceRow[]
     const payments = (paymentsRes.data || []) as PaymentRow[]
     const maintenance = (maintenanceRes.data || []) as MaintenanceRow[]
+    const expenses = expensesRes.data || []
 
     // Revenue by month (last 12 months)
     const months: { label: string; key: string; revenue: number }[] = []
@@ -116,6 +121,14 @@ export async function GET() {
       if (bucket) {
         bucket.revenue += Number(inv.amount || 0)
       }
+    })
+
+    // Expenses by month (align with revenue buckets)
+    const expenseMonths = new Map<string, number>()
+    expenses.forEach((exp: any) => {
+      if (!exp.incurred_at) return
+      const key = (exp.incurred_at as string).slice(0, 7)
+      expenseMonths.set(key, (expenseMonths.get(key) || 0) + Number(exp.amount || 0))
     })
 
     // Month-over-month delta for current month
@@ -178,6 +191,13 @@ export async function GET() {
         prevMonthRevenue,
       },
       propertyRevenue,
+      expenses: {
+        monthly: Array.from(months, (m) => ({
+          label: m.label,
+          key: m.key,
+          expenses: expenseMonths.get(m.key) || 0,
+        })),
+      },
       payments: {
         paid: paidCount,
         pending: pendingCount,
