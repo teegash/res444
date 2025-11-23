@@ -488,6 +488,7 @@ export async function processRentPrepayment(
     const monthsPaid = clampMonthsPaid(input.monthsPaid)
     const amountPaid = input.amountPaid
     const paymentDate = input.paymentDate
+    const previousPaidPointer = leaseRecord.next_rent_due_date || null
 
     ensurePaymentRecency(paymentDate, validationErrors)
     await detectDuplicatePayment(admin, input.tenantUserId, input.paymentId, paymentDate, amountPaid, validationErrors)
@@ -574,6 +575,17 @@ export async function processRentPrepayment(
       next_due_amount: number | null
     } | null
 
+    // Mark payment as processed for idempotency (append flag, keep existing notes)
+    const existingNotes = paymentRecord.notes || ''
+    if (!existingNotes.includes(PREPAYMENT_FLAG)) {
+      await admin
+        .from('payments')
+        .update({
+          notes: `${existingNotes ? `${existingNotes} ` : ''}${PREPAYMENT_FLAG}`.trim(),
+        })
+        .eq('id', input.paymentId)
+    }
+
     return {
       success: true,
       message: warnings.length ? `Processed with warnings: ${warnings.join(' ')}` : 'Rent prepayment applied.',
@@ -583,7 +595,7 @@ export async function processRentPrepayment(
       nextDueDate: payload?.next_due_date ? new Date(payload.next_due_date) : null,
       nextDueAmount: payload?.next_due_amount || monthlyRent,
       paidUpToMonth: payload?.paid_up_to_month || null,
-      previouslyPaidUpToMonth: null,
+      previouslyPaidUpToMonth: previousPaidPointer,
       nextRentDueDate: payload?.next_rent_due_date || null,
       cumulativePrepaidMonths: payload?.cumulative_prepaid_months || undefined,
     }
