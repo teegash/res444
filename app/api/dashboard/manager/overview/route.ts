@@ -23,6 +23,8 @@ type PaymentRow = {
   amount_paid: number | null
   verified: boolean | null
   payment_date: string | null
+  mpesa_response_code?: string | null
+  mpesa_query_status?: string | null
 }
 
 type MaintenanceRow = {
@@ -153,17 +155,22 @@ export async function GET() {
       prevMonthRevenue === 0 ? null : ((currentMonthRevenue - prevMonthRevenue) / prevMonthRevenue) * 100
 
     // Property revenue grouping
-    const propertyRevenueMap = new Map<string, number>()
-    invoices
-      .filter((inv) => inv.status === true)
-      .forEach((inv) => {
-        const name =
-          inv.leases?.apartment_units?.apartment_buildings?.name || inv.leases?.apartment_units?.building_id || 'Unassigned'
-        propertyRevenueMap.set(name, (propertyRevenueMap.get(name) || 0) + Number(inv.amount || 0))
-      })
-    const propertyRevenue = Array.from(propertyRevenueMap.entries()).map(([name, revenue]) => ({
+    // Property revenue + potential (using invoices of current month)
+    const propertyRevenueMap = new Map<string, { paid: number; potential: number }>()
+    invoices.forEach((inv) => {
+      const name =
+        inv.leases?.apartment_units?.apartment_buildings?.name || inv.leases?.apartment_units?.building_id || 'Unassigned'
+      const bucket = propertyRevenueMap.get(name) || { paid: 0, potential: 0 }
+      const amount = Number(inv.amount || 0)
+      bucket.potential += amount
+      if (inv.status === true) bucket.paid += amount
+      propertyRevenueMap.set(name, bucket)
+    })
+    const propertyRevenue = Array.from(propertyRevenueMap.entries()).map(([name, vals]) => ({
       name,
-      revenue,
+      revenue: vals.paid,
+      potential: vals.potential,
+      percent: vals.potential ? Math.round((vals.paid / vals.potential) * 100) : 0,
     }))
 
     // Payment status distribution

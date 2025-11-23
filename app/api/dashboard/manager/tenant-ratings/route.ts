@@ -10,6 +10,15 @@ type PaymentRow = {
   } | null
 }
 
+function onTimeScore(due: Date | null, paid: Date | null): number {
+  if (!due || !paid) return 0
+  const diffDays = Math.floor((paid.getTime() - due.getTime()) / (1000 * 60 * 60 * 24))
+  if (diffDays < 0) return 100
+  if (diffDays <= 4) return 99
+  if (diffDays <= 6) return 70
+  return 50
+}
+
 export async function GET() {
   const admin = createAdminClient()
 
@@ -46,13 +55,12 @@ export async function GET() {
 
       const dueDate = payment.invoices?.due_date ? new Date(payment.invoices.due_date) : null
       const paidDate = payment.payment_date ? new Date(payment.payment_date) : payment.created_at ? new Date(payment.created_at) : null
-      const isOnTime =
-        dueDate && paidDate ? paidDate.getTime() <= dueDate.getTime() : false
+      const score = onTimeScore(dueDate, paidDate)
 
       const current = stats.get(tenantId) || { total: 0, onTime: 0, sampleDate: payment.created_at || null }
       stats.set(tenantId, {
         total: current.total + 1,
-        onTime: current.onTime + (isOnTime ? 1 : 0),
+        onTime: current.onTime + score,
         sampleDate: current.sampleDate,
       })
     })
@@ -71,7 +79,7 @@ export async function GET() {
 
     const ratings = Array.from(stats.entries())
       .map(([tenantId, value]) => {
-        const rate = value.total > 0 ? Math.round((value.onTime / value.total) * 100) : 0
+        const rate = value.total > 0 ? Math.round(value.onTime / value.total) : 0
         return {
           tenant_id: tenantId,
           name: nameMap.get(tenantId) || 'Tenant',

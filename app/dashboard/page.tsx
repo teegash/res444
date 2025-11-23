@@ -181,6 +181,7 @@ function DashboardContent() {
   const revenueSeries = overview?.revenue?.series || []
   const expensesSeries = overview?.expenses?.monthly || []
   const propertyRevenue = overview?.propertyRevenue || []
+  const occupancyData = overview?.occupancy || []
   const paymentData = useMemo(
     () => [
       { name: 'Paid', value: overview?.payments?.paid || 0, color: '#22c55e' },
@@ -208,13 +209,12 @@ function DashboardContent() {
 
   const incomeProgress = useMemo(() => {
     if (!propertyRevenue.length) return []
-    const total = propertyRevenue.reduce((sum, item) => sum + item.revenue, 0)
     return propertyRevenue
       .slice()
       .sort((a, b) => b.revenue - a.revenue)
       .map((item) => ({
         ...item,
-        percent: total ? Math.round((item.revenue / total) * 100) : 0,
+        percent: item.potential ? Math.round((item.revenue / item.potential) * 100) : 0,
       }))
   }, [propertyRevenue])
 
@@ -478,7 +478,7 @@ function DashboardContent() {
                 <CardHeader>
                   <div className="flex items-center gap-3">
                     <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center">
-                      <Building2 className="w-6 h-6 text-orange-600" />
+                      <Users className="w-6 h-6 text-orange-600" />
                     </div>
                     <div>
                       <CardTitle className="text-xl">Top On-Time Tenants</CardTitle>
@@ -594,14 +594,11 @@ function DashboardContent() {
                         <p className="text-sm text-gray-600">Verified</p>
                       </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-6 mt-4 w-full">
+                    <div className="flex items-center justify-center gap-4 mt-4 flex-wrap text-sm text-gray-700">
                       {paymentData.map((item) => (
-                        <div key={item.name} className="text-center">
-                          <div className="flex items-center justify-center gap-2 mb-1">
-                            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color }} />
-                            <span className="text-sm text-gray-600">{item.name}</span>
-                          </div>
-                          <p className="text-2xl font-bold">{item.value}</p>
+                        <div key={item.name} className="flex items-center gap-2">
+                          <span className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color }} />
+                          <span>{item.name} ({item.value})</span>
                         </div>
                       ))}
                     </div>
@@ -617,24 +614,117 @@ function DashboardContent() {
                     </div>
                     <div>
                       <CardTitle className="text-xl">Occupancy Snapshot</CardTitle>
-                      <CardDescription>Top properties by collected rent share</CardDescription>
+                      <CardDescription>Units occupied vs total per property</CardDescription>
                     </div>
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-3">
+                  {occupancyData?.length ? (
+                    occupancyData.map((item: any) => {
+                      const percent = item.total_units
+                        ? Math.round((item.occupied_units / item.total_units) * 100)
+                        : 0
+                      return (
+                        <div key={item.building_id}>
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="font-semibold text-gray-900">{item.property_name}</p>
+                              <p className="text-xs text-gray-500">
+                                {item.occupied_units} / {item.total_units} units occupied
+                              </p>
+                            </div>
+                            <span className="text-sm font-medium text-gray-700">{percent}%</span>
+                          </div>
+                          <div className="w-full bg-gray-100 h-2 rounded-full overflow-hidden">
+                            <div
+                              className="h-2 rounded-full bg-gradient-to-r from-green-500 to-emerald-600"
+                              style={{ width: `${Math.min(percent, 100)}%` }}
+                            />
+                          </div>
+                        </div>
+                      )
+                    })
+                  ) : (
+                    <p className="text-sm text-gray-500">No occupancy data to display yet.</p>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Property insights row */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center">
+                      <Users className="w-6 h-6 text-orange-600" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-xl">Top On-Time Tenants</CardTitle>
+                      <CardDescription>Based on rent payment timeliness</CardDescription>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    {ratingsError && <p className="text-sm text-red-600">{ratingsError}</p>}
+                    {!ratingsError && topTenants.length === 0 && (
+                      <p className="text-sm text-gray-500">No tenant ratings yet.</p>
+                    )}
+                    {topTenants.map((tenant) => {
+                      const rate = tenant.on_time_rate || 0
+                      let dot = 'bg-red-500'
+                      if (rate >= 95) dot = 'bg-green-500'
+                      else if (rate >= 87) dot = 'bg-yellow-400'
+                      else if (rate >= 80) dot = 'bg-orange-500'
+                      return (
+                        <div
+                          key={tenant.tenant_id}
+                          className="flex items-center justify-between rounded-lg border border-gray-100 p-3"
+                        >
+                          <div className="flex items-center gap-3">
+                            <span className={`w-3 h-3 rounded-full ${dot}`} aria-hidden />
+                            <div>
+                              <p className="font-semibold text-gray-900">{tenant.name}</p>
+                              <p className="text-xs text-gray-500">{tenant.payments} payments</p>
+                            </div>
+                          </div>
+                          <p className="font-semibold text-gray-900">{rate}% on time</p>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
+                      <DollarSign className="w-6 h-6 text-green-600" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-xl">Income per Property</CardTitle>
+                      <CardDescription>Rent paid vs potential (units × rent) this month</CardDescription>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-4">
                   {incomeProgress.length ? (
-                    incomeProgress.slice(0, 4).map((item) => (
+                    incomeProgress.map((item) => (
                       <div key={item.name}>
                         <div className="flex items-center justify-between">
                           <div>
                             <p className="font-semibold text-gray-900">{item.name}</p>
-                            <p className="text-xs text-gray-500">{formatCurrency(item.revenue, 'KES')}</p>
+                            <p className="text-xs text-gray-500">
+                              {formatCurrency(item.revenue, 'KES')} of {formatCurrency(item.potential || 0, 'KES')}
+                            </p>
                           </div>
                           <span className="text-sm font-medium text-gray-700">{item.percent}%</span>
                         </div>
                         <div className="w-full bg-gray-100 h-2 rounded-full overflow-hidden">
                           <div
-                            className="h-2 rounded-full bg-gradient-to-r from-green-500 to-emerald-600"
+                            className="h-2 rounded-full bg-gradient-to-r from-[#7c3aed] to-[#4f46e5]"
                             style={{ width: `${Math.min(item.percent, 100)}%` }}
                           />
                         </div>
@@ -725,7 +815,7 @@ function DashboardContent() {
                   const Icon = item.icon
                   return (
                     <Link key={item.label} href={item.href}>
-                      <Card className="h-full hover:shadow-lg transition-shadow border-0 bg-gradient-to-br text-white relative overflow-hidden">
+                      <Card className="h-full hover:shadow-lg hover:shadow-purple-200 transition-shadow border-0 bg-gradient-to-br text-white relative overflow-hidden">
                         <div className={`absolute inset-0 opacity-90 bg-gradient-to-br ${item.color}`} />
                         <CardContent className="relative z-10 flex items-center gap-3 py-6">
                           <div className="p-3 bg-white/15 rounded-xl backdrop-blur">
@@ -742,47 +832,7 @@ function DashboardContent() {
                 })}
               </div>
 
-              <Card>
-                <CardHeader>
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
-                      <Users className="w-5 h-5 text-purple-600" />
-                    </div>
-                    <div>
-                      <CardTitle className="text-lg">Top On-Time Tenants</CardTitle>
-                      <CardDescription>Based on rent payment timeliness</CardDescription>
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  {ratingsError && <p className="text-sm text-red-600">{ratingsError}</p>}
-                  {!ratingsError && topTenants.length === 0 && (
-                    <p className="text-sm text-gray-500">No tenant ratings yet.</p>
-                  )}
-                  {topTenants.map((tenant) => {
-                    const rate = tenant.on_time_rate || 0
-                    let dot = 'bg-red-500'
-                    if (rate >= 95) dot = 'bg-green-500'
-                    else if (rate >= 87) dot = 'bg-yellow-400'
-                    else if (rate >= 80) dot = 'bg-orange-500'
-                    return (
-                      <div
-                        key={tenant.tenant_id}
-                        className="flex items-center justify-between rounded-lg border border-gray-100 p-3"
-                      >
-                        <div className="flex items-center gap-3">
-                          <span className={`w-3 h-3 rounded-full ${dot}`} aria-hidden />
-                          <div>
-                            <p className="font-semibold text-gray-900">{tenant.name}</p>
-                            <p className="text-xs text-gray-500">{tenant.payments} payments</p>
-                          </div>
-                        </div>
-                        <p className="font-semibold text-gray-900">{rate}% on time</p>
-                      </div>
-                    )
-                  })}
-                </CardContent>
-              </Card>
+              {/* Removed Top On-Time Tenants card as requested */}
             </div>
           </div>
         </main>
