@@ -42,7 +42,6 @@ export async function GET(request: NextRequest) {
         id,
         monthly_rent,
         rent_paid_until,
-        rent_due_day,
         unit:apartment_units (
           id,
           unit_number,
@@ -106,7 +105,15 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    const dueDay = lease.rent_due_day && lease.rent_due_day > 0 ? Math.min(lease.rent_due_day, 28) : 5
+    const dueDay = (() => {
+      if (earliestUnpaid?.due_date) {
+        const d = new Date(earliestUnpaid.due_date)
+        if (!Number.isNaN(d.getTime())) {
+          return Math.min(Math.max(1, d.getUTCDate()), 28)
+        }
+      }
+      return 5
+    })()
     const dueDate = (() => {
       const due = new Date(targetPeriod)
       const monthEnd = new Date(Date.UTC(due.getUTCFullYear(), due.getUTCMonth() + 1, 0))

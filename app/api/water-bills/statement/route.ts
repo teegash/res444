@@ -196,6 +196,49 @@ export async function GET() {
       )
     }
 
+    const invoiceIds = Array.from(
+      new Set(
+        waterBills
+          .map((row) => row.invoice?.id)
+          .filter((id): id is string => Boolean(id))
+      )
+    )
+
+    const invoiceTenantMap = new Map<string, string>()
+
+    if (invoiceIds.length) {
+      const { data: paymentRows } = await admin
+        .from('payments')
+        .select('invoice_id, tenant_user_id, verified, payment_date')
+        .in('invoice_id', invoiceIds)
+        .order('payment_date', { ascending: false })
+
+      paymentRows?.forEach((row) => {
+        if (!row.invoice_id || !row.tenant_user_id) return
+        if (!invoiceTenantMap.has(row.invoice_id)) {
+          invoiceTenantMap.set(row.invoice_id, row.tenant_user_id)
+        }
+      })
+    }
+
+    const payerTenantIds = Array.from(new Set(invoiceTenantMap.values()))
+    const missingProfiles = payerTenantIds.filter((id) => !tenantProfileMap.has(id))
+
+    if (missingProfiles.length > 0) {
+      const { data: payerProfiles } = await admin
+        .from('user_profiles')
+        .select('id, full_name, email, phone_number')
+        .in('id', missingProfiles)
+
+      payerProfiles?.forEach((profile) => {
+        tenantProfileMap.set(profile.id, {
+          name: profile.full_name || 'Tenant',
+          email: profile.email || null,
+          phone_number: profile.phone_number || null,
+        })
+      })
+    }
+
     const items = waterBills.map((row) => {
       const building = row.unit?.apartment_buildings
       const invoice = row.invoice
@@ -203,7 +246,11 @@ export async function GET() {
       const leaseFromInvoice = invoice?.lease_id ? leaseById.get(invoice.lease_id) : null
       const leaseFromUnit = getLeaseForBill(row.unit?.id, row.billing_month)
       const leaseInfo = leaseFromInvoice ?? leaseFromUnit
-      let tenantInfo = leaseInfo?.tenant_user_id ? tenantProfileMap.get(leaseInfo.tenant_user_id) : null
+      let tenantId = leaseInfo?.tenant_user_id || null
+      if (!tenantId && invoice?.id) {
+        tenantId = invoiceTenantMap.get(invoice.id) || null
+      }
+      const tenantInfo = tenantId ? tenantProfileMap.get(tenantId) : null
 
       return {
         id: row.id,
@@ -217,7 +264,7 @@ export async function GET() {
         property_location: building?.location || '—',
         unit_id: row.unit?.id || null,
         unit_number: row.unit?.unit_number || '—',
-        tenant_id: leaseInfo?.tenant_user_id || null,
+        tenant_id: tenantId,
         tenant_name: tenantInfo?.name || 'Unassigned tenant',
         tenant_phone: tenantInfo?.phone_number || null,
         tenant_email: tenantInfo?.email || null,

@@ -61,28 +61,36 @@ export function exportLeasePdf(options: LeasePdfOptions) {
   doc.text(`Generated on ${new Date().toLocaleString()}`, pageWidth - PAGE_MARGIN, 80, { align: 'right' })
 
   // Summary card
+  const summaryRows = Math.max(1, Math.ceil(options.summary.length / 2))
+  const summaryHeight = Math.max(120, summaryRows * 60)
+  const summaryTop = headerHeight - 10
+  const summaryWidth = pageWidth - PAGE_MARGIN * 2
+
   doc.setFillColor(255, 255, 255)
-  doc.roundedRect(PAGE_MARGIN, headerHeight - 20, pageWidth - PAGE_MARGIN * 2, 100, 12, 12, 'F')
+  doc.roundedRect(PAGE_MARGIN, summaryTop, summaryWidth, summaryHeight, 12, 12, 'F')
   doc.setDrawColor(226, 232, 240)
-  doc.roundedRect(PAGE_MARGIN, headerHeight - 20, pageWidth - PAGE_MARGIN * 2, 100, 12, 12, 'S')
+  doc.roundedRect(PAGE_MARGIN, summaryTop, summaryWidth, summaryHeight, 12, 12, 'S')
   doc.setFontSize(12)
   doc.setTextColor(DARK)
 
-  const columnWidth = (pageWidth - PAGE_MARGIN * 2) / 2
+  const columnWidth = summaryWidth / 2
   options.summary.forEach((item, index) => {
     const column = index % 2
     const rowIndex = Math.floor(index / 2)
     const x = PAGE_MARGIN + column * columnWidth
-    const y = headerHeight + rowIndex * 18
+    const yBase = summaryTop + 28 + rowIndex * 60
+
     doc.setTextColor(MUTED)
-    doc.text(item.label, x + 14, y + 14)
+    doc.text(item.label, x + 14, yBase)
     doc.setTextColor(DARK)
     doc.setFont('helvetica', 'bold')
-    doc.text(item.value || '—', x + 14, y + 32, { maxWidth: columnWidth - 28 })
+    const value = item.value || '—'
+    const wrapped = doc.splitTextToSize(value, columnWidth - 40)
+    doc.text(wrapped, x + 14, yBase + 18)
     doc.setFont('helvetica', 'normal')
   })
 
-  let cursorY = headerHeight + 110
+  let cursorY = summaryTop + summaryHeight + 24
 
   options.sections.forEach((section) => {
     cursorY = ensureSpace(doc, cursorY, 60)
