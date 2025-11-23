@@ -88,6 +88,7 @@ export async function GET() {
           status,
           priority,
           created_at,
+          updated_at,
           unit:apartment_units (
             unit_number,
             apartment_buildings (
@@ -96,7 +97,7 @@ export async function GET() {
           )
         `
         )
-        .order('created_at', { ascending: false })
+        .order('updated_at', { ascending: false })
         .limit(6),
       admin
         .from('expenses')

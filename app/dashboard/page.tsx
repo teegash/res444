@@ -728,7 +728,9 @@ function DashboardContent() {
                           <p className="text-xs text-gray-500">
                             {item.created_at
                               ? new Date(item.created_at).toLocaleString()
-                              : '—'}
+                              : item.updated_at
+                                ? new Date(item.updated_at).toLocaleString()
+                                : '—'}
                           </p>
                         </div>
                         <div className="flex flex-col items-end gap-2">
