@@ -102,9 +102,10 @@ export function TenantHeader({ summary, loading, onProfileUpdated }: TenantHeade
 
   const syncNotifications = useCallback(
     (items: NotificationItem[]) => {
-      const sorted = sortNotifications(items)
+      const unreadItems = items.filter((item) => !item.read)
+      const sorted = sortNotifications(unreadItems)
       setNotifications(sorted)
-      setUnreadCount(sorted.filter((item) => !item.read).length)
+      setUnreadCount(sorted.length)
     },
     [sortNotifications]
   )
@@ -129,13 +130,12 @@ export function TenantHeader({ summary, loading, onProfileUpdated }: TenantHeade
         fetchNotifications()
         return
       }
+      if (record.read) return
       setNotifications((current) => {
         const withoutDuplicate = current.filter((item) => item.id !== record.id)
         return sortNotifications([record, ...withoutDuplicate])
       })
-      if (!record.read) {
-        setUnreadCount((prev) => prev + 1)
-      }
+      setUnreadCount((prev) => prev + 1)
     },
     [fetchNotifications, sortNotifications]
   )
@@ -183,9 +183,7 @@ export function TenantHeader({ summary, loading, onProfileUpdated }: TenantHeade
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ids: unreadIds }),
       })
-      setNotifications((current) =>
-        sortNotifications(current.map((item) => ({ ...item, read: true })))
-      )
+      setNotifications([])
       setUnreadCount(0)
     } catch (error) {
       console.error('[TenantHeader] mark all as read failed', error)
@@ -201,13 +199,7 @@ export function TenantHeader({ summary, loading, onProfileUpdated }: TenantHeade
           body: JSON.stringify({ ids: [notification.id] }),
         })
       }
-      setNotifications((current) =>
-        sortNotifications(
-          current.map((item) =>
-            item.id === notification.id ? { ...item, read: true } : item
-          )
-        )
-      )
+      setNotifications((current) => current.filter((item) => item.id !== notification.id))
       if (!notification.read) {
         setUnreadCount((prev) => Math.max(0, prev - 1))
       }

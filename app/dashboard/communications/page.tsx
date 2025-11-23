@@ -85,10 +85,17 @@ export default function CommunicationsPage() {
   const [selectedProperties, setSelectedProperties] = useState<string[]>([])
   const [propertiesLoading, setPropertiesLoading] = useState(false)
   const [announcementSending, setAnnouncementSending] = useState(false)
+  const [announcementResult, setAnnouncementResult] = useState<{
+    recipients: number
+    sms_sent?: number
+    sms_failed?: number
+  } | null>(null)
+  const [sendSms, setSendSms] = useState(false)
   const [inbox, setInbox] = useState<InboxItem[]>([])
   const [inboxLoading, setInboxLoading] = useState(false)
   const [inboxError, setInboxError] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
+  const allPropertiesSelected = selectedProperties.length === 0
 
   const fetchTemplates = async () => {
     try {
@@ -239,7 +246,13 @@ export default function CommunicationsPage() {
   const togglePropertySelection = (propertyId: string, checked: boolean) => {
     setSelectedProperties((current) => {
       if (checked) {
+        if (current.length === 0) {
+          return [propertyId]
+        }
         return current.includes(propertyId) ? current : [...current, propertyId]
+      }
+      if (current.length === 0) {
+        return properties.filter((property) => property.id !== propertyId).map((p) => p.id)
       }
       return current.filter((id) => id !== propertyId)
     })
@@ -263,17 +276,18 @@ export default function CommunicationsPage() {
         body: JSON.stringify({
           message: newMessage.trim(),
           building_ids: selectedProperties,
+          send_sms: sendSms,
         }),
       })
       const payload = await response.json()
       if (!response.ok) {
         throw new Error(payload.error || 'Failed to send announcement.')
       }
-      toast({
-        title: 'Announcement sent',
-        description: `${payload.data?.recipients || 0} tenants notified.`,
-      })
+      setAnnouncementResult(payload.data || { recipients: 0 })
+      setActiveTab('announcements')
       setNewMessage('')
+      setSelectedProperties([])
+      setSendSms(false)
     } catch (error) {
       toast({
         title: 'Unable to send announcement',
@@ -303,12 +317,40 @@ export default function CommunicationsPage() {
 
   const templatesMemo = useMemo(() => smsTemplates, [smsTemplates])
 
+  const resetAnnouncementForm = () => {
+    setAnnouncementResult(null)
+    setNewMessage('')
+    setSelectedProperties([])
+    setSendSms(false)
+  }
+
   return (
     <div className="flex min-h-screen bg-gray-50">
       <Sidebar />
       <div className="flex-1 flex flex-col">
         <Header />
         <main className="flex-1 p-8 overflow-auto">
+          {announcementResult ? (
+            <div className="max-w-3xl mx-auto py-12">
+              <Card className="text-center space-y-4 p-8">
+                <CardTitle className="text-2xl">Announcement sent successfully</CardTitle>
+                <p className="text-muted-foreground">
+                  Delivered to {announcementResult.recipients || 0} tenants
+                  {announcementResult.sms_sent !== undefined
+                    ? ` • SMS sent: ${announcementResult.sms_sent || 0}${
+                        announcementResult.sms_failed
+                          ? ` (failed: ${announcementResult.sms_failed})`
+                          : ''
+                      }`
+                    : ''}
+                </p>
+                <div className="flex justify-center">
+                  <Button onClick={resetAnnouncementForm}>Send another one</Button>
+                </div>
+              </Card>
+            </div>
+          ) : (
+            <>
           <div className="mb-6">
             <h1 className="text-3xl font-bold">Communications Hub</h1>
           </div>
@@ -520,7 +562,7 @@ export default function CommunicationsPage() {
                   />
                 </div>
                 <div className="space-y-3">
-                  <Label>Target properties</Label>
+                  <Label>Target properties (choose apartments)</Label>
                   {propertiesLoading ? (
                     <p className="text-sm text-muted-foreground">Loading properties…</p>
                   ) : (
@@ -528,10 +570,12 @@ export default function CommunicationsPage() {
                       <div className="flex items-center gap-2">
                         <Checkbox
                           id="all-properties"
-                          checked={selectedProperties.length === 0}
+                          checked={allPropertiesSelected}
                           onCheckedChange={(checked) => {
                             if (checked) {
                               setSelectedProperties([])
+                            } else {
+                              setSelectedProperties(properties.map((property) => property.id))
                             }
                           }}
                         />
@@ -543,11 +587,7 @@ export default function CommunicationsPage() {
                         <div key={property.id} className="flex items-center gap-2">
                           <Checkbox
                             id={`property-${property.id}`}
-                            checked={
-                              selectedProperties.length === 0
-                                ? true
-                                : selectedProperties.includes(property.id)
-                            }
+                            checked={allPropertiesSelected || selectedProperties.includes(property.id)}
                             onCheckedChange={(checked) => {
                               togglePropertySelection(property.id, Boolean(checked))
                             }}
@@ -563,6 +603,21 @@ export default function CommunicationsPage() {
                     </div>
                   )}
                 </div>
+                    <div className="flex items-center gap-2">
+                      <Checkbox
+                        id="send-sms"
+                        checked={sendSms}
+                        onCheckedChange={(checked) => setSendSms(Boolean(checked))}
+                      />
+                      <div className="space-y-1">
+                        <Label htmlFor="send-sms" className="text-sm font-medium">
+                          Send as SMS too
+                        </Label>
+                        <p className="text-xs text-muted-foreground">
+                          Tenants in the selected properties will receive this message via text.
+                        </p>
+                      </div>
+                    </div>
                 <Button className="gap-2" onClick={handleSendAnnouncement} disabled={announcementSending}>
                   {announcementSending ? (
                     <Loader2 className="w-4 h-4 animate-spin" />
@@ -574,22 +629,24 @@ export default function CommunicationsPage() {
               </CardContent>
             </Card>
 
-            {/* Past Announcements */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Announcement History</CardTitle>
-              </CardHeader>
+          {/* Past Announcements */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Announcement History</CardTitle>
+            </CardHeader>
               <CardContent>
                 <div className="space-y-4">
                   <div className="p-4 border rounded-lg">
                     <p className="font-medium">Water Maintenance Notice</p>
                     <p className="text-sm text-muted-foreground">Sent on 2024-11-08 to all tenants</p>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
         </Tabs>
+            </>
+          )}
 
         {/* Settings Modal */}
         <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>

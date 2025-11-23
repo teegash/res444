@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { sendSMSWithLogging } from '@/lib/sms/smsService'
 
 export async function POST(request: NextRequest) {
   try {
@@ -32,6 +33,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json().catch(() => ({}))
     const message: string = body?.message
     const buildingIds: string[] = Array.isArray(body?.building_ids) ? body.building_ids : []
+    const sendSms: boolean = Boolean(body?.send_sms)
 
     if (!message || !message.trim()) {
       return NextResponse.json(
@@ -98,10 +100,54 @@ export async function POST(request: NextRequest) {
       throw insertError
     }
 
+    let smsSent = 0
+    let smsFailed = 0
+
+    if (sendSms) {
+      const { data: profiles, error: profilesError } = await admin
+        .from('user_profiles')
+        .select('id, phone_number')
+        .in('id', tenantIds)
+
+      if (profilesError) {
+        throw profilesError
+      }
+
+      const phoneMap = (profiles || []).reduce<Record<string, string>>((acc, profile) => {
+        if (profile.phone_number) {
+          acc[profile.id] = profile.phone_number
+        }
+        return acc
+      }, {})
+
+      const smsResults = await Promise.allSettled(
+        tenantIds.map(async (tenantId) => {
+          const phone = phoneMap[tenantId]
+          if (!phone) return { success: false, error: 'Missing phone' }
+          return sendSMSWithLogging({
+            phoneNumber: phone,
+            message: message.trim(),
+            senderUserId: user.id,
+            recipientUserId: tenantId,
+          })
+        })
+      )
+
+      smsResults.forEach((result) => {
+        if (result.status === 'fulfilled' && result.value?.success) {
+          smsSent += 1
+        } else {
+          smsFailed += 1
+        }
+      })
+    }
+
     return NextResponse.json({
       success: true,
       data: {
         recipients: tenantIds.length,
+        sms_sent: smsSent,
+        sms_failed: smsFailed,
       },
     })
   } catch (error) {
