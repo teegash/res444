@@ -656,80 +656,41 @@ function DashboardContent() {
               <Card>
                 <CardHeader>
                   <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center">
-                      <Users className="w-6 h-6 text-orange-600" />
+                    <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                      <Building2 className="w-6 h-6 text-blue-600" />
                     </div>
                     <div>
-                      <CardTitle className="text-xl">Top On-Time Tenants</CardTitle>
-                      <CardDescription>Based on rent payment timeliness</CardDescription>
+                      <CardTitle className="text-xl">Property Occupancy</CardTitle>
+                      <CardDescription>Units occupied vs total per property</CardDescription>
                     </div>
                   </div>
                 </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    {ratingsError && <p className="text-sm text-red-600">{ratingsError}</p>}
-                    {!ratingsError && topTenants.length === 0 && (
-                      <p className="text-sm text-gray-500">No tenant ratings yet.</p>
-                    )}
-                    {topTenants.map((tenant) => {
-                      const rate = tenant.on_time_rate || 0
-                      let dot = 'bg-red-500'
-                      if (rate >= 95) dot = 'bg-green-500'
-                      else if (rate >= 87) dot = 'bg-yellow-400'
-                      else if (rate >= 80) dot = 'bg-orange-500'
+                <CardContent className="space-y-3">
+                  {occupancyData?.length ? (
+                    occupancyData.map((item: any) => {
+                      const percent = item.total_units
+                        ? Math.round((item.occupied_units / item.total_units) * 100)
+                        : 0
                       return (
-                        <div
-                          key={tenant.tenant_id}
-                          className="flex items-center justify-between rounded-lg border border-gray-100 p-3"
-                        >
-                          <div className="flex items-center gap-3">
-                            <span className={`w-3 h-3 rounded-full ${dot}`} aria-hidden />
+                        <div key={item.building_id}>
+                          <div className="flex items-center justify-between">
                             <div>
-                              <p className="font-semibold text-gray-900">{tenant.name}</p>
-                              <p className="text-xs text-gray-500">{tenant.payments} payments</p>
+                              <p className="font-semibold text-gray-900">{item.property_name}</p>
+                              <p className="text-xs text-gray-500">
+                                {item.occupied_units} / {item.total_units} units occupied
+                              </p>
                             </div>
+                            <span className="text-sm font-medium text-gray-700">{percent}%</span>
                           </div>
-                          <p className="font-semibold text-gray-900">{rate}% on time</p>
+                          <div className="w-full bg-gray-100 h-2 rounded-full overflow-hidden">
+                            <div
+                              className="h-2 rounded-full bg-gradient-to-r from-green-500 to-emerald-600"
+                              style={{ width: `${Math.min(percent, 100)}%` }}
+                            />
+                          </div>
                         </div>
                       )
-                    })}
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-                      <DollarSign className="w-6 h-6 text-green-600" />
-                    </div>
-                    <div>
-                      <CardTitle className="text-xl">Income per Property</CardTitle>
-                      <CardDescription>Rent paid vs potential (units × rent) this month</CardDescription>
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {incomeProgress.length ? (
-                    incomeProgress.map((item) => (
-                      <div key={item.name}>
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="font-semibold text-gray-900">{item.name}</p>
-                            <p className="text-xs text-gray-500">
-                              {formatCurrency(item.revenue, 'KES')} of {formatCurrency(item.potential || 0, 'KES')}
-                            </p>
-                          </div>
-                          <span className="text-sm font-medium text-gray-700">{item.percent}%</span>
-                        </div>
-                        <div className="w-full bg-gray-100 h-2 rounded-full overflow-hidden">
-                          <div
-                            className="h-2 rounded-full bg-gradient-to-r from-[#7c3aed] to-[#4f46e5]"
-                            style={{ width: `${Math.min(item.percent, 100)}%` }}
-                          />
-                        </div>
-                      </div>
-                    ))
+                    })
                   ) : (
                     <p className="text-sm text-gray-500">No occupancy data to display yet.</p>
                   )}
