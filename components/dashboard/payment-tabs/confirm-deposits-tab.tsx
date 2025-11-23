@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/dialog'
 import { CheckCircle2, XCircle, Eye, Clock } from 'lucide-react'
 import { PaymentRecord } from '@/components/dashboard/payment-tabs/types'
+import { SkeletonTable } from '@/components/ui/skeletons'
 
 const currencyFormatter = new Intl.NumberFormat('en-KE', {
   style: 'currency',
