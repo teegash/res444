@@ -22,7 +22,6 @@ import {
 import { AlertCircle, RotateCcw, Clock } from 'lucide-react'
 import { FailureBreakdown, PaymentRecord } from '@/components/dashboard/payment-tabs/types'
 import { SkeletonTable } from '@/components/ui/skeletons'
-import { SkeletonTable } from '@/components/ui/skeletons'
 
 const currencyFormatter = new Intl.NumberFormat('en-KE', {
   style: 'currency',
