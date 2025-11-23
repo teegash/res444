@@ -15,6 +15,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { useToast } from '@/components/ui/use-toast'
 import jsPDF from 'jspdf'
 import { SkeletonLoader, SkeletonTable } from '@/components/ui/skeletons'
+import { Badge } from '@/components/ui/badge'
 
 interface TenantSummary {
   id: string
@@ -52,6 +53,21 @@ export default function WaterBillsPage() {
   const [sendingInvoice, setSendingInvoice] = useState(false)
   const [downloading, setDownloading] = useState(false)
   const [invoiceSent, setInvoiceSent] = useState(false)
+  const [historyLoading, setHistoryLoading] = useState(true)
+  const [historyError, setHistoryError] = useState<string | null>(null)
+  const [history, setHistory] = useState<
+    Array<{
+      id: string
+      tenant_name: string | null
+      unit_number: string | null
+      property_name: string | null
+      amount: number
+      billing_month: string | null
+      invoice_due_date: string | null
+      created_at: string | null
+      status: 'paid' | 'unpaid'
+    }>
+  >([])
 
   const resetForm = () => {
     setSelectedProperty('')
@@ -83,7 +99,49 @@ export default function WaterBillsPage() {
         setLoading(false)
       }
     }
+
+    const fetchHistory = async () => {
+      try {
+        setHistoryLoading(true)
+        setHistoryError(null)
+        const response = await fetch('/api/water-bills/statement', { cache: 'no-store' })
+        const payload = await response.json()
+        if (!response.ok) {
+          throw new Error(payload.error || 'Failed to load payment history.')
+        }
+        const records: any[] = payload.data || []
+        const paidOrRecent = records
+          .filter((r) => r.status === 'paid')
+          .sort((a, b) => {
+            const aDate = new Date(a.created_at || a.invoice_due_date || a.billing_month || 0).getTime()
+            const bDate = new Date(b.created_at || b.invoice_due_date || b.billing_month || 0).getTime()
+            return bDate - aDate
+          })
+          .slice(0, 6)
+
+        setHistory(
+          paidOrRecent.map((r) => ({
+            id: r.id,
+            tenant_name: r.tenant_name || null,
+            unit_number: r.unit_number || null,
+            property_name: r.property_name || null,
+            amount: Number(r.amount || 0),
+            billing_month: r.billing_month,
+            invoice_due_date: r.invoice_due_date,
+            created_at: r.created_at,
+            status: r.status,
+          }))
+        )
+      } catch (err) {
+        setHistoryError(err instanceof Error ? err.message : 'Unable to load payment history.')
+        setHistory([])
+      } finally {
+        setHistoryLoading(false)
+      }
+    }
+
     fetchFormData()
+    fetchHistory()
   }, [])
 
   const availableUnits = useMemo(() => {
@@ -351,245 +409,319 @@ export default function WaterBillsPage() {
             </div>
           </div>
 
-          <div className="max-w-4xl space-y-4">
+          <div className="max-w-6xl space-y-4">
             {formError && (
               <Alert variant="destructive">
                 <AlertDescription>{formError}</AlertDescription>
               </Alert>
             )}
 
-          {invoiceSent ? (
-            <Card>
-              <CardContent className="py-10 text-center space-y-4">
-                <Droplet className="mx-auto h-10 w-10 text-[#4682B4]" />
-                <h2 className="text-2xl font-bold">Invoice Sent Successfully</h2>
-                <p className="text-sm text-muted-foreground">
-                  The tenant has received the SMS invoice. You can download the PDF for your records or send
-                  another invoice.
-                </p>
-                <div className="flex justify-center gap-4">
-                  <Button variant="outline" onClick={handleDownloadPdf}>
-                    Download PDF
-                  </Button>
-                  <Button onClick={resetForm}>Send Another Invoice</Button>
-                </div>
-              </CardContent>
-            </Card>
-          ) : (
-            <Card>
-              <CardHeader className="bg-gradient-to-r from-[#4682B4] to-[#5a9fd4] text-white pt-7 pb-6">
-                <CardTitle className="flex items-center gap-2">
-                  <Calculator className="h-5 w-5" />
-                  Water Consumption Invoice Form
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="pt-6 space-y-6">
-              {/* Property and Unit Selection */}
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="property">Select Property *</Label>
-                  <Select
-                    value={selectedProperty}
-                    onValueChange={(value) => {
-                      setSelectedProperty(value)
-                      setSelectedUnit('')
-                      setPreviousReading('')
-                      setCurrentReading('')
-                    }}
-                  >
-                    <SelectTrigger id="property" className="h-12">
-                      <SelectValue placeholder="Choose property" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {properties.map((property) => (
-                        <SelectItem key={property.id} value={property.id}>
-                          {property.name || 'Unnamed property'}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+            <div className="grid lg:grid-cols-3 gap-6">
+              <div className="lg:col-span-2 space-y-4">
+                {invoiceSent ? (
+                  <Card>
+                    <CardContent className="py-10 text-center space-y-4">
+                      <Droplet className="mx-auto h-10 w-10 text-[#4682B4]" />
+                      <h2 className="text-2xl font-bold">Invoice Sent Successfully</h2>
+                      <p className="text-sm text-muted-foreground">
+                        The tenant has received the SMS invoice. You can download the PDF for your records or send
+                        another invoice.
+                      </p>
+                      <div className="flex justify-center gap-4">
+                        <Button variant="outline" onClick={handleDownloadPdf}>
+                          Download PDF
+                        </Button>
+                        <Button onClick={resetForm}>Send Another Invoice</Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ) : (
+                  <Card>
+                    <CardHeader className="bg-gradient-to-r from-[#4682B4] to-[#5a9fd4] text-white pt-7 pb-6">
+                      <CardTitle className="flex items-center gap-2">
+                        <Calculator className="h-5 w-5" />
+                        Water Consumption Invoice Form
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="pt-6 space-y-6">
+                      {/* Property and Unit Selection */}
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="property">Select Property *</Label>
+                          <Select
+                            value={selectedProperty}
+                            onValueChange={(value) => {
+                              setSelectedProperty(value)
+                              setSelectedUnit('')
+                              setPreviousReading('')
+                              setCurrentReading('')
+                            }}
+                          >
+                            <SelectTrigger id="property" className="h-12">
+                              <SelectValue placeholder="Choose property" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {properties.map((property) => (
+                                <SelectItem key={property.id} value={property.id}>
+                                  {property.name || 'Unnamed property'}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="unit">Select Apartment Unit *</Label>
-                  <Select value={selectedUnit} onValueChange={handleUnitChange} disabled={!selectedProperty}>
-                    <SelectTrigger id="unit" className="h-12">
-                      <SelectValue placeholder={selectedProperty ? 'Choose unit' : 'Select property first'} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {availableUnits.map((unit) => (
-                        <SelectItem key={unit.id} value={unit.id}>
-                          Unit {unit.unit_number || 'N/A'}
-                          {unit.tenant?.name ? ` • ${unit.tenant.name}` : ''}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="unit">Select Apartment Unit *</Label>
+                          <Select value={selectedUnit} onValueChange={handleUnitChange} disabled={!selectedProperty}>
+                            <SelectTrigger id="unit" className="h-12">
+                              <SelectValue placeholder={selectedProperty ? 'Choose unit' : 'Select property first'} />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {availableUnits.map((unit) => (
+                                <SelectItem key={unit.id} value={unit.id}>
+                                  Unit {unit.unit_number || 'N/A'}
+                                  {unit.tenant?.name ? ` • ${unit.tenant.name}` : ''}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+
+                      {/* Tenant Details - Auto-filled */}
+                      {selectedUnitData && (
+                        <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg space-y-3">
+                          <h3 className="font-semibold text-[#4682B4] flex items-center gap-2">
+                            Tenant Details (Auto-filled)
+                          </h3>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <Label className="text-xs text-muted-foreground">Tenant Name</Label>
+                              <div className="mt-1 p-3 bg-white border rounded-md font-medium">
+                                {selectedUnitData.tenant?.name || 'Not assigned'}
+                              </div>
+                            </div>
+                            <div>
+                              <Label className="text-xs text-muted-foreground">Unit Number</Label>
+                              <div className="mt-1 p-3 bg-white border rounded-md font-medium">
+                                {selectedUnitData.unit_number || 'N/A'}
+                              </div>
+                            </div>
+                            <div>
+                              <Label className="text-xs text-muted-foreground">Email Address</Label>
+                              <div className="mt-1 p-3 bg-white border rounded-md">
+                                {selectedUnitData.tenant?.email || 'Not available'}
+                              </div>
+                            </div>
+                            <div>
+                              <Label className="text-xs text-muted-foreground">Phone Number</Label>
+                              <div className="mt-1 p-3 bg-white border rounded-md">
+                                {selectedUnitData.tenant?.phone || 'Not available'}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Water Consumption Details */}
+                      <div className="space-y-4">
+                        <h3 className="font-semibold text-lg">Water Consumption Details</h3>
+
+                        <div className="grid grid-cols-3 gap-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="previous">Previous Reading *</Label>
+                            <Input
+                              id="previous"
+                              type="number"
+                              placeholder="0"
+                              value={previousReading}
+                              onChange={(e) => setPreviousReading(e.target.value)}
+                              className="h-12 text-lg"
+                              disabled={!selectedUnit}
+                            />
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label htmlFor="current">Current Reading *</Label>
+                            <Input
+                              id="current"
+                              type="number"
+                              placeholder="0"
+                              value={currentReading}
+                              onChange={(e) => setCurrentReading(e.target.value)}
+                              className="h-12 text-lg"
+                              disabled={!selectedUnit}
+                            />
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label htmlFor="price">Price per Unit (KES) *</Label>
+                            <Input
+                              id="price"
+                              type="number"
+                              placeholder="85"
+                              value={pricePerUnit}
+                              onChange={(e) => setPricePerUnit(e.target.value)}
+                              className="h-12 text-lg"
+                              disabled={!selectedUnit}
+                            />
+                          </div>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label htmlFor="notes">Additional Notes (Optional)</Label>
+                          <Textarea
+                            id="notes"
+                            placeholder="Add any additional notes or remarks for this invoice..."
+                            rows={3}
+                            disabled={!selectedUnit}
+                            value={notes}
+                            onChange={(e) => setNotes(e.target.value)}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Calculation Summary */}
+                      {selectedUnit && (
+                        <div className="p-6 bg-gradient-to-br from-green-50 to-blue-50 border-2 border-[#4682B4] rounded-lg space-y-3">
+                          <h3 className="font-semibold text-lg text-[#4682B4]">Invoice Summary</h3>
+                          <div className="space-y-2">
+                            <div className="flex justify-between items-center py-2 border-b">
+                              <span className="text-muted-foreground">Units Consumed:</span>
+                              <span className="text-xl font-bold">{unitsConsumed.toFixed(2)} units</span>
+                            </div>
+                            <div className="flex justify-between items-center py-2 border-b">
+                              <span className="text-muted-foreground">Rate per Unit:</span>
+                              <span className="text-xl font-bold">KES {parseFloat(pricePerUnit || '0').toFixed(2)}</span>
+                            </div>
+                            <div className="flex justify-between items-center pt-3">
+                              <span className="text-lg font-semibold">Total Amount:</span>
+                              <span className="text-3xl font-bold text-[#4682B4]">
+                                KES {totalAmount.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Action Buttons */}
+                      <div className="flex gap-4 pt-4">
+                        <Button
+                          className="flex-1 h-12 text-lg bg-[#4682B4] hover:bg-[#4682B4]/90"
+                          disabled={!selectedUnit || !currentReading || !previousReading || unitsConsumed <= 0 || sendingInvoice}
+                          onClick={handleSendInvoice}
+                        >
+                          {sendingInvoice ? (
+                            <>
+                              <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                              Sending…
+                            </>
+                          ) : (
+                            <>
+                              <Send className="mr-2 h-5 w-5" />
+                              Send Invoice to Tenant
+                            </>
+                          )}
+                        </Button>
+                        <Button
+                          variant="outline"
+                          className="h-12 gap-2"
+                          onClick={handleDownloadPdf}
+                          disabled={!selectedUnit || !currentReading || !previousReading || unitsConsumed <= 0 || downloading}
+                        >
+                          {downloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Droplet className="h-4 w-4" />}
+                          Download PDF
+                        </Button>
+                        <Button
+                          variant="outline"
+                          className="h-12"
+                          onClick={() => {
+                            setSelectedProperty('')
+                            setSelectedUnit('')
+                            setPreviousReading('')
+                            setCurrentReading('')
+                            setPricePerUnit('85')
+                            setNotes('')
+                          }}
+                        >
+                          Clear Form
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
               </div>
 
-              {/* Tenant Details - Auto-filled */}
-              {selectedUnitData && (
-                <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg space-y-3">
-                  <h3 className="font-semibold text-[#4682B4] flex items-center gap-2">
-                    Tenant Details (Auto-filled)
-                  </h3>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label className="text-xs text-muted-foreground">Tenant Name</Label>
-                      <div className="mt-1 p-3 bg-white border rounded-md font-medium">
-                        {selectedUnitData.tenant?.name || 'Not assigned'}
-                      </div>
+              <Card className="h-full">
+                <CardHeader>
+                  <CardTitle className="text-lg">Recent water bill payments</CardTitle>
+                  <p className="text-sm text-muted-foreground">Latest 6 payments recorded</p>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {historyLoading && (
+                    <div className="space-y-3">
+                      <SkeletonLoader height={18} width="70%" />
+                      <SkeletonLoader height={18} width="60%" />
+                      <SkeletonLoader height={18} width="80%" />
+                      <SkeletonLoader height={18} width="75%" />
+                      <SkeletonLoader height={18} width="68%" />
+                      <SkeletonLoader height={18} width="66%" />
                     </div>
-                    <div>
-                      <Label className="text-xs text-muted-foreground">Unit Number</Label>
-                      <div className="mt-1 p-3 bg-white border rounded-md font-medium">
-                        {selectedUnitData.unit_number || 'N/A'}
-                      </div>
-                    </div>
-                    <div>
-                      <Label className="text-xs text-muted-foreground">Email Address</Label>
-                      <div className="mt-1 p-3 bg-white border rounded-md">
-                        {selectedUnitData.tenant?.email || 'Not available'}
-                      </div>
-                    </div>
-                    <div>
-                      <Label className="text-xs text-muted-foreground">Phone Number</Label>
-                      <div className="mt-1 p-3 bg-white border rounded-md">
-                        {selectedUnitData.tenant?.phone || 'Not available'}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Water Consumption Details */}
-              <div className="space-y-4">
-                <h3 className="font-semibold text-lg">Water Consumption Details</h3>
-                
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="previous">Previous Reading *</Label>
-                    <Input
-                      id="previous"
-                      type="number"
-                      placeholder="0"
-                      value={previousReading}
-                      onChange={(e) => setPreviousReading(e.target.value)}
-                      className="h-12 text-lg"
-                      disabled={!selectedUnit}
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="current">Current Reading *</Label>
-                    <Input
-                      id="current"
-                      type="number"
-                      placeholder="0"
-                      value={currentReading}
-                      onChange={(e) => setCurrentReading(e.target.value)}
-                      className="h-12 text-lg"
-                      disabled={!selectedUnit}
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="price">Price per Unit (KES) *</Label>
-                    <Input
-                      id="price"
-                      type="number"
-                      placeholder="85"
-                      value={pricePerUnit}
-                      onChange={(e) => setPricePerUnit(e.target.value)}
-                      className="h-12 text-lg"
-                      disabled={!selectedUnit}
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="notes">Additional Notes (Optional)</Label>
-                  <Textarea
-                    id="notes"
-                    placeholder="Add any additional notes or remarks for this invoice..."
-                    rows={3}
-                    disabled={!selectedUnit}
-                    value={notes}
-                    onChange={(e) => setNotes(e.target.value)}
-                  />
-                </div>
-              </div>
-
-              {/* Calculation Summary */}
-              {selectedUnit && (
-                <div className="p-6 bg-gradient-to-br from-green-50 to-blue-50 border-2 border-[#4682B4] rounded-lg space-y-3">
-                  <h3 className="font-semibold text-lg text-[#4682B4]">Invoice Summary</h3>
-                  <div className="space-y-2">
-                    <div className="flex justify-between items-center py-2 border-b">
-                      <span className="text-muted-foreground">Units Consumed:</span>
-                      <span className="text-xl font-bold">{unitsConsumed.toFixed(2)} units</span>
-                    </div>
-                    <div className="flex justify-between items-center py-2 border-b">
-                      <span className="text-muted-foreground">Rate per Unit:</span>
-                      <span className="text-xl font-bold">KES {parseFloat(pricePerUnit || '0').toFixed(2)}</span>
-                    </div>
-                    <div className="flex justify-between items-center pt-3">
-                      <span className="text-lg font-semibold">Total Amount:</span>
-                      <span className="text-3xl font-bold text-[#4682B4]">
-                        KES {totalAmount.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Action Buttons */}
-              <div className="flex gap-4 pt-4">
-                <Button
-                  className="flex-1 h-12 text-lg bg-[#4682B4] hover:bg-[#4682B4]/90"
-                  disabled={!selectedUnit || !currentReading || !previousReading || unitsConsumed <= 0 || sendingInvoice}
-                  onClick={handleSendInvoice}
-                >
-                  {sendingInvoice ? (
-                    <>
-                      <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                      Sending…
-                    </>
-                  ) : (
-                    <>
-                      <Send className="mr-2 h-5 w-5" />
-                      Send Invoice to Tenant
-                    </>
                   )}
-                </Button>
-                <Button
-                  variant="outline"
-                  className="h-12 gap-2"
-                  onClick={handleDownloadPdf}
-                  disabled={!selectedUnit || !currentReading || !previousReading || unitsConsumed <= 0 || downloading}
-                >
-                  {downloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Droplet className="h-4 w-4" />}
-                  Download PDF
-                </Button>
-                <Button
-                  variant="outline"
-                  className="h-12"
-                  onClick={() => {
-                    setSelectedProperty('')
-                    setSelectedUnit('')
-                    setPreviousReading('')
-                    setCurrentReading('')
-                    setPricePerUnit('85')
-                    setNotes('')
-                  }}
-                >
-                  Clear Form
-                </Button>
-              </div>
-            </CardContent>
-            </Card>
-          )}
+                  {!historyLoading && historyError && (
+                    <Alert variant="destructive">
+                      <AlertDescription>{historyError}</AlertDescription>
+                    </Alert>
+                  )}
+                  {!historyLoading && !historyError && history.length === 0 && (
+                    <p className="text-sm text-muted-foreground">No payments recorded yet.</p>
+                  )}
+                  {!historyLoading &&
+                    !historyError &&
+                    history.map((item) => (
+                      <div
+                        key={item.id}
+                        className="flex items-start justify-between rounded-lg border bg-white p-3 shadow-sm"
+                      >
+                        <div className="space-y-1">
+                          <div className="font-semibold text-slate-800">
+                            {item.tenant_name || 'Tenant'} • {item.unit_number || 'Unit'}
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {item.property_name || 'Property'} •{' '}
+                            {item.billing_month
+                              ? new Date(item.billing_month).toLocaleDateString(undefined, {
+                                  month: 'short',
+                                  year: 'numeric',
+                                })
+                              : '—'}
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            Due{' '}
+                            {item.invoice_due_date
+                              ? new Date(item.invoice_due_date).toLocaleDateString()
+                              : '—'}
+                          </div>
+                        </div>
+                        <div className="text-right space-y-1">
+                          <div className="font-semibold text-slate-900">
+                            {formatCurrency(item.amount)}
+                          </div>
+                          <Badge
+                            className={
+                              item.status === 'paid'
+                                ? 'bg-emerald-600 text-white hover:bg-emerald-500'
+                                : 'bg-orange-500 text-white hover:bg-orange-400'
+                            }
+                          >
+                            {item.status === 'paid' ? 'Paid' : 'Unpaid'}
+                          </Badge>
+                        </div>
+                      </div>
+                    ))}
+                </CardContent>
+              </Card>
+            </div>
           </div>
         </main>
       </div>

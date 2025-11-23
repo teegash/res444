@@ -223,7 +223,13 @@ export default function WaterBillStatementsPage() {
                     variant={statusFilter === option ? 'default' : 'outline'}
                     size="sm"
                     onClick={() => setStatusFilter(option)}
-                    className={option === 'paid' ? 'bg-emerald-600 hover:bg-emerald-500' : option === 'unpaid' ? 'bg-orange-600 hover:bg-orange-500' : undefined}
+                    className={
+                      option === 'paid'
+                        ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
+                        : option === 'unpaid'
+                          ? 'bg-orange-600 hover:bg-orange-500 text-white'
+                          : undefined
+                    }
                   >
                     {option === 'all' ? 'All bills' : option === 'paid' ? 'Paid' : 'Unpaid'}
                   </Button>
