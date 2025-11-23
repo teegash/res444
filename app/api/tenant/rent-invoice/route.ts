@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { startOfMonthUtc, addMonthsUtc, rentDueDateForPeriod, toIsoDate } from '@/lib/invoices/rentPeriods'
+import { startOfMonthUtc, addMonthsUtc, toIsoDate } from '@/lib/invoices/rentPeriods'
 
 async function selectExistingInvoice(
   adminSupabase: ReturnType<typeof createAdminClient>,
@@ -42,6 +42,7 @@ export async function GET(request: NextRequest) {
         id,
         monthly_rent,
         rent_paid_until,
+        rent_due_day,
         unit:apartment_units (
           id,
           unit_number,
@@ -80,9 +81,23 @@ export async function GET(request: NextRequest) {
 
     const today = new Date()
     const currentPeriod = startOfMonthUtc(today)
+    const { data: earliestUnpaid } = await adminSupabase
+      .from('invoices')
+      .select('id, due_date, status')
+      .eq('lease_id', lease.id)
+      .eq('invoice_type', 'rent')
+      .or('status.eq.false,status.eq.unpaid,status.eq.overdue,status.eq.partially_paid')
+      .order('due_date', { ascending: true })
+      .limit(1)
+      .maybeSingle()
 
     let targetPeriod = currentPeriod
-    if (lease.rent_paid_until) {
+    if (earliestUnpaid?.due_date) {
+      const unpaidDue = new Date(earliestUnpaid.due_date)
+      if (!Number.isNaN(unpaidDue.getTime())) {
+        targetPeriod = startOfMonthUtc(unpaidDue)
+      }
+    } else if (lease.rent_paid_until) {
       const paidUntil = new Date(lease.rent_paid_until)
       if (!Number.isNaN(paidUntil.getTime())) {
         const paidStart = startOfMonthUtc(paidUntil)
@@ -91,7 +106,13 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    const dueDate = rentDueDateForPeriod(targetPeriod)
+    const dueDay = lease.rent_due_day && lease.rent_due_day > 0 ? Math.min(lease.rent_due_day, 28) : 5
+    const dueDate = (() => {
+      const due = new Date(targetPeriod)
+      const monthEnd = new Date(Date.UTC(due.getUTCFullYear(), due.getUTCMonth() + 1, 0))
+      due.setUTCDate(Math.min(dueDay, monthEnd.getUTCDate()))
+      return toIsoDate(due)
+    })()
     let invoice = await selectExistingInvoice(adminSupabase, lease.id, targetPeriod)
 
     if (!invoice) {

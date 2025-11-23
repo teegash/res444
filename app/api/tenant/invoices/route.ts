@@ -62,29 +62,39 @@ export async function GET(request: NextRequest) {
     }
 
     const statusFilter = request.nextUrl.searchParams.get('status')
-      const payload = (invoices || []).map((invoice) => {
-        const leaseMeta = leaseMap.get(invoice.lease_id as string)
-        const building = leaseMeta?.building
-        return {
-          id: invoice.id,
-          lease_id: invoice.lease_id,
-          amount: Number(invoice.amount),
-          due_date: invoice.due_date,
-          status: Boolean(invoice.status),
-          invoice_type: invoice.invoice_type,
-          description: invoice.description,
-          created_at: invoice.created_at,
-          months_covered: invoice.months_covered || 0,
-          unit_label: leaseMeta?.unit_number || null,
-          property_name: building?.name || null,
-          property_location: building?.location || null,
-          lease_paid_until: leaseMeta?.rent_paid_until || null,
-        }
-      })
+    const payload = (invoices || []).map((invoice) => {
+      const leaseMeta = leaseMap.get(invoice.lease_id as string)
+      const building = leaseMeta?.building
+      const rentPaidUntilDate = leaseMeta?.rent_paid_until ? new Date(leaseMeta.rent_paid_until) : null
+      const dueDateObj = invoice.due_date ? new Date(invoice.due_date) : null
+      const isCovered =
+        rentPaidUntilDate !== null &&
+        dueDateObj !== null &&
+        !Number.isNaN(dueDateObj.getTime()) &&
+        dueDateObj.getTime() <= rentPaidUntilDate.getTime()
+      const statusValue = isCovered ? true : Boolean(invoice.status)
+
+      return {
+        id: invoice.id,
+        lease_id: invoice.lease_id,
+        amount: Number(invoice.amount),
+        due_date: invoice.due_date,
+        status: statusValue,
+        invoice_type: invoice.invoice_type,
+        description: invoice.description,
+        created_at: invoice.created_at,
+        months_covered: invoice.months_covered || 0,
+        unit_label: leaseMeta?.unit_number || null,
+        property_name: building?.name || null,
+        property_location: building?.location || null,
+        lease_paid_until: leaseMeta?.rent_paid_until || null,
+        is_covered: isCovered,
+      }
+    })
 
     const filteredPayload =
       statusFilter === 'pending'
-        ? payload.filter((invoice) => !invoice.status)
+        ? payload.filter((invoice) => !invoice.status && !invoice.is_covered)
         : payload
 
     return NextResponse.json({ success: true, data: filteredPayload })

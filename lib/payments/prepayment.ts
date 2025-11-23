@@ -11,6 +11,7 @@ const UNPAID_STATUSES = new Set(['unpaid', 'overdue', 'partially_paid'])
 const AMOUNT_TOLERANCE = 0.05
 const DUPLICATE_LOOKBACK_HOURS = 24
 const MAX_PAST_PAYMENT_DAYS = 180
+const UNPAID_OR_FALSE = 'status.eq.false,status.eq.unpaid,status.eq.overdue,status.eq.partially_paid'
 
 interface LeaseRecord {
   id: string
@@ -198,7 +199,7 @@ const fetchOldestUnpaidInvoice = async (admin: AdminClient, leaseId: string) => 
     .select('id, lease_id, due_date, amount, status, payment_date')
     .eq('lease_id', leaseId)
     .eq('invoice_type', 'rent')
-    .in('status', Array.from(UNPAID_STATUSES))
+    .or(UNPAID_OR_FALSE)
     .order('due_date', { ascending: true })
     .limit(1)
   return data?.[0] ?? null
@@ -221,7 +222,7 @@ const fetchUnpaidInvoices = async (admin: AdminClient, leaseId: string) => {
     .select('id, lease_id, due_date, amount, status')
     .eq('lease_id', leaseId)
     .eq('invoice_type', 'rent')
-    .in('status', Array.from(UNPAID_STATUSES))
+    .or(UNPAID_OR_FALSE)
     .order('due_date', { ascending: true })
   return data ?? []
 }
@@ -381,7 +382,7 @@ const computeNextDueDateInternal = async (admin: AdminClient, leaseId: string): 
     .select('id, due_date, amount, status')
     .eq('lease_id', leaseId)
     .eq('invoice_type', 'rent')
-    .in('status', Array.from(UNPAID_STATUSES))
+    .or(UNPAID_OR_FALSE)
     .order('due_date', { ascending: true })
 
   const invoices = data ?? []
@@ -578,7 +579,7 @@ export async function processRentPrepayment(
             invoice_type: 'rent',
             amount: monthlyRent,
             due_date: dueDateIso,
-            status: 'unpaid',
+            status: false,
             months_covered: 1,
           })
           .select('id, lease_id, due_date, amount, status')
@@ -604,13 +605,33 @@ export async function processRentPrepayment(
     if (invoicesToUpdate.length) {
       const paymentDateIso = toDateOnlyIso(paymentDate)
       const nowIso = new Date().toISOString()
-      const { error: updateError } = await admin
-        .from('invoices')
-        .update({ status: 'paid', payment_date: paymentDateIso, updated_at: nowIso })
-        .in('id', invoicesToUpdate)
+      const booleanInvoices = invoicesToUpdate.filter(
+        (invoiceId) => typeof invoiceById.get(invoiceId)?.status === 'boolean'
+      )
+      const textInvoices = invoicesToUpdate.filter(
+        (invoiceId) => typeof invoiceById.get(invoiceId)?.status !== 'boolean'
+      )
 
-      if (updateError) {
-        throw updateError
+      if (booleanInvoices.length) {
+        const { error: updateError } = await admin
+          .from('invoices')
+          .update({ status: true, payment_date: paymentDateIso, updated_at: nowIso })
+          .in('id', booleanInvoices)
+
+        if (updateError) {
+          throw updateError
+        }
+      }
+
+      if (textInvoices.length) {
+        const { error: updateError } = await admin
+          .from('invoices')
+          .update({ status: 'paid', payment_date: paymentDateIso, updated_at: nowIso })
+          .in('id', textInvoices)
+
+        if (updateError) {
+          throw updateError
+        }
       }
     }
 
@@ -623,6 +644,7 @@ export async function processRentPrepayment(
       throw paymentUpdateError
     }
 
+    const coverageEndIso = calculatePaidUntil(null, coverageDueDates[0], monthsPaid)
     const rentPaidUntil = calculatePaidUntil(
       leaseRecord.rent_paid_until || null,
       coverageDueDates[0],
@@ -634,6 +656,45 @@ export async function processRentPrepayment(
         .from('leases')
         .update({ rent_paid_until: rentPaidUntil })
         .eq('id', input.leaseId)
+    }
+
+    const coverageEndDate = parseDate(coverageEndIso)
+    if (coverageEndDate) {
+      const nextPeriodStart = addMonthsUtc(startOfMonthUtc(coverageEndDate), 1)
+      const leaseEndCap = leaseRecord.end_date ? startOfMonthUtc(new Date(leaseRecord.end_date)) : null
+      if (!leaseEndCap || nextPeriodStart <= leaseEndCap) {
+        const nextDue = new Date(nextPeriodStart)
+        const monthEnd = new Date(Date.UTC(nextDue.getUTCFullYear(), nextDue.getUTCMonth() + 1, 0))
+        const clampDay = Math.min(dueDay, monthEnd.getUTCDate())
+        nextDue.setUTCDate(clampDay)
+        const nextDueIso = toIsoDate(nextDue)
+
+        const { data: nextInvoice } = await admin
+          .from('invoices')
+          .select('id')
+          .eq('lease_id', input.leaseId)
+          .eq('invoice_type', 'rent')
+          .eq('due_date', nextDueIso)
+          .maybeSingle()
+
+        if (!nextInvoice) {
+          const { error: nextInsertError } = await admin
+            .from('invoices')
+            .insert({
+              lease_id: input.leaseId,
+              invoice_type: 'rent',
+              amount: monthlyRent,
+              due_date: nextDueIso,
+              status: false,
+              months_covered: 1,
+            })
+            .single()
+
+          if (nextInsertError && nextInsertError.code !== '23505') {
+            throw nextInsertError
+          }
+        }
+      }
     }
 
     if (!paymentRecord.notes?.includes(PREPAYMENT_FLAG)) {
