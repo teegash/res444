@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox'
 import { Badge } from '@/components/ui/badge'
 import { useToast } from '@/components/ui/use-toast'
-import { SkeletonLoader } from '@/components/ui/skeletons'
+import { SkeletonLoader, SkeletonTable } from '@/components/ui/skeletons'
 import { SkeletonLoader, SkeletonTable } from '@/components/ui/skeletons'
 
 type TenantOption = {

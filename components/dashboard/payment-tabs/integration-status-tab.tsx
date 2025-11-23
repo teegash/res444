@@ -14,6 +14,7 @@ import {
 import { useToast } from '@/components/ui/use-toast'
 import { CheckCircle2, AlertCircle, Settings } from 'lucide-react'
 import { IntegrationSummary, PaymentStats } from '@/components/dashboard/payment-tabs/types'
+import { SkeletonLoader } from '@/components/ui/skeletons'
 
 interface IntegrationStatusTabProps {
   stats?: PaymentStats
