@@ -249,6 +249,7 @@ export default function ManagerNoticesPage() {
               </Card>
             </div>
           ) : (
+          <>
           <div className="mb-6 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="p-2 rounded-lg bg-blue-100 border border-blue-200 shadow-sm">
@@ -506,6 +507,7 @@ export default function ManagerNoticesPage() {
               </Card>
             </div>
           </div>
+          </>
           )}
         </main>
       </div>

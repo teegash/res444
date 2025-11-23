@@ -1,0 +1,182 @@
+'use client'
+
+import { useMemo, useState } from 'react'
+import Link from 'next/link'
+import { ArrowLeft, Download } from 'lucide-react'
+import { Sidebar } from '@/components/dashboard/sidebar'
+import { Header } from '@/components/dashboard/header'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { exportRowsAsCSV, exportRowsAsExcel, exportRowsAsPDF } from '@/lib/export/download'
+import { Badge } from '@/components/ui/badge'
+
+type StatementRow = {
+  property: string
+  month: string
+  income: number
+  expenses: number
+}
+
+const rows: StatementRow[] = [
+  { property: 'Kilimani Heights', month: 'Oct', income: 520000, expenses: 210000 },
+  { property: 'Kilimani Heights', month: 'Nov', income: 545000, expenses: 215000 },
+  { property: 'Kilimani Heights', month: 'Dec', income: 562000, expenses: 218000 },
+  { property: 'Westlands Plaza', month: 'Oct', income: 410000, expenses: 165000 },
+  { property: 'Westlands Plaza', month: 'Nov', income: 430000, expenses: 170000 },
+  { property: 'Westlands Plaza', month: 'Dec', income: 438000, expenses: 175000 },
+]
+
+const periods = [
+  { value: 'month', label: 'Last 30 days' },
+  { value: 'quarter', label: 'Quarter' },
+  { value: 'semi', label: '6 months' },
+  { value: 'year', label: 'Year' },
+  { value: 'all', label: 'All time' },
+]
+
+export default function FinancialStatementPage() {
+  const [period, setPeriod] = useState('quarter')
+  const [property, setProperty] = useState('all')
+
+  const filtered = useMemo(() => {
+    if (property === 'all') return rows
+    return rows.filter((row) => row.property === property)
+  }, [property])
+
+  const summary = useMemo(() => {
+    const income = filtered.reduce((sum, row) => sum + row.income, 0)
+    const expenses = filtered.reduce((sum, row) => sum + row.expenses, 0)
+    const net = income - expenses
+    return { income, expenses, net }
+  }, [filtered])
+
+  const handleExport = (format: 'pdf' | 'excel' | 'csv') => {
+    const filename = `financial-statement-${period}-${property}-${new Date().toISOString().slice(0, 10)}`
+    const columns = [
+      { header: 'Property', accessor: (row: StatementRow) => row.property },
+      { header: 'Month', accessor: (row: StatementRow) => row.month },
+      { header: 'Income', accessor: (row: StatementRow) => `KES ${row.income.toLocaleString()}` },
+      { header: 'Expenses', accessor: (row: StatementRow) => `KES ${row.expenses.toLocaleString()}` },
+      { header: 'Net', accessor: (row: StatementRow) => `KES ${(row.income - row.expenses).toLocaleString()}` },
+    ]
+    if (format === 'pdf') {
+      exportRowsAsPDF(filename, columns, filtered, {
+        title: 'Financial Statement',
+        subtitle: `Period: ${period}, Property: ${property}`,
+      })
+    } else if (format === 'excel') {
+      exportRowsAsExcel(filename, columns, filtered)
+    } else {
+      exportRowsAsCSV(filename, columns, filtered)
+    }
+  }
+
+  return (
+    <div className="flex min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50">
+      <Sidebar />
+      <div className="flex-1 flex flex-col">
+        <Header />
+        <main className="flex-1 p-8 overflow-auto space-y-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Link href="/dashboard/manager/reports">
+                <Button variant="ghost" size="icon">
+                  <ArrowLeft className="h-4 w-4" />
+                </Button>
+              </Link>
+              <div>
+                <h1 className="text-3xl font-bold">Financial Statement</h1>
+                <p className="text-sm text-muted-foreground">Income vs expenses with exportable statements.</p>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <Select value={period} onValueChange={setPeriod}>
+                <SelectTrigger className="w-[160px]">
+                  <SelectValue placeholder="Period" />
+                </SelectTrigger>
+                <SelectContent>
+                  {periods.map((p) => (
+                    <SelectItem key={p.value} value={p.value}>
+                      {p.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={property} onValueChange={setProperty}>
+                <SelectTrigger className="w-[200px]">
+                  <SelectValue placeholder="Property" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All properties</SelectItem>
+                  {Array.from(new Set(rows.map((row) => row.property))).map((p) => (
+                    <SelectItem key={p} value={p}>
+                      {p}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button variant="outline" onClick={() => handleExport('pdf')}>
+                <Download className="h-4 w-4 mr-2" />
+                PDF
+              </Button>
+              <Button variant="outline" onClick={() => handleExport('excel')}>
+                <Download className="h-4 w-4 mr-2" />
+                Excel
+              </Button>
+              <Button variant="outline" onClick={() => handleExport('csv')}>
+                <Download className="h-4 w-4 mr-2" />
+                CSV
+              </Button>
+            </div>
+          </div>
+
+          <Card className="border-0 shadow-lg bg-white/90">
+            <CardHeader>
+              <CardTitle>Snapshot</CardTitle>
+              <CardDescription>Net position for the selected scope.</CardDescription>
+            </CardHeader>
+            <CardContent className="grid md:grid-cols-3 gap-4">
+              <div className="p-4 rounded-xl bg-gradient-to-br from-emerald-50 to-white border">
+                <p className="text-xs text-muted-foreground">Total income</p>
+                <p className="text-3xl font-bold text-emerald-700">KES {summary.income.toLocaleString()}</p>
+              </div>
+              <div className="p-4 rounded-xl bg-gradient-to-br from-red-50 to-white border">
+                <p className="text-xs text-muted-foreground">Total expenses</p>
+                <p className="text-3xl font-bold text-red-600">KES {summary.expenses.toLocaleString()}</p>
+              </div>
+              <div className="p-4 rounded-xl bg-gradient-to-br from-blue-50 to-white border">
+                <p className="text-xs text-muted-foreground">Net</p>
+                <p className="text-3xl font-bold text-blue-700">KES {summary.net.toLocaleString()}</p>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-0 shadow-lg bg-white/90">
+            <CardHeader>
+              <CardTitle>Statement detail</CardTitle>
+              <CardDescription>Income, expenses, and net by month.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {filtered.map((row) => (
+                <div key={`${row.property}-${row.month}`} className="p-3 rounded-lg border flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-semibold">{row.property}</p>
+                    <p className="text-xs text-muted-foreground">Month: {row.month}</p>
+                  </div>
+                  <div className="flex gap-3 items-center">
+                    <Badge variant="outline">Income: KES {row.income.toLocaleString()}</Badge>
+                    <Badge variant="secondary">Expenses: KES {row.expenses.toLocaleString()}</Badge>
+                    <Badge variant={row.income - row.expenses >= 0 ? 'default' : 'destructive'}>
+                      Net: KES {(row.income - row.expenses).toLocaleString()}
+                    </Badge>
+                  </div>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        </main>
+      </div>
+    </div>
+  )
+}
