@@ -549,183 +549,44 @@ export async function processRentPrepayment(
       }
     }
 
-    const coverageStart = resolveCoverageStart(leaseRecord)
-    const coverageDueDates = buildDueDates(coverageStart, monthsPaid, 1, leaseRecord.end_date)
-    console.info('[Prepayment] coverage start/dates', {
-      coverageStart: toIsoDate(coverageStart),
-      coverageDueDates,
-    })
-    if (coverageDueDates.length < monthsPaid) {
-      validationErrors.push('Lease end date prevents covering all requested months.')
-      return {
-        success: false,
-        message: 'Lease ends before all prepaid months can be applied.',
-        validationErrors,
-        appliedInvoices: [],
-        createdInvoices: [],
-        nextDueDate: null,
-        nextDueAmount: null,
-      }
-    }
-
-    const rangeInvoices = await fetchInvoicesForRange(
-      admin,
-      input.leaseId,
-      coverageDueDates[0],
-      coverageDueDates[coverageDueDates.length - 1]
-    )
-
-    const invoiceByMonth = new Map<string, InvoiceRecord>()
-    const invoiceById = new Map<string, InvoiceRecord>()
-    rangeInvoices.forEach((invoice) => {
-      const normalized = invoice as InvoiceRecord
-      invoiceByMonth.set(monthKey(invoice.due_date), normalized)
-      invoiceById.set(normalized.id, normalized)
+    // Use transactional RPC for atomicity
+    const rpcResult = await admin.rpc('process_rent_prepayment', {
+      _lease_id: input.leaseId,
+      _payment_id: input.paymentId,
+      _tenant_user_id: input.tenantUserId,
+      _months_paid: monthsPaid,
+      _amount_paid: amountPaid,
+      _payment_date: paymentDate.toISOString(),
+      _payment_method: input.paymentMethod,
     })
 
-    const appliedInvoices: string[] = []
-    const createdInvoices: string[] = []
-    const alreadyPaidOverlap: string[] = []
-
-    for (const dueDateIso of coverageDueDates) {
-      const key = monthKey(dueDateIso)
-      let invoice = invoiceByMonth.get(key)
-      if (!invoice) {
-        const { data: created, error } = await admin
-          .from('invoices')
-          .insert({
-            lease_id: input.leaseId,
-            invoice_type: 'rent',
-            amount: monthlyRent,
-            due_date: dueDateIso,
-            status: false,
-            months_covered: 1,
-          })
-          .select('id, lease_id, due_date, amount, status')
-          .single()
-
-        if (error || !created) {
-          throw error || new Error('Failed to create rent invoice.')
-        }
-
-        invoice = created as InvoiceRecord
-        invoiceByMonth.set(key, invoice)
-        invoiceById.set(invoice.id, invoice)
-        createdInvoices.push(invoice.id)
-      }
-
-      if (invoiceStatusToBoolean(invoice.status)) {
-        alreadyPaidOverlap.push(invoice.id)
-      }
-
-      appliedInvoices.push(invoice.id)
+    if (rpcResult.error) {
+      throw rpcResult.error
     }
 
-    const invoicesToUpdate = appliedInvoices.filter((invoiceId) => {
-      const invoice = invoiceById.get(invoiceId)
-      return invoice ? !invoiceStatusToBoolean(invoice.status) : true
-    })
+    const payload = rpcResult.data as {
+      applied_invoices: string[]
+      created_invoices: string[]
+      paid_up_to_month: string | null
+      next_rent_due_date: string | null
+      cumulative_prepaid_months: number | null
+      next_due_date: string | null
+      next_due_amount: number | null
+    } | null
 
-    if (invoicesToUpdate.length) {
-      const paymentDateIso = toDateOnlyIso(paymentDate)
-      const nowIso = new Date().toISOString()
-      const booleanInvoices = invoicesToUpdate.filter(
-        (invoiceId) => typeof invoiceById.get(invoiceId)?.status === 'boolean'
-      )
-      const textInvoices = invoicesToUpdate.filter(
-        (invoiceId) => typeof invoiceById.get(invoiceId)?.status !== 'boolean'
-      )
-
-      if (booleanInvoices.length) {
-        const { error: updateError } = await admin
-          .from('invoices')
-          .update({ status: true, payment_date: paymentDateIso, updated_at: nowIso })
-          .in('id', booleanInvoices)
-
-        if (updateError) {
-          throw updateError
-        }
-      }
-
-      if (textInvoices.length) {
-        const { error: updateError } = await admin
-          .from('invoices')
-          .update({ status: 'paid', payment_date: paymentDateIso, updated_at: nowIso })
-          .in('id', textInvoices)
-
-        if (updateError) {
-          throw updateError
-        }
-      }
-    }
-
-    const lastCoveredIso = coverageDueDates[coverageDueDates.length - 1]
-    const lastCoveredDate = parseDate(lastCoveredIso)
-    const nextRentDueDate = lastCoveredDate ? addMonthsUtc(startOfMonthUtc(lastCoveredDate), 1) : null
-    const previousPaidUpTo = addMonthsUtc(coverageStart, -1)
-    const rentPaidUntil = calculatePaidUntil(leaseRecord.rent_paid_until || null, coverageDueDates[0], monthsPaid)
-
-    if (nextRentDueDate) {
-      const { error: leaseUpdateError } = await admin
-        .from('leases')
-        .update({
-          next_rent_due_date: toIsoDate(nextRentDueDate),
-          rent_paid_until: rentPaidUntil || null,
-        })
-        .eq('id', input.leaseId)
-
-      if (leaseUpdateError) {
-        throw leaseUpdateError
-      }
-    }
-
-    const { error: paymentUpdateError } = await admin
-      .from('payments')
-      .update({ invoice_id: appliedInvoices[0], months_paid: monthsPaid })
-      .eq('id', input.paymentId)
-
-    if (paymentUpdateError) {
-      throw paymentUpdateError
-    }
-
-    if (!paymentRecord.notes?.includes(PREPAYMENT_FLAG)) {
-      const updatedNotes = paymentRecord.notes
-        ? `${paymentRecord.notes}\n${PREPAYMENT_FLAG}`
-        : PREPAYMENT_FLAG
-      await admin
-        .from('payments')
-        .update({ notes: updatedNotes })
-        .eq('id', input.paymentId)
-    }
-
-    const { count: prepaidCount } = await admin
-      .from('invoices')
-      .select('id', { count: 'exact', head: true })
-      .eq('lease_id', input.leaseId)
-      .eq('invoice_type', 'rent')
-      .eq('status', true)
-
-    const nextDue = await computeNextDueDateInternal(admin, input.leaseId)
-
-    if (alreadyPaidOverlap.length) {
-      warnings.push('Some covered months were already marked as paid; left unchanged.')
-    }
-
-    const result = {
+    return {
       success: true,
       message: warnings.length ? `Processed with warnings: ${warnings.join(' ')}` : 'Rent prepayment applied.',
       validationErrors: [],
-      appliedInvoices,
-      createdInvoices,
-      nextDueDate: nextDue.nextDueDate ?? (nextRentDueDate ? new Date(nextRentDueDate) : null),
-      nextDueAmount: nextDue.nextAmount ?? monthlyRent,
-      paidUpToMonth: lastCoveredIso,
-      previouslyPaidUpToMonth: previousPaidUpTo ? toIsoDate(previousPaidUpTo) : null,
-      nextRentDueDate: nextRentDueDate ? toIsoDate(nextRentDueDate) : null,
-      cumulativePrepaidMonths: prepaidCount ?? undefined,
+      appliedInvoices: payload?.applied_invoices || [],
+      createdInvoices: payload?.created_invoices || [],
+      nextDueDate: payload?.next_due_date ? new Date(payload.next_due_date) : null,
+      nextDueAmount: payload?.next_due_amount || monthlyRent,
+      paidUpToMonth: payload?.paid_up_to_month || null,
+      previouslyPaidUpToMonth: null,
+      nextRentDueDate: payload?.next_rent_due_date || null,
+      cumulativePrepaidMonths: payload?.cumulative_prepaid_months || undefined,
     }
-    console.info('[Prepayment] success', result)
-    return result
   } catch (error) {
     console.error('[processRentPrepayment] failed', error)
     return {
