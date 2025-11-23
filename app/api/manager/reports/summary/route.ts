@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { getPeriodRange } from '../utils'
+import { getPeriodRange, getPreviousPeriod } from '../utils'
 
 type PaymentRow = {
   amount_paid: number | null
@@ -36,7 +36,8 @@ type LeaseRow = {
 export async function GET(request: NextRequest) {
   try {
     const period = request.nextUrl.searchParams.get('period') || 'quarter'
-    const { startDate } = getPeriodRange(period)
+    const { startDate, endDate } = getPeriodRange(period)
+    const { prevStart, prevEnd } = getPreviousPeriod(startDate, endDate)
     const admin = createAdminClient()
 
     const paymentsQuery = admin
@@ -202,6 +203,23 @@ export async function GET(request: NextRequest) {
       }
     })
 
+    // Previous period collection (used for trends)
+    let prevCollectionRate = collectionRate
+    if (prevStart) {
+      const prevPaymentsQuery = admin
+        .from('payments')
+        .select('amount_paid, payment_date')
+        .gte('payment_date', prevStart)
+        .lte('payment_date', prevEnd)
+      const { data: prevPayments } = await prevPaymentsQuery
+      const prevCollected = (prevPayments || []).reduce(
+        (sum, row: any) => sum + Number(row.amount_paid || 0),
+        0
+      )
+      const prevBilled = collectionRateTotals.billed // approximation: billing similar to current
+      prevCollectionRate = prevBilled === 0 ? collectionRate : (prevCollected / prevBilled) * 100
+    }
+
     return NextResponse.json({
       success: true,
       data: {
@@ -209,6 +227,7 @@ export async function GET(request: NextRequest) {
           revenue: totalRevenue,
           occupancyRate,
           collectionRate,
+          prevCollectionRate,
           avgRent,
         },
         properties: propertyMetrics,

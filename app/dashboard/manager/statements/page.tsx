@@ -13,6 +13,7 @@ import { exportRowsAsCSV, exportRowsAsExcel, exportRowsAsPDF } from '@/lib/expor
 
 type StatementRow = {
   id: string
+  tenantId?: string | null
   tenantName: string
   propertyName: string
   propertyId: string | null
@@ -46,15 +47,50 @@ export default function StatementsPage() {
     })
   }, [searchQuery, propertyId, statements])
 
+  const groupedByTenant = useMemo(() => {
+    const map = new Map<
+      string,
+      {
+        tenantId: string
+        tenantName: string
+        properties: Set<string>
+        latestDate: string | null
+        total: number
+        count: number
+      }
+    >()
+    filtered.forEach((row) => {
+      const key = row.tenantId || row.tenantName
+      const existing = map.get(key) || {
+        tenantId: row.tenantId || key,
+        tenantName: row.tenantName,
+        properties: new Set<string>(),
+        latestDate: null,
+        total: 0,
+        count: 0,
+      }
+      if (row.propertyName) existing.properties.add(row.propertyName)
+      existing.total += Number(row.amount || 0)
+      existing.count += 1
+      if (row.paymentDate) {
+        const current = existing.latestDate ? new Date(existing.latestDate).getTime() : 0
+        const incoming = new Date(row.paymentDate).getTime()
+        if (incoming > current) existing.latestDate = row.paymentDate
+      }
+      map.set(key, existing)
+    })
+    return Array.from(map.values())
+  }, [filtered])
+
   const propertyOptions = useMemo(() => {
-    const opts = Array.from(
-      new Set(
-        statements
-          .map((row) => row.propertyId || row.propertyName)
-          .filter((v): v is string => Boolean(v))
-      )
-    )
-    return opts
+    const map = new Map<string, string>()
+    statements.forEach((row) => {
+      const key = row.propertyId || row.propertyName || ''
+      if (!key) return
+      const label = row.propertyName || 'Property'
+      map.set(key, label)
+    })
+    return Array.from(map.entries()).map(([value, label]) => ({ value, label }))
   }, [statements])
 
   const loadStatements = async () => {
@@ -91,26 +127,24 @@ export default function StatementsPage() {
   const handleExport = (format: 'pdf' | 'excel' | 'csv') => {
     const fileBase = `statements-${period}-${propertyId}-${new Date().toISOString().slice(0, 10)}`
     const columns = [
-      { header: 'Tenant', accessor: (row: StatementRow) => row.tenantName },
-      { header: 'Property', accessor: (row: StatementRow) => row.propertyName },
-      { header: 'Unit', accessor: (row: StatementRow) => row.unitLabel },
-      { header: 'Amount', accessor: (row: StatementRow) => `KES ${row.amount.toLocaleString()}` },
-      { header: 'Date', accessor: (row: StatementRow) => row.paymentDate ? new Date(row.paymentDate).toLocaleDateString() : '' },
-      { header: 'Method', accessor: (row: StatementRow) => row.method },
-      { header: 'Receipt', accessor: (row: StatementRow) => row.receipt || '' },
+      { header: 'Tenant', accessor: (row: any) => row.tenantName },
+      { header: 'Properties', accessor: (row: any) => Array.from(row.properties || []).join(' • ') },
+      { header: 'Transactions', accessor: (row: any) => row.count },
+      { header: 'Latest Payment', accessor: (row: any) => (row.latestDate ? new Date(row.latestDate).toLocaleDateString() : '') },
+      { header: 'Total Paid', accessor: (row: any) => `KES ${Number(row.total || 0).toLocaleString()}` },
     ]
-    const totalAmount = filtered.reduce((sum, row) => sum + Number(row.amount || 0), 0)
-    const summaryRows = [['', '', '', `Total`, `KES ${totalAmount.toLocaleString()}`, '', '']]
+    const totalAmount = groupedByTenant.reduce((sum, row) => sum + Number(row.total || 0), 0)
+    const summaryRows = [['', '', '', 'Total', `KES ${totalAmount.toLocaleString()}`]]
     if (format === 'pdf') {
-      exportRowsAsPDF(fileBase, columns, filtered, {
+      exportRowsAsPDF(fileBase, columns, groupedByTenant, {
         title: 'Tenant Payment Statements',
         subtitle: `Period: ${period}, Property: ${propertyId}`,
         summaryRows,
       })
     } else if (format === 'excel') {
-      exportRowsAsExcel(fileBase, columns, filtered, summaryRows)
+      exportRowsAsExcel(fileBase, columns, groupedByTenant, summaryRows)
     } else {
-      exportRowsAsCSV(fileBase, columns, filtered, summaryRows)
+      exportRowsAsCSV(fileBase, columns, groupedByTenant, summaryRows)
     }
   }
 
@@ -174,8 +208,8 @@ export default function StatementsPage() {
                 <SelectContent>
                   <SelectItem value="all">All Properties</SelectItem>
                   {propertyOptions.map((opt) => (
-                    <SelectItem key={opt} value={opt}>
-                      {opt}
+                    <SelectItem key={opt.value} value={opt.value}>
+                      {opt.label}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -196,19 +230,19 @@ export default function StatementsPage() {
           </Card>
 
           <div className="mt-8">
-            <h2 className="text-lg font-bold text-gray-900 mb-4">All Statements</h2>
-            <p className="text-sm text-gray-600 mb-4">Financial statements for all tenants</p>
+            <h2 className="text-lg font-bold text-gray-900 mb-2">All Statements</h2>
+            <p className="text-sm text-gray-600 mb-4">Each card represents a tenant’s full payment history.</p>
 
             <div className="space-y-3">
               {loading ? (
                 <p className="text-sm text-muted-foreground">Loading statements…</p>
               ) : error ? (
                 <p className="text-sm text-red-600">{error}</p>
-              ) : filtered.length === 0 ? (
+              ) : groupedByTenant.length === 0 ? (
                 <p className="text-sm text-muted-foreground">No statements found.</p>
               ) : (
-                filtered.map((statement) => (
-                  <Card key={statement.id} className="p-6 hover:shadow-md transition-shadow">
+                groupedByTenant.map((statement) => (
+                  <Card key={statement.tenantId} className="p-6 hover:shadow-md transition-shadow">
                     <div className="flex items-center justify-between">
                       <div className="flex items-start gap-4 flex-1">
                         <div className="flex items-center justify-center w-12 h-12 bg-blue-100 rounded-lg">
@@ -217,30 +251,25 @@ export default function StatementsPage() {
                         <div className="flex-1">
                           <h3 className="font-bold text-gray-900 mb-1">{statement.tenantName}</h3>
                           <p className="text-sm text-gray-600 mb-2">
-                            {statement.propertyName} {statement.unitLabel ? `• ${statement.unitLabel}` : ''}
+                            {Array.from(statement.properties).join(' • ') || 'Property'}
                           </p>
                           <div className="flex items-center gap-4 text-xs text-gray-500">
+                            <span>Total Paid: KES {statement.total.toLocaleString()}</span>
+                            <span>Transactions: {statement.count}</span>
                             <span>
-                              Date:{' '}
-                              {statement.paymentDate
-                                ? new Date(statement.paymentDate).toLocaleDateString()
+                              Latest:{' '}
+                              {statement.latestDate
+                                ? new Date(statement.latestDate).toLocaleDateString()
                                 : '—'}
                             </span>
-                            <span>Amount: KES {statement.amount.toLocaleString()}</span>
                           </div>
-                        </div>
-                        <div className="text-right">
-                          <div className="font-bold text-gray-900 mb-1 text-sm capitalize">
-                            {statement.method}
-                          </div>
-                          <div className="text-xs text-gray-500">Receipt: {statement.receipt || '—'}</div>
                         </div>
                       </div>
                       <div className="flex items-center gap-2 ml-6">
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => router.push(`/dashboard/manager/statements/${statement.id}`)}
+                          onClick={() => router.push(`/dashboard/manager/statements/${statement.tenantId}`)}
                         >
                           <Eye className="w-4 h-4 mr-1" />
                           View

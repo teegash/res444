@@ -1,6 +1,7 @@
 export function getPeriodRange(period?: string) {
   const now = new Date()
   let start: Date | null = null
+  let end: Date = now
 
   switch ((period || '').toLowerCase()) {
     case 'month':
@@ -27,6 +28,18 @@ export function getPeriodRange(period?: string) {
 
   return {
     startDate: start ? start.toISOString() : null,
-    endDate: now.toISOString(),
+    endDate: end.toISOString(),
   }
+}
+
+export function getPreviousPeriod(startDate: string | null, endDate: string) {
+  if (!startDate) {
+    return { prevStart: null, prevEnd: new Date(endDate).toISOString() }
+  }
+  const start = new Date(startDate)
+  const end = new Date(endDate)
+  const duration = end.getTime() - start.getTime()
+  const prevEndDate = start
+  const prevStartDate = new Date(start.getTime() - duration)
+  return { prevStart: prevStartDate.toISOString(), prevEnd: prevEndDate.toISOString() }
 }

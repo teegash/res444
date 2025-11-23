@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { ArrowLeft, Download, TrendingUp } from 'lucide-react'
+import { ArrowLeft, Download, TrendingUp, Search } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge'
 import { Sidebar } from '@/components/dashboard/sidebar'
 import { Header } from '@/components/dashboard/header'
 import { exportRowsAsCSV, exportRowsAsExcel, exportRowsAsPDF } from '@/lib/export/download'
+import { Input } from '@/components/ui/input'
 
 type RevenueRow = {
   property: string
@@ -44,11 +45,16 @@ export default function RevenueReportPage() {
   const [rows, setRows] = useState<RevenueRow[]>(revenueRows)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [search, setSearch] = useState('')
 
   const filtered = useMemo(() => {
     const scope = property === 'all' ? rows : rows.filter((row) => row.property === property || row.propertyId === property)
-    return scope
-  }, [property, rows])
+    const term = search.trim().toLowerCase()
+    if (!term) return scope
+    return scope.filter((row) =>
+      `${row.property} ${row.month}`.toLowerCase().includes(term)
+    )
+  }, [property, rows, search])
 
   const totals = useMemo(() => {
     const total = filtered.reduce((sum, row) => sum + row.amount, 0)
@@ -72,15 +78,18 @@ export default function RevenueReportPage() {
       { header: 'Month', accessor: (row: RevenueRow) => row.month },
       { header: 'Amount', accessor: (row: RevenueRow) => `KES ${row.amount.toLocaleString()}` },
     ]
+    const total = filtered.reduce((sum, row) => sum + Number(row.amount || 0), 0)
+    const summaryRows = [['Total', '', '', `KES ${total.toLocaleString()}`]]
     if (format === 'pdf') {
       exportRowsAsPDF(filename, columns, filtered, {
         title: 'Revenue Report',
         subtitle: `Period: ${period}, Property: ${property}`,
+        summaryRows,
       })
     } else if (format === 'excel') {
-      exportRowsAsExcel(filename, columns, filtered)
+      exportRowsAsExcel(filename, columns, filtered, summaryRows)
     } else {
-      exportRowsAsCSV(filename, columns, filtered)
+      exportRowsAsCSV(filename, columns, filtered, summaryRows)
     }
   }
 
@@ -136,7 +145,16 @@ export default function RevenueReportPage() {
                 <p className="text-sm text-muted-foreground">Trends by property with export options.</p>
               </div>
             </div>
-            <div className="flex gap-2">
+            <div className="flex gap-2 items-center">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  className="pl-9 w-48"
+                  placeholder="Search property or month"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                />
+              </div>
               <Select value={period} onValueChange={setPeriod}>
                 <SelectTrigger className="w-[160px]">
                   <SelectValue placeholder="Period" />
@@ -155,7 +173,7 @@ export default function RevenueReportPage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All properties</SelectItem>
-                  {Array.from(new Set(revenueRows.map((row) => row.property))).map((p) => (
+                  {Array.from(new Set(rows.map((row) => row.property))).map((p) => (
                     <SelectItem key={p} value={p}>
                       {p}
                     </SelectItem>

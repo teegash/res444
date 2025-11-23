@@ -6,7 +6,7 @@ export async function GET(request: NextRequest) {
   try {
     const period = request.nextUrl.searchParams.get('period') || 'quarter'
     const propertyFilter = request.nextUrl.searchParams.get('property') || 'all'
-    getPeriodRange(period) // reserved for future date filters
+    const { startDate, endDate } = getPeriodRange(period)
 
     const admin = createAdminClient()
     const { data: units, error: unitsError } = await admin
@@ -44,14 +44,23 @@ export async function GET(request: NextRequest) {
       entry.units += 1
     })
 
+    const startTime = startDate ? new Date(startDate).getTime() : null
+    const endTime = endDate ? new Date(endDate).getTime() : null
+
     leases?.forEach((lease) => {
       const buildingId = lease.unit?.building_id
       if (!buildingId) return
       const entry = buildingTotals.get(buildingId)
       if (!entry) return
       entry.occupied += 1
-      entry.moveIns += 0 // placeholder for detailed move-in tracking
-      entry.moveOuts += 0
+      const start = lease.start_date ? new Date(lease.start_date).getTime() : null
+      const end = lease.end_date ? new Date(lease.end_date).getTime() : null
+      if (startTime && endTime && start && start >= startTime && start <= endTime) {
+        entry.moveIns += 1
+      }
+      if (startTime && endTime && end && end >= startTime && end <= endTime) {
+        entry.moveOuts += 1
+      }
     })
 
     let rows = Array.from(buildingTotals.entries()).map(([id, entry]) => ({

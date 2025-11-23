@@ -21,7 +21,7 @@ export async function GET() {
       .select('id, message_text, created_at, message_type, related_entity_type')
       .eq('sender_user_id', user.id)
       .eq('message_type', 'in_app')
-      .eq('related_entity_type', 'announcement')
+      .is('related_entity_type', null)
       .order('created_at', { ascending: false })
       .limit(30)
 
@@ -132,7 +132,7 @@ export async function POST(request: NextRequest) {
       recipient_user_id: tenantId,
       message_text: message.trim(),
       message_type: 'in_app',
-      related_entity_type: 'announcement',
+      related_entity_type: null,
       read: false,
     }))
 
@@ -171,7 +171,7 @@ export async function POST(request: NextRequest) {
             message: message.trim(),
             senderUserId: user.id,
             recipientUserId: tenantId,
-            relatedEntityType: 'announcement',
+            relatedEntityType: null,
           })
         })
       )

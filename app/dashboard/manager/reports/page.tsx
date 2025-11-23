@@ -72,6 +72,7 @@ export default function ReportsPage() {
     revenue: 0,
     occupancyRate: 0,
     collectionRate: 0,
+    prevCollectionRate: 0,
     avgRent: 0,
   })
   const { toast } = useToast()
@@ -113,6 +114,7 @@ export default function ReportsPage() {
         revenue: payload.data?.totals?.revenue || 0,
         occupancyRate: payload.data?.totals?.occupancyRate || 0,
         collectionRate: payload.data?.totals?.collectionRate || 0,
+        prevCollectionRate: payload.data?.totals?.prevCollectionRate || payload.data?.totals?.collectionRate || 0,
         avgRent: payload.data?.totals?.avgRent || 0,
       })
       const mapped =
@@ -242,17 +244,43 @@ export default function ReportsPage() {
                 </div>
               </CardHeader>
             </Card>
-            <GaugeCard
-              title="Occupancy rate"
-              value={summary.occupancy || totals.occupancyRate}
-              subtitle="Portfolio avg."
-            />
-            <GaugeCard
-              title="Collection rate"
-              value={summary.collection || totals.collectionRate}
-              subtitle="Rent collected"
-              color="#2563eb"
-            />
+            <Card className="bg-white shadow-lg border-0">
+              <CardHeader className="pb-3">
+                <CardDescription>Occupancy rate</CardDescription>
+                <CardTitle className="text-3xl text-blue-700">
+                  {(summary.occupancy || totals.occupancyRate).toFixed(2)}%
+                </CardTitle>
+                <div className="flex items-center text-xs text-green-600">
+                  <TrendingUp className="h-3 w-3 mr-1" />
+                  Stable vs last period
+                </div>
+              </CardHeader>
+            </Card>
+            <Card className="bg-white shadow-lg border-0">
+              <CardHeader className="pb-3">
+                <CardDescription>Collection rate</CardDescription>
+                <CardTitle className="text-3xl text-blue-700">
+                  {(summary.collection || totals.collectionRate).toFixed(2)}%
+                </CardTitle>
+                <div
+                  className={`flex items-center text-xs ${
+                    (summary.collection || totals.collectionRate) >= totals.prevCollectionRate
+                      ? 'text-green-600'
+                      : 'text-red-600'
+                  }`}
+                >
+                  {(summary.collection || totals.collectionRate) >= totals.prevCollectionRate ? (
+                    <TrendingUp className="h-3 w-3 mr-1" />
+                  ) : (
+                    <TrendingDown className="h-3 w-3 mr-1" />
+                  )}
+                  {Math.abs(
+                    (summary.collection || totals.collectionRate) - totals.prevCollectionRate
+                  ).toFixed(2)}
+                  % vs prev period
+                </div>
+              </CardHeader>
+            </Card>
             <Card className="bg-white shadow-lg border-0">
               <CardHeader className="pb-3">
                 <CardDescription>Avg. Rent / Unit</CardDescription>
@@ -326,20 +354,20 @@ export default function ReportsPage() {
               <div className="space-y-6">
                 {filteredProperties.map((property) => (
                   <div key={property.name} className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h4 className="font-semibold">{property.name}</h4>
-                        <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
-                          <span>Units: {property.units}</span>
-                          <span>Revenue: KES {property.revenue.toLocaleString()}</span>
-                          <span>Avg/Unit: KES {property.avg.toLocaleString()}</span>
-                        </div>
-                      </div>
-                      <div className="flex gap-2">
-                        <Badge variant="outline">{property.occupancy}% occupied</Badge>
-                        <Badge variant="secondary">{property.collectionRate}% collected</Badge>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="font-semibold">{property.name}</h4>
+                      <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
+                        <span>Units: {property.units}</span>
+                        <span>Revenue: KES {property.revenue.toLocaleString()}</span>
+                        <span>Avg/Unit: KES {Number(property.avg || 0).toFixed(2)}</span>
                       </div>
                     </div>
+                    <div className="flex gap-2">
+                      <Badge variant="outline">{Number(property.occupancy || 0).toFixed(2)}% occupied</Badge>
+                      <Badge variant="secondary">{Number(property.collectionRate || 0).toFixed(2)}% collected</Badge>
+                    </div>
+                  </div>
                     <div className="w-full bg-gray-200 rounded-full h-2">
                       <div
                         className="h-2 rounded-full"

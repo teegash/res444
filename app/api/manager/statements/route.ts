@@ -79,6 +79,7 @@ export async function GET(request: NextRequest) {
         const unitLabel = unitNumber && building?.name ? `${unitNumber} • ${building.name}` : unitNumber || ''
         return {
           id: row.id,
+          tenantId: row.tenant_user_id,
           tenantName,
           propertyId: building?.id || null,
           propertyName: building?.name || 'Property',
