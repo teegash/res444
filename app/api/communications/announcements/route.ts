@@ -71,9 +71,16 @@ export async function POST(request: NextRequest) {
       throw leaseError
     }
 
+    const filteredLeases =
+      buildingIds.length > 0
+        ? (leases || []).filter(
+            (lease) => lease?.apartment_units?.building_id && buildingIds.includes(lease.apartment_units.building_id)
+          )
+        : leases || []
+
     const tenantIds = Array.from(
       new Set(
-        (leases || [])
+        (filteredLeases || [])
           .map((lease) => lease?.tenant_user_id)
           .filter((tenantId): tenantId is string => Boolean(tenantId))
       )

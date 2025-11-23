@@ -347,6 +347,11 @@ export default function CommunicationsPage() {
                 <div className="flex justify-center">
                   <Button onClick={resetAnnouncementForm}>Send another one</Button>
                 </div>
+                <div className="flex justify-center">
+                  <Button variant="outline" onClick={resetAnnouncementForm}>
+                    Back to announcements
+                  </Button>
+                </div>
               </Card>
             </div>
           ) : (

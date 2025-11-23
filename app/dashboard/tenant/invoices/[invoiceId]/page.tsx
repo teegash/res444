@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { ArrowLeft, Loader2, Smartphone, CreditCard } from 'lucide-react'
+import { useToast } from '@/components/ui/use-toast'
 
 interface InvoiceDetail {
   id: string
@@ -35,6 +36,7 @@ export default function TenantInvoicePaymentPage() {
   const params = useParams()
   const searchParams = useSearchParams()
   const router = useRouter()
+  const { toast } = useToast()
   const invoiceId = useMemo(() => {
     const raw = params?.invoiceId
     const slug = Array.isArray(raw) ? raw[0] : raw
@@ -48,6 +50,7 @@ export default function TenantInvoicePaymentPage() {
   const [selectedMethod, setSelectedMethod] = useState<'mpesa' | 'card'>('mpesa')
   const [mpesaPhone, setMpesaPhone] = useState('')
   const [cardDetails, setCardDetails] = useState({ number: '', expiry: '', cvv: '' })
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   useEffect(() => {
     const fetchInvoice = async () => {
@@ -117,6 +120,49 @@ export default function TenantInvoicePaymentPage() {
         </div>
       </div>
     )
+  }
+
+  const handleMpesaPayment = async () => {
+    if (!invoice) return
+    if (!mpesaPhone.trim()) {
+      toast({
+        title: 'Phone number required',
+        description: 'Enter the M-Pesa phone number to receive the STK push.',
+        variant: 'destructive',
+      })
+      return
+    }
+    try {
+      setIsSubmitting(true)
+      const response = await fetch('/api/payments/mpesa/initiate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          invoice_id: invoice.id,
+          amount: invoice.amount,
+          phone_number: mpesaPhone.trim(),
+          months_covered: 1,
+        }),
+      })
+      const payload = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        throw new Error(payload.error || 'Failed to initiate M-Pesa payment.')
+      }
+      toast({
+        title: 'STK push sent',
+        description:
+          payload?.message ||
+          'We sent an STK prompt to your phone. Approve it to complete the payment.',
+      })
+    } catch (err) {
+      toast({
+        title: 'Payment failed',
+        description: err instanceof Error ? err.message : 'Unable to start M-Pesa payment.',
+        variant: 'destructive',
+      })
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   return (
@@ -216,11 +262,6 @@ export default function TenantInvoicePaymentPage() {
               <CardDescription>Enter your number to receive an STK prompt</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <Alert>
-                <AlertDescription>
-                  We will integrate Daraja soon. For now, the button below confirms you intend to pay via M-Pesa.
-                </AlertDescription>
-              </Alert>
               <div className="space-y-2">
                 <Label htmlFor="mpesa-phone">M-Pesa Phone Number</Label>
                 <Input
@@ -232,8 +273,8 @@ export default function TenantInvoicePaymentPage() {
                 />
                 <p className="text-xs text-muted-foreground">Use the number that will authorize the payment.</p>
               </div>
-              <Button disabled className="w-full">
-                M-Pesa payment coming soon
+              <Button disabled={isSubmitting} onClick={handleMpesaPayment} className="w-full">
+                {isSubmitting ? 'Sending STK push…' : 'Pay with M-Pesa'}
               </Button>
             </CardContent>
           </Card>

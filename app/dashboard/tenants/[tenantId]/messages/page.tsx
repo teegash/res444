@@ -163,9 +163,9 @@ export default function ManagerTenantMessagesPage() {
     return (
       <div className="min-h-screen bg-gray-50 p-6">
         <div className="max-w-4xl mx-auto">
-          <Button variant="ghost" size="sm" onClick={() => router.push('/dashboard/tenants')}>
+          <Button variant="ghost" size="sm" onClick={() => router.push('/dashboard/communications?tab=messages')}>
             <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to tenants
+            Back to messages
           </Button>
           <p className="mt-6 text-sm text-muted-foreground">
             Tenant information was not provided. Please return to the tenant list and open the chat again.
@@ -179,7 +179,7 @@ export default function ManagerTenantMessagesPage() {
     <div className="min-h-screen bg-gradient-to-b from-blue-50/30 via-white to-white">
       <div className="max-w-6xl mx-auto p-4 md:p-6 lg:p-8 space-y-6">
           <div className="flex items-center gap-4">
-            <Button variant="ghost" size="sm" onClick={() => router.push('/dashboard/tenants')}>
+            <Button variant="ghost" size="sm" onClick={() => router.push('/dashboard/communications?tab=messages')}>
               <ArrowLeft className="h-4 w-4 mr-2" />
               Back
             </Button>
