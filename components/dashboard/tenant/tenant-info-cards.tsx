@@ -13,6 +13,9 @@ interface TenantInfoCardsProps {
       unit_label: string | null
       monthly_rent: number | null
       rent_paid_until?: string | null
+      next_rent_due_date?: string | null
+      prepaid_months?: number
+      paid_up_to_date?: string | null
       end_date: string | null
     } | null
   } | null
@@ -49,6 +52,8 @@ export function TenantInfoCards({ summary, loading }: TenantInfoCardsProps) {
   const monthlyRent = formatCurrency(summary?.lease?.monthly_rent)
   const leaseEnd = formatDate(summary?.lease?.end_date)
   const unitLabel = summary?.lease?.unit_label
+  const prepaidMonths = summary?.lease?.prepaid_months || 0
+  const prepaidThrough = summary?.lease?.paid_up_to_date || summary?.lease?.rent_paid_until || null
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -90,6 +95,17 @@ export function TenantInfoCards({ summary, loading }: TenantInfoCardsProps) {
                 year: 'numeric',
                 month: 'short',
               })}
+            </p>
+          )}
+          {prepaidMonths > 0 && (
+            <p className="text-xs text-muted-foreground">
+              {prepaidMonths} month{prepaidMonths === 1 ? '' : 's'} prepaid
+              {prepaidThrough
+                ? ` • through ${new Date(prepaidThrough).toLocaleDateString(undefined, {
+                    year: 'numeric',
+                    month: 'short',
+                  })}`
+                : ''}
             </p>
           )}
           {!loading && (

@@ -49,6 +49,7 @@ export async function GET() {
         end_date,
         monthly_rent,
         rent_paid_until,
+        next_rent_due_date,
         unit:apartment_units (
           id,
           unit_number,
@@ -80,6 +81,36 @@ export async function GET() {
         ? `${lease.unit.unit_number} • ${lease.unit.building.name}`
         : lease?.unit?.unit_number || null
 
+    // Compute prepaid counts and paid-through
+    let prepaidMonths = 0
+    let paidUpToDate: string | null = null
+
+    if (lease?.id) {
+      const { count } = await adminSupabase
+        .from('invoices')
+        .select('id', { count: 'exact', head: true })
+        .eq('lease_id', lease.id)
+        .eq('invoice_type', 'rent')
+        .or('status.eq.true,status.eq.paid')
+
+      if (typeof count === 'number') {
+        prepaidMonths = count
+      }
+
+      const { data: latestPaid } = await adminSupabase
+        .from('invoices')
+        .select('due_date')
+        .eq('lease_id', lease.id)
+        .eq('invoice_type', 'rent')
+        .or('status.eq.true,status.eq.paid')
+        .order('due_date', { ascending: false })
+        .limit(1)
+
+      if (latestPaid?.length && latestPaid[0]?.due_date) {
+        paidUpToDate = latestPaid[0].due_date
+      }
+    }
+
     const payload = {
       profile: profile || null,
       lease: lease
@@ -95,6 +126,9 @@ export async function GET() {
             property_location: lease.unit?.building?.location || null,
             unit_price_text: lease.unit?.unit_price_category || null,
             rent_paid_until: lease.rent_paid_until || null,
+            next_rent_due_date: lease.next_rent_due_date || null,
+            prepaid_months: prepaidMonths,
+            paid_up_to_date: paidUpToDate,
           }
         : null,
     }

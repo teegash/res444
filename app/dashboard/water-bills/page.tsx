@@ -14,6 +14,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { useToast } from '@/components/ui/use-toast'
 import jsPDF from 'jspdf'
+import { SkeletonLoader, SkeletonTable } from '@/components/ui/skeletons'
 
 interface TenantSummary {
   id: string
@@ -307,8 +308,14 @@ export default function WaterBillsPage() {
           <main className="flex-1 p-8 overflow-auto">
             <div className="max-w-4xl">
               <Card>
-                <CardContent className="py-10 text-center text-muted-foreground">
-                  Loading water bill data…
+                <CardContent className="space-y-6">
+                  <SkeletonLoader height={22} width="40%" />
+                  <SkeletonLoader height={12} width="60%" />
+                  <div className="grid md:grid-cols-2 gap-4">
+                    <SkeletonLoader height={48} rounded="rounded-lg" />
+                    <SkeletonLoader height={48} rounded="rounded-lg" />
+                  </div>
+                  <SkeletonTable rows={4} columns={3} />
                 </CardContent>
               </Card>
             </div>

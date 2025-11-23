@@ -11,6 +11,7 @@ import Link from 'next/link'
 import { Line, LineChart, Bar, BarChart, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell, Pie, PieChart } from 'recharts'
 import { OrganizationSetupModal } from '@/components/dashboard/organization-setup-modal'
 import { useAuth } from '@/lib/auth/context'
+import { SkeletonLoader, SkeletonPropertyCard, SkeletonTable } from '@/components/ui/skeletons'
 
 const revenueData = [
   { month: 'Jul', revenue: 800000, expenses: 520000 },
@@ -165,6 +166,28 @@ function DashboardContent() {
 
   const totalPayments = paymentData.reduce((acc, item) => acc + item.value, 0)
   const collectedPercentage = Math.round((paymentData[0].value / totalPayments) * 100)
+
+  if (loadingOrg) {
+    return (
+      <div className="flex min-h-screen bg-gray-50">
+        <Sidebar />
+        <div className="flex-1 flex flex-col">
+          <Header />
+          <main className="flex-1 p-6 overflow-auto">
+            <div className="max-w-7xl mx-auto space-y-6">
+              <div className="space-y-3">
+                <SkeletonLoader height={16} width="40%" />
+                <SkeletonLoader height={28} width="55%" />
+                <SkeletonLoader height={14} width="60%" />
+              </div>
+              <SkeletonPropertyCard count={3} />
+              <SkeletonTable rows={4} columns={4} />
+            </div>
+          </main>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="flex min-h-screen bg-gray-50">

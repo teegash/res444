@@ -10,6 +10,7 @@ import { PaymentTabs } from '@/components/dashboard/payment-tabs'
 import { Activity } from 'lucide-react'
 import { useToast } from '@/components/ui/use-toast'
 import { IntegrationSummary } from '@/components/dashboard/payment-tabs/types'
+import { SkeletonLoader } from '@/components/ui/skeletons'
 
 export default function PaymentsPage() {
   const { toast } = useToast()
@@ -18,6 +19,7 @@ export default function PaymentsPage() {
   const [autoCheckFrequency, setAutoCheckFrequency] = useState<number>(30)
   const [isSyncing, setIsSyncing] = useState(false)
   const [refreshKey, setRefreshKey] = useState(0)
+  const [loadingSummary, setLoadingSummary] = useState(false)
 
   const lastSyncedLabel = useMemo(() => {
     const basis = manualSyncedAt || autoSyncedAt
@@ -54,6 +56,7 @@ export default function PaymentsPage() {
   const handleIntegrationUpdate = useCallback((integration: IntegrationSummary | null) => {
     setAutoSyncedAt(integration?.lastAutoCheck || null)
     setAutoCheckFrequency(Math.max(5, integration?.autoVerifyFrequencySeconds || 30))
+    setLoadingSummary(false)
   }, [])
 
   return (
@@ -69,37 +72,44 @@ export default function PaymentsPage() {
 
           <Card>
             <CardContent className="pt-6">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse" />
-                  <div>
-                    <p className="font-semibold">Last sync: {lastSyncedLabel}</p>
-                    <p className="text-sm text-muted-foreground">
-                      Auto-checking M-Pesa payments every {autoCheckFrequency} seconds via Daraja
-                    </p>
+              {loadingSummary ? (
+                <div className="space-y-2">
+                  <SkeletonLoader height={16} width="60%" />
+                  <SkeletonLoader height={12} width="70%" />
+                </div>
+              ) : (
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse" />
+                    <div>
+                      <p className="font-semibold">Last sync: {lastSyncedLabel}</p>
+                      <p className="text-sm text-muted-foreground">
+                        Auto-checking M-Pesa payments every {autoCheckFrequency} seconds via Daraja
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      onClick={handleManualSync}
+                      disabled={isSyncing}
+                      className="gap-2"
+                    >
+                      {isSyncing ? (
+                        <>
+                          <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                          Syncing...
+                        </>
+                      ) : (
+                        <>
+                          <Activity className="w-4 h-4" />
+                          Sync M-Pesa Now
+                        </>
+                      )}
+                    </Button>
                   </div>
                 </div>
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    onClick={handleManualSync}
-                    disabled={isSyncing}
-                    className="gap-2"
-                  >
-                    {isSyncing ? (
-                      <>
-                        <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-                        Syncing...
-                      </>
-                    ) : (
-                      <>
-                        <Activity className="w-4 h-4" />
-                        Sync M-Pesa Now
-                      </>
-                    )}
-                  </Button>
-                </div>
-              </div>
+              )}
             </CardContent>
           </Card>
 

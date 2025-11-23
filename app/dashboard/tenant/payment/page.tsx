@@ -19,6 +19,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { SkeletonLoader } from '@/components/ui/skeletons'
 
 type InvoiceSummary = {
   id: string
@@ -432,7 +433,29 @@ export default function TenantPaymentPortal() {
   if (loadingInvoice) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-slate-50 via-white to-white">
-        <div className="text-muted-foreground text-sm">Loading invoice…</div>
+        <div className="w-full max-w-5xl px-4 space-y-6">
+          <div className="rounded-3xl border border-slate-200 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white p-6 shadow-xl">
+            <div className="grid md:grid-cols-2 gap-4">
+              <SkeletonLoader height={24} width="60%" />
+              <SkeletonLoader height={14} width="70%" />
+            </div>
+            <div className="mt-4 grid grid-cols-2 gap-3">
+              <SkeletonLoader height={36} />
+              <SkeletonLoader height={36} />
+            </div>
+          </div>
+          <Card className="shadow-md border-blue-100">
+            <CardHeader>
+              <SkeletonLoader height={20} width="30%" />
+              <SkeletonLoader height={14} width="50%" />
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <SkeletonLoader height={32} width="40%" />
+              <SkeletonLoader height={14} width="60%" />
+              <SkeletonLoader height={48} rounded="rounded-lg" />
+            </CardContent>
+          </Card>
+        </div>
       </div>
     )
   }

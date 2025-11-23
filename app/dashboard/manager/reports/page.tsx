@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge'
 import { exportRowsAsCSV, exportRowsAsExcel, exportRowsAsPDF } from '@/lib/export/download'
 import { useToast } from '@/components/ui/use-toast'
+import { SkeletonLoader, SkeletonPropertyCard, SkeletonTable } from '@/components/ui/skeletons'
 
 type PropertyMetric = {
   name: string
@@ -230,6 +231,14 @@ export default function ReportsPage() {
               </Link>
             </div>
           </div>
+
+          {loading && (
+            <div className="space-y-4">
+              <SkeletonLoader height={22} width="35%" />
+              <SkeletonPropertyCard count={4} />
+              <SkeletonTable rows={4} columns={4} />
+            </div>
+          )}
 
           <div className="grid gap-4 md:grid-cols-4">
             <Card className="bg-white shadow-lg border-0">

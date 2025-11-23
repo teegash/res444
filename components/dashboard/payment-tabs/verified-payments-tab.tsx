@@ -211,18 +211,18 @@ export function VerifiedPaymentsTab({ payments, stats, loading }: VerifiedPaymen
               <TableHead>Receipt</TableHead>
               <TableHead>Actions</TableHead>
             </TableRow>
-          </TableHeader>
-          <TableBody>
-            {loading ? (
-              <TableRow>
-                <TableCell colSpan={7} className="text-center text-sm text-muted-foreground py-8">
-                  Loading verified payments...
-                </TableCell>
-              </TableRow>
-            ) : filteredPayments.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={7} className="text-center text-sm text-muted-foreground py-8">
-                  No verified payments for this range.
+        </TableHeader>
+        <TableBody>
+          {loading ? (
+            <TableRow>
+              <TableCell colSpan={7} className="py-6">
+                <SkeletonTable rows={4} columns={6} />
+              </TableCell>
+            </TableRow>
+          ) : filteredPayments.length === 0 ? (
+            <TableRow>
+              <TableCell colSpan={7} className="text-center text-sm text-muted-foreground py-8">
+                No verified payments for this range.
                 </TableCell>
               </TableRow>
             ) : (

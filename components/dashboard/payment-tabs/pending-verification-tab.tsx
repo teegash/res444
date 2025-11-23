@@ -95,8 +95,8 @@ export function PendingVerificationTab({
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={8} className="text-center text-sm text-muted-foreground py-8">
-                  Loading payments...
+                <TableCell colSpan={8} className="py-6">
+                  <SkeletonTable rows={4} columns={6} />
                 </TableCell>
               </TableRow>
             ) : payments.length === 0 ? (

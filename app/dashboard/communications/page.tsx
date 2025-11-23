@@ -38,6 +38,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Sidebar } from '@/components/dashboard/sidebar'
 import { Header } from '@/components/dashboard/header'
 import { useToast } from '@/components/ui/use-toast'
+import { SkeletonLoader, SkeletonTable } from '@/components/ui/skeletons'
 import { renderTemplateContent } from '@/lib/sms/templateRenderer'
 import type { TemplatePlaceholder, TemplateKey } from '@/lib/sms/templateMetadata'
 
@@ -419,11 +420,8 @@ export default function CommunicationsPage() {
                     <TableBody>
                       {inboxLoading ? (
                         <TableRow>
-                          <TableCell colSpan={4} className="py-6 text-center text-sm text-muted-foreground">
-                            <div className="flex items-center justify-center gap-2">
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                              Loading inbox…
-                            </div>
+                          <TableCell colSpan={4} className="py-6">
+                            <SkeletonTable rows={3} columns={4} />
                           </TableCell>
                         </TableRow>
                       ) : inboxError ? (
@@ -483,17 +481,20 @@ export default function CommunicationsPage() {
               </Button>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {templatesLoading ? (
-                <Card>
-                  <CardContent className="py-10 text-center text-muted-foreground">
-                    Loading templates…
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {templatesLoading ? (
+                  <Card>
+                  <CardContent className="space-y-3">
+                    <SkeletonLoader height={16} width="60%" />
+                    <SkeletonLoader height={12} width="80%" />
+                    <SkeletonLoader height={12} width="50%" />
+                    <SkeletonLoader height={14} width="70%" />
                   </CardContent>
-                </Card>
-              ) : templatesError ? (
-                <Card>
-                  <CardContent className="py-10 text-center text-muted-foreground">
-                    {templatesError}
+                  </Card>
+                ) : templatesError ? (
+                  <Card>
+                    <CardContent className="py-10 text-center text-muted-foreground">
+                      {templatesError}
                   </CardContent>
                 </Card>
               ) : (
@@ -588,7 +589,11 @@ export default function CommunicationsPage() {
                 <div className="space-y-3">
                   <Label>Target properties (choose apartments)</Label>
                   {propertiesLoading ? (
-                    <p className="text-sm text-muted-foreground">Loading properties…</p>
+                    <div className="space-y-2">
+                      <SkeletonLoader height={14} width="50%" />
+                      <SkeletonLoader height={14} width="60%" />
+                      <SkeletonLoader height={14} width="40%" />
+                    </div>
                   ) : (
                     <div className="grid gap-3 border rounded-lg p-3 max-h-56 overflow-y-auto">
                       <div className="flex items-center gap-2">
@@ -660,7 +665,7 @@ export default function CommunicationsPage() {
                   </CardHeader>
                   <CardContent>
                     {historyLoading ? (
-                      <p className="text-sm text-muted-foreground">Loading history…</p>
+                      <SkeletonTable rows={4} columns={3} />
                     ) : announcementHistory.length === 0 ? (
                       <p className="text-sm text-muted-foreground">No announcements yet.</p>
                     ) : (

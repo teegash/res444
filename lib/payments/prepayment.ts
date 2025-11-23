@@ -428,6 +428,13 @@ export async function processRentPrepayment(
   const warnings: string[] = []
 
   try {
+    console.info('[Prepayment] start', {
+      paymentId: input.paymentId,
+      leaseId: input.leaseId,
+      monthsPaid: input.monthsPaid,
+      amountPaid: input.amountPaid,
+    })
+
     const [{ data: lease, error: leaseError }, { data: payment, error: paymentError }] = await Promise.all([
       admin
         .from('leases')
@@ -544,6 +551,10 @@ export async function processRentPrepayment(
 
     const coverageStart = resolveCoverageStart(leaseRecord)
     const coverageDueDates = buildDueDates(coverageStart, monthsPaid, 1, leaseRecord.end_date)
+    console.info('[Prepayment] coverage start/dates', {
+      coverageStart: toIsoDate(coverageStart),
+      coverageDueDates,
+    })
     if (coverageDueDates.length < monthsPaid) {
       validationErrors.push('Lease end date prevents covering all requested months.')
       return {
@@ -648,15 +659,6 @@ export async function processRentPrepayment(
       }
     }
 
-    const { error: paymentUpdateError } = await admin
-      .from('payments')
-      .update({ invoice_id: appliedInvoices[0], months_paid: monthsPaid })
-      .eq('id', input.paymentId)
-
-    if (paymentUpdateError) {
-      throw paymentUpdateError
-    }
-
     const lastCoveredIso = coverageDueDates[coverageDueDates.length - 1]
     const lastCoveredDate = parseDate(lastCoveredIso)
     const nextRentDueDate = lastCoveredDate ? addMonthsUtc(startOfMonthUtc(lastCoveredDate), 1) : null
@@ -664,13 +666,26 @@ export async function processRentPrepayment(
     const rentPaidUntil = calculatePaidUntil(leaseRecord.rent_paid_until || null, coverageDueDates[0], monthsPaid)
 
     if (nextRentDueDate) {
-      await admin
+      const { error: leaseUpdateError } = await admin
         .from('leases')
         .update({
           next_rent_due_date: toIsoDate(nextRentDueDate),
           rent_paid_until: rentPaidUntil || null,
         })
         .eq('id', input.leaseId)
+
+      if (leaseUpdateError) {
+        throw leaseUpdateError
+      }
+    }
+
+    const { error: paymentUpdateError } = await admin
+      .from('payments')
+      .update({ invoice_id: appliedInvoices[0], months_paid: monthsPaid })
+      .eq('id', input.paymentId)
+
+    if (paymentUpdateError) {
+      throw paymentUpdateError
     }
 
     if (!paymentRecord.notes?.includes(PREPAYMENT_FLAG)) {
@@ -696,7 +711,7 @@ export async function processRentPrepayment(
       warnings.push('Some covered months were already marked as paid; left unchanged.')
     }
 
-    return {
+    const result = {
       success: true,
       message: warnings.length ? `Processed with warnings: ${warnings.join(' ')}` : 'Rent prepayment applied.',
       validationErrors: [],
@@ -709,6 +724,8 @@ export async function processRentPrepayment(
       nextRentDueDate: nextRentDueDate ? toIsoDate(nextRentDueDate) : null,
       cumulativePrepaidMonths: prepaidCount ?? undefined,
     }
+    console.info('[Prepayment] success', result)
+    return result
   } catch (error) {
     console.error('[processRentPrepayment] failed', error)
     return {

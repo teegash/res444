@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { exportRowsAsCSV, exportRowsAsExcel, exportRowsAsPDF } from '@/lib/export/download'
 import { Badge } from '@/components/ui/badge'
+import { SkeletonLoader, SkeletonTable } from '@/components/ui/skeletons'
 
 type StatementRow = {
   property: string
@@ -185,7 +186,10 @@ export default function FinancialStatementPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               {loading ? (
-                <div className="text-sm text-muted-foreground">Loading…</div>
+                <>
+                  <SkeletonLoader height={16} width="50%" />
+                  <SkeletonTable rows={4} columns={4} />
+                </>
               ) : error ? (
                 <div className="text-sm text-red-600">{error}</div>
               ) : filtered.length === 0 ? (

@@ -13,6 +13,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox'
 import { Badge } from '@/components/ui/badge'
 import { useToast } from '@/components/ui/use-toast'
+import { SkeletonLoader } from '@/components/ui/skeletons'
+import { SkeletonLoader, SkeletonTable } from '@/components/ui/skeletons'
 
 type TenantOption = {
   id: string
@@ -402,9 +404,10 @@ export default function ManagerNoticesPage() {
                       </Select>
                     <div className="max-h-56 overflow-y-auto border rounded-lg divide-y">
                       {tenantsLoading ? (
-                        <div className="p-4 flex items-center gap-2 text-sm text-muted-foreground">
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                          Loading tenants…
+                        <div className="p-4">
+                          <SkeletonLoader height={12} width="70%" />
+                          <SkeletonLoader height={12} width="50%" className="mt-2" />
+                          <SkeletonLoader height={12} width="60%" className="mt-2" />
                         </div>
                       ) : filteredTenants.length === 0 ? (
                         <div className="p-4 text-sm text-muted-foreground">No tenants found.</div>
@@ -463,9 +466,10 @@ export default function ManagerNoticesPage() {
               </CardHeader>
               <CardContent className="space-y-3 max-h-80 overflow-y-auto pr-2">
                 {noticesLoading ? (
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Loading notices…
+                  <div className="space-y-2">
+                    <SkeletonLoader height={12} width="60%" />
+                    <SkeletonLoader height={12} width="55%" />
+                    <SkeletonLoader height={12} width="50%" />
                   </div>
                 ) : recentNotices.length === 0 ? (
                   <p className="text-sm text-muted-foreground">No notices sent yet.</p>

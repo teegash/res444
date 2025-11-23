@@ -28,6 +28,7 @@ import { Label } from '@/components/ui/label'
 import { Sidebar } from '@/components/dashboard/sidebar'
 import { Header } from '@/components/dashboard/header'
 import { useToast } from '@/components/ui/use-toast'
+import { SkeletonLoader, SkeletonTable } from '@/components/ui/skeletons'
 
 type MaintenanceRequest = {
   id: string
@@ -517,6 +518,8 @@ export default function MaintenancePage() {
                 <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
                   {requestError}
                 </div>
+              ) : loadingRequests ? (
+                <SkeletonTable rows={6} columns={5} />
               ) : (
                 <div className="space-y-4">
                   {filteredRequests.length === 0 && !loadingRequests ? (

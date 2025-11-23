@@ -271,7 +271,12 @@ export default function ReportPreviewPage() {
             </div>
 
             {error ? <p className="text-sm text-red-600">Failed to load data: {error}</p> : null}
-            {loading ? <p className="text-sm text-muted-foreground">Loading data…</p> : null}
+            {loading ? (
+              <div className="mt-2 space-y-2">
+                <SkeletonLoader height={14} width="40%" />
+                <SkeletonLoader height={10} width="50%" />
+              </div>
+            ) : null}
           </CardContent>
         </Card>
       </div>

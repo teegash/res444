@@ -39,6 +39,7 @@ import { useToast } from '@/components/ui/use-toast'
 import { Loader2, MoreVertical, Copy, Phone } from 'lucide-react'
 import { Separator } from '@/components/ui/separator'
 import Link from 'next/link'
+import { SkeletonTable } from '@/components/ui/skeletons'
 
 type TenantRecord = {
   lease_id: string | null
@@ -453,11 +454,8 @@ export function TenantsTable({ searchQuery = '', viewMode = 'list' }: TenantsTab
             <TableBody>
               {loading && (
                 <TableRow>
-                  <TableCell colSpan={8} className="py-10 text-center text-muted-foreground">
-                    <div className="flex items-center justify-center gap-2">
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      Fetching active tenants…
-                    </div>
+                  <TableCell colSpan={8} className="py-6">
+                    <SkeletonTable rows={4} columns={6} />
                   </TableCell>
                 </TableRow>
               )}

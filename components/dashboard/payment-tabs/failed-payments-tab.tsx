@@ -21,6 +21,7 @@ import {
 } from '@/components/ui/select'
 import { AlertCircle, RotateCcw, Clock } from 'lucide-react'
 import { FailureBreakdown, PaymentRecord } from '@/components/dashboard/payment-tabs/types'
+import { SkeletonTable } from '@/components/ui/skeletons'
 
 const currencyFormatter = new Intl.NumberFormat('en-KE', {
   style: 'currency',
@@ -105,8 +106,8 @@ export function FailedPaymentsTab({ payments, breakdown, loading }: FailedPaymen
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center text-sm text-muted-foreground py-8">
-                  Loading failed payments...
+                <TableCell colSpan={6} className="py-6">
+                  <SkeletonTable rows={4} columns={6} />
                 </TableCell>
               </TableRow>
             ) : filteredPayments.length === 0 ? (

@@ -12,6 +12,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { exportRowsAsCSV, exportRowsAsExcel, exportRowsAsPDF } from '@/lib/export/download'
+import { SkeletonLoader, SkeletonTable } from '@/components/ui/skeletons'
 
 type Expense = {
   id: string
@@ -208,17 +209,17 @@ export default function ExpensesPage() {
           <div className="grid lg:grid-cols-3 gap-6">
             <Card className="lg:col-span-2 border-0 shadow-lg bg-white">
               <CardHeader>
-                <CardTitle>Expenses</CardTitle>
-                <CardDescription>Recent recorded expenses.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {loading ? (
-                  <p className="text-sm text-muted-foreground">Loading expenses…</p>
-                ) : error ? (
-                  <p className="text-sm text-red-600">{error}</p>
-                ) : filteredExpenses.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">No expenses found.</p>
-                ) : (
+            <CardTitle>Expenses</CardTitle>
+            <CardDescription>Recent recorded expenses.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {loading ? (
+              <SkeletonTable rows={6} columns={4} />
+            ) : error ? (
+              <p className="text-sm text-red-600">{error}</p>
+            ) : filteredExpenses.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No expenses found.</p>
+            ) : (
                   filteredExpenses.map((expense) => (
                     <div
                       key={expense.id}

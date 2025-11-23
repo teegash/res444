@@ -11,6 +11,7 @@ import { Sidebar } from '@/components/dashboard/sidebar'
 import { Header } from '@/components/dashboard/header'
 import { exportRowsAsCSV, exportRowsAsExcel, exportRowsAsPDF } from '@/lib/export/download'
 import { Input } from '@/components/ui/input'
+import { SkeletonLoader, SkeletonTable } from '@/components/ui/skeletons'
 
 type RevenueRow = {
   property: string
@@ -227,7 +228,10 @@ export default function RevenueReportPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               {loading ? (
-                <div className="text-sm text-muted-foreground">Loading…</div>
+                <>
+                  <SkeletonLoader height={16} width="40%" />
+                  <SkeletonTable rows={4} columns={3} />
+                </>
               ) : error ? (
                 <div className="text-sm text-red-600">{error}</div>
               ) : filtered.length === 0 ? (

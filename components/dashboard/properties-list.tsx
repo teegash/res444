@@ -12,6 +12,7 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Edit2, Users, Eye, Loader2 } from 'lucide-react'
+import { SkeletonTable } from '@/components/ui/skeletons'
 
 interface PropertiesListProps {
   onEdit: (property: any) => void
@@ -71,11 +72,8 @@ export function PropertiesList({ onEdit, onManageUnits, onView }: PropertiesList
         <TableBody>
           {loading ? (
             <TableRow>
-              <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
-                <div className="flex items-center justify-center gap-3">
-                  <Loader2 className="h-5 w-5 animate-spin text-[#4682B4]" />
-                  Loading properties...
-                </div>
+              <TableCell colSpan={7} className="py-6">
+                <SkeletonTable rows={4} columns={6} />
               </TableCell>
             </TableRow>
           ) : error ? (

@@ -6,6 +6,7 @@ import { ArrowLeft, Wrench, Plus, MessageSquare, Loader2, FileText, AlertCircle 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { SkeletonLoader, SkeletonTable } from '@/components/ui/skeletons'
 
 type MaintenanceRequest = {
   id: string
@@ -160,10 +161,7 @@ export default function TenantMaintenancePage() {
           </CardHeader>
           <CardContent className="space-y-4">
             {loading ? (
-              <div className="flex items-center justify-center py-10 text-muted-foreground">
-                <Loader2 className="h-5 w-5 mr-2 animate-spin" />
-                Loading your requests…
-              </div>
+              <SkeletonTable rows={4} columns={4} />
             ) : error ? (
               <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
                 {error}

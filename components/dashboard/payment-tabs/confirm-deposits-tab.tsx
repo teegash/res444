@@ -115,11 +115,7 @@ export function ConfirmDepositsTab({
 
           <div className="space-y-4">
             {loading ? (
-              <Card className="border-2">
-                <CardContent className="py-6 text-center text-sm text-muted-foreground">
-                  Loading deposits...
-                </CardContent>
-              </Card>
+              <SkeletonTable rows={4} columns={4} />
             ) : pendingDeposits.length === 0 ? (
               <Card className="border-2">
                 <CardContent className="py-6 text-center text-sm text-muted-foreground">

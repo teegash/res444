@@ -10,6 +10,7 @@ import { FileText, Search, Eye, Download } from 'lucide-react'
 import { Sidebar } from '@/components/dashboard/sidebar'
 import { Header } from '@/components/dashboard/header'
 import { exportRowsAsCSV, exportRowsAsExcel, exportRowsAsPDF } from '@/lib/export/download'
+import { SkeletonLoader, SkeletonTable } from '@/components/ui/skeletons'
 
 type StatementRow = {
   id: string
@@ -235,7 +236,10 @@ export default function StatementsPage() {
 
             <div className="space-y-3">
               {loading ? (
-                <p className="text-sm text-muted-foreground">Loading statements…</p>
+                <>
+                  <SkeletonTable rows={4} columns={3} />
+                  <SkeletonLoader height={16} width="50%" />
+                </>
               ) : error ? (
                 <p className="text-sm text-red-600">{error}</p>
               ) : groupedByTenant.length === 0 ? (

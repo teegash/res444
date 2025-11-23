@@ -269,9 +269,8 @@ export function PropertiesGrid({ onEdit, onManageUnits, onView }: PropertiesGrid
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
       {loading && properties.length === 0 ? (
-        <div className="col-span-full flex flex-col items-center justify-center py-16 text-center text-gray-500">
-          <Loader2 className="h-8 w-8 animate-spin mb-3 text-[#4682B4]" />
-          <p>Loading properties...</p>
+        <div className="col-span-full">
+          <SkeletonPropertyCard count={6} />
         </div>
       ) : null}
       {properties.map((property) => {
@@ -461,3 +460,4 @@ export function PropertiesGrid({ onEdit, onManageUnits, onView }: PropertiesGrid
     </div>
   )
 }
+import { SkeletonPropertyCard } from '@/components/ui/skeletons'
