@@ -116,10 +116,11 @@ export default function ManagerNoticesPage() {
           name: tenant.full_name || tenant.profile?.full_name || 'Tenant',
           property:
             tenant.unit?.building_name ||
+            tenant.unit?.building?.name ||
             tenant.unit?.unit_number ||
             tenant.unit_label ||
             null,
-          buildingId: tenant.unit?.building_id || null,
+          buildingId: tenant.unit?.building?.id || tenant.unit?.building_id || null,
         })) || []
       setTenants(options)
     } catch (error) {
