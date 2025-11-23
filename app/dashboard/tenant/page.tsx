@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Calendar, TrendingUp, Clock, CheckCircle2 } from 'lucide-react'
 import Link from 'next/link'
+import { SkeletonLoader, SkeletonPropertyCard, SkeletonTable } from '@/components/ui/skeletons'
 
 type TenantSummary = {
   profile: {
@@ -308,7 +309,9 @@ export default function TenantDashboard() {
               </Button>
             </CardHeader>
             <CardContent className="space-y-4">
-              {recentActivity.length === 0 ? (
+              {loading ? (
+                <SkeletonTable rows={4} columns={3} />
+              ) : recentActivity.length === 0 ? (
                 <div className="text-sm text-muted-foreground text-center py-4">
                   No recent invoices, payments, or maintenance updates yet.
                 </div>
@@ -380,45 +383,54 @@ export default function TenantDashboard() {
                     {nextInvoice ? 'Due Soon' : 'Clear'}
                   </Badge>
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  {nextInvoice ? formatDate(nextInvoice.due_date) : 'No outstanding payments'}
-                </p>
-                {rentPaidUntil && (
+                {loading ? (
+                  <SkeletonLoader height={14} width="60%" />
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    {nextInvoice ? formatDate(nextInvoice.due_date) : 'No outstanding payments'}
+                  </p>
+                )}
+                {rentPaidUntil && !loading && (
                   <p className="text-xs text-blue-800 bg-blue-50 border border-blue-100 rounded-md px-2 py-1 mt-2">
                     Rent covered through <span className="font-semibold">{formatDate(rentPaidUntil)}</span>
                   </p>
                 )}
-                {hasPending ? (
-                <div className="space-y-3 mt-3">
-                  {pendingInvoices.slice(0, 3).map((invoice, index) => {
-                    if (!invoice) return null
-                    return (
-                      <div key={invoice.id ?? index} className="p-3 rounded-lg bg-white border border-border">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="text-sm font-semibold">
-                              {invoice.invoice_type === 'water' ? 'Water Bill' : 'Invoice'}
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                              Due {formatDate(invoice.due_date)}
+                {loading ? (
+                  <div className="mt-3 space-y-2">
+                    <SkeletonLoader height={48} rounded="rounded-lg" />
+                    <SkeletonLoader height={48} rounded="rounded-lg" />
+                  </div>
+                ) : hasPending ? (
+                  <div className="space-y-3 mt-3">
+                    {pendingInvoices.slice(0, 3).map((invoice, index) => {
+                      if (!invoice) return null
+                      return (
+                        <div key={invoice.id ?? index} className="p-3 rounded-lg bg-white border border-border">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="text-sm font-semibold">
+                                {invoice.invoice_type === 'water' ? 'Water Bill' : 'Invoice'}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                Due {formatDate(invoice.due_date)}
+                              </p>
+                            </div>
+                            <p className="font-semibold text-lg">
+                              {`KES ${invoice.amount.toLocaleString('en-KE', { minimumFractionDigits: 2 })}`}
                             </p>
                           </div>
-                          <p className="font-semibold text-lg">
-                            {`KES ${invoice.amount.toLocaleString('en-KE', { minimumFractionDigits: 2 })}`}
-                          </p>
+                          <Link
+                            href={`/dashboard/tenant/payment?invoiceId=${invoice.id}&intent=${invoice.invoice_type || ''}`}
+                            className="mt-3 block"
+                          >
+                            <Button size="sm" className="w-full" variant="outline">
+                              Pay {invoice.invoice_type === 'water' ? 'Water Bill' : 'Invoice'}
+                            </Button>
+                          </Link>
                         </div>
-                        <Link
-                          href={`/dashboard/tenant/payment?invoiceId=${invoice.id}&intent=${invoice.invoice_type || ''}`}
-                          className="mt-3 block"
-                        >
-                          <Button size="sm" className="w-full" variant="outline">
-                            Pay {invoice.invoice_type === 'water' ? 'Water Bill' : 'Invoice'}
-                          </Button>
-                        </Link>
-                      </div>
-                    )
-                  })}
-                </div>
+                      )
+                    })}
+                  </div>
                 ) : (
                   <Button size="sm" className="w-full mt-2" variant="outline" disabled>
                     All Paid
