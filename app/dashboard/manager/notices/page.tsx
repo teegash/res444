@@ -64,14 +64,32 @@ export default function ManagerNoticesPage() {
   const [sendAll, setSendAll] = useState(true)
   const [recentNotices, setRecentNotices] = useState<NoticeLog[]>([])
   const [stats, setStats] = useState<{ recipients: number; sms_sent?: number; email_sent?: number } | null>(null)
+  const [sendSuccess, setSendSuccess] = useState(false)
+  const [propertyFilter, setPropertyFilter] = useState<string>('all')
 
   const filteredTenants = useMemo(() => {
     const term = search.trim().toLowerCase()
-    if (!term) return tenants
-    return tenants.filter((tenant) =>
+    const byProperty =
+      propertyFilter === 'all'
+        ? tenants
+        : tenants.filter((tenant) => (tenant.property || '').toLowerCase() === propertyFilter.toLowerCase())
+    if (!term) return byProperty
+    return byProperty.filter((tenant) =>
       [tenant.name, tenant.property].some((value) => value?.toLowerCase().includes(term))
     )
-  }, [search, tenants])
+  }, [search, tenants, propertyFilter])
+
+  const propertyOptions = useMemo(() => {
+    const values = Array.from(
+      new Set(
+        tenants
+          .map((t) => t.property)
+          .filter((p): p is string => Boolean(p))
+          .map((p) => p as string)
+      )
+    )
+    return values
+  }, [tenants])
 
   const toggleTenant = (id: string, checked: boolean) => {
     setSendAll(false)
@@ -135,6 +153,17 @@ export default function ManagerNoticesPage() {
     fetchRecentNotices()
   }, [])
 
+  const resetForm = () => {
+    setSendSuccess(false)
+    setStats(null)
+    setTitle('')
+    setMessage('')
+    setSelectedTenants([])
+    setSendAll(true)
+    setNoticeType('general')
+    setPropertyFilter('all')
+  }
+
   const handleSubmit = async () => {
     if (!message.trim()) {
       toast({
@@ -167,6 +196,7 @@ export default function ManagerNoticesPage() {
         throw new Error(payload.error || 'Failed to send notice.')
       }
       setStats(payload.data || null)
+      setSendSuccess(true)
       toast({
         title: 'Notice sent',
         description: `Sent to ${payload.data?.recipients || 0} tenants.`,
@@ -193,6 +223,32 @@ export default function ManagerNoticesPage() {
       <div className="flex-1 flex flex-col">
         <Header />
         <main className="flex-1 p-8 overflow-auto">
+          {sendSuccess ? (
+            <div className="max-w-4xl mx-auto">
+              <Card className="p-8 shadow-xl bg-white/90 backdrop-blur">
+                <div className="flex items-center justify-between mb-6">
+                  <Button variant="ghost" onClick={resetForm}>
+                    ← Back
+                  </Button>
+                  <Badge variant="secondary" className="text-sm">Notice sent</Badge>
+                </div>
+                <div className="space-y-3 text-center">
+                  <h2 className="text-2xl font-bold">Notice sent successfully</h2>
+                  <p className="text-muted-foreground">
+                    Delivered to {stats?.recipients || 0} tenants
+                    {stats?.sms_sent !== undefined ? ` • SMS: ${stats.sms_sent || 0}` : ''}
+                    {stats?.email_sent !== undefined ? ` • Email: ${stats.email_sent || 0}` : ''}
+                  </p>
+                  <div className="flex items-center justify-center gap-3 pt-2">
+                    <Button onClick={resetForm}>Send another notice</Button>
+                    <Button variant="outline" onClick={resetForm}>
+                      Back to notices
+                    </Button>
+                  </div>
+                </div>
+              </Card>
+            </div>
+          ) : (
           <div className="mb-6 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="p-2 rounded-lg bg-blue-100 border border-blue-200 shadow-sm">
@@ -319,6 +375,19 @@ export default function ManagerNoticesPage() {
                       value={search}
                       onChange={(e) => setSearch(e.target.value)}
                     />
+                    <Select value={propertyFilter} onValueChange={setPropertyFilter}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Filter by property" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All properties</SelectItem>
+                        {propertyOptions.map((property) => (
+                          <SelectItem key={property} value={property}>
+                            {property}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                     <div className="max-h-56 overflow-y-auto border rounded-lg divide-y">
                       {tenantsLoading ? (
                         <div className="p-4 flex items-center gap-2 text-sm text-muted-foreground">
@@ -376,12 +445,12 @@ export default function ManagerNoticesPage() {
             </Card>
 
             <div className="space-y-4">
-              <Card className="border-0 shadow-lg bg-white/80 backdrop-blur">
+              <Card className="border-0 shadow-lg bg-white/80 backdrop-blur h-full">
                 <CardHeader>
                   <CardTitle>Recent notices</CardTitle>
                   <CardDescription>Last messages you sent</CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-3">
+                <CardContent className="space-y-3 max-h-80 overflow-y-auto pr-2">
                   {noticesLoading ? (
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                       <Loader2 className="h-4 w-4 animate-spin" />
@@ -437,6 +506,7 @@ export default function ManagerNoticesPage() {
               </Card>
             </div>
           </div>
+          )}
         </main>
       </div>
     </div>
