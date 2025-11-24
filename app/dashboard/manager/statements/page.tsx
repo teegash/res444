@@ -11,6 +11,15 @@ import { Sidebar } from '@/components/dashboard/sidebar'
 import { Header } from '@/components/dashboard/header'
 import { exportRowsAsCSV, exportRowsAsExcel, exportRowsAsPDF } from '@/lib/export/download'
 import { SkeletonLoader, SkeletonTable } from '@/components/ui/skeletons'
+import { useMediaQuery } from '@/hooks/useMediaQuery'
+import {
+  MobilePageContainer,
+  MobileCard,
+  MobileStack,
+  MobileHStack,
+  MobileInput,
+  MobileButton,
+} from '@/components/mobile'
 
 type StatementRow = {
   id: string
@@ -34,6 +43,7 @@ export default function StatementsPage() {
   const [statements, setStatements] = useState<StatementRow[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const isMobile = useMediaQuery('(max-width: 767px)')
 
   const filtered = useMemo(() => {
     const term = searchQuery.trim().toLowerCase()
@@ -147,6 +157,105 @@ export default function StatementsPage() {
     } else {
       exportRowsAsCSV(fileBase, columns, groupedByTenant, summaryRows)
     }
+  }
+
+  if (isMobile) {
+    return (
+      <MobilePageContainer title="Statements" subtitle="Aggregated tenant payments" bottomNavVariant="manager">
+        <MobileStack spacing="comfortable">
+          <MobileCard>
+            <div className="mobile-stack tight">
+              <MobileInput
+                label="Search"
+                placeholder="Tenant or property"
+                value={searchQuery}
+                onChange={setSearchQuery}
+              />
+              <div className="mobile-hstack justify-between">
+                <div className="mobile-input-group">
+                  <label className="mobile-input-label">Period</label>
+                  <select
+                    className="mobile-input"
+                    value={period}
+                    onChange={(e) => setPeriod(e.target.value)}
+                  >
+                    <option value="all">All time</option>
+                    <option value="month">This month</option>
+                    <option value="quarter">Quarter</option>
+                    <option value="year">This year</option>
+                  </select>
+                </div>
+                <div className="mobile-input-group" style={{ flex: 1 }}>
+                  <label className="mobile-input-label">Property</label>
+                  <select
+                    className="mobile-input"
+                    value={propertyId}
+                    onChange={(e) => setPropertyId(e.target.value)}
+                  >
+                    <option value="all">All</option>
+                    {propertyOptions.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
+          </MobileCard>
+
+          {error && (
+            <MobileCard variant="elevated">
+              <p className="text-red-600 text-sm">{error}</p>
+            </MobileCard>
+          )}
+
+          {loading ? (
+            <MobileStack spacing="normal">
+              <SkeletonLoader height={16} width="50%" />
+              <SkeletonTable rows={3} columns={3} />
+            </MobileStack>
+          ) : (
+            <MobileStack spacing="normal">
+              {groupedByTenant.map((row) => (
+                <MobileCard key={row.tenantId || row.tenantName} variant="elevated" clickable>
+                  <MobileStack spacing="tight">
+                    <MobileHStack justify="between" align="center">
+                      <div>
+                        <p className="font-semibold text-sm">{row.tenantName}</p>
+                        <p className="text-xs text-slate-500">
+                          {Array.from(row.properties || []).join(' • ') || '—'}
+                        </p>
+                      </div>
+                      <span className="mobile-badge info">{row.count} tx</span>
+                    </MobileHStack>
+                    <MobileHStack justify="between" align="center">
+                      <span className="text-xs text-slate-500">Latest</span>
+                      <span className="text-sm font-medium">
+                        {row.latestDate ? new Date(row.latestDate).toLocaleDateString() : '—'}
+                      </span>
+                    </MobileHStack>
+                    <MobileHStack justify="between" align="center">
+                      <span className="text-xs text-slate-500">Total Paid</span>
+                      <span className="text-base font-semibold text-emerald-600">
+                        KES {Number(row.total || 0).toLocaleString()}
+                      </span>
+                    </MobileHStack>
+                    <MobileButton
+                      variant="outline"
+                      fullWidth
+                      onClick={() => router.push(`/dashboard/manager/statements/${row.tenantId || ''}`)}
+                    >
+                      View statement
+                    </MobileButton>
+                  </MobileStack>
+                </MobileCard>
+              ))}
+            </MobileStack>
+          )}
+        </MobileStack>
+      </MobilePageContainer>
+    )
   }
 
   return (
