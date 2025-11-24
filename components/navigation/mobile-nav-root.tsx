@@ -24,7 +24,7 @@ export function MobileNavRoot() {
   useEffect(() => {
     if (!user) {
       if (pathname?.startsWith('/dashboard')) {
-        router.replace('/auth/signin')
+        router.replace('/auth/login')
       }
       return
     }
