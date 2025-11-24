@@ -108,12 +108,33 @@ export async function GET(request: NextRequest) {
       }),
     ]
 
-    const filtered =
+    const scoped =
       propertyFilter === 'all'
         ? rows
         : rows.filter((row) => row.property === propertyFilter || row.property_id === propertyFilter)
 
-    return NextResponse.json({ success: true, data: filtered })
+    const aggregates = new Map<
+      string,
+      { property: string; property_id: string | null; month: string | null; income: number; expenses: number }
+    >()
+
+    scoped.forEach((row) => {
+      const key = `${row.property_id || row.property || 'property'}|${row.month || 'unknown'}`
+      const existing = aggregates.get(key) || {
+        property: row.property,
+        property_id: row.property_id,
+        month: row.month,
+        income: 0,
+        expenses: 0,
+      }
+      existing.income += row.income || 0
+      existing.expenses += row.expenses || 0
+      aggregates.set(key, existing)
+    })
+
+    const aggregatedRows = Array.from(aggregates.values())
+
+    return NextResponse.json({ success: true, data: aggregatedRows })
   } catch (error) {
     console.error('[Reports.Financial] Failed to load financial statement', error)
     return NextResponse.json(

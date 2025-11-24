@@ -106,6 +106,17 @@ export async function POST(request: NextRequest) {
 
     if (error) throw error
 
+    // Also record an expense entry immediately so it appears in listings/exports
+    const incurredAt = start_date ? new Date(start_date).toISOString() : new Date().toISOString()
+    await admin.from('expenses').insert({
+      property_id,
+      amount: Number(amount),
+      category,
+      notes: notes || null,
+      incurred_at: incurredAt,
+      created_by: user.id,
+    })
+
     return NextResponse.json({ success: true, data })
   } catch (error) {
     if (error instanceof Error) {

@@ -32,10 +32,7 @@ async function verifyManager() {
 }
 
 export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
-  const tenantId = params?.id || request.nextUrl.searchParams.get('tenantId') || ''
-  if (!tenantId) {
-    return NextResponse.json({ success: false, error: 'Tenant id is required.' }, { status: 400 })
-  }
+  const tenantIdParam = params?.id || request.nextUrl.searchParams.get('tenantId') || ''
 
   const auth = await verifyManager()
   if (auth.error) return auth.error
@@ -44,6 +41,12 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     const formData = await request.formData()
     const file = formData.get('file')
     const leaseIdFromForm = formData.get('lease_id') as string | null
+    const tenantIdFromForm = (formData.get('tenant_id') as string | null) || tenantIdParam
+
+    const tenantId = tenantIdFromForm || tenantIdParam
+    if (!tenantId) {
+      return NextResponse.json({ success: false, error: 'Tenant id is required.' }, { status: 400 })
+    }
 
     if (!(file instanceof File)) {
       return NextResponse.json({ success: false, error: 'No file uploaded.' }, { status: 400 })

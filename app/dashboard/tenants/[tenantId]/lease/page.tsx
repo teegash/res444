@@ -121,6 +121,7 @@ export default function TenantLeaseManagementPage() {
       setUploading(true)
       const formData = new FormData()
       formData.append('file', selectedFile)
+      formData.append('tenant_id', tenantId)
       if (data?.lease?.id) {
         formData.append('lease_id', data.lease.id)
       }
