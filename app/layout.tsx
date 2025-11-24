@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { Geist, Geist_Mono } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import { AuthProvider } from '@/lib/auth/context'
+import { MobileNavRoot } from '@/components/navigation/mobile-nav-root'
 import './globals.css'
 
 const _geist = Geist({ subsets: ["latin"] });
@@ -42,6 +43,7 @@ export default function RootLayout({
           {children}
         </AuthProvider>
         <Analytics />
+        <MobileNavRoot />
       </body>
     </html>
   )
