@@ -99,7 +99,7 @@ export async function GET() {
         `
         )
         .order('updated_at', { ascending: false })
-        .limit(6),
+        .limit(10),
       admin
         .from('expenses')
         .select('id, amount, incurred_at, property_id')
@@ -160,6 +160,7 @@ export async function GET() {
     // Property revenue + potential (using invoices of current month)
     const propertyRevenueMap = new Map<string, { paid: number; potential: number }>()
     const propertyIncomeMonth = new Map<string, { paid: number; potential: number }>()
+    const potentialMap = new Map<string, number>()
     invoices.forEach((inv) => {
       const name =
         inv.leases?.apartment_units?.apartment_buildings?.name || inv.leases?.apartment_units?.building_id || 'Unassigned'
@@ -177,18 +178,31 @@ export async function GET() {
         propertyIncomeMonth.set(name, mBucket)
       }
     })
+    units.forEach((unit: any) => {
+      const bid = unit.building_id || 'Unassigned'
+      const rent = Number(unit.rent_amount || 0)
+      potentialMap.set(bid, (potentialMap.get(bid) || 0) + rent)
+    })
     const propertyRevenue = Array.from(propertyRevenueMap.entries()).map(([name, vals]) => ({
       name,
       revenue: vals.paid,
       potential: vals.potential,
       percent: vals.potential ? Math.round((vals.paid / vals.potential) * 100) : 0,
     }))
-    const propertyIncomeMonthArr = Array.from(propertyIncomeMonth.entries()).map(([name, vals]) => ({
-      name,
-      paid: vals.paid,
-      potential: vals.potential,
-      percent: vals.potential ? Math.round((vals.paid / vals.potential) * 100) : 0,
-    }))
+    const propertyIncomeMonthArr = Array.from(propertyIncomeMonth.entries()).map(([name, vals]) => {
+      const propertyId =
+        propertiesRes.data?.find((p) => p.name === name)?.id ||
+        propertiesRes.data?.find((p) => p.id === name)?.id ||
+        null
+      const unitPotential = propertyId ? potentialMap.get(propertyId) || 0 : potentialMap.get(name) || 0
+      const potential = vals.potential || unitPotential
+      return {
+        name,
+        paid: vals.paid,
+        potential,
+        percent: potential ? Math.round((vals.paid / potential) * 100) : 0,
+      }
+    })
 
     // Payment status distribution
     const failedCount = payments.filter(
