@@ -332,11 +332,11 @@ export function Header() {
                 Account & Security
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => router.push('/dashboard/preferences')}>
-                Preferences
-              </DropdownMenuItem>
               <DropdownMenuItem onClick={() => router.push('/dashboard/help')}>
                 Help & Support
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => router.push('/dashboard/status')}>
+                System Status
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={handleLogout} className="text-destructive">

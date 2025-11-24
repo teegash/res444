@@ -5,23 +5,56 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { useRouter } from 'next/navigation'
 import { useState } from 'react'
+import { useToast } from '@/components/ui/use-toast'
 
 export default function HelpSupportPage() {
-  const [email, setEmail] = useState('')
+  const router = useRouter()
+  const supportEmail = 'info@natibasolutions.com'
   const [subject, setSubject] = useState('')
   const [message, setMessage] = useState('')
+  const [sending, setSending] = useState(false)
+  const { toast } = useToast()
 
-  const openMail = () => {
-    const mailto = `mailto:support@rentalkenya.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(
-      message + `\n\nFrom: ${email}`
-    )}`
-    window.location.href = mailto
+  const sendSupport = async () => {
+    if (!subject || !message) {
+      toast({ title: 'Missing details', description: 'Subject and message are required.', variant: 'destructive' })
+      return
+    }
+    try {
+      setSending(true)
+      const res = await fetch('/api/support/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ subject, message }),
+      })
+      const json = await res.json()
+      if (!res.ok || !json.success) {
+        throw new Error(json.error || 'Failed to send support request.')
+      }
+      toast({ title: 'Sent', description: 'Your message has been sent to support.' })
+      setSubject('')
+      setMessage('')
+    } catch (err) {
+      toast({
+        title: 'Send failed',
+        description: err instanceof Error ? err.message : 'Unable to send support request.',
+        variant: 'destructive',
+      })
+    } finally {
+      setSending(false)
+    }
   }
 
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-6">
-      <h1 className="text-3xl font-bold">Help & Support</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-3xl font-bold">Help & Support</h1>
+        <Button variant="ghost" onClick={() => router.back()}>
+          Back to dashboard
+        </Button>
+      </div>
 
       <Card>
         <CardHeader>
@@ -30,7 +63,7 @@ export default function HelpSupportPage() {
         <CardContent className="space-y-4">
           <div className="grid gap-2">
             <Label>Email</Label>
-            <Input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" />
+            <Input value={supportEmail} disabled />
           </div>
           <div className="grid gap-2">
             <Label>Subject</Label>
@@ -41,8 +74,8 @@ export default function HelpSupportPage() {
             <Textarea value={message} onChange={(e) => setMessage(e.target.value)} rows={5} />
           </div>
           <div className="flex justify-end">
-            <Button onClick={openMail} disabled={!email || !subject || !message}>
-              Send to Support
+            <Button onClick={sendSupport} disabled={!subject || !message || sending}>
+              {sending ? 'Sending…' : 'Send to Support'}
             </Button>
           </div>
           <p className="text-xs text-muted-foreground">
