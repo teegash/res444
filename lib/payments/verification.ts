@@ -88,7 +88,7 @@ export async function createPaymentWithDepositSlip(
       }
     }
 
-    const monthsPaid = Math.min(12, Math.max(1, request.months_paid || 1))
+    const monthsPaid = 1
     const expectedAmount = invoiceAmount * monthsPaid
 
     if (Math.abs(request.amount - expectedAmount) > 0.01) {

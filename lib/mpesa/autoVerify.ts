@@ -296,7 +296,7 @@ async function verifyPayment(
         .single()
 
       if (invoice) {
-        const monthsPaid = payment.months_paid || 1
+        const monthsPaid = 1
         let invoiceStatus = false
         let targetInvoiceId = invoice.id
 

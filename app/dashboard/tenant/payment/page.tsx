@@ -43,7 +43,7 @@ export default function TenantPaymentPortal() {
   const [invoiceError, setInvoiceError] = useState<string | null>(null)
   const [loadingInvoice, setLoadingInvoice] = useState(true)
   const [paymentMethod, setPaymentMethod] = useState<'mpesa' | 'card' | 'bank'>('mpesa')
-  const [monthsToPay, setMonthsToPay] = useState(1)
+  const [monthsToPay] = useState(1)
   const [mpesaNumber, setMpesaNumber] = useState('')
   const [cardDetails, setCardDetails] = useState({ name: '', number: '', expiry: '', cvv: '' })
   const [depositSnapshot, setDepositSnapshot] = useState<File | null>(null)
@@ -77,13 +77,11 @@ export default function TenantPaymentPortal() {
       leasePaidUntil && new Date(leasePaidUntil) > new Date(invoice.due_date)
         ? new Date(leasePaidUntil)
         : new Date(invoice.due_date)
-    const end = new Date(baseDate)
-    end.setMonth(end.getMonth() + monthsToPay - 1)
-    return end.toLocaleDateString(undefined, { year: 'numeric', month: 'long' })
-  }, [invoice?.due_date, monthsToPay])
+    return baseDate.toLocaleDateString(undefined, { year: 'numeric', month: 'long' })
+  }, [invoice?.due_date, leasePaidUntil])
 
   const paymentTitle = invoice?.invoice_type === 'water' ? 'Pay Water Bill' : 'Pay Rent'
-  const showMonthsSelection = invoice?.invoice_type !== 'water'
+  const showMonthsSelection = false
 
   const fetchInvoice = useCallback(async (): Promise<InvoiceSummary | null> => {
     try {

@@ -485,7 +485,7 @@ export async function processRentPrepayment(
     const paymentRecord = payment as PaymentRecord
     const leaseRecord = lease as LeaseRecord
     const monthlyRent = normalizeCurrency(leaseRecord.monthly_rent)
-    const monthsPaid = clampMonthsPaid(input.monthsPaid)
+    const monthsPaid = 1
     const amountPaid = input.amountPaid
     const paymentDate = input.paymentDate
     const previousPaidPointer = leaseRecord.next_rent_due_date || null

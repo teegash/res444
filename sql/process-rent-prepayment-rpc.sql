@@ -57,6 +57,9 @@ declare
 begin
   if _months_paid is null or _months_paid <= 0 then
     _months_paid := 1;
+  elsif _months_paid > 1 then
+    -- enforce single-month prepayment
+    _months_paid := 1;
   end if;
 
   if _amount_paid is null or _amount_paid <= 0 then
