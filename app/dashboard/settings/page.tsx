@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -36,8 +36,10 @@ export default function SettingsPage() {
   const [profileError, setProfileError] = useState<string | null>(null)
   const [savingProfile, setSavingProfile] = useState(false)
   const [passwordSaving, setPasswordSaving] = useState(false)
+  const [resettingPassword, setResettingPassword] = useState(false)
   const [oldPassword, setOldPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([])
   const [teamError, setTeamError] = useState<string | null>(null)
   const [inviteOpen, setInviteOpen] = useState(false)
@@ -84,6 +86,122 @@ export default function SettingsPage() {
     loadTeam()
   }, [])
 
+  const handleProfileSave = async () => {
+    try {
+      setSavingProfile(true)
+      const res = await fetch('/api/settings/profile', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ full_name: fullName, phone_number: phone }),
+      })
+      const json = await res.json()
+      if (!res.ok || !json.success) {
+        throw new Error(json.error || 'Failed to update profile.')
+      }
+      toast({ title: 'Profile updated', description: 'Your profile was saved successfully.' })
+    } catch (err) {
+      toast({
+        title: 'Update failed',
+        description: err instanceof Error ? err.message : 'Unable to save profile.',
+        variant: 'destructive',
+      })
+    } finally {
+      setSavingProfile(false)
+    }
+  }
+
+  const handlePasswordChange = async () => {
+    if (!newPassword || newPassword !== confirmPassword) {
+      toast({ title: 'Passwords do not match', variant: 'destructive' })
+      return
+    }
+    try {
+      setPasswordSaving(true)
+      const res = await fetch('/api/settings/password', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ newPassword, oldPassword }),
+      })
+      const json = await res.json()
+      if (!res.ok || !json.success) {
+        throw new Error(json.error || 'Failed to change password.')
+      }
+      setOldPassword('')
+      setNewPassword('')
+      setConfirmPassword('')
+      toast({ title: 'Password updated', description: 'Your password has been changed.' })
+    } catch (err) {
+      toast({
+        title: 'Password change failed',
+        description: err instanceof Error ? err.message : 'Unable to change password.',
+        variant: 'destructive',
+      })
+    } finally {
+      setPasswordSaving(false)
+    }
+  }
+
+  const handlePasswordReset = async () => {
+    try {
+      setResettingPassword(true)
+      const res = await fetch('/api/settings/password/reset', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      })
+      const json = await res.json()
+      if (!res.ok || !json.success) {
+        throw new Error(json.error || 'Failed to send reset email.')
+      }
+      toast({ title: 'Reset email sent', description: 'Check your inbox for reset instructions.' })
+    } catch (err) {
+      toast({
+        title: 'Reset failed',
+        description: err instanceof Error ? err.message : 'Unable to start reset.',
+        variant: 'destructive',
+      })
+    } finally {
+      setResettingPassword(false)
+    }
+  }
+
+  const handleInvite = async () => {
+    if (!inviteEmail || !inviteName) {
+      toast({ title: 'Missing info', description: 'Name and email are required.', variant: 'destructive' })
+      return
+    }
+    try {
+      setInviteSaving(true)
+      const res = await fetch('/api/settings/team/invite', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: inviteEmail, full_name: inviteName, role: inviteRole }),
+      })
+      const json = await res.json()
+      if (!res.ok || !json.success) {
+        throw new Error(json.error || 'Failed to invite member.')
+      }
+      setInviteEmail('')
+      setInviteName('')
+      setInviteOpen(false)
+      toast({ title: 'Invite sent', description: 'Credentials have been emailed to the member.' })
+      // refresh team
+      const teamRes = await fetch('/api/settings/team', { cache: 'no-store' })
+      const teamJson = await teamRes.json()
+      if (teamRes.ok && teamJson.success) {
+        setTeamMembers(teamJson.data || [])
+      }
+    } catch (err) {
+      toast({
+        title: 'Invite failed',
+        description: err instanceof Error ? err.message : 'Unable to send invite.',
+        variant: 'destructive',
+      })
+    } finally {
+      setInviteSaving(false)
+    }
+  }
+
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
       {/* Back button and header */}
@@ -121,19 +239,35 @@ export default function SettingsPage() {
               <CardTitle>Profile Information</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div>
-                <Label>Full Name</Label>
-                <Input defaultValue="Maurice Robbins" />
+              <div className="grid gap-2">
+                <Label htmlFor="fullName">Full Name</Label>
+                <Input
+                  id="fullName"
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  disabled={profileLoading || savingProfile}
+                />
               </div>
-              <div>
-                <Label>Email</Label>
-                <Input defaultValue="maurice@rentalkenya.com" type="email" />
+              <div className="grid gap-2">
+                <Label htmlFor="email">Email</Label>
+                <Input id="email" value={email} disabled />
+                <p className="text-xs text-muted-foreground">Email is managed by your administrator.</p>
               </div>
-              <div>
-                <Label>Phone</Label>
-                <Input defaultValue="+254712345678" />
+              <div className="grid gap-2">
+                <Label htmlFor="phone">Phone</Label>
+                <Input
+                  id="phone"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  disabled={profileLoading || savingProfile}
+                />
               </div>
-              <Button>Update Profile</Button>
+              <div className="flex justify-end">
+                <Button onClick={handleProfileSave} disabled={profileLoading || savingProfile}>
+                  {savingProfile ? 'Saving...' : 'Update Profile'}
+                </Button>
+              </div>
+              {profileError && <p className="text-sm text-destructive">{profileError}</p>}
             </CardContent>
           </Card>
 
@@ -142,9 +276,44 @@ export default function SettingsPage() {
               <CardTitle>Security</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <Button variant="outline" className="w-full">Change Password</Button>
-              <Button variant="outline" className="w-full">Enable Two-Factor Authentication</Button>
-              <Button variant="outline" className="w-full">View Login History</Button>
+              <div className="grid gap-2">
+                <Label htmlFor="oldPassword">Current Password</Label>
+                <Input
+                  id="oldPassword"
+                  type="password"
+                  value={oldPassword}
+                  onChange={(e) => setOldPassword(e.target.value)}
+                  disabled={passwordSaving}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="newPassword">New Password</Label>
+                <Input
+                  id="newPassword"
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  disabled={passwordSaving}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="confirmPassword">Confirm Password</Label>
+                <Input
+                  id="confirmPassword"
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  disabled={passwordSaving}
+                />
+              </div>
+              <div className="flex flex-col gap-2 sm:flex-row sm:justify-between">
+                <Button variant="default" className="w-full sm:w-auto" onClick={handlePasswordChange} disabled={passwordSaving}>
+                  {passwordSaving ? 'Updating…' : 'Change Password'}
+                </Button>
+                <Button variant="outline" className="w-full sm:w-auto" onClick={handlePasswordReset} disabled={resettingPassword}>
+                  {resettingPassword ? 'Sending…' : 'Forgot Password'}
+                </Button>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -158,14 +327,14 @@ export default function SettingsPage() {
             <CardContent className="space-y-4">
               <div>
                 <Label>Color Scheme</Label>
-                <Select defaultValue="dark">
+                <Select value={theme || 'system'} onValueChange={(val) => setTheme(val)}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="light">Light</SelectItem>
                     <SelectItem value="dark">Dark</SelectItem>
-                    <SelectItem value="auto">Auto (System)</SelectItem>
+                    <SelectItem value="system">Auto (System)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -176,46 +345,56 @@ export default function SettingsPage() {
         {/* Team */}
         <TabsContent value="team" className="space-y-4">
           <Card>
-            <CardHeader>
+            <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle>Team Members</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                <div className="flex items-center justify-between p-3 border rounded-lg">
-                  <div>
-                    <p className="font-medium">Maurice Robbins</p>
-                    <p className="text-sm text-muted-foreground">you@rentalkenya.com</p>
-                  </div>
-                  <Badge>Admin</Badge>
-                </div>
-                <Button variant="outline" className="w-full">Invite Team Member</Button>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Integrations */}
-        <TabsContent value="integrations" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Connected Services</CardTitle>
+              <Button size="sm" onClick={() => setInviteOpen((prev) => !prev)}>
+                {inviteOpen ? 'Cancel' : 'Invite Team Member'}
+              </Button>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="flex items-center justify-between p-3 border rounded-lg">
-                <div>
-                  <p className="font-medium">M-Pesa Integration</p>
-                  <p className="text-sm text-muted-foreground">Payment processing</p>
+              {inviteOpen && (
+                <div className="grid gap-3 rounded-lg border p-4">
+                  <div className="grid gap-2">
+                    <Label>Email</Label>
+                    <Input placeholder="manager@example.com" value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label>Full Name</Label>
+                    <Input placeholder="Full name" value={inviteName} onChange={(e) => setInviteName(e.target.value)} />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label>Role</Label>
+                    <Select value={inviteRole} onValueChange={(val) => setInviteRole(val as 'manager' | 'caretaker')}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select role" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="manager">Manager</SelectItem>
+                        <SelectItem value="caretaker">Caretaker</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <Button className="w-full" onClick={handleInvite} disabled={inviteSaving}>
+                    {inviteSaving ? 'Sending…' : 'Send Invite'}
+                  </Button>
                 </div>
-                <Badge className="bg-green-600">Connected</Badge>
+              )}
+
+              <div className="space-y-2">
+                {teamMembers.length === 0 && <p className="text-sm text-muted-foreground">No team members yet.</p>}
+                {teamMembers.map((member) => (
+                  <div key={member.id} className="flex items-center justify-between rounded-lg border p-3">
+                    <div>
+                      <p className="font-semibold">{member.full_name || member.email || 'Unnamed'}</p>
+                      <p className="text-sm text-muted-foreground">{member.email || 'No email'}</p>
+                    </div>
+                    <Badge variant="secondary" className="capitalize">
+                      {member.role}
+                    </Badge>
+                  </div>
+                ))}
+                {teamError && <p className="text-sm text-destructive">{teamError}</p>}
               </div>
-              <div className="flex items-center justify-between p-3 border rounded-lg">
-                <div>
-                  <p className="font-medium">Africa's Talking SMS</p>
-                  <p className="text-sm text-muted-foreground">SMS messaging service</p>
-                </div>
-                <Badge className="bg-green-600">Connected</Badge>
-              </div>
-              <Button variant="outline" className="w-full">Add Integration</Button>
             </CardContent>
           </Card>
         </TabsContent>

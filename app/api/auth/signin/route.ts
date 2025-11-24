@@ -103,7 +103,13 @@ async function hasOrganizationMembership(userId: string) {
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json()
+    const body = await request.json().catch(() => null)
+    if (!body) {
+      return NextResponse.json(
+        { success: false, error: 'Invalid request body. Expected JSON.' },
+        { status: 400, headers: { 'Content-Type': 'application/json' } }
+      )
+    }
     const { email, password } = body
 
     if (!email || !password) {
@@ -112,7 +118,7 @@ export async function POST(request: NextRequest) {
           success: false,
           error: 'Email and password are required',
         },
-        { status: 400 }
+        { status: 400, headers: { 'Content-Type': 'application/json' } }
       )
     }
 
@@ -204,7 +210,7 @@ export async function POST(request: NextRequest) {
           success: false,
           error: userFriendlyMessage,
         },
-        { status: 401 }
+        { status: 401, headers: { 'Content-Type': 'application/json' } }
       )
     }
 
@@ -214,7 +220,7 @@ export async function POST(request: NextRequest) {
           success: false,
           error: 'Failed to create session',
         },
-        { status: 401 }
+        { status: 401, headers: { 'Content-Type': 'application/json' } }
       )
     }
 
@@ -272,7 +278,7 @@ export async function POST(request: NextRequest) {
         needsOrganizationSetup,
         session: session, // Include session for client to set cookies
       },
-      { status: 200 }
+      { status: 200, headers: { 'Content-Type': 'application/json' } }
     )
 
     responseCookies.forEach(({ name, value, options }) => {
@@ -289,7 +295,14 @@ export async function POST(request: NextRequest) {
         success: false,
         error: err.message || 'An unexpected error occurred',
       },
-      { status: 500 }
+      { status: 500, headers: { 'Content-Type': 'application/json' } }
     )
   }
+}
+
+export async function GET() {
+  return NextResponse.json(
+    { success: false, error: 'Method not allowed. Use POST.' },
+    { status: 405, headers: { 'Content-Type': 'application/json' } }
+  )
 }
