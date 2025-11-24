@@ -14,6 +14,7 @@ import { useAuth } from '@/lib/auth/context'
 import { SkeletonLoader, SkeletonPropertyCard, SkeletonTable } from '@/components/ui/skeletons'
 import { formatCurrency } from '@/lib/format/currency'
 import { cn } from '@/lib/utils'
+import { ManagerMobileNav } from '@/components/navigation/manager-mobile-nav'
 
 export default function DashboardPage() {
   return (
@@ -755,6 +756,7 @@ function DashboardContent() {
             </div>
           </div>
         </main>
+        <ManagerMobileNav />
       </div>
       <OrganizationSetupModal open={showSetupModal} onClose={handleModalClose} />
     </div>
