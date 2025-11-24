@@ -426,7 +426,7 @@ export function TenantHeader({ summary, loading, onProfileUpdated }: TenantHeade
               <DropdownMenuContent align="end" className="w-56">
                 <DropdownMenuLabel>My Account</DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => router.push('/dashboard/tenant/profile')}>
+                <DropdownMenuItem onClick={() => router.push('/dashboard/tenant/settings')}>
                   <Settings className="w-4 h-4 mr-2" />
                   Profile Settings
                 </DropdownMenuItem>

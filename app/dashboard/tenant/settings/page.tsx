@@ -15,6 +15,9 @@ export default function TenantSettingsPage() {
   const [email, setEmail] = useState('')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [passwordSaving, setPasswordSaving] = useState(false)
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -61,6 +64,38 @@ export default function TenantSettingsPage() {
     }
   }
 
+  const handlePasswordChange = async () => {
+    if (!newPassword || newPassword !== confirmPassword) {
+      toast({ title: 'Passwords must match', variant: 'destructive' })
+      return
+    }
+    if (newPassword.length < 8) {
+      toast({ title: 'Weak password', description: 'Use at least 8 characters.', variant: 'destructive' })
+      return
+    }
+    try {
+      setPasswordSaving(true)
+      const res = await fetch('/api/settings/password', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ newPassword }),
+      })
+      const json = await res.json()
+      if (!res.ok || !json.success) throw new Error(json.error || 'Failed to change password.')
+      setNewPassword('')
+      setConfirmPassword('')
+      toast({ title: 'Password updated' })
+    } catch (err) {
+      toast({
+        title: 'Password change failed',
+        description: err instanceof Error ? err.message : 'Unexpected error',
+        variant: 'destructive',
+      })
+    } finally {
+      setPasswordSaving(false)
+    }
+  }
+
   return (
     <div className="p-6 max-w-3xl mx-auto space-y-6">
       <div className="flex items-center justify-between">
@@ -103,6 +138,42 @@ export default function TenantSettingsPage() {
               {saving ? 'Saving…' : 'Update Profile'}
             </Button>
           </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Change Password</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-2">
+            <Label htmlFor="newPassword">New Password</Label>
+            <Input
+              id="newPassword"
+              type="password"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              disabled={passwordSaving}
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="confirmPassword">Confirm Password</Label>
+            <Input
+              id="confirmPassword"
+              type="password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              disabled={passwordSaving}
+            />
+          </div>
+          <div className="flex justify-end">
+            <Button onClick={handlePasswordChange} disabled={passwordSaving}>
+              {passwordSaving ? 'Updating…' : 'Update Password'}
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Password must be at least 8 characters. Use a unique password for your security.
+          </p>
         </CardContent>
       </Card>
     </div>
