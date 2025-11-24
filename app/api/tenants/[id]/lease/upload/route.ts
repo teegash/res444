@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 
 const MANAGER_ROLES = new Set(['admin', 'manager', 'caretaker'])
-const BUCKET = 'lease-documents'
+const BUCKET = 'lease_documents'
 
 async function verifyManager() {
   const supabase = await createClient()
@@ -88,12 +88,14 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       )
     }
 
-    const { data: urlData } = admin.storage.from(BUCKET).getPublicUrl(filePath)
-    const publicUrl = urlData?.publicUrl || ''
+    // Store storage path; we will serve signed URLs at download time
+    const storagePath = filePath
+    const signed = await admin.storage.from(BUCKET).createSignedUrl(storagePath, 60 * 60 * 6) // 6h
+    const signedUrl = signed?.data?.signedUrl || ''
 
     const { error: updateError } = await admin
       .from('leases')
-      .update({ lease_agreement_url: publicUrl })
+      .update({ lease_agreement_url: storagePath })
       .eq('id', targetLeaseId)
 
     if (updateError) {
@@ -104,7 +106,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       )
     }
 
-    return NextResponse.json({ success: true, url: publicUrl, lease_id: targetLeaseId })
+    return NextResponse.json({ success: true, url: signedUrl || storagePath, path: storagePath, lease_id: targetLeaseId })
   } catch (error) {
     console.error('[LeaseUpload] unexpected', error)
     return NextResponse.json(

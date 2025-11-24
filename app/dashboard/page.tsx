@@ -183,6 +183,7 @@ function DashboardContent() {
   const propertyRevenue = overview?.propertyRevenue || []
   const occupancyData = overview?.occupancy || []
   const propertyIncomeMonth = overview?.propertyIncomeMonth || []
+  const propertyIncomeMonth = overview?.propertyIncomeMonth || []
   const paymentData = useMemo(
     () => [
       { name: 'Paid', value: overview?.payments?.paid || 0, color: '#22c55e' },
@@ -208,16 +209,16 @@ function DashboardContent() {
     })
   }, [revenueSeries, expensesSeries])
 
-  const incomeProgress = useMemo(() => {
-    if (!propertyRevenue.length) return []
-    return propertyRevenue
+  const incomeProgressMonth = useMemo(() => {
+    if (!propertyIncomeMonth.length) return []
+    return propertyIncomeMonth
       .slice()
-      .sort((a, b) => b.revenue - a.revenue)
-      .map((item) => ({
+      .sort((a, b) => (b.paid || 0) - (a.paid || 0))
+      .map((item: any) => ({
         ...item,
-        percent: item.potential ? Math.round((item.revenue / item.potential) * 100) : 0,
+        percent: item.potential ? Math.round((item.paid / item.potential) * 100) : 0,
       }))
-  }, [propertyRevenue])
+  }, [propertyIncomeMonth])
 
   useEffect(() => {
     const loadOverview = async () => {
@@ -532,12 +533,19 @@ function DashboardContent() {
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  {incomeProgress.length ? (
-                    incomeProgress.map((item) => (
+                  {incomeProgressMonth.length ? (
+                    incomeProgressMonth.map((item: any) => (
                       <div key={item.name}>
-                        <div className="flex items-center justify-between mb-1">
-                          <p className="font-medium text-gray-900">{item.name}</p>
-                          <p className="text-sm text-gray-600">{formatCurrency(item.revenue, 'KES')}</p>
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="font-semibold text-gray-900">{item.name}</p>
+                            <p className="text-xs text-gray-500">
+                              {formatCurrency(item.paid, 'KES')} of {formatCurrency(item.potential || 0, 'KES')}
+                            </p>
+                          </div>
+                          <span className="text-sm font-medium text-gray-700">
+                            {item.percent}%
+                          </span>
                         </div>
                         <div className="w-full bg-gray-100 h-2 rounded-full overflow-hidden">
                           <div
@@ -545,7 +553,6 @@ function DashboardContent() {
                             style={{ width: `${Math.min(item.percent, 100)}%` }}
                           />
                         </div>
-                        <p className="text-xs text-gray-500 mt-1">{item.percent}% of total</p>
                       </div>
                     ))
                   ) : (
@@ -651,48 +658,6 @@ function DashboardContent() {
                 </CardContent>
               </Card>
             </div>
-
-            {/* Property insights row */}
-            {propertyIncomeMonth?.length ? (
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <Card>
-                  <CardHeader>
-                    <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-                        <DollarSign className="w-6 h-6 text-green-600" />
-                      </div>
-                      <div>
-                        <CardTitle className="text-xl">Income per Property</CardTitle>
-                        <CardDescription>Rent paid vs potential (units × rent) this month</CardDescription>
-                      </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    {propertyIncomeMonth.map((item: any) => (
-                      <div key={item.name}>
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="font-semibold text-gray-900">{item.name}</p>
-                            <p className="text-xs text-gray-500">
-                              {formatCurrency(item.paid, 'KES')} of {formatCurrency(item.potential || 0, 'KES')}
-                            </p>
-                          </div>
-                          <span className="text-sm font-medium text-gray-700">
-                            {item.percent}%
-                          </span>
-                        </div>
-                        <div className="w-full bg-gray-100 h-2 rounded-full overflow-hidden">
-                          <div
-                            className="h-2 rounded-full bg-gradient-to-r from-[#7c3aed] to-[#4f46e5]"
-                            style={{ width: `${Math.min(item.percent, 100)}%` }}
-                          />
-                        </div>
-                      </div>
-                    ))}
-                  </CardContent>
-                </Card>
-              </div>
-            ) : null}
 
             {/* Bottom Row: Maintenance left, quick links right */}
             <div className="grid grid-cols-1 lg:grid-cols-[1fr_1.2fr] gap-6">

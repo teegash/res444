@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { ArrowLeft, Plus, Download, Wallet } from 'lucide-react'
+import { ArrowLeft, Plus, Download, Wallet, CheckCircle2 } from 'lucide-react'
 import { Sidebar } from '@/components/dashboard/sidebar'
 import { Header } from '@/components/dashboard/header'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea'
 import { exportRowsAsCSV, exportRowsAsExcel, exportRowsAsPDF } from '@/lib/export/download'
 import { SkeletonLoader, SkeletonTable } from '@/components/ui/skeletons'
+import { useToast } from '@/components/ui/use-toast'
 
 type Expense = {
   id: string
@@ -37,6 +38,8 @@ export default function ExpensesPage() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [savingRecurring, setSavingRecurring] = useState(false)
+  const { toast } = useToast()
+  const [lastSavedMessage, setLastSavedMessage] = useState<string | null>(null)
 
   const [newExpense, setNewExpense] = useState({
     property_id: '',
@@ -106,6 +109,8 @@ export default function ExpensesPage() {
       if (!response.ok) throw new Error(payload.error || 'Failed to save expense.')
       setNewExpense({ property_id: '', amount: '', category: '', incurred_at: '', notes: '', recurring: false })
       loadExpenses()
+      setLastSavedMessage('Expense added successfully.')
+      toast({ title: 'Expense added', description: 'Your expense has been saved and will reflect in statements.' })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to save expense.')
     } finally {
@@ -131,6 +136,8 @@ export default function ExpensesPage() {
       const payload = await response.json()
       if (!response.ok) throw new Error(payload.error || 'Failed to save recurring expense.')
       setNewExpense({ property_id: '', amount: '', category: '', incurred_at: '', notes: '', recurring: false })
+      setLastSavedMessage('Recurring expense scheduled for the 1st of each month.')
+      toast({ title: 'Recurring expense created', description: 'Auto-deduction will run on the 1st monthly.' })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to save recurring expense.')
     } finally {
@@ -348,6 +355,15 @@ export default function ExpensesPage() {
                 </div>
               </CardContent>
             </Card>
+
+            {lastSavedMessage && (
+              <Card className="lg:col-span-3 border-green-200 bg-green-50">
+                <CardContent className="flex items-center gap-3 py-3 text-green-700">
+                  <CheckCircle2 className="h-5 w-5" />
+                  <p className="text-sm font-medium">{lastSavedMessage}</p>
+                </CardContent>
+              </Card>
+            )}
           </div>
         </main>
       </div>

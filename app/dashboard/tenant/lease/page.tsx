@@ -102,6 +102,25 @@ export default function LeasePage() {
     fetchLease()
   }, [])
 
+  useEffect(() => {
+    const fetchSigned = async () => {
+      try {
+        const res = await fetch('/api/tenant/lease/document', { cache: 'no-store' })
+        const json = await res.json()
+        if (res.ok && json.success) {
+          setLease((prev) =>
+            prev
+              ? { ...prev, lease_agreement_url: json.url || prev.lease_agreement_url }
+              : prev
+          )
+        }
+      } catch (err) {
+        console.warn('[LeasePage] signed URL fetch failed', err)
+      }
+    }
+    fetchSigned()
+  }, [])
+
   const propertyName = lease?.unit?.building?.name || '—'
   const propertyLocation = lease?.unit?.building?.location || '—'
   const unitLabel = lease?.unit?.unit_number || '—'
