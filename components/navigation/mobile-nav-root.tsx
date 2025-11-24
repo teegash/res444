@@ -9,7 +9,7 @@ import { useAuth } from '@/lib/auth/context'
 export function MobileNavRoot() {
   const pathname = usePathname()
   const router = useRouter()
-  const { user } = useAuth()
+  const { user, loading } = useAuth()
 
   const role = (user?.user_metadata as any)?.role || (user as any)?.role || null
 
@@ -22,6 +22,8 @@ export function MobileNavRoot() {
   }, [pathname, role])
 
   useEffect(() => {
+    if (loading) return
+
     if (!user) {
       if (pathname?.startsWith('/dashboard')) {
         router.replace('/auth/login')
