@@ -328,14 +328,14 @@ export function Header() {
               <DropdownMenuItem onClick={() => router.push('/dashboard/settings')}>
                 Profile Settings
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => router.push('/dashboard/settings')}>
+              <DropdownMenuItem onClick={() => router.push('/dashboard/account')}>
                 Account & Security
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => router.push('/dashboard/settings')}>
+              <DropdownMenuItem onClick={() => router.push('/dashboard/preferences')}>
                 Preferences
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => router.push('/dashboard/settings')}>
+              <DropdownMenuItem onClick={() => router.push('/dashboard/help')}>
                 Help & Support
               </DropdownMenuItem>
               <DropdownMenuSeparator />

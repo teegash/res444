@@ -46,6 +46,8 @@ export default function SettingsPage() {
   const [inviteRole, setInviteRole] = useState<'manager' | 'caretaker'>('manager')
   const [inviteEmail, setInviteEmail] = useState('')
   const [inviteName, setInviteName] = useState('')
+  const [invitePassword, setInvitePassword] = useState('')
+  const [inviteConfirmPassword, setInviteConfirmPassword] = useState('')
   const [inviteSaving, setInviteSaving] = useState(false)
   const { setTheme, theme } = useTheme()
   const { toast } = useToast()
@@ -166,8 +168,16 @@ export default function SettingsPage() {
   }
 
   const handleInvite = async () => {
-    if (!inviteEmail || !inviteName) {
-      toast({ title: 'Missing info', description: 'Name and email are required.', variant: 'destructive' })
+    if (!inviteEmail || !inviteName || !invitePassword) {
+      toast({ title: 'Missing info', description: 'Name, email, and password are required.', variant: 'destructive' })
+      return
+    }
+    if (invitePassword.length < 8) {
+      toast({ title: 'Weak password', description: 'Password must be at least 8 characters.', variant: 'destructive' })
+      return
+    }
+    if (invitePassword !== inviteConfirmPassword) {
+      toast({ title: 'Password mismatch', description: 'Passwords must match.', variant: 'destructive' })
       return
     }
     try {
@@ -175,7 +185,7 @@ export default function SettingsPage() {
       const res = await fetch('/api/settings/team/invite', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: inviteEmail, full_name: inviteName, role: inviteRole }),
+        body: JSON.stringify({ email: inviteEmail, full_name: inviteName, role: inviteRole, password: invitePassword }),
       })
       const json = await res.json()
       if (!res.ok || !json.success) {
@@ -183,6 +193,8 @@ export default function SettingsPage() {
       }
       setInviteEmail('')
       setInviteName('')
+      setInvitePassword('')
+      setInviteConfirmPassword('')
       setInviteOpen(false)
       toast({ title: 'Invite sent', description: 'Credentials have been emailed to the member.' })
       // refresh team
@@ -361,6 +373,24 @@ export default function SettingsPage() {
                   <div className="grid gap-2">
                     <Label>Full Name</Label>
                     <Input placeholder="Full name" value={inviteName} onChange={(e) => setInviteName(e.target.value)} />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label>Password</Label>
+                    <Input
+                      type="password"
+                      placeholder="Minimum 8 characters"
+                      value={invitePassword}
+                      onChange={(e) => setInvitePassword(e.target.value)}
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label>Confirm Password</Label>
+                    <Input
+                      type="password"
+                      placeholder="Re-enter password"
+                      value={inviteConfirmPassword}
+                      onChange={(e) => setInviteConfirmPassword(e.target.value)}
+                    />
                   </div>
                   <div className="grid gap-2">
                     <Label>Role</Label>

@@ -7,11 +7,18 @@ const ALLOWED_ROLES = ['manager', 'caretaker']
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json().catch(() => ({}))
-    const { email, full_name, role } = body || {}
+    const { email, full_name, role, password } = body || {}
 
-    if (!email || !full_name || !role || !ALLOWED_ROLES.includes(role)) {
+    if (!email || !full_name || !role || !password || !ALLOWED_ROLES.includes(role)) {
       return NextResponse.json(
-        { success: false, error: 'Email, full name, and valid role are required.' },
+        { success: false, error: 'Email, full name, password, and valid role are required.' },
+        { status: 400 }
+      )
+    }
+
+    if (typeof password !== 'string' || password.length < 8) {
+      return NextResponse.json(
+        { success: false, error: 'Password must be at least 8 characters long.' },
         { status: 400 }
       )
     }
@@ -38,11 +45,9 @@ export async function POST(request: NextRequest) {
     }
 
     const orgId = membership.organization_id
-    const generatedPassword = Math.random().toString(36).slice(-12)
-
     const { data: newUser, error: createError } = await admin.auth.admin.createUser({
       email,
-      password: generatedPassword,
+      password,
       email_confirm: true,
       user_metadata: { role },
     })
