@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { RefreshCw } from 'lucide-react'
+import { useRouter } from 'next/navigation'
 
 type ServiceStatus = {
   name: string
@@ -13,6 +14,7 @@ type ServiceStatus = {
 }
 
 export default function SystemStatusPage() {
+  const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [checkedAt, setCheckedAt] = useState<Date | null>(null)
   const [services, setServices] = useState<ServiceStatus[]>([
@@ -44,7 +46,12 @@ export default function SystemStatusPage() {
   return (
     <div className="p-6 max-w-4xl mx-auto space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold">System Status</h1>
+        <div className="flex items-center gap-3">
+          <Button variant="ghost" onClick={() => router.back()}>
+            Back
+          </Button>
+          <h1 className="text-3xl font-bold">System Status</h1>
+        </div>
         <Button variant="outline" size="sm" onClick={refresh} disabled={loading} className="gap-2">
           <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
           Refresh
