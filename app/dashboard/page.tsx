@@ -182,7 +182,7 @@ function DashboardContent() {
   const expensesSeries = overview?.expenses?.monthly || []
   const propertyRevenue = overview?.propertyRevenue || []
   const occupancyData = overview?.occupancy || []
-  const propertyIncomeMonth = overview?.propertyIncomeMonth || []
+  const propertyIncomeMonthData = overview?.propertyIncomeMonth || []
   const paymentData = useMemo(
     () => [
       { name: 'Paid', value: overview?.payments?.paid || 0, color: '#22c55e' },
@@ -209,15 +209,15 @@ function DashboardContent() {
   }, [revenueSeries, expensesSeries])
 
   const incomeProgressMonth = useMemo(() => {
-    if (!propertyIncomeMonth.length) return []
-    return propertyIncomeMonth
+    if (!propertyIncomeMonthData.length) return []
+    return propertyIncomeMonthData
       .slice()
       .sort((a, b) => (b.paid || 0) - (a.paid || 0))
       .map((item: any) => ({
         ...item,
         percent: item.potential ? Math.round((item.paid / item.potential) * 100) : 0,
       }))
-  }, [propertyIncomeMonth])
+  }, [propertyIncomeMonthData])
 
   useEffect(() => {
     const loadOverview = async () => {

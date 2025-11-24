@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -8,8 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
-import { Switch } from '@/components/ui/switch'
-import { ArrowLeft, Lock, Bell, Palette, Users, Zap } from 'lucide-react'
+import { ArrowLeft, Lock, Palette, Users } from 'lucide-react'
 import {
   Select,
   SelectContent,
@@ -17,12 +16,73 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { useToast } from '@/components/ui/use-toast'
+import { useTheme } from 'next-themes'
+
+type TeamMember = {
+  id: string
+  email: string | null
+  full_name: string | null
+  role: string
+}
 
 export default function SettingsPage() {
   const router = useRouter()
   const [activeTab, setActiveTab] = useState('account')
-  const [notificationsEnabled, setNotificationsEnabled] = useState(true)
-  const [autoReminders, setAutoReminders] = useState(true)
+  const [fullName, setFullName] = useState('')
+  const [phone, setPhone] = useState('')
+  const [email, setEmail] = useState('')
+  const [profileLoading, setProfileLoading] = useState(false)
+  const [profileError, setProfileError] = useState<string | null>(null)
+  const [savingProfile, setSavingProfile] = useState(false)
+  const [passwordSaving, setPasswordSaving] = useState(false)
+  const [oldPassword, setOldPassword] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([])
+  const [teamError, setTeamError] = useState<string | null>(null)
+  const [inviteOpen, setInviteOpen] = useState(false)
+  const [inviteRole, setInviteRole] = useState<'manager' | 'caretaker'>('manager')
+  const [inviteEmail, setInviteEmail] = useState('')
+  const [inviteName, setInviteName] = useState('')
+  const [inviteSaving, setInviteSaving] = useState(false)
+  const { setTheme, theme } = useTheme()
+  const { toast } = useToast()
+
+  useEffect(() => {
+    const loadProfile = async () => {
+      try {
+        setProfileLoading(true)
+        const res = await fetch('/api/settings/profile', { cache: 'no-store' })
+        const json = await res.json()
+        if (!res.ok || !json.success) {
+          throw new Error(json.error || 'Failed to load profile.')
+        }
+        setFullName(json.data?.full_name || '')
+        setPhone(json.data?.phone_number || '')
+        setEmail(json.data?.email || '')
+      } catch (err) {
+        setProfileError(err instanceof Error ? err.message : 'Unable to load profile.')
+      } finally {
+        setProfileLoading(false)
+      }
+    }
+
+    const loadTeam = async () => {
+      try {
+        const res = await fetch('/api/settings/team', { cache: 'no-store' })
+        const json = await res.json()
+        if (!res.ok || !json.success) {
+          throw new Error(json.error || 'Failed to load team.')
+        }
+        setTeamMembers(json.data || [])
+      } catch (err) {
+        setTeamError(err instanceof Error ? err.message : 'Unable to load team.')
+      }
+    }
+
+    loadProfile()
+    loadTeam()
+  }, [])
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
@@ -39,14 +99,10 @@ export default function SettingsPage() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="account" className="gap-2">
             <Lock className="w-4 h-4" />
             <span className="hidden sm:inline">Account</span>
-          </TabsTrigger>
-          <TabsTrigger value="notifications" className="gap-2">
-            <Bell className="w-4 h-4" />
-            <span className="hidden sm:inline">Notifications</span>
           </TabsTrigger>
           <TabsTrigger value="appearance" className="gap-2">
             <Palette className="w-4 h-4" />
@@ -55,10 +111,6 @@ export default function SettingsPage() {
           <TabsTrigger value="team" className="gap-2">
             <Users className="w-4 h-4" />
             <span className="hidden sm:inline">Team</span>
-          </TabsTrigger>
-          <TabsTrigger value="integrations" className="gap-2">
-            <Zap className="w-4 h-4" />
-            <span className="hidden sm:inline">Integrations</span>
           </TabsTrigger>
         </TabsList>
 
@@ -93,38 +145,6 @@ export default function SettingsPage() {
               <Button variant="outline" className="w-full">Change Password</Button>
               <Button variant="outline" className="w-full">Enable Two-Factor Authentication</Button>
               <Button variant="outline" className="w-full">View Login History</Button>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Notifications */}
-        <TabsContent value="notifications" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Notification Preferences</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="font-medium">Email Notifications</p>
-                  <p className="text-sm text-muted-foreground">Receive email updates</p>
-                </div>
-                <Switch checked={notificationsEnabled} onCheckedChange={setNotificationsEnabled} />
-              </div>
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="font-medium">Payment Alerts</p>
-                  <p className="text-sm text-muted-foreground">Alert when payments are received</p>
-                </div>
-                <Switch defaultChecked />
-              </div>
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="font-medium">Auto Reminders</p>
-                  <p className="text-sm text-muted-foreground">Auto-send SMS reminders to tenants</p>
-                </div>
-                <Switch checked={autoReminders} onCheckedChange={setAutoReminders} />
-              </div>
             </CardContent>
           </Card>
         </TabsContent>
