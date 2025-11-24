@@ -1,3 +1,4 @@
+@import './mobile-only.css';
 @import 'tailwindcss';
 @import 'tw-animate-css';
 
