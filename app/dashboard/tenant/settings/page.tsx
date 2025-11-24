@@ -15,9 +15,11 @@ export default function TenantSettingsPage() {
   const [email, setEmail] = useState('')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [profileSaved, setProfileSaved] = useState(false)
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [passwordSaving, setPasswordSaving] = useState(false)
+  const [passwordSaved, setPasswordSaved] = useState(false)
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -52,6 +54,7 @@ export default function TenantSettingsPage() {
       })
       const json = await res.json()
       if (!res.ok || !json.success) throw new Error(json.error || 'Failed to update profile.')
+      setProfileSaved(true)
       toast({ title: 'Profile updated', description: 'Your details have been saved.' })
     } catch (err) {
       toast({
@@ -84,6 +87,7 @@ export default function TenantSettingsPage() {
       if (!res.ok || !json.success) throw new Error(json.error || 'Failed to change password.')
       setNewPassword('')
       setConfirmPassword('')
+      setPasswordSaved(true)
       toast({ title: 'Password updated' })
     } catch (err) {
       toast({
@@ -110,34 +114,42 @@ export default function TenantSettingsPage() {
           <CardTitle>Your Details</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid gap-2">
-            <Label htmlFor="fullName">Full Name</Label>
-            <Input
-              id="fullName"
-              value={fullName}
-              onChange={(e) => setFullName(e.target.value)}
-              disabled={loading || saving}
-            />
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="email">Email</Label>
-            <Input id="email" value={email} disabled />
-            <p className="text-xs text-muted-foreground">Email cannot be changed from the tenant portal.</p>
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="phone">Phone Number</Label>
-            <Input
-              id="phone"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              disabled={loading || saving}
-            />
-          </div>
-          <div className="flex justify-end">
-            <Button onClick={handleSave} disabled={saving || loading}>
-              {saving ? 'Saving…' : 'Update Profile'}
-            </Button>
-          </div>
+          {profileSaved ? (
+            <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-emerald-800">
+              Your profile has been updated successfully.
+            </div>
+          ) : (
+            <>
+              <div className="grid gap-2">
+                <Label htmlFor="fullName">Full Name</Label>
+                <Input
+                  id="fullName"
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  disabled={loading || saving}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="email">Email</Label>
+                <Input id="email" value={email} disabled />
+                <p className="text-xs text-muted-foreground">Email cannot be changed from the tenant portal.</p>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="phone">Phone Number</Label>
+                <Input
+                  id="phone"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  disabled={loading || saving}
+                />
+              </div>
+              <div className="flex justify-end">
+                <Button onClick={handleSave} disabled={saving || loading}>
+                  {saving ? 'Saving…' : 'Update Profile'}
+                </Button>
+              </div>
+            </>
+          )}
         </CardContent>
       </Card>
 
@@ -146,34 +158,42 @@ export default function TenantSettingsPage() {
           <CardTitle>Change Password</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid gap-2">
-            <Label htmlFor="newPassword">New Password</Label>
-            <Input
-              id="newPassword"
-              type="password"
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-              disabled={passwordSaving}
-            />
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="confirmPassword">Confirm Password</Label>
-            <Input
-              id="confirmPassword"
-              type="password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              disabled={passwordSaving}
-            />
-          </div>
-          <div className="flex justify-end">
-            <Button onClick={handlePasswordChange} disabled={passwordSaving}>
-              {passwordSaving ? 'Updating…' : 'Update Password'}
-            </Button>
-          </div>
-          <p className="text-xs text-muted-foreground">
-            Password must be at least 8 characters. Use a unique password for your security.
-          </p>
+          {passwordSaved ? (
+            <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-emerald-800">
+              Your password has been updated successfully.
+            </div>
+          ) : (
+            <>
+              <div className="grid gap-2">
+                <Label htmlFor="newPassword">New Password</Label>
+                <Input
+                  id="newPassword"
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  disabled={passwordSaving}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="confirmPassword">Confirm Password</Label>
+                <Input
+                  id="confirmPassword"
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  disabled={passwordSaving}
+                />
+              </div>
+              <div className="flex justify-end">
+                <Button onClick={handlePasswordChange} disabled={passwordSaving}>
+                  {passwordSaving ? 'Updating…' : 'Update Password'}
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Password must be at least 8 characters. Use a unique password for your security.
+              </p>
+            </>
+          )}
         </CardContent>
       </Card>
     </div>
