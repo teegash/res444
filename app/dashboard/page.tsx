@@ -359,16 +359,16 @@ function DashboardContent() {
                     <div>
                       <p className="text-sm text-gray-600 mb-1">Monthly Revenue</p>
                       <p className="text-3xl font-bold">
-                        {overview ? formatCurrency(overview.summary.monthlyRevenue || 0, 'KES') : '—'}
+                        {overview?.summary ? formatCurrency(overview.summary.monthlyRevenue || 0, 'KES') : '—'}
                       </p>
                       {overview?.summary?.revenueDelta !== null ? (
                         <p
                           className={`text-sm mt-1 flex items-center gap-1 ${
-                            (overview.summary.revenueDelta || 0) >= 0 ? 'text-green-600' : 'text-red-600'
+                            (overview.summary?.revenueDelta || 0) >= 0 ? 'text-green-600' : 'text-red-600'
                           }`}
                         >
-                          {(overview.summary.revenueDelta || 0) >= 0 ? <ArrowUpRight className="h-4 w-4" /> : <ArrowDownRight className="h-4 w-4" />}
-                          {Math.abs(overview.summary.revenueDelta || 0).toFixed(1)}% vs last month
+                          {(overview.summary?.revenueDelta || 0) >= 0 ? <ArrowUpRight className="h-4 w-4" /> : <ArrowDownRight className="h-4 w-4" />}
+                          {Math.abs(overview.summary?.revenueDelta || 0).toFixed(1)}% vs last month
                         </p>
                       ) : (
                         <p className="text-sm text-gray-500 mt-1">Trend pending</p>
