@@ -34,6 +34,7 @@ type MaintenanceRow = {
   status?: string | null
   priority?: string | null
   created_at?: string | null
+  updated_at?: string | null
   unit?: {
     unit_number?: string | null
     apartment_buildings?: {
@@ -158,6 +159,7 @@ export async function GET() {
     // Property revenue grouping
     // Property revenue + potential (using invoices of current month)
     const propertyRevenueMap = new Map<string, { paid: number; potential: number }>()
+    const propertyIncomeMonth = new Map<string, { paid: number; potential: number }>()
     invoices.forEach((inv) => {
       const name =
         inv.leases?.apartment_units?.apartment_buildings?.name || inv.leases?.apartment_units?.building_id || 'Unassigned'
@@ -166,10 +168,24 @@ export async function GET() {
       bucket.potential += amount
       if (inv.status === true) bucket.paid += amount
       propertyRevenueMap.set(name, bucket)
+
+      // current month focus
+      if (inv.due_date && inv.due_date.slice(0, 7) === currentMonthKey) {
+        const mBucket = propertyIncomeMonth.get(name) || { paid: 0, potential: 0 }
+        mBucket.potential += amount
+        if (inv.status === true) mBucket.paid += amount
+        propertyIncomeMonth.set(name, mBucket)
+      }
     })
     const propertyRevenue = Array.from(propertyRevenueMap.entries()).map(([name, vals]) => ({
       name,
       revenue: vals.paid,
+      potential: vals.potential,
+      percent: vals.potential ? Math.round((vals.paid / vals.potential) * 100) : 0,
+    }))
+    const propertyIncomeMonthArr = Array.from(propertyIncomeMonth.entries()).map(([name, vals]) => ({
+      name,
+      paid: vals.paid,
       potential: vals.potential,
       percent: vals.potential ? Math.round((vals.paid / vals.potential) * 100) : 0,
     }))
@@ -191,6 +207,7 @@ export async function GET() {
       status: m.status || 'open',
       priority: m.priority || 'medium',
       created_at: m.created_at,
+      updated_at: (m as any).updated_at || null,
       property: m.unit?.apartment_buildings?.name || 'Unassigned',
       unit: m.unit?.unit_number || 'Unit',
     }))
@@ -234,6 +251,7 @@ export async function GET() {
         prevMonthRevenue,
       },
       propertyRevenue,
+      propertyIncomeMonth: propertyIncomeMonthArr,
       expenses: {
         monthly: Array.from(months, (m) => ({
           label: m.label,

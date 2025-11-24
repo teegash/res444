@@ -182,6 +182,7 @@ function DashboardContent() {
   const expensesSeries = overview?.expenses?.monthly || []
   const propertyRevenue = overview?.propertyRevenue || []
   const occupancyData = overview?.occupancy || []
+  const propertyIncomeMonth = overview?.propertyIncomeMonth || []
   const paymentData = useMemo(
     () => [
       { name: 'Paid', value: overview?.payments?.paid || 0, color: '#22c55e' },
@@ -652,55 +653,49 @@ function DashboardContent() {
             </div>
 
             {/* Property insights row */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <Card>
-                <CardHeader>
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                      <Building2 className="w-6 h-6 text-blue-600" />
+            {propertyIncomeMonth?.length ? (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <Card>
+                  <CardHeader>
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
+                        <DollarSign className="w-6 h-6 text-green-600" />
+                      </div>
+                      <div>
+                        <CardTitle className="text-xl">Income per Property</CardTitle>
+                        <CardDescription>Rent paid vs potential (units × rent) this month</CardDescription>
+                      </div>
                     </div>
-                    <div>
-                      <CardTitle className="text-xl">Property Occupancy</CardTitle>
-                      <CardDescription>Units occupied vs total per property</CardDescription>
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  {occupancyData?.length ? (
-                    occupancyData.map((item: any) => {
-                      const percent = item.total_units
-                        ? Math.round((item.occupied_units / item.total_units) * 100)
-                        : 0
-                      return (
-                        <div key={item.building_id}>
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <p className="font-semibold text-gray-900">{item.property_name}</p>
-                              <p className="text-xs text-gray-500">
-                                {item.occupied_units} / {item.total_units} units occupied
-                              </p>
-                            </div>
-                            <span className="text-sm font-medium text-gray-700">{percent}%</span>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {propertyIncomeMonth.map((item: any) => (
+                      <div key={item.name}>
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="font-semibold text-gray-900">{item.name}</p>
+                            <p className="text-xs text-gray-500">
+                              {formatCurrency(item.paid, 'KES')} of {formatCurrency(item.potential || 0, 'KES')}
+                            </p>
                           </div>
-                          <div className="w-full bg-gray-100 h-2 rounded-full overflow-hidden">
-                            <div
-                              className="h-2 rounded-full bg-gradient-to-r from-green-500 to-emerald-600"
-                              style={{ width: `${Math.min(percent, 100)}%` }}
-                            />
-                          </div>
+                          <span className="text-sm font-medium text-gray-700">
+                            {item.percent}%
+                          </span>
                         </div>
-                      )
-                    })
-                  ) : (
-                    <p className="text-sm text-gray-500">No occupancy data to display yet.</p>
-                  )}
-                </CardContent>
-              </Card>
-            </div>
+                        <div className="w-full bg-gray-100 h-2 rounded-full overflow-hidden">
+                          <div
+                            className="h-2 rounded-full bg-gradient-to-r from-[#7c3aed] to-[#4f46e5]"
+                            style={{ width: `${Math.min(item.percent, 100)}%` }}
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </CardContent>
+                </Card>
+              </div>
+            ) : null}
 
-            {/* Bottom Row */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Maintenance */}
+            {/* Bottom Row: Maintenance left, quick links right */}
+            <div className="grid grid-cols-1 lg:grid-cols-[1fr_1.2fr] gap-6">
               <Card>
                 <CardHeader>
                   <div className="flex items-center gap-3">
@@ -726,10 +721,10 @@ function DashboardContent() {
                             {item.property} • {item.unit}
                           </p>
                           <p className="text-xs text-gray-500">
-                            {item.created_at
-                              ? new Date(item.created_at).toLocaleString()
-                              : item.updated_at
-                                ? new Date(item.updated_at).toLocaleString()
+                            {item.updated_at
+                              ? new Date(item.updated_at).toLocaleString()
+                              : item.created_at
+                                ? new Date(item.created_at).toLocaleString()
                                 : '—'}
                           </p>
                         </div>
@@ -764,10 +759,7 @@ function DashboardContent() {
                   )}
                 </CardContent>
               </Card>
-            </div>
 
-            {/* Quick menu + Top tenants */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {[
                   { label: 'Water Bill History', href: '/dashboard/water-bills/statements', icon: Droplet, color: 'from-blue-500 to-cyan-500' },

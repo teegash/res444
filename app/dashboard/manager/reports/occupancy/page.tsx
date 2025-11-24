@@ -21,13 +21,6 @@ type OccupancyRow = {
   moveOuts: number
 }
 
-const occupancyRows: OccupancyRow[] = [
-  { property: 'Kilimani Heights', occupied: 22, total: 24, moveIns: 3, moveOuts: 1 },
-  { property: 'Westlands Plaza', occupied: 16, total: 18, moveIns: 2, moveOuts: 1 },
-  { property: 'Karen Villas', occupied: 7, total: 8, moveIns: 1, moveOuts: 0 },
-  { property: 'Eastlands Court', occupied: 28, total: 32, moveIns: 4, moveOuts: 2 },
-]
-
 const periods = [
   { value: 'month', label: 'Last 30 days' },
   { value: 'quarter', label: 'Quarter' },
@@ -39,7 +32,7 @@ const periods = [
 export default function OccupancyReportPage() {
   const [period, setPeriod] = useState('quarter')
   const [property, setProperty] = useState('all')
-  const [rows, setRows] = useState<OccupancyRow[]>(occupancyRows)
+  const [rows, setRows] = useState<OccupancyRow[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [search, setSearch] = useState('')
