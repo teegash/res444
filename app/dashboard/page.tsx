@@ -183,7 +183,6 @@ function DashboardContent() {
   const propertyRevenue = overview?.propertyRevenue || []
   const occupancyData = overview?.occupancy || []
   const propertyIncomeMonth = overview?.propertyIncomeMonth || []
-  const propertyIncomeMonth = overview?.propertyIncomeMonth || []
   const paymentData = useMemo(
     () => [
       { name: 'Paid', value: overview?.payments?.paid || 0, color: '#22c55e' },
