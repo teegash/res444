@@ -11,7 +11,6 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Calendar, TrendingUp, Clock, CheckCircle2 } from 'lucide-react'
 import Link from 'next/link'
 import { SkeletonLoader, SkeletonPropertyCard, SkeletonTable } from '@/components/ui/skeletons'
-import { TenantMobileNav } from '@/components/navigation/tenant-mobile-nav'
 
 type TenantSummary = {
   profile: {
@@ -513,7 +512,6 @@ export default function TenantDashboard() {
           </CardContent>
         </Card>
       </div>
-      <TenantMobileNav />
     </div>
   )
 }
