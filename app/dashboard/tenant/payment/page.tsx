@@ -43,7 +43,7 @@ export default function TenantPaymentPortal() {
   const [invoiceError, setInvoiceError] = useState<string | null>(null)
   const [loadingInvoice, setLoadingInvoice] = useState(true)
   const [paymentMethod, setPaymentMethod] = useState<'mpesa' | 'card' | 'bank'>('mpesa')
-  const [monthsToPay] = useState(1)
+  const [monthsToPay, setMonthsToPay] = useState<number>(1)
   const [mpesaNumber, setMpesaNumber] = useState('')
   const [cardDetails, setCardDetails] = useState({ name: '', number: '', expiry: '', cvv: '' })
   const [depositSnapshot, setDepositSnapshot] = useState<File | null>(null)
