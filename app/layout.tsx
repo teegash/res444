@@ -29,9 +29,9 @@ export default function RootLayout({
       <body className="font-sans antialiased">
         <AuthProvider>
           {children}
+          <MobileNavRoot />
         </AuthProvider>
         <Analytics />
-        <MobileNavRoot />
       </body>
     </html>
   )
