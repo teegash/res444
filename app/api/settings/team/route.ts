@@ -38,11 +38,11 @@ export async function GET() {
     if (userIds.length > 0) {
       const { data: profileRows, error: profileError } = await admin
         .from('user_profiles')
-        .select('id, full_name, email')
+        .select('id, full_name')
         .in('id', userIds)
       if (profileError) throw profileError
       profiles = Object.fromEntries(
-        (profileRows || []).map((p: any) => [p.id, { full_name: p.full_name, email: (p as any).email ?? null }])
+        (profileRows || []).map((p: any) => [p.id, { full_name: p.full_name }])
       )
     }
 
