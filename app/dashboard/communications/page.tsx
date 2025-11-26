@@ -575,6 +575,7 @@ export default function CommunicationsPage() {
               </CardContent>
             </Card>
           </TabsContent>
+          )}
 
           {/* Announcements Tab */}
           {!isCaretaker && (
