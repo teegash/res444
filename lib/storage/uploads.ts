@@ -172,6 +172,7 @@ export async function uploadDepositSlip(
     // Upload file
     const result = await uploadFile('deposit-slips', file, filePath, {
       contentType: file.type,
+      useAdminClient: true,
     })
 
     return result
@@ -252,4 +253,3 @@ export async function getSignedUrl(
     }
   }
 }
-
