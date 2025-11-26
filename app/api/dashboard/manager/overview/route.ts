@@ -172,24 +172,41 @@ export async function GET() {
 
     // Property revenue grouping
     // Property revenue + potential (using invoices of current month)
-    const propertyRevenueMap = new Map<string, { paid: number; potential: number }>()
-    const propertyIncomeMonth = new Map<string, { paid: number; potential: number }>()
+    const propertyNameMap = new Map<string, string>()
+    ;(propertiesRes.data || []).forEach((p) => {
+      if (p.id) propertyNameMap.set(p.id, p.name || p.id)
+      if (p.name) propertyNameMap.set(p.name, p.name)
+    })
+    const propertyRevenueMap = new Map<string, { paid: number; potential: number; name: string }>()
+    const propertyIncomeMonth = new Map<string, { paid: number; potential: number; name: string }>()
     const potentialMap = new Map<string, number>()
     invoices.forEach((inv) => {
-      const name =
-        inv.leases?.apartment_units?.apartment_buildings?.name || inv.leases?.apartment_units?.building_id || 'Unassigned'
-      const bucket = propertyRevenueMap.get(name) || { paid: 0, potential: 0 }
+      const buildingKey =
+        inv.leases?.apartment_units?.building_id ||
+        inv.leases?.apartment_units?.apartment_buildings?.name ||
+        'Unassigned'
+      const displayName =
+        propertyNameMap.get(inv.leases?.apartment_units?.building_id || '') ||
+        propertyNameMap.get(inv.leases?.apartment_units?.apartment_buildings?.name || '') ||
+        buildingKey
+      const bucket = propertyRevenueMap.get(buildingKey) || { paid: 0, potential: 0, name: displayName }
       const amount = Number(inv.amount || 0)
       bucket.potential += amount
       if (inv.status === true) bucket.paid += amount
-      propertyRevenueMap.set(name, bucket)
+      bucket.name = displayName
+      propertyRevenueMap.set(buildingKey, bucket)
 
       // current month focus
       if (inv.due_date && inv.due_date.slice(0, 7) === currentMonthKey) {
-        const mBucket = propertyIncomeMonth.get(name) || { paid: 0, potential: 0 }
+        const mBucket = propertyIncomeMonth.get(buildingKey) || {
+          paid: 0,
+          potential: 0,
+          name: displayName,
+        }
         mBucket.potential += amount
         if (inv.status === true) mBucket.paid += amount
-        propertyIncomeMonth.set(name, mBucket)
+        mBucket.name = displayName
+        propertyIncomeMonth.set(buildingKey, mBucket)
       }
     })
     // Potential based on all units (occupied, vacant, maintenance) = monthly rent * total units
@@ -205,34 +222,42 @@ export async function GET() {
     const propertyRevenueEntries =
       propertyRevenueMap instanceof Map ? Array.from(propertyRevenueMap.entries()) : []
     const propertyRevenue = Array.isArray(propertyRevenueEntries)
-      ? propertyRevenueEntries.map(([name, vals]) => ({
-          name,
+      ? propertyRevenueEntries.map(([key, vals]) => ({
+          name: vals.name || propertyNameMap.get(key) || key,
           revenue: vals.paid,
           potential: vals.potential,
           percent: vals.potential ? Math.round((vals.paid / vals.potential) * 100) : 0,
         }))
       : []
     // Ensure every property shows up even if no invoices yet this month
-    (propertiesRes.data || []).forEach((prop) => {
-      const name = prop.name || prop.id || 'Unassigned'
-      if (!propertyIncomeMonth.has(name)) {
-        const potential = potentialMap.get(prop.id) || potentialMap.get(name) || 0
-        propertyIncomeMonth.set(name, { paid: 0, potential })
+    ;(propertiesRes.data || []).forEach((prop) => {
+      const key = prop.id || prop.name || 'Unassigned'
+      const potential = potentialMap.get(prop.id) || potentialMap.get(key) || 0
+      if (!propertyIncomeMonth.has(key)) {
+        propertyIncomeMonth.set(key, {
+          paid: 0,
+          potential,
+          name: prop.name || key,
+        })
+      } else {
+        const existing = propertyIncomeMonth.get(key)
+        if (existing) {
+          existing.potential = existing.potential || potential
+          existing.name = existing.name || prop.name || key
+          propertyIncomeMonth.set(key, existing)
+        }
       }
     })
 
     const propertyIncomeEntries =
       propertyIncomeMonth instanceof Map ? Array.from(propertyIncomeMonth.entries()) : []
     const propertyIncomeMonthArr = Array.isArray(propertyIncomeEntries)
-      ? propertyIncomeEntries.map(([name, vals]) => {
-          const propertyId =
-            propertiesRes.data?.find((p) => p.name === name)?.id ||
-            propertiesRes.data?.find((p) => p.id === name)?.id ||
-            null
-          const unitPotential = propertyId ? potentialMap.get(propertyId) || 0 : potentialMap.get(name) || 0
+      ? propertyIncomeEntries.map(([key, vals]) => {
+          const displayName = vals.name || propertyNameMap.get(key) || key
+          const unitPotential = potentialMap.get(key) || 0
           const potential = unitPotential || vals.potential || 0
           return {
-            name,
+            name: displayName,
             paid: vals.paid,
             potential,
             percent: potential ? Math.round((vals.paid / potential) * 100) : 0,

@@ -729,8 +729,8 @@ function DashboardContent() {
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  {overview?.maintenance?.length ? (
-                    overview.maintenance.map((item) => (
+                  {Array.isArray(overview?.maintenance) && overview.maintenance.length ? (
+                    overview.maintenance.slice(0, 3).map((item) => (
                       <div
                         key={item.id}
                         className="flex items-start justify-between rounded-lg border border-gray-100 p-3 bg-white"
