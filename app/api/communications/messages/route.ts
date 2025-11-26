@@ -36,33 +36,44 @@ export async function GET() {
     }
 
     const userRole = (user.user_metadata?.role as string | undefined)?.toLowerCase()
-    let propertyScope: string | null =
-      (user.user_metadata as any)?.property_id || (user.user_metadata as any)?.building_id || null
     if (!userRole || !MANAGER_ROLES.has(userRole)) {
       return NextResponse.json({ success: false, error: 'Access denied.' }, { status: 403 })
     }
 
     const admin = createAdminClient()
-    try {
-      const { data: membership } = await admin
-        .from('organization_members')
-        .select('property_id')
-        .eq('user_id', user.id)
-        .maybeSingle()
-      if (membership?.property_id) {
-        propertyScope = membership.property_id
-      }
-    } catch {
-      // ignore missing column
+    const { data: membership } = await admin
+      .from('organization_members')
+      .select('organization_id')
+      .eq('user_id', user.id)
+      .maybeSingle()
+
+    if (!membership?.organization_id) {
+      return NextResponse.json({ success: true, data: [] })
     }
+
+    const { data: orgStaff, error: staffError } = await admin
+      .from('organization_members')
+      .select('user_id')
+      .eq('organization_id', membership.organization_id)
+      .in('role', Array.from(MANAGER_ROLES))
+
+    if (staffError) throw staffError
+
+    const staffIds = Array.from(new Set((orgStaff || []).map((row) => row.user_id).filter(Boolean)))
+    if (staffIds.length === 0) {
+      return NextResponse.json({ success: true, data: [] })
+    }
+
+    const staffList = staffIds.map((id) => id.replace(/,/g, '')).join(',')
+
     const { data, error } = await admin
       .from('communications')
       .select(
         'id, sender_user_id, recipient_user_id, message_text, read, created_at, related_entity_type, message_type'
       )
-      .or(`sender_user_id.eq.${user.id},recipient_user_id.eq.${user.id}`)
+      .or(`sender_user_id.in.(${staffList}),recipient_user_id.in.(${staffList})`)
       .order('created_at', { ascending: false })
-      .limit(400)
+      .limit(800)
 
     if (error) {
       throw error
@@ -70,13 +81,20 @@ export async function GET() {
 
     const profileIds = new Set<string>()
     const conversations = new Map<string, ConversationSummary>()
+    const staffSet = new Set(staffIds)
 
     ;(data || []).forEach((row: CommunicationRow) => {
       if (row.related_entity_type === 'payment') return
       if (row.message_type && row.message_type !== 'in_app') return
 
-      const otherUserId =
-        row.sender_user_id === user.id ? row.recipient_user_id : row.sender_user_id
+      const senderStaff = row.sender_user_id && staffSet.has(row.sender_user_id)
+      const recipientStaff = row.recipient_user_id && staffSet.has(row.recipient_user_id)
+
+      // Only consider messages between staff and tenants
+      if (!senderStaff && !recipientStaff) return
+      if (senderStaff && recipientStaff) return
+
+      const otherUserId = senderStaff ? row.recipient_user_id : row.sender_user_id
       if (!otherUserId) return
 
       profileIds.add(otherUserId)
@@ -94,7 +112,7 @@ export async function GET() {
         })
       }
 
-      if (row.recipient_user_id === user.id && row.read === false) {
+      if (row.recipient_user_id && staffSet.has(row.recipient_user_id) && row.read === false) {
         const entry = conversations.get(otherUserId)
         if (entry) {
           entry.unreadCount += 1
@@ -110,28 +128,12 @@ export async function GET() {
       }
     })
 
-    let allowedTenantIds = Array.from(profileIds)
-    if (userRole === 'caretaker' && propertyScope) {
-      const { data: leases } = await admin
-        .from('leases')
-        .select('tenant_user_id, unit:apartment_units ( building_id )')
-        .in('tenant_user_id', Array.from(profileIds))
-        .in('status', ['active', 'pending'])
-
-      const permitted = new Set(
-        (leases || [])
-          .filter((lease: any) => lease?.unit?.building_id === propertyScope)
-          .map((lease: any) => lease.tenant_user_id)
-      )
-      allowedTenantIds = allowedTenantIds.filter((id) => permitted.has(id))
-    }
-
     let profileMap = new Map<string, { full_name: string | null }>()
-    if (allowedTenantIds.length > 0) {
+    if (profileIds.size > 0) {
       const { data: profiles, error: profileError } = await admin
         .from('user_profiles')
         .select('id, full_name')
-        .in('id', allowedTenantIds)
+        .in('id', Array.from(profileIds))
 
       if (profileError) {
         throw profileError
@@ -141,7 +143,6 @@ export async function GET() {
     }
 
     const payload = Array.from(conversations.values())
-      .filter((conversation) => allowedTenantIds.includes(conversation.tenantId))
       .map((conversation) => ({
         tenantId: conversation.tenantId,
         tenantName: profileMap.get(conversation.tenantId)?.full_name || 'Tenant',
