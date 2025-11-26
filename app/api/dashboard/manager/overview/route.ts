@@ -196,7 +196,7 @@ export async function GET() {
       bucket.name = displayName
       propertyRevenueMap.set(buildingKey, bucket)
 
-      // current month focus
+      // current month focus: track paid only; potential comes from unit rents
       if (inv.due_date && inv.due_date.slice(0, 7) === currentMonthKey) {
         const mBucket = propertyIncomeMonth.get(buildingKey) || {
           paid: 0,
@@ -243,7 +243,7 @@ export async function GET() {
       } else {
         const existing = propertyIncomeMonth.get(key)
         if (existing) {
-          existing.potential = existing.potential || potential
+          existing.potential = potential
           existing.name = existing.name || prop.name || key
           propertyIncomeMonth.set(key, existing)
         }
