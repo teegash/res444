@@ -500,7 +500,9 @@ export default function TenantDashboard() {
               
               <div className="p-3 rounded-lg bg-blue-50 border border-blue-100">
                 <p className="text-sm font-medium mb-1">Lease Renewal</p>
-                <p className="text-xs text-muted-foreground">Review due: March 1, 2025</p>
+                <p className="text-xs text-muted-foreground">
+                  Review due: {summary?.lease?.end_date ? formatDate(summary.lease.end_date) : 'Not scheduled'}
+                </p>
                 <Link href="/dashboard/tenant/lease">
                   <Button size="sm" className="w-full mt-2" variant="outline">
                     View Lease

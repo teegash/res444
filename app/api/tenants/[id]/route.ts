@@ -152,10 +152,17 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       )
     }
 
-    // Fetch leases up-front (used for dependent deletes)
+    // Fetch leases up-front (used for dependent deletes and unit vacate)
     const leaseIds: string[] = []
-    const { data: leases } = await adminSupabase.from('leases').select('id').eq('tenant_user_id', tenantId)
-    leases?.forEach((row) => row.id && leaseIds.push(row.id))
+    const unitIds: string[] = []
+    const { data: leases } = await adminSupabase
+      .from('leases')
+      .select('id, unit_id')
+      .eq('tenant_user_id', tenantId)
+    leases?.forEach((row) => {
+      if (row.id) leaseIds.push(row.id)
+      if ((row as any).unit_id) unitIds.push((row as any).unit_id)
+    })
 
     // Best-effort cleanup of dependent data before deleting the auth user
     const cleanupTasks = [
@@ -174,6 +181,14 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     }
 
     await Promise.allSettled(cleanupTasks)
+
+    // Vacate units that were occupied by this tenant
+    if (unitIds.length) {
+      await adminSupabase
+        .from('apartment_units')
+        .update({ status: 'vacant' })
+        .in('id', unitIds)
+    }
 
     // Finally, remove the auth user (cascades to tables with FK ON DELETE CASCADE)
     const { error } = await adminSupabase.auth.admin.deleteUser(tenantId)
