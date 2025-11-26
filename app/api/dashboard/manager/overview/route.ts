@@ -51,13 +51,14 @@ export async function GET() {
     const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 11, 1))
     const startIso = start.toISOString().split('T')[0]
 
-    const [propertiesRes, tenantsRes, invoicesRes, paymentsRes, maintenanceRes, expensesRes, unitsRes] = await Promise.all([
-      admin.from('apartment_buildings').select('id, name'),
-      admin.from('user_profiles').select('id').eq('role', 'tenant'),
-      admin
-        .from('invoices')
-        .select(
-          `
+    const [propertiesRes, tenantsRes, invoicesRes, paymentsRes, maintenanceRes, expensesRes, unitsRes] =
+      await Promise.all([
+        admin.from('apartment_buildings').select('id, name'),
+        admin.from('user_profiles').select('id').eq('role', 'tenant'),
+        admin
+          .from('invoices')
+          .select(
+            `
           id,
           amount,
           status,
@@ -73,16 +74,16 @@ export async function GET() {
             )
           )
         `
-        )
-        .eq('invoice_type', 'rent')
-        .gte('due_date', startIso),
-      admin
-        .from('payments')
-        .select('id, amount_paid, verified, payment_date, mpesa_response_code, mpesa_query_status'),
-      admin
-        .from('maintenance_requests')
-        .select(
-          `
+          )
+          .eq('invoice_type', 'rent')
+          .gte('due_date', startIso),
+        admin
+          .from('payments')
+          .select('id, amount_paid, verified, payment_date, mpesa_response_code, mpesa_query_status'),
+        admin
+          .from('maintenance_requests')
+          .select(
+            `
           id,
           title,
           description,
@@ -97,23 +98,38 @@ export async function GET() {
             )
           )
         `
-        )
-        .order('updated_at', { ascending: false })
-        .limit(10),
-      admin
-        .from('expenses')
-        .select('id, amount, incurred_at, property_id')
-        .gte('incurred_at', startIso),
-      admin
-        .from('apartment_units')
-        .select(
-          `
+          )
+          .order('updated_at', { ascending: false })
+          .limit(10),
+        admin
+          .from('expenses')
+          .select('id, amount, incurred_at, property_id')
+          .gte('incurred_at', startIso),
+        admin
+          .from('apartment_units')
+          .select(
+            `
           id,
           building_id,
+          rent_amount,
           leases!left ( status )
         `
-        ),
-    ])
+          ),
+      ])
+
+    const fetchErrors = [
+      propertiesRes.error,
+      tenantsRes.error,
+      invoicesRes.error,
+      paymentsRes.error,
+      maintenanceRes.error,
+      expensesRes.error,
+      unitsRes.error,
+    ].filter(Boolean)
+    if (fetchErrors.length) {
+      console.error('[DashboardOverview] Fetch errors', fetchErrors)
+      throw new Error('Failed to load dashboard data.')
+    }
 
     const invoices = (invoicesRes.data || []) as InvoiceRow[]
     const payments = (paymentsRes.data || []) as any[]
