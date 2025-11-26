@@ -174,6 +174,7 @@ export function PaymentTabs({ refreshKey, onIntegrationUpdate, propertyId }: Pay
           confirmedDeposits={data?.deposits?.confirmed || []}
           rejectedCount={data?.deposits?.rejectedCount || 0}
           loading={loading}
+          onActionComplete={fetchData}
         />
       </TabsContent>
 

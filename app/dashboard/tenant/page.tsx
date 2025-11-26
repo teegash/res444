@@ -154,6 +154,11 @@ export default function TenantDashboard() {
       const verifiedPayments = (payments || []).filter(
         (payment) => (payment.status || '').toLowerCase() === 'verified'
       )
+      const pendingDeposits = (payments || []).filter(
+        (payment) =>
+          (payment.status || '').toLowerCase() === 'pending' &&
+          (payment.payment_method || '').toLowerCase() === 'bank_transfer'
+      )
 
       const paidInvoiceIds = new Set(
         verifiedPayments.map((payment) => payment.invoice_id).filter((id): id is string => Boolean(id))
@@ -197,6 +202,33 @@ export default function TenantDashboard() {
             tagLabel: isWater ? 'Water Bill' : 'Rent Invoice',
             timestamp,
             href: invoiceHref,
+          }
+        })
+
+      const depositItems: ActivityItem[] = pendingDeposits
+        .sort((a, b) => {
+          const aTime = a?.posted_at ? new Date(a.posted_at).getTime() : a?.created_at ? new Date(a.created_at).getTime() : 0
+          const bTime = b?.posted_at ? new Date(b.posted_at).getTime() : b?.created_at ? new Date(b.created_at).getTime() : 0
+          return bTime - aTime
+        })
+        .slice(0, 2)
+        .map((payment) => {
+          const postedAt = payment.posted_at || payment.created_at
+          const dateLabel = postedAt
+            ? new Date(postedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+            : '—'
+          const timestamp = postedAt ? new Date(postedAt).getTime() : Date.now()
+          const amountLabel = `KES ${Number(payment.amount_paid || 0).toLocaleString()}`
+          return {
+            id: `deposit-${payment.id}`,
+            title: 'Rent deposit slip submitted',
+            description: `${amountLabel} • awaiting verification`,
+            dateLabel,
+            tone: 'rent',
+            source: 'payment',
+            tagLabel: 'Pending Verification',
+            timestamp,
+            href: '/dashboard/tenant/payments',
           }
         })
 
@@ -262,7 +294,7 @@ export default function TenantDashboard() {
           }
         })
 
-      const combined = [...paymentItems, ...invoiceItems, ...maintenanceItems]
+      const combined = [...depositItems, ...paymentItems, ...invoiceItems, ...maintenanceItems]
         .sort((a, b) => b.timestamp - a.timestamp)
         .slice(0, 6)
 

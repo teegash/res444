@@ -34,6 +34,7 @@ interface ConfirmDepositsTabProps {
   confirmedDeposits: PaymentRecord[]
   rejectedCount: number
   loading: boolean
+  onActionComplete?: () => void
 }
 
 export function ConfirmDepositsTab({
@@ -41,18 +42,52 @@ export function ConfirmDepositsTab({
   confirmedDeposits,
   rejectedCount,
   loading,
+  onActionComplete,
 }: ConfirmDepositsTabProps) {
   const [selectedDeposit, setSelectedDeposit] = useState<PaymentRecord | null>(null)
+  const [actionLoading, setActionLoading] = useState<string | null>(null)
 
   const pendingAmount = pendingDeposits.reduce((sum, deposit) => sum + deposit.amount, 0)
   const confirmedAmount = confirmedDeposits.reduce((sum, deposit) => sum + deposit.amount, 0)
 
-  const handleConfirm = (depositId: string) => {
-    console.log('[payments] confirm deposit', depositId)
+  const handleConfirm = async (depositId: string) => {
+    try {
+      setActionLoading(depositId + '-confirm')
+      const res = await fetch(`/api/manager/payments/${depositId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'approve' }),
+      })
+      const payload = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        throw new Error(payload.error || 'Failed to approve deposit.')
+      }
+      onActionComplete?.()
+    } catch (error) {
+      console.error('[ConfirmDeposits] approve failed', error)
+    } finally {
+      setActionLoading(null)
+    }
   }
 
-  const handleReject = (depositId: string) => {
-    console.log('[payments] reject deposit', depositId)
+  const handleReject = async (depositId: string) => {
+    try {
+      setActionLoading(depositId + '-reject')
+      const res = await fetch(`/api/manager/payments/${depositId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'reject', reason: 'Payment details do not match' }),
+      })
+      const payload = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        throw new Error(payload.error || 'Failed to reject deposit.')
+      }
+      onActionComplete?.()
+    } catch (error) {
+      console.error('[ConfirmDeposits] reject failed', error)
+    } finally {
+      setActionLoading(null)
+    }
   }
 
   return (
@@ -195,15 +230,21 @@ export function ConfirmDepositsTab({
 
                         <Button
                           className="gap-2 bg-[#4682B4] hover:bg-[#4682B4]/90"
+                          disabled={actionLoading === deposit.id + '-confirm'}
                           onClick={() => handleConfirm(deposit.id)}
                         >
                           <CheckCircle2 className="w-4 h-4" />
-                          Confirm
+                          {actionLoading === deposit.id + '-confirm' ? 'Confirming…' : 'Confirm'}
                         </Button>
 
-                        <Button variant="destructive" className="gap-2" onClick={() => handleReject(deposit.id)}>
+                        <Button
+                          variant="destructive"
+                          className="gap-2"
+                          disabled={actionLoading === deposit.id + '-reject'}
+                          onClick={() => handleReject(deposit.id)}
+                        >
                           <XCircle className="w-4 h-4" />
-                          Reject
+                          {actionLoading === deposit.id + '-reject' ? 'Rejecting…' : 'Reject'}
                         </Button>
                       </div>
                     </div>

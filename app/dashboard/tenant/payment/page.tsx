@@ -358,6 +358,7 @@ export default function TenantPaymentPortal() {
         title: 'Deposit submitted',
         description: 'We will review and verify your payment soon.',
       })
+      router.push('/dashboard/tenant')
     } catch (error) {
       toast({
         title: 'Upload failed',
