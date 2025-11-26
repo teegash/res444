@@ -1,6 +1,15 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 
+const parseRent = (value?: string | number | null) => {
+  if (typeof value === 'number' && !Number.isNaN(value) && value > 0) return value
+  if (typeof value === 'string') {
+    const numeric = Number(value.replace(/[^0-9.]/g, ''))
+    if (!Number.isNaN(numeric) && numeric > 0) return numeric
+  }
+  return 0
+}
+
 type InvoiceRow = {
   id: string
   amount: number | null
@@ -110,6 +119,7 @@ export async function GET() {
             `
           id,
           building_id,
+          unit_price_category,
           leases!left ( status, monthly_rent )
         `
           ),
@@ -173,13 +183,17 @@ export async function GET() {
     // Property revenue grouping
     // Property revenue + potential (using invoices of current month)
     const propertyNameMap = new Map<string, string>()
+    const propertyNameToId = new Map<string, string>()
     ;(propertiesRes.data || []).forEach((p) => {
       if (p.id) propertyNameMap.set(p.id, p.name || p.id)
-      if (p.name) propertyNameMap.set(p.name, p.name)
+      if (p.name) {
+        propertyNameMap.set(p.name, p.name)
+        propertyNameToId.set(p.name, p.id || p.name)
+      }
     })
     const propertyRevenueMap = new Map<string, { paid: number; potential: number; name: string }>()
     const propertyIncomeMonth = new Map<string, { paid: number; potential: number; name: string }>()
-    const potentialMap = new Map<string, number>()
+    const potentialById = new Map<string, number>()
     invoices.forEach((inv) => {
       const buildingKey =
         inv.leases?.apartment_units?.building_id ||
@@ -211,14 +225,15 @@ export async function GET() {
     // Potential based on all units (occupied, vacant, maintenance) = monthly rent * total units
     units.forEach((unit: any) => {
       const bid = unit.building_id || 'Unassigned'
-      const leaseRent =
-        Array.isArray(unit.leases) && unit.leases.length
-          ? Number(unit.leases[0]?.monthly_rent || 0)
-          : 0
-      const rent = leaseRent
-      potentialMap.set(bid, (potentialMap.get(bid) || 0) + rent)
-      const display = propertyNameMap.get(bid) || bid
-      potentialMap.set(display, (potentialMap.get(display) || 0) + rent)
+      const leasesArr = Array.isArray(unit.leases) ? unit.leases : []
+      const activeLease = leasesArr.find((l: any) => {
+        const status = (l?.status || '').toLowerCase()
+        return status === 'active' || status === 'pending'
+      })
+      const rent =
+        parseRent(activeLease?.monthly_rent) ||
+        parseRent(unit.unit_price_category)
+      potentialById.set(bid, (potentialById.get(bid) || 0) + rent)
     })
     const propertyRevenueEntries =
       propertyRevenueMap instanceof Map ? Array.from(propertyRevenueMap.entries()) : []
@@ -233,7 +248,7 @@ export async function GET() {
     // Ensure every property shows up even if no invoices yet this month
     ;(propertiesRes.data || []).forEach((prop) => {
       const key = prop.id || prop.name || 'Unassigned'
-      const potential = potentialMap.get(prop.id) || potentialMap.get(key) || 0
+      const potential = potentialById.get(prop.id) || 0
       if (!propertyIncomeMonth.has(key)) {
         propertyIncomeMonth.set(key, {
           paid: 0,
@@ -255,10 +270,8 @@ export async function GET() {
     const propertyIncomeMonthArr = Array.isArray(propertyIncomeEntries)
       ? propertyIncomeEntries.map(([key, vals]) => {
           const displayName = vals.name || propertyNameMap.get(key) || key
-          const unitPotential =
-            potentialMap.get(key) ||
-            potentialMap.get(displayName) ||
-            0
+          const buildingId = propertyNameToId.get(displayName) || key
+          const unitPotential = potentialById.get(buildingId) || 0
           const potential = unitPotential || vals.potential || 0
           return {
             name: displayName,
