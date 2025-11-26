@@ -195,14 +195,12 @@ export async function GET(
       rentPaidUntilDate !== null && !Number.isNaN(rentPaidUntilDate.getTime()) && rentPaidUntilDate >= monthStart
 
     if (!hasRentCharge && coverageActive && leaseRecord?.monthly_rent) {
+      const abbrev = monthStart.toLocaleDateString(undefined, { month: 'short' }).toUpperCase()
       transactions.push({
         id: `coverage-${monthKey}`,
         type: 'charge',
-        description: `Rent coverage applied (${monthStart.toLocaleDateString(undefined, {
-          month: 'long',
-          year: 'numeric',
-        })})`,
-        reference: 'COVERAGE',
+        description: `${abbrev} COV`,
+        reference: `${abbrev} COV`,
         amount: Number(leaseRecord.monthly_rent),
         category: 'rent',
         posted_at: monthStart.toISOString(),

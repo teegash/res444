@@ -62,16 +62,12 @@ function buildCoverageCharges(
     while (cursor < toDate && cursor <= coverageEnd) {
       const key = getMonthKey(cursor.toISOString())
       if (key && !chargedMonthKeys.has(key)) {
+        const abbrev = cursor.toLocaleDateString(undefined, { month: 'short' }).toUpperCase()
         coverageCharges.push({
           id: `coverage-${key}`,
           type: 'charge',
-          description: `Rent coverage applied (${cursor.toLocaleDateString(undefined, {
-            month: 'long',
-            year: 'numeric',
-          })})`,
-          reference: `COV-${cursor.getUTCFullYear()}${(cursor.getUTCMonth() + 1)
-            .toString()
-            .padStart(2, '0')}`,
+          description: `${abbrev} COV`,
+          reference: `${abbrev} COV`,
           amount: rentAmount,
           posted_at: cursor.toISOString(),
         })

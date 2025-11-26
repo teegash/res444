@@ -485,8 +485,16 @@ export async function processRentPrepayment(
     const paymentRecord = payment as PaymentRecord
     const leaseRecord = lease as LeaseRecord
     const monthlyRent = normalizeCurrency(leaseRecord.monthly_rent)
-    const monthsPaid = 1
     const amountPaid = input.amountPaid
+
+    // Derive monthsPaid (respect stored value; cap at 3)
+    const derivedMonths =
+      input.monthsPaid && Number.isFinite(input.monthsPaid)
+        ? Number(input.monthsPaid)
+        : monthlyRent > 0
+          ? amountPaid / monthlyRent
+          : 1
+    const monthsPaid = Math.min(3, clampMonthsPaid(derivedMonths))
     const paymentDate = input.paymentDate
     const previousPaidPointer = leaseRecord.next_rent_due_date || null
 
@@ -550,30 +558,71 @@ export async function processRentPrepayment(
       }
     }
 
-    // Use transactional RPC for atomicity
-    const rpcResult = await admin.rpc('process_rent_prepayment', {
-      _lease_id: input.leaseId,
-      _payment_id: input.paymentId,
-      _tenant_user_id: input.tenantUserId,
-      _months_paid: monthsPaid,
-      _amount_paid: amountPaid,
-      _payment_date: paymentDate.toISOString(),
-      _payment_method: input.paymentMethod,
-    })
+    // Compute coverage months starting from the next due/coverage pointer
+    const coverageStart = resolveCoverageStart(leaseRecord)
+    const dueDates = buildDueDates(coverageStart, monthsPaid, 1, leaseRecord.end_date)
 
-    if (rpcResult.error) {
-      throw rpcResult.error
+    const appliedInvoices: string[] = []
+    const createdInvoices: string[] = []
+
+    // Upsert/pay each monthly invoice defensively (avoid 23505)
+    for (const dueDate of dueDates) {
+      const dueLabel = new Date(dueDate).toLocaleDateString(undefined, { month: 'long', year: 'numeric' })
+      const { data: upserted, error: upsertError } = await admin
+        .from('invoices')
+        .upsert(
+          {
+            lease_id: leaseRecord.id,
+            invoice_type: 'rent',
+            amount: monthlyRent,
+            due_date: dueDate,
+            months_covered: 1,
+            status: true,
+            description: `Rent for ${dueLabel}`,
+          },
+          { onConflict: 'lease_id,invoice_type,due_date' }
+        )
+        .select('id, status')
+        .maybeSingle()
+
+      if (upsertError) {
+        validationErrors.push(`Failed to upsert invoice for ${dueLabel}: ${upsertError.message}`)
+        continue
+      }
+
+      if (upserted?.id) {
+        appliedInvoices.push(upserted.id)
+        if (!upserted.status) {
+          await admin.from('invoices').update({ status: true }).eq('id', upserted.id)
+        }
+        createdInvoices.push(upserted.id)
+      }
     }
 
-    const payload = rpcResult.data as {
-      applied_invoices: string[]
-      created_invoices: string[]
-      paid_up_to_month: string | null
-      next_rent_due_date: string | null
-      cumulative_prepaid_months: number | null
-      next_due_date: string | null
-      next_due_amount: number | null
-    } | null
+    if (validationErrors.length) {
+      return {
+        success: false,
+        message: 'Unable to process rent prepayment.',
+        validationErrors,
+        appliedInvoices,
+        createdInvoices,
+        nextDueDate: null,
+        nextDueAmount: null,
+      }
+    }
+
+    // Update lease pointers (rent_paid_until & next_rent_due_date)
+    if (dueDates.length > 0) {
+      const lastDue = startOfMonthUtc(new Date(dueDates[dueDates.length - 1]))
+      const nextDue = addMonthsUtc(lastDue, 1)
+      await admin
+        .from('leases')
+        .update({
+          rent_paid_until: toIsoDate(lastDue),
+          next_rent_due_date: toIsoDate(nextDue),
+        })
+        .eq('id', leaseRecord.id)
+    }
 
     // Mark payment as processed for idempotency (append flag, keep existing notes)
     const existingNotes = paymentRecord.notes || ''
@@ -582,6 +631,7 @@ export async function processRentPrepayment(
         .from('payments')
         .update({
           notes: `${existingNotes ? `${existingNotes} ` : ''}${PREPAYMENT_FLAG}`.trim(),
+          months_paid: monthsPaid,
         })
         .eq('id', input.paymentId)
     }
@@ -590,14 +640,14 @@ export async function processRentPrepayment(
       success: true,
       message: warnings.length ? `Processed with warnings: ${warnings.join(' ')}` : 'Rent prepayment applied.',
       validationErrors: [],
-      appliedInvoices: payload?.applied_invoices || [],
-      createdInvoices: payload?.created_invoices || [],
-      nextDueDate: payload?.next_due_date ? new Date(payload.next_due_date) : null,
-      nextDueAmount: payload?.next_due_amount || monthlyRent,
-      paidUpToMonth: payload?.paid_up_to_month || null,
+      appliedInvoices,
+      createdInvoices,
+      nextDueDate: dueDates.length ? new Date(dueDates[dueDates.length - 1]) : null,
+      nextDueAmount: monthlyRent,
+      paidUpToMonth: dueDates.length ? dueDates[dueDates.length - 1] : null,
       previouslyPaidUpToMonth: previousPaidPointer,
-      nextRentDueDate: payload?.next_rent_due_date || null,
-      cumulativePrepaidMonths: payload?.cumulative_prepaid_months || undefined,
+      nextRentDueDate: dueDates.length ? addMonthsUtc(startOfMonthUtc(new Date(dueDates[dueDates.length - 1])), 1) : null,
+      cumulativePrepaidMonths: monthsPaid,
     }
   } catch (error) {
     console.error('[processRentPrepayment] failed', error)

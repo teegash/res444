@@ -74,15 +74,14 @@ export default function TenantPaymentPortal() {
 
   const coverageLabel = useMemo(() => {
     if (!invoice?.due_date) return null
-    const baseDate =
-      leasePaidUntil && new Date(leasePaidUntil) > new Date(invoice.due_date)
-        ? new Date(leasePaidUntil)
-        : new Date(invoice.due_date)
-    return baseDate.toLocaleDateString(undefined, { year: 'numeric', month: 'long' })
-  }, [invoice?.due_date, leasePaidUntil])
+    const start = new Date(invoice.due_date)
+    if (Number.isNaN(start.getTime())) return null
+    const end = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + (monthsToPay - 1), 1))
+    return end.toLocaleDateString(undefined, { year: 'numeric', month: 'long' })
+  }, [invoice?.due_date, monthsToPay])
 
   const paymentTitle = invoice?.invoice_type === 'water' ? 'Pay Water Bill' : 'Pay Rent'
-  const showMonthsSelection = false
+  const showMonthsSelection = invoice?.invoice_type !== 'water'
 
   const fetchInvoice = useCallback(async (): Promise<InvoiceSummary | null> => {
     try {
@@ -577,9 +576,9 @@ export default function TenantPaymentPortal() {
                       onChange={(event) => setMonthsToPay(Number(event.target.value))}
                       disabled={isInvoicePaid}
                     >
-                      {Array.from({ length: 12 }).map((_, index) => (
-                        <option key={index + 1} value={index + 1}>
-                          {index + 1} {index + 1 === 1 ? 'Month' : 'Months'}
+                      {[1, 2, 3].map((val) => (
+                        <option key={val} value={val}>
+                          {val} {val === 1 ? 'Month' : 'Months'}
                         </option>
                       ))}
                     </select>
