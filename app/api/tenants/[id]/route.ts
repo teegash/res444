@@ -72,15 +72,25 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 }
 
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
-  // Accept id from route, query, or JSON body (defensive in case params are not forwarded)
-  let tenantId = params?.id
+  // Accept id from route, query, body, or path parsing (defensive)
+  let tenantId =
+    params?.id ||
+    request.nextUrl.searchParams.get('tenantId') ||
+    request.nextUrl.searchParams.get('id') ||
+    request.nextUrl.searchParams.get('tenant_user_id') ||
+    request.headers.get('x-tenant-id') ||
+    null
+
   if (!tenantId) {
-    tenantId = request.nextUrl.searchParams.get('tenantId') || null
+    // Try to parse from pathname (last segment)
+    const segments = request.nextUrl.pathname.split('/').filter(Boolean)
+    tenantId = segments[segments.length - 1] || null
   }
+
   if (!tenantId) {
     try {
       const body = await request.json().catch(() => null)
-      tenantId = body?.tenant_id || body?.tenant_user_id || null
+      tenantId = body?.tenant_id || body?.tenant_user_id || body?.id || null
     } catch {
       // ignore body parsing errors
     }
@@ -122,6 +132,24 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
 
     if (!callerRole || !MANAGER_ROLES.has(String(callerRole).toLowerCase())) {
       return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })
+    }
+
+    // Validate tenant record exists and is a tenant (user_profiles role)
+    const { data: tenantProfile, error: tenantProfileError } = await adminSupabase
+      .from('user_profiles')
+      .select('id, role')
+      .eq('id', tenantId)
+      .maybeSingle()
+
+    if (tenantProfileError) {
+      console.warn('[Tenants.DELETE] Failed to read tenant profile:', tenantProfileError.message)
+    }
+
+    if (!tenantProfile || tenantProfile.role !== 'tenant') {
+      return NextResponse.json(
+        { success: false, error: 'Tenant not found or not a tenant role.' },
+        { status: 404 }
+      )
     }
 
     // Fetch leases up-front (used for dependent deletes)
