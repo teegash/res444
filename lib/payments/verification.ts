@@ -190,9 +190,10 @@ export async function approvePayment(
 ): Promise<VerifyPaymentResult> {
   try {
     const supabase = await createClient()
+    const admin = createAdminClient()
 
     // 1. Get payment details
-    const { data: payment, error: paymentError } = await supabase
+    const { data: payment, error: paymentError } = await admin
       .from('payments')
       .select(
         `
@@ -247,7 +248,7 @@ export async function approvePayment(
 
     // 3. Update payment as verified
     const now = new Date().toISOString()
-    const { error: updateError } = await supabase
+    const { error: updateError } = await admin
       .from('payments')
       .update({
         verified: true,
@@ -285,10 +286,10 @@ export async function approvePayment(
       })
 
       if (!prepaymentResult.success) {
-        await supabase
-          .from('payments')
-          .update({ verified: false, verified_by: null, verified_at: null })
-          .eq('id', paymentId)
+      await admin
+        .from('payments')
+        .update({ verified: false, verified_by: null, verified_at: null })
+        .eq('id', paymentId)
 
         return {
           success: false,
@@ -298,7 +299,7 @@ export async function approvePayment(
 
       primaryInvoiceId = prepaymentResult.appliedInvoices[0] || invoice.id
     } else {
-      await supabase.from('invoices').update({ months_covered: monthsPaid }).eq('id', invoice.id)
+      await admin.from('invoices').update({ months_covered: monthsPaid }).eq('id', invoice.id)
       await updateInvoiceStatus(invoice.id)
     }
 
@@ -349,9 +350,10 @@ export async function rejectPayment(
 ): Promise<VerifyPaymentResult> {
   try {
     const supabase = await createClient()
+    const admin = createAdminClient()
 
     // 1. Get payment details
-    const { data: payment, error: paymentError } = await supabase
+    const { data: payment, error: paymentError } = await admin
       .from('payments')
       .select(
         `
@@ -395,7 +397,7 @@ export async function rejectPayment(
 
     // 3. Update payment with rejection
     const rejectionNotes = `[REJECTED] Reason: ${request.reason}. ${request.notes || ''}`
-    const { error: updateError } = await supabase
+    const { error: updateError } = await admin
       .from('payments')
       .update({
         notes: `${payment.notes || ''}\n${rejectionNotes}`,
