@@ -17,7 +17,6 @@ async function selectExistingInvoice(
     .select('id, amount, due_date, status, invoice_type, description, months_covered, lease_id')
     .eq('lease_id', leaseId)
     .eq('invoice_type', 'rent')
-    .in('status', UNPAID_STATUSES as any[])
     .gte('due_date', toIsoDate(periodStart))
     .lt('due_date', toIsoDate(nextPeriod))
     .maybeSingle()
