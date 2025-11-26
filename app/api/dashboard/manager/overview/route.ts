@@ -202,7 +202,9 @@ export async function GET() {
       const rent = leaseRent
       potentialMap.set(bid, (potentialMap.get(bid) || 0) + rent)
     })
-    const propertyRevenue = Array.from(propertyRevenueMap.entries()).map(([name, vals]) => ({
+    const propertyRevenueEntries =
+      propertyRevenueMap instanceof Map ? Array.from(propertyRevenueMap.entries()) : []
+    const propertyRevenue = propertyRevenueEntries.map(([name, vals]) => ({
       name,
       revenue: vals.paid,
       potential: vals.potential,
@@ -217,9 +219,9 @@ export async function GET() {
       }
     })
 
-    const propertyIncomeMonthArr = Array.from(
-      propertyIncomeMonth instanceof Map ? propertyIncomeMonth.entries() : []
-    ).map(([name, vals]) => {
+    const propertyIncomeEntries =
+      propertyIncomeMonth instanceof Map ? Array.from(propertyIncomeMonth.entries()) : []
+    const propertyIncomeMonthArr = propertyIncomeEntries.map(([name, vals]) => {
       const propertyId =
         propertiesRes.data?.find((p) => p.name === name)?.id ||
         propertiesRes.data?.find((p) => p.id === name)?.id ||
