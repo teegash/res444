@@ -204,12 +204,14 @@ export async function GET() {
     })
     const propertyRevenueEntries =
       propertyRevenueMap instanceof Map ? Array.from(propertyRevenueMap.entries()) : []
-    const propertyRevenue = propertyRevenueEntries.map(([name, vals]) => ({
-      name,
-      revenue: vals.paid,
-      potential: vals.potential,
-      percent: vals.potential ? Math.round((vals.paid / vals.potential) * 100) : 0,
-    }))
+    const propertyRevenue = Array.isArray(propertyRevenueEntries)
+      ? propertyRevenueEntries.map(([name, vals]) => ({
+          name,
+          revenue: vals.paid,
+          potential: vals.potential,
+          percent: vals.potential ? Math.round((vals.paid / vals.potential) * 100) : 0,
+        }))
+      : []
     // Ensure every property shows up even if no invoices yet this month
     (propertiesRes.data || []).forEach((prop) => {
       const name = prop.name || prop.id || 'Unassigned'
@@ -221,20 +223,22 @@ export async function GET() {
 
     const propertyIncomeEntries =
       propertyIncomeMonth instanceof Map ? Array.from(propertyIncomeMonth.entries()) : []
-    const propertyIncomeMonthArr = propertyIncomeEntries.map(([name, vals]) => {
-      const propertyId =
-        propertiesRes.data?.find((p) => p.name === name)?.id ||
-        propertiesRes.data?.find((p) => p.id === name)?.id ||
-        null
-      const unitPotential = propertyId ? potentialMap.get(propertyId) || 0 : potentialMap.get(name) || 0
-      const potential = unitPotential || vals.potential || 0
-      return {
-        name,
-        paid: vals.paid,
-        potential,
-        percent: potential ? Math.round((vals.paid / potential) * 100) : 0,
-      }
-    })
+    const propertyIncomeMonthArr = Array.isArray(propertyIncomeEntries)
+      ? propertyIncomeEntries.map(([name, vals]) => {
+          const propertyId =
+            propertiesRes.data?.find((p) => p.name === name)?.id ||
+            propertiesRes.data?.find((p) => p.id === name)?.id ||
+            null
+          const unitPotential = propertyId ? potentialMap.get(propertyId) || 0 : potentialMap.get(name) || 0
+          const potential = unitPotential || vals.potential || 0
+          return {
+            name,
+            paid: vals.paid,
+            potential,
+            percent: potential ? Math.round((vals.paid / potential) * 100) : 0,
+          }
+        })
+      : []
 
     // Payment status distribution
     const failedCount = payments.filter(
@@ -247,16 +251,18 @@ export async function GET() {
     const pendingCount = payments.filter((p) => !p.verified && !failedCount).length
 
     // Recent maintenance mapped
-    const maintenanceItems = maintenance.map((m) => ({
-      id: m.id,
-      title: m.title || 'Maintenance',
-      status: m.status || 'open',
-      priority: m.priority || 'medium',
-      created_at: m.created_at,
-      updated_at: (m as any).updated_at || null,
-      property: m.unit?.apartment_buildings?.name || 'Unassigned',
-      unit: m.unit?.unit_number || 'Unit',
-    }))
+    const maintenanceItems = Array.isArray(maintenance)
+      ? maintenance.map((m) => ({
+          id: m.id,
+          title: m.title || 'Maintenance',
+          status: m.status || 'open',
+          priority: m.priority || 'medium',
+          created_at: m.created_at,
+          updated_at: (m as any).updated_at || null,
+          property: m.unit?.apartment_buildings?.name || 'Unassigned',
+          unit: m.unit?.unit_number || 'Unit',
+        }))
+      : []
 
     const totalProperties = propertiesRes.data?.length || 0
     const totalTenants = tenantsRes.data?.length || 0
@@ -273,12 +279,15 @@ export async function GET() {
       if (hasActiveLease) bucket.occupied += 1
       occupancyMap.set(bid, bucket)
     })
-    const occupancy = Array.from(occupancyMap.entries()).map(([buildingId, counts]) => ({
-      building_id: buildingId,
-      property_name: propertiesRes.data?.find((p) => p.id === buildingId)?.name || 'Unassigned',
-      total_units: counts.total,
-      occupied_units: counts.occupied,
-    }))
+    const occupancyEntries = occupancyMap instanceof Map ? Array.from(occupancyMap.entries()) : []
+    const occupancy = Array.isArray(occupancyEntries)
+      ? occupancyEntries.map(([buildingId, counts]) => ({
+          building_id: buildingId,
+          property_name: propertiesRes.data?.find((p) => p.id === buildingId)?.name || 'Unassigned',
+          total_units: counts.total,
+          occupied_units: counts.occupied,
+        }))
+      : []
 
     return NextResponse.json({
       success: true,
