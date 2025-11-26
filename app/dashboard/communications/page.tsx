@@ -577,8 +577,6 @@ export default function CommunicationsPage() {
           </TabsContent>
 
           {/* Announcements Tab */}
-          </TabsContent>
-          )}
           {!isCaretaker && (
           <TabsContent value="announcements" className="space-y-4">
             <Card className="shadow-lg">
