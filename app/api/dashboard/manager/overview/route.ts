@@ -127,8 +127,8 @@ export async function GET() {
       unitsRes.error,
     ].filter(Boolean)
     if (fetchErrors.length) {
-      console.error('[DashboardOverview] Fetch errors', fetchErrors)
-      throw new Error('Failed to load dashboard data.')
+      // Log but continue with whatever data we have so the dashboard still renders
+      console.error('[DashboardOverview] Fetch warnings', fetchErrors)
     }
 
     const invoices = (invoicesRes.data || []) as InvoiceRow[]
