@@ -88,7 +88,6 @@ export async function GET() {
           title,
           description,
           status,
-          priority,
           created_at,
           updated_at,
           unit:apartment_units (
@@ -112,7 +111,7 @@ export async function GET() {
           id,
           building_id,
           rent_amount,
-          leases!left ( status )
+          leases!left ( status, monthly_rent )
         `
           ),
       ])
@@ -197,7 +196,11 @@ export async function GET() {
     // Potential based on all units (occupied, vacant, maintenance) = monthly rent * total units
     units.forEach((unit: any) => {
       const bid = unit.building_id || 'Unassigned'
-      const rent = Number(unit.rent_amount || 0)
+      const leaseRent =
+        Array.isArray(unit.leases) && unit.leases.length
+          ? Number(unit.leases[0]?.monthly_rent || 0)
+          : 0
+      const rent = Number(unit.rent_amount || leaseRent || 0)
       potentialMap.set(bid, (potentialMap.get(bid) || 0) + rent)
     })
     const propertyRevenue = Array.from(propertyRevenueMap.entries()).map(([name, vals]) => ({
@@ -215,7 +218,9 @@ export async function GET() {
       }
     })
 
-    const propertyIncomeMonthArr = Array.from(propertyIncomeMonth.entries()).map(([name, vals]) => {
+    const propertyIncomeMonthArr = Array.from(
+      typeof propertyIncomeMonth.entries === 'function' ? propertyIncomeMonth.entries() : []
+    ).map(([name, vals]) => {
       const propertyId =
         propertiesRes.data?.find((p) => p.name === name)?.id ||
         propertiesRes.data?.find((p) => p.id === name)?.id ||
