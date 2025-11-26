@@ -29,6 +29,8 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     }
 
     const userRole = (user.user_metadata?.role as string | undefined)?.toLowerCase()
+    let propertyScope: string | null =
+      (user.user_metadata as any)?.property_id || (user.user_metadata as any)?.building_id || null
     if (!userRole || !MANAGER_ROLES.has(userRole)) {
       return NextResponse.json(
         { success: false, error: 'Access denied. Manager permissions required.' },
@@ -37,6 +39,18 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     }
 
     const adminSupabase = createAdminClient()
+    try {
+      const { data: membership } = await adminSupabase
+        .from('organization_members')
+        .select('property_id')
+        .eq('user_id', user.id)
+        .maybeSingle()
+      if (membership?.property_id) {
+        propertyScope = membership.property_id
+      }
+    } catch {
+      // ignore if column missing
+    }
 
     const { data: tenantProfile, error: profileError } = await adminSupabase
       .from('user_profiles')
@@ -94,11 +108,33 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       }
     }
 
+    if (userRole === 'caretaker' && propertyScope && tenantLease?.unit?.building?.id) {
+      if (tenantLease.unit.building.id !== propertyScope) {
+        return NextResponse.json(
+          { success: false, error: 'You are not assigned to this property.' },
+          { status: 403 }
+        )
+      }
+    }
+
+    const orgId = tenantLease?.unit?.building?.organization_id || null
+    let staffIds: string[] = [user.id]
+    if (orgId) {
+      const { data: staff } = await adminSupabase
+        .from('organization_members')
+        .select('user_id')
+        .eq('organization_id', orgId)
+        .in('role', Array.from(MANAGER_ROLES))
+      const ids = (staff || []).map((row: any) => row.user_id).filter(Boolean)
+      staffIds = Array.from(new Set([...staffIds, ...ids]))
+    }
+    const staffList = staffIds.map((id) => id.replace(/,/g, '')).join(',')
+
     const { data: messages, error: messagesError } = await adminSupabase
       .from('communications')
       .select('id, sender_user_id, recipient_user_id, message_text, read, created_at')
       .or(
-        `and(sender_user_id.eq.${user.id},recipient_user_id.eq.${tenantId}),and(sender_user_id.eq.${tenantId},recipient_user_id.eq.${user.id})`
+        `and(sender_user_id.in.(${staffList}),recipient_user_id.eq.${tenantId}),and(sender_user_id.eq.${tenantId},recipient_user_id.in.(${staffList}))`
       )
       .order('created_at', { ascending: true })
 
