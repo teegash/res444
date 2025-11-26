@@ -99,6 +99,33 @@ export async function GET(request: NextRequest) {
 
     const today = new Date()
     const currentPeriod = startOfMonthUtc(today)
+
+    // Latest verified rent payment to extend coverage
+    const { data: latestPayment } = await adminSupabase
+      .from('payments')
+      .select(
+        `
+        months_paid,
+        invoices!inner (
+          due_date,
+          lease_id,
+          invoice_type
+        )
+      `
+      )
+      .eq('verified', true)
+      .eq('invoices.invoice_type', 'rent')
+      .eq('invoices.lease_id', lease.id)
+      .order('invoices.due_date', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    let coverageEnd: Date | null = null
+    if (latestPayment?.invoices?.due_date) {
+      const coverageStart = startOfMonthUtc(new Date(latestPayment.invoices.due_date))
+      const monthsPaid = Number(latestPayment.months_paid || 1)
+      coverageEnd = addMonthsUtc(coverageStart, monthsPaid) // first unpaid period start
+    }
     const { data: earliestUnpaid } = await adminSupabase
       .from('invoices')
       .select('id, due_date, status')
@@ -110,6 +137,10 @@ export async function GET(request: NextRequest) {
       .maybeSingle()
 
     let targetPeriod = currentPeriod
+    if (coverageEnd && coverageEnd > targetPeriod) {
+      targetPeriod = coverageEnd
+    }
+
     if (lease.next_rent_due_date) {
       const pointer = new Date(lease.next_rent_due_date)
       if (!Number.isNaN(pointer.getTime())) {
@@ -129,7 +160,6 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    const dueDate = toIsoDate(targetPeriod)
     let invoice = await selectExistingInvoice(adminSupabase, lease.id, targetPeriod)
     const dueDateIso = toIsoDate(targetPeriod)
 
@@ -137,6 +167,11 @@ export async function GET(request: NextRequest) {
     if (invoice?.status === true) {
       targetPeriod = addMonthsUtc(targetPeriod, 1)
       invoice = await selectExistingInvoice(adminSupabase, lease.id, targetPeriod)
+      if (!invoice) {
+        // refresh due date iso after advancing period
+        const nextDueIso = toIsoDate(targetPeriod)
+        invoice = await selectByDueDate(adminSupabase, lease.id, nextDueIso)
+      }
     }
 
     if (!invoice) {
@@ -153,7 +188,7 @@ export async function GET(request: NextRequest) {
               lease_id: lease.id,
               invoice_type: 'rent',
               amount: monthlyRent,
-              due_date: dueDate,
+              due_date: dueDateIso,
               months_covered: 1,
               status: false,
               description,

@@ -77,6 +77,21 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
 
   try {
     const adminSupabase = createAdminClient()
+    const leaseIds: string[] = []
+    const { data: leases } = await adminSupabase.from('leases').select('id').eq('tenant_user_id', tenantId)
+    leases?.forEach((row) => row.id && leaseIds.push(row.id))
+
+    // Clean up dependent data
+    await adminSupabase.from('communications').delete().or(`sender_user_id.eq.${tenantId},recipient_user_id.eq.${tenantId}`)
+    await adminSupabase.from('payments').delete().eq('tenant_user_id', tenantId)
+    if (leaseIds.length > 0) {
+      await adminSupabase.from('invoices').delete().in('lease_id', leaseIds)
+      await adminSupabase.from('leases').delete().in('id', leaseIds)
+    } else {
+      await adminSupabase.from('leases').delete().eq('tenant_user_id', tenantId)
+    }
+
+    await adminSupabase.from('user_profiles').delete().eq('id', tenantId)
     const { error } = await adminSupabase.auth.admin.deleteUser(tenantId)
     if (error) {
       throw error
