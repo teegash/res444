@@ -6,12 +6,20 @@ import { approvePayment, rejectPayment } from '@/lib/payments/verification'
 const MANAGER_ROLES = new Set(['admin', 'manager', 'caretaker'])
 
 export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
-  const paymentId = params?.id
-  if (!paymentId) {
-    return NextResponse.json({ success: false, error: 'Payment id is required.' }, { status: 400 })
-  }
-
   try {
+    // Resolve payment id from params, query, or body (defensive)
+    let paymentId = params?.id || request.nextUrl.searchParams.get('paymentId') || null
+
+    // Parse body once (used for action too)
+    const body = await request.json().catch(() => ({}))
+    if (!paymentId) {
+      paymentId = body?.payment_id || body?.id || null
+    }
+
+    if (!paymentId) {
+      return NextResponse.json({ success: false, error: 'Payment id is required.' }, { status: 400 })
+    }
+
     const supabase = await createClient()
     const adminSupabase = createAdminClient()
     const {
@@ -36,7 +44,6 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
       return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })
     }
 
-    const body = await request.json().catch(() => ({}))
     const action = body?.action
     if (action === 'approve') {
       const result = await approvePayment(paymentId, user.id, { notes: body?.notes })
