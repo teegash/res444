@@ -104,7 +104,8 @@ export function VerifiedPaymentsTab({ payments, stats, loading }: VerifiedPaymen
 
   const exportColumns: ExportColumn<PaymentRecord>[] = [
     { header: 'Tenant', accessor: (payment) => payment.tenantName },
-    { header: 'Amount', accessor: (payment) => currencyFormatter.format(payment.amount) },
+    { header: 'Debit', accessor: () => '—' },
+    { header: 'Credit', accessor: (payment) => currencyFormatter.format(payment.amount) },
     { header: 'Method', accessor: (payment) => payment.paymentMethod || '—' },
     { header: 'Verified By', accessor: (payment) => payment.verifiedBy || 'M-Pesa API' },
     {

@@ -455,9 +455,13 @@ export default function PaymentHistoryPage() {
       accessor: (payment) => (payment.payment_type || payment.invoice_type || 'rent').toUpperCase(),
     },
     {
-      header: 'Amount Paid',
+      header: 'Debit (KES)',
+      accessor: () => '',
+    },
+    {
+      header: 'Credit (KES)',
       accessor: (payment) =>
-        `KES ${payment.amount_paid.toLocaleString()}`,
+        payment.amount_paid ? `KES ${payment.amount_paid.toLocaleString()}` : '',
     },
     {
       header: 'Method',
@@ -535,19 +539,27 @@ export default function PaymentHistoryPage() {
 
   const handleStatementExport = (format: 'pdf' | 'excel') => {
     if (!statementDetails) return
-    const columns: ExportColumn<{ date: string; description: string; reference: string; amount: string; balance: string }>[] =
-      [
-        { header: 'Date', accessor: (row) => row.date },
-        { header: 'Description', accessor: (row) => row.description },
-        { header: 'Reference', accessor: (row) => row.reference },
-        { header: 'Amount', accessor: (row) => row.amount },
-        { header: 'Balance', accessor: (row) => row.balance },
-      ]
+    const columns: ExportColumn<{
+      date: string
+      description: string
+      reference: string
+      debit: string
+      credit: string
+      balance: string
+    }>[] = [
+      { header: 'Date', accessor: (row) => row.date },
+      { header: 'Description', accessor: (row) => row.description },
+      { header: 'Reference', accessor: (row) => row.reference },
+      { header: 'Debit', accessor: (row) => row.debit },
+      { header: 'Credit', accessor: (row) => row.credit },
+      { header: 'Balance', accessor: (row) => row.balance },
+    ]
     const rows = statementDetails.transactions.map((txn) => ({
       date: txn.posted_at ? new Date(txn.posted_at).toLocaleDateString() : '—',
       description: txn.description,
       reference: txn.reference || '—',
-      amount: `${txn.amount < 0 ? '-' : ''}KES ${Math.abs(txn.amount).toLocaleString()}`,
+      debit: txn.amount > 0 ? `KES ${Math.abs(txn.amount).toLocaleString()}` : '',
+      credit: txn.amount < 0 ? `KES ${Math.abs(txn.amount).toLocaleString()}` : '',
       balance: `KES ${txn.balance_after.toLocaleString()}`,
     }))
     const fileBase = `statement-${statementDetails.periodLabel.replace(/\s+/g, '-')}`

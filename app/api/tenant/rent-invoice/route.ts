@@ -120,12 +120,18 @@ export async function GET(request: NextRequest) {
       .limit(1)
       .maybeSingle()
 
-    let coverageEnd: Date | null = null
-    if (latestPayment?.invoices?.due_date) {
-      const coverageStart = startOfMonthUtc(new Date(latestPayment.invoices.due_date))
-      const monthsPaid = Number(latestPayment.months_paid || 1)
-      coverageEnd = addMonthsUtc(coverageStart, monthsPaid) // first unpaid period start
-    }
+    // Latest paid invoice (fall back if months_paid missing)
+    const { data: latestPaidInvoice } = await adminSupabase
+      .from('invoices')
+      .select('due_date, months_covered')
+      .eq('lease_id', lease.id)
+      .eq('invoice_type', 'rent')
+      .eq('status', true)
+      .order('due_date', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    // earliest unpaid (to avoid skipping any)
     const { data: earliestUnpaid } = await adminSupabase
       .from('invoices')
       .select('id, due_date, status')
@@ -136,47 +142,58 @@ export async function GET(request: NextRequest) {
       .limit(1)
       .maybeSingle()
 
-    let targetPeriod = currentPeriod
-    if (coverageEnd && coverageEnd > targetPeriod) {
-      targetPeriod = coverageEnd
+    const coveragePointers: Date[] = []
+    if (latestPayment?.invoices?.due_date) {
+      const coverageStart = startOfMonthUtc(new Date(latestPayment.invoices.due_date))
+      const monthsPaid = Number(latestPayment.months_paid || 1)
+      coveragePointers.push(addMonthsUtc(coverageStart, monthsPaid))
     }
-
+    if (latestPaidInvoice?.due_date) {
+      const paidStart = startOfMonthUtc(new Date(latestPaidInvoice.due_date))
+      const monthsCovered = Number(latestPaidInvoice.months_covered || 1)
+      coveragePointers.push(addMonthsUtc(paidStart, monthsCovered))
+    }
+    if (lease.rent_paid_until) {
+      const paidUntil = new Date(lease.rent_paid_until)
+      if (!Number.isNaN(paidUntil.getTime())) {
+        coveragePointers.push(addMonthsUtc(startOfMonthUtc(paidUntil), 1))
+      }
+    }
     if (lease.next_rent_due_date) {
       const pointer = new Date(lease.next_rent_due_date)
       if (!Number.isNaN(pointer.getTime())) {
-        targetPeriod = startOfMonthUtc(pointer)
-      }
-    } else if (earliestUnpaid?.due_date) {
-      const unpaidDue = new Date(earliestUnpaid.due_date)
-      if (!Number.isNaN(unpaidDue.getTime())) {
-        targetPeriod = startOfMonthUtc(unpaidDue)
-      }
-    } else if (lease.rent_paid_until) {
-      const paidUntil = new Date(lease.rent_paid_until)
-      if (!Number.isNaN(paidUntil.getTime())) {
-        const paidStart = startOfMonthUtc(paidUntil)
-        const nextPeriod = addMonthsUtc(paidStart, 1)
-        targetPeriod = nextPeriod
+        coveragePointers.push(startOfMonthUtc(pointer))
       }
     }
 
-    let invoice = await selectExistingInvoice(adminSupabase, lease.id, targetPeriod)
-    const dueDateIso = toIsoDate(targetPeriod)
+    let targetPeriod = coveragePointers.length
+      ? coveragePointers.reduce((latest, d) => (d > latest ? d : latest), currentPeriod)
+      : currentPeriod
 
-    // If we found an invoice but it's marked paid, move to next period and prepare again
-    if (invoice?.status === true) {
-      targetPeriod = addMonthsUtc(targetPeriod, 1)
+    if (earliestUnpaid?.due_date) {
+      const unpaidDue = startOfMonthUtc(new Date(earliestUnpaid.due_date))
+      if (unpaidDue < targetPeriod) {
+        targetPeriod = unpaidDue
+      }
+    }
+
+    let invoice: any = null
+    let attempts = 0
+    while (attempts < 6) {
+      const dueDateIso = toIsoDate(targetPeriod)
       invoice = await selectExistingInvoice(adminSupabase, lease.id, targetPeriod)
       if (!invoice) {
-        // refresh due date iso after advancing period
-        const nextDueIso = toIsoDate(targetPeriod)
-        invoice = await selectByDueDate(adminSupabase, lease.id, nextDueIso)
+        invoice = await selectByDueDate(adminSupabase, lease.id, dueDateIso)
       }
+      if (invoice?.status === true) {
+        targetPeriod = addMonthsUtc(targetPeriod, 1)
+        attempts += 1
+        continue
+      }
+      break
     }
 
-    if (!invoice) {
-      invoice = await selectByDueDate(adminSupabase, lease.id, dueDateIso)
-    }
+    const dueDateIso = toIsoDate(targetPeriod)
 
     if (!invoice) {
         const dueLabel = targetPeriod.toLocaleString('en-US', { month: 'long', year: 'numeric' })
@@ -215,7 +232,7 @@ export async function GET(request: NextRequest) {
       if (!invoice) {
         console.error('[RentInvoice] Failed to create or find invoice', createError?.message || 'unknown', {
           leaseId: lease.id,
-          dueDate,
+          dueDate: dueDateIso,
         })
         return NextResponse.json(
           { success: false, error: 'Unable to prepare rent invoice.' },

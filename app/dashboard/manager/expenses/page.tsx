@@ -150,12 +150,13 @@ export default function ExpensesPage() {
     const columns = [
       { header: 'Property', accessor: (row: Expense) => row.apartment_buildings?.name || 'Property' },
       { header: 'Category', accessor: (row: Expense) => row.category },
-      { header: 'Amount', accessor: (row: Expense) => `KES ${Number(row.amount || 0).toLocaleString()}` },
+      { header: 'Debit (KES)', accessor: (row: Expense) => `KES ${Number(row.amount || 0).toLocaleString()}` },
+      { header: 'Credit (KES)', accessor: () => '' },
       { header: 'Date', accessor: (row: Expense) => (row.incurred_at ? new Date(row.incurred_at).toLocaleDateString() : '') },
       { header: 'Notes', accessor: (row: Expense) => row.notes || '' },
     ]
     const total = filteredExpenses.reduce((sum, row) => sum + Number(row.amount || 0), 0)
-    const summaryRows = [['Total', '', `KES ${total.toLocaleString()}`, '', '']]
+    const summaryRows = [['Total', '', `KES ${total.toLocaleString()}`, '', '', '']]
     if (format === 'pdf') {
       exportRowsAsPDF(filename, columns, filteredExpenses, {
         title: 'Expenses',

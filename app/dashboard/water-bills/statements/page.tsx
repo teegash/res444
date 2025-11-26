@@ -13,6 +13,7 @@ import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { ArrowLeft, Filter, Loader2, RefreshCw, Droplet } from 'lucide-react'
+import { exportRowsAsCSV, exportRowsAsExcel, exportRowsAsPDF } from '@/lib/export/download'
 
 type WaterBillRecord = {
   id: string
@@ -131,6 +132,36 @@ export default function WaterBillStatementsPage() {
   const formatCurrency = (value: number) =>
     `KES ${value.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 
+  const exportColumns = [
+    { header: 'Tenant', accessor: (record: WaterBillRecord) => record.tenant_name || '—' },
+    { header: 'Property', accessor: (record: WaterBillRecord) => record.property_name || '—' },
+    { header: 'Unit', accessor: (record: WaterBillRecord) => record.unit_number || '—' },
+    {
+      header: 'Billing Month',
+      accessor: (record: WaterBillRecord) =>
+        record.billing_month
+          ? new Date(record.billing_month).toLocaleDateString(undefined, { month: 'long', year: 'numeric' })
+          : '—',
+    },
+    {
+      header: 'Debit (KES)',
+      accessor: (record: WaterBillRecord) => (record.status === 'unpaid' ? formatCurrency(record.amount) : ''),
+    },
+    {
+      header: 'Credit (KES)',
+      accessor: (record: WaterBillRecord) => (record.status === 'paid' ? formatCurrency(record.amount) : ''),
+    },
+    {
+      header: 'Status',
+      accessor: (record: WaterBillRecord) => record.status.toUpperCase(),
+    },
+    {
+      header: 'Invoice Due',
+      accessor: (record: WaterBillRecord) =>
+        record.invoice_due_date ? new Date(record.invoice_due_date).toLocaleDateString() : '—',
+    },
+  ]
+
   return (
     <div className="flex min-h-screen bg-gray-50">
       <Sidebar />
@@ -155,10 +186,49 @@ export default function WaterBillStatementsPage() {
                 <p className="text-xs text-muted-foreground mt-1">Last updated {lastRefresh}</p>
               )}
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <Button variant="outline" size="sm" onClick={fetchStatements} disabled={loading}>
                 {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
                 Refresh
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const fileBase = `water-bill-statements-${new Date().toISOString().slice(0, 10)}`
+                  if (filteredRecords.length === 0) return
+                  exportRowsAsPDF(fileBase, exportColumns, filteredRecords, {
+                    title: 'Water Bill Statements',
+                    subtitle: `Filtered (${propertyFilter}, ${statusFilter})`,
+                  })
+                }}
+                disabled={loading || filteredRecords.length === 0}
+              >
+                Export PDF
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const fileBase = `water-bill-statements-${new Date().toISOString().slice(0, 10)}`
+                  if (filteredRecords.length === 0) return
+                  exportRowsAsExcel(fileBase, exportColumns, filteredRecords)
+                }}
+                disabled={loading || filteredRecords.length === 0}
+              >
+                Export Excel
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const fileBase = `water-bill-statements-${new Date().toISOString().slice(0, 10)}`
+                  if (filteredRecords.length === 0) return
+                  exportRowsAsCSV(fileBase, exportColumns, filteredRecords)
+                }}
+                disabled={loading || filteredRecords.length === 0}
+              >
+                Export CSV
               </Button>
             </div>
           </div>

@@ -142,10 +142,11 @@ export default function StatementsPage() {
       { header: 'Properties', accessor: (row: any) => Array.from(row.properties || []).join(' • ') },
       { header: 'Transactions', accessor: (row: any) => row.count },
       { header: 'Latest Payment', accessor: (row: any) => (row.latestDate ? new Date(row.latestDate).toLocaleDateString() : '') },
-      { header: 'Total Paid', accessor: (row: any) => `KES ${Number(row.total || 0).toLocaleString()}` },
+      { header: 'Debit (KES)', accessor: () => '' },
+      { header: 'Credit (KES)', accessor: (row: any) => `KES ${Number(row.total || 0).toLocaleString()}` },
     ]
     const totalAmount = groupedByTenant.reduce((sum, row) => sum + Number(row.total || 0), 0)
-    const summaryRows = [['', '', '', 'Total', `KES ${totalAmount.toLocaleString()}`]]
+    const summaryRows = [['', '', '', 'Total', '', `KES ${totalAmount.toLocaleString()}`]]
     if (format === 'pdf') {
       exportRowsAsPDF(fileBase, columns, groupedByTenant, {
         title: 'Tenant Payment Statements',

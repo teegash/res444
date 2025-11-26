@@ -12,14 +12,23 @@ import { Badge } from '@/components/ui/badge'
 import { exportRowsAsCSV, exportRowsAsExcel, exportRowsAsPDF } from '@/lib/export/download'
 import { useToast } from '@/components/ui/use-toast'
 import { SkeletonLoader, SkeletonPropertyCard, SkeletonTable } from '@/components/ui/skeletons'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 
 type PropertyMetric = {
+  id?: string
   name: string
-  units: string
+  units: string | number
   revenue: number
   avg: number
   occupancy: number
   collectionRate: number
+  billed?: number
+  location?: string
 }
 
 const propertyMetrics: PropertyMetric[] = [
@@ -106,7 +115,16 @@ export default function ReportsPage() {
     try {
       setLoading(true)
       setError(null)
-      const response = await fetch(`/api/manager/reports/summary?period=${period}`, { cache: 'no-store' })
+      const qs = new URLSearchParams({ period })
+      if (propertyScope !== 'all') {
+        const match = properties.find((p) => p.id === propertyScope || p.name === propertyScope)
+        if (match?.id) {
+          qs.set('propertyId', match.id)
+        } else {
+          qs.set('propertyId', propertyScope)
+        }
+      }
+      const response = await fetch(`/api/manager/reports/summary?${qs.toString()}`, { cache: 'no-store' })
       const payload = await response.json()
       if (!response.ok) {
         throw new Error(payload.error || 'Failed to load reports.')
@@ -145,7 +163,7 @@ export default function ReportsPage() {
 
   useEffect(() => {
     loadSummary()
-  }, [period])
+  }, [period, propertyScope])
 
   const exportRows = filteredProperties.map((p) => ({
     property: p.name,
@@ -154,6 +172,11 @@ export default function ReportsPage() {
     avgUnit: `KES ${(p.avg || totals.avgRent).toLocaleString()}`,
     occupancy: `${(p.occupancy || 0).toFixed(1)}%`,
     collection: `${(p.collectionRate || 0).toFixed(1)}%`,
+    performance: (() => {
+      const expected = p.billed || p.revenue || 0
+      if (!expected) return '0%'
+      return `${Math.min(100, (p.revenue / expected) * 100).toFixed(1)}%`
+    })(),
   }))
 
   const handleExport = (format: 'pdf' | 'excel' | 'csv') => {
@@ -164,14 +187,23 @@ export default function ReportsPage() {
       { header: 'Avg/Unit', accessor: (row: any) => row.avgUnit },
       { header: 'Occupancy', accessor: (row: any) => row.occupancy },
       { header: 'Collection', accessor: (row: any) => row.collection },
+      { header: 'Performance %', accessor: (row: any) => row.performance },
     ]
     const summaryRows = [
-      ['TOTALS', `KES ${totals.revenue.toLocaleString()}`, '', `KES ${Math.round(totals.avgRent).toLocaleString()}`, `${(totals.occupancyRate || 0).toFixed(1)}%`, `${(totals.collectionRate || 0).toFixed(1)}%`],
+      [
+        'TOTALS',
+        `KES ${totals.revenue.toLocaleString()}`,
+        '',
+        `KES ${Math.round(totals.avgRent).toLocaleString()}`,
+        `${(totals.occupancyRate || 0).toFixed(1)}%`,
+        `${(totals.collectionRate || 0).toFixed(1)}%`,
+        '',
+      ],
     ]
     if (format === 'pdf') {
       exportRowsAsPDF(filename, columns, exportRows, {
         title: 'Portfolio Performance',
-        subtitle: `Period: ${period}, Scope: ${propertyScope}`,
+        subtitle: `Period: ${period}, Scope: ${propertyScope}. Performance % mirrors the bar graph (revenue vs expected).`,
         summaryRows,
       })
     } else if (format === 'excel') {
@@ -216,19 +248,38 @@ export default function ReportsPage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All properties</SelectItem>
-                  {propertyMetrics.map((p) => (
-                    <SelectItem key={p.name} value={p.name}>
-                      {p.name}
-                    </SelectItem>
-                  ))}
+                  {properties.length
+                    ? properties.map((p) => (
+                        <SelectItem key={p.id || p.name} value={p.id || p.name}>
+                          {p.name}
+                        </SelectItem>
+                      ))
+                    : propertyMetrics.map((p) => (
+                        <SelectItem key={p.name} value={p.name}>
+                          {p.name}
+                        </SelectItem>
+                      ))}
                 </SelectContent>
               </Select>
-              <Link href="/dashboard/manager/reports/preview">
-                <Button variant="outline">
-                  <Eye className="h-4 w-4 mr-2" />
-                  Preview PDF
-                </Button>
-              </Link>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline">
+                    <Eye className="h-4 w-4 mr-2" />
+                    Export
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => handleExport('pdf')}>
+                    PDF
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleExport('excel')}>
+                    Excel
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleExport('csv')}>
+                    CSV
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
 

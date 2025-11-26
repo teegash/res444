@@ -77,10 +77,11 @@ export default function RevenueReportPage() {
       { header: 'Property', accessor: (row: RevenueRow) => row.property },
       { header: 'Period', accessor: (row: RevenueRow) => row.period },
       { header: 'Month', accessor: (row: RevenueRow) => row.month },
-      { header: 'Amount', accessor: (row: RevenueRow) => `KES ${row.amount.toLocaleString()}` },
+      { header: 'Debit (KES)', accessor: () => '' },
+      { header: 'Credit (KES)', accessor: (row: RevenueRow) => `KES ${row.amount.toLocaleString()}` },
     ]
     const total = filtered.reduce((sum, row) => sum + Number(row.amount || 0), 0)
-    const summaryRows = [['Total', '', '', `KES ${total.toLocaleString()}`]]
+    const summaryRows = [['Total', '', '', '', `KES ${total.toLocaleString()}`]]
     if (format === 'pdf') {
       exportRowsAsPDF(filename, columns, filtered, {
         title: 'Revenue Report',

@@ -128,9 +128,12 @@ export default function TenantStatementPage({ params }: { params: { id: string }
       accessor: (txn) => txn.reference || '',
     },
     {
-      header: 'Amount (KES)',
-      accessor: (txn) =>
-        txn.amount < 0 ? `- ${formatCurrency(Math.abs(txn.amount))}` : formatCurrency(txn.amount),
+      header: 'Debit (KES)',
+      accessor: (txn) => (txn.amount > 0 ? formatCurrency(txn.amount) : ''),
+    },
+    {
+      header: 'Credit (KES)',
+      accessor: (txn) => (txn.amount < 0 ? formatCurrency(Math.abs(txn.amount)) : ''),
     },
     {
       header: 'Balance',

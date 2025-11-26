@@ -178,6 +178,7 @@ export async function GET() {
         propertyIncomeMonth.set(name, mBucket)
       }
     })
+    // Potential based on all units (occupied, vacant, maintenance) = monthly rent * total units
     units.forEach((unit: any) => {
       const bid = unit.building_id || 'Unassigned'
       const rent = Number(unit.rent_amount || 0)
@@ -189,13 +190,22 @@ export async function GET() {
       potential: vals.potential,
       percent: vals.potential ? Math.round((vals.paid / vals.potential) * 100) : 0,
     }))
+    // Ensure every property shows up even if no invoices yet this month
+    (propertiesRes.data || []).forEach((prop) => {
+      const name = prop.name || prop.id || 'Unassigned'
+      if (!propertyIncomeMonth.has(name)) {
+        const potential = potentialMap.get(prop.id) || potentialMap.get(name) || 0
+        propertyIncomeMonth.set(name, { paid: 0, potential })
+      }
+    })
+
     const propertyIncomeMonthArr = Array.from(propertyIncomeMonth.entries()).map(([name, vals]) => {
       const propertyId =
         propertiesRes.data?.find((p) => p.name === name)?.id ||
         propertiesRes.data?.find((p) => p.id === name)?.id ||
         null
       const unitPotential = propertyId ? potentialMap.get(propertyId) || 0 : potentialMap.get(name) || 0
-      const potential = vals.potential || unitPotential
+      const potential = unitPotential || vals.potential || 0
       return {
         name,
         paid: vals.paid,

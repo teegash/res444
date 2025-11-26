@@ -181,8 +181,12 @@ export default function TenantStatementPage({ params }: { params: { id?: string 
       accessor: (txn) => txn.reference || '—',
     },
     {
-      header: 'Amount',
-      accessor: (txn) => formatCurrency(txn.amount),
+      header: 'Debit',
+      accessor: (txn) => (txn.amount > 0 ? formatCurrency(txn.amount) : ''),
+    },
+    {
+      header: 'Credit',
+      accessor: (txn) => (txn.amount < 0 ? formatCurrency(Math.abs(txn.amount)) : ''),
     },
     {
       header: 'Balance',
