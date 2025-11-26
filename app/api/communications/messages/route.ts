@@ -72,12 +72,39 @@ export async function GET() {
 
     const staffList = staffIds.map((id) => id.replace(/,/g, '')).join(',')
 
+    let tenantIdsForScope: string[] | null = null
+    if (userRole === 'caretaker' && propertyScope) {
+      const { data: leases } = await admin
+        .from('leases')
+        .select('tenant_user_id, unit:apartment_units ( building_id )')
+        .eq('unit.building_id', propertyScope)
+
+      tenantIdsForScope = Array.from(
+        new Set((leases || []).map((lease: any) => lease.tenant_user_id).filter(Boolean))
+      )
+      if (tenantIdsForScope.length === 0) {
+        return NextResponse.json({ success: true, data: [] })
+      }
+    }
+
+    const staffFilter = `sender_user_id.in.(${staffList}),recipient_user_id.in.(${staffList})`
+    const tenantFilter =
+      tenantIdsForScope && tenantIdsForScope.length > 0
+        ? `sender_user_id.in.(${tenantIdsForScope.join(',')}),recipient_user_id.in.(${tenantIdsForScope.join(',')})`
+        : null
+
+    let orFilter = staffFilter
+    if (tenantFilter) {
+      // Only allow conversations between staff and scoped tenants
+      orFilter = `and(sender_user_id.in.(${staffList}),recipient_user_id.in.(${tenantIdsForScope.join(',')})),and(sender_user_id.in.(${tenantIdsForScope.join(',')}),recipient_user_id.in.(${staffList}))`
+    }
+
     const { data, error } = await admin
       .from('communications')
       .select(
         'id, sender_user_id, recipient_user_id, message_text, read, created_at, related_entity_type, message_type'
       )
-      .or(`sender_user_id.in.(${staffList}),recipient_user_id.in.(${staffList})`)
+      .or(orFilter)
       .order('created_at', { ascending: false })
       .limit(800)
 
@@ -135,21 +162,8 @@ export async function GET() {
     })
 
     let allowedTenantIds = Array.from(profileIds)
-    if (userRole === 'caretaker' && propertyScope) {
-      const { data: leases } = await admin
-        .from('leases')
-        .select('tenant_user_id, unit:apartment_units ( building_id )')
-        .in('tenant_user_id', Array.from(profileIds))
-
-      const permitted = new Set(
-        (leases || [])
-          .filter((lease: any) => lease?.unit?.building_id === propertyScope)
-          .map((lease: any) => lease.tenant_user_id)
-      )
-      // If we found matching leases, scope to them; otherwise keep existing list to avoid hiding conversations unnecessarily.
-      if (permitted.size > 0) {
-        allowedTenantIds = allowedTenantIds.filter((id) => permitted.has(id))
-      }
+    if (userRole === 'caretaker' && tenantIdsForScope) {
+      allowedTenantIds = allowedTenantIds.filter((id) => tenantIdsForScope!.includes(id))
     }
 
     let profileMap = new Map<string, { full_name: string | null }>()
