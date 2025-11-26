@@ -324,12 +324,9 @@ export function Header() {
                 </div>
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuContent align="end" className="w-56">
               <DropdownMenuItem onClick={() => router.push('/dashboard/settings')}>
                 Profile Settings
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => router.push('/dashboard/account')}>
-                Account & Security
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => router.push('/dashboard/help')}>
