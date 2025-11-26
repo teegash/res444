@@ -121,6 +121,27 @@ async function expireLongPendingMpesaPayments(adminSupabase: ReturnType<typeof c
   )
 }
 
+async function getSignedDepositUrl(adminSupabase: ReturnType<typeof createAdminClient>, raw?: string | null) {
+  if (!raw) return null
+  if (raw.startsWith('http')) return raw
+
+  const cleaned = raw
+    .replace(/^deposit-slips\//, '')
+    .replace(/^deposit_slips\//, '')
+    .replace(/^https?:\/\/[^/]+\/storage\/v1\/object\/public\/deposit-slips\//, '')
+    .replace(/^https?:\/\/[^/]+\/storage\/v1\/object\/public\/deposit_slips\//, '')
+
+  const buckets = ['deposit-slips', 'deposit_slips']
+  for (const bucket of buckets) {
+    const { data, error } = await adminSupabase.storage.from(bucket).createSignedUrl(cleaned, 60 * 60 * 12)
+    if (!error && data?.signedUrl) {
+      return data.signedUrl
+    }
+  }
+
+  return raw
+}
+
 function mapPayment(
   row: any,
   lookups?: {
@@ -294,19 +315,9 @@ export async function GET() {
     const depositUrlMap = new Map<string, string>()
     for (const row of data || []) {
       const url = row.deposit_slip_url as string | null
-      if (!url) continue
-      if (url.startsWith('http')) {
-        depositUrlMap.set(row.id, url)
-        continue
-      }
-      const cleanPath = url
-        .replace(/^deposit-slips\//, '')
-        .replace(/^https?:\/\/[^/]+\/storage\/v1\/object\/public\/deposit-slips\//, '')
-      const { data: signed } = await adminSupabase.storage.from('deposit-slips').createSignedUrl(cleanPath, 60 * 60 * 12)
-      if (signed?.signedUrl) {
-        depositUrlMap.set(row.id, signed.signedUrl)
-      } else {
-        depositUrlMap.set(row.id, url)
+      const signed = await getSignedDepositUrl(adminSupabase, url || undefined)
+      if (signed) {
+        depositUrlMap.set(row.id, signed)
       }
     }
 
