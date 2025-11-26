@@ -217,6 +217,8 @@ export async function GET() {
           : 0
       const rent = leaseRent
       potentialMap.set(bid, (potentialMap.get(bid) || 0) + rent)
+      const display = propertyNameMap.get(bid) || bid
+      potentialMap.set(display, (potentialMap.get(display) || 0) + rent)
     })
     const propertyRevenueEntries =
       propertyRevenueMap instanceof Map ? Array.from(propertyRevenueMap.entries()) : []
@@ -253,7 +255,10 @@ export async function GET() {
     const propertyIncomeMonthArr = Array.isArray(propertyIncomeEntries)
       ? propertyIncomeEntries.map(([key, vals]) => {
           const displayName = vals.name || propertyNameMap.get(key) || key
-          const unitPotential = potentialMap.get(key) || 0
+          const unitPotential =
+            potentialMap.get(key) ||
+            potentialMap.get(displayName) ||
+            0
           const potential = unitPotential || vals.potential || 0
           return {
             name: displayName,
