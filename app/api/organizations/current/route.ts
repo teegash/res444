@@ -315,46 +315,25 @@ export async function GET(request: NextRequest) {
     }
 
     // Fetch organization data directly from organizations table
-    // Try regular client first (respects RLS policies)
-    let organization: any = null
-    let orgError: any = null
-
-    const { data: orgData, error: orgErr } = await supabase
+    // Use admin client to bypass any recursive RLS policies that have been causing errors
+    const { createAdminClient } = await import('@/lib/supabase/admin')
+    const adminSupabase = createAdminClient()
+    
+    const { data: organization, error: adminOrgErr } = await adminSupabase
       .from('organizations')
       .select('*')
       .eq('id', organizationId!)
       .single()
 
-    if (orgErr || !orgData) {
-      console.warn('Failed to fetch organization with regular client, trying admin client:', orgErr?.message)
-      
-      // Fallback: Use admin client if RLS blocks the read
-      // This ensures we can always fetch organization data even if RLS policies are misconfigured
-      const { createAdminClient } = await import('@/lib/supabase/admin')
-      const adminSupabase = createAdminClient()
-      
-      const { data: adminOrgData, error: adminOrgErr } = await adminSupabase
-        .from('organizations')
-        .select('*')
-        .eq('id', organizationId!)
-        .single()
-
-      if (adminOrgErr || !adminOrgData) {
-        console.error('Error fetching organization (both clients failed):', adminOrgErr || orgErr)
-        return NextResponse.json(
-          {
-            success: false,
-            error: (adminOrgErr || orgErr)?.message || 'Organization not found',
-          },
-          { status: 404 }
-        )
-      }
-
-      organization = adminOrgData
-      console.log('✓ Fetched organization using admin client (RLS bypass)')
-    } else {
-      organization = orgData
-      console.log('✓ Fetched organization using regular client (RLS respected)')
+    if (adminOrgErr || !organization) {
+      console.error('Error fetching organization with admin client:', adminOrgErr)
+      return NextResponse.json(
+        {
+          success: false,
+          error: adminOrgErr?.message || 'Organization not found',
+        },
+        { status: 404 }
+      )
     }
 
     if (!organization) {

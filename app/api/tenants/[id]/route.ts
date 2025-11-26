@@ -79,7 +79,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
   }
 
   try {
-    // Ensure caller is manager/admin/caretaker
+    // Ensure caller is manager/admin/caretaker based on membership (more reliable than metadata)
     const supabase = await createClient()
     const {
       data: { user },
@@ -88,28 +88,54 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     if (authError || !user) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
     }
-    const callerRole = (user.user_metadata as any)?.role || (user as any)?.role || null
+
+    const adminSupabase = createAdminClient()
+
+    // Check membership/role with service role to avoid RLS issues
+    const { data: membership, error: membershipError } = await adminSupabase
+      .from('organization_members')
+      .select('role')
+      .eq('user_id', user.id)
+      .maybeSingle()
+
+    const callerRole =
+      membership?.role ||
+      (user.user_metadata as any)?.role ||
+      (user as any)?.role ||
+      null
+
+    if (membershipError) {
+      console.warn('[Tenants.DELETE] Failed to read membership for caller:', membershipError.message)
+    }
+
     if (!callerRole || !MANAGER_ROLES.has(String(callerRole).toLowerCase())) {
       return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })
     }
 
-    const adminSupabase = createAdminClient()
+    // Fetch leases up-front (used for dependent deletes)
     const leaseIds: string[] = []
     const { data: leases } = await adminSupabase.from('leases').select('id').eq('tenant_user_id', tenantId)
     leases?.forEach((row) => row.id && leaseIds.push(row.id))
 
-    // Clean up dependent data (best effort)
-    await adminSupabase.from('communications').delete().or(`sender_user_id.eq.${tenantId},recipient_user_id.eq.${tenantId}`)
-    await adminSupabase.from('payments').delete().eq('tenant_user_id', tenantId)
-    if (leaseIds.length > 0) {
-      await adminSupabase.from('invoices').delete().in('lease_id', leaseIds)
-      await adminSupabase.from('leases').delete().in('id', leaseIds)
-    } else {
-      await adminSupabase.from('leases').delete().eq('tenant_user_id', tenantId)
-    }
-    await adminSupabase.from('organization_members').delete().eq('user_id', tenantId)
-    await adminSupabase.from('user_profiles').delete().eq('id', tenantId)
+    // Best-effort cleanup of dependent data before deleting the auth user
+    const cleanupTasks = [
+      adminSupabase.from('communications').delete().or(`sender_user_id.eq.${tenantId},recipient_user_id.eq.${tenantId}`),
+      adminSupabase.from('payments').delete().eq('tenant_user_id', tenantId),
+      adminSupabase.from('maintenance_requests').delete().eq('tenant_user_id', tenantId),
+      adminSupabase.from('organization_members').delete().eq('user_id', tenantId),
+      adminSupabase.from('user_profiles').delete().eq('id', tenantId),
+    ]
 
+    if (leaseIds.length) {
+      cleanupTasks.push(adminSupabase.from('invoices').delete().in('lease_id', leaseIds))
+      cleanupTasks.push(adminSupabase.from('leases').delete().in('id', leaseIds))
+    } else {
+      cleanupTasks.push(adminSupabase.from('leases').delete().eq('tenant_user_id', tenantId))
+    }
+
+    await Promise.allSettled(cleanupTasks)
+
+    // Finally, remove the auth user (cascades to tables with FK ON DELETE CASCADE)
     const { error } = await adminSupabase.auth.admin.deleteUser(tenantId)
     if (error) {
       throw error
