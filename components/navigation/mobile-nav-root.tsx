@@ -12,22 +12,23 @@ export function MobileNavRoot() {
   const { user, loading } = useAuth()
 
   const role = (user?.user_metadata as any)?.role || (user as any)?.role || null
+  const isDashboardPath = pathname?.startsWith('/dashboard') ?? false
+  const isAuthenticated = !!user && !loading
 
   const variant: 'manager' | 'tenant' | null = useMemo(() => {
+    if (!isAuthenticated || !isDashboardPath) return null
     if (role === 'tenant') return 'tenant'
     if (role) return 'manager'
     if (pathname?.startsWith('/dashboard/tenant')) return 'tenant'
     if (pathname?.startsWith('/dashboard')) return 'manager'
     return null
-  }, [pathname, role])
+  }, [isAuthenticated, isDashboardPath, pathname, role])
 
   useEffect(() => {
     if (loading) return
 
-    if (!user) {
-      if (pathname?.startsWith('/dashboard')) {
-        router.replace('/auth/login')
-      }
+    if (!user && isDashboardPath) {
+      router.replace('/auth/login')
       return
     }
     if (role === 'tenant' && pathname && pathname.startsWith('/dashboard') && !pathname.startsWith('/dashboard/tenant')) {
@@ -36,9 +37,19 @@ export function MobileNavRoot() {
     if (role !== 'tenant' && pathname && pathname.startsWith('/dashboard/tenant')) {
       router.replace('/dashboard')
     }
-  }, [pathname, role, router, user])
+  }, [isDashboardPath, loading, pathname, role, router, user])
 
-  if (!variant) return null
+  if (loading || !variant) return null
 
-  return variant === 'tenant' ? <TenantMobileNav /> : <ManagerMobileNav />
+  const spacerStyle = {
+    height: '88px',
+    paddingBottom: 'env(safe-area-inset-bottom)',
+  }
+
+  return (
+    <>
+      <div aria-hidden="true" className="md:hidden" style={spacerStyle} />
+      {variant === 'tenant' ? <TenantMobileNav /> : <ManagerMobileNav />}
+    </>
+  )
 }
