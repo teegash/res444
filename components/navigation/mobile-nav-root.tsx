@@ -30,12 +30,6 @@ export function MobileNavRoot() {
       router.replace('/auth/login')
       return
     }
-    if (role === 'tenant' && pathname && pathname.startsWith('/dashboard') && !pathname.startsWith('/dashboard/tenant')) {
-      router.replace('/dashboard/tenant')
-    }
-    if (role !== 'tenant' && pathname && pathname.startsWith('/dashboard/tenant')) {
-      router.replace('/dashboard')
-    }
   }, [isDashboardPath, loading, pathname, role, router, user])
 
   if (loading || !variant) return null
