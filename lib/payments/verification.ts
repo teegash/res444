@@ -459,16 +459,28 @@ async function sendPaymentVerificationNotification(
 ): Promise<void> {
   try {
     const supabase = await createClient()
+    const admin = createAdminClient()
 
-    // Get tenant phone number
-    const { data: profile } = await supabase
+    // Get tenant phone number (admin client to bypass RLS and avoid null profile lookups)
+    const { data: profile } = await admin
       .from('user_profiles')
       .select('phone_number, full_name')
       .eq('id', tenantUserId)
-      .single()
+      .maybeSingle()
 
-    if (!profile) {
-      console.warn('No profile found for tenant:', tenantUserId)
+    // Fallback: try to read from auth.users metadata if profile missing
+    let phoneNumber = profile?.phone_number || null
+    let fullName = profile?.full_name || null
+
+    if (!phoneNumber || !fullName) {
+      const { data: authUser } = await admin.auth.admin.getUserById(tenantUserId)
+      const meta = authUser?.user?.user_metadata || {}
+      phoneNumber = phoneNumber || meta.phone || null
+      fullName = fullName || meta.full_name || authUser?.user?.email || null
+    }
+
+    if (!phoneNumber) {
+      console.warn('No profile/contact found for tenant:', tenantUserId)
       return
     }
 
@@ -494,7 +506,7 @@ async function sendPaymentVerificationNotification(
     const { sendSMSWithLogging } = await import('@/lib/sms/smsService')
     
     await sendSMSWithLogging({
-      phoneNumber: profile.phone_number,
+      phoneNumber,
       message: message,
       recipientUserId: tenantUserId,
       relatedEntityType: 'payment',
