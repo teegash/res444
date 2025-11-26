@@ -57,7 +57,13 @@ export async function createPaymentWithDepositSlip(
         amount,
         lease_id,
         leases (
-          tenant_user_id
+          tenant_user_id,
+          unit:apartment_units (
+            building:apartment_buildings (
+              id,
+              organization_id
+            )
+          )
         )
       `
       )
@@ -129,6 +135,29 @@ export async function createPaymentWithDepositSlip(
         success: false,
         error: 'Failed to create payment record',
       }
+    }
+
+    // 5. Notify organization staff for review
+    const buildingOrgId = (lease?.unit as any)?.building?.organization_id || null
+    if (buildingOrgId) {
+      const { data: staff } = await admin
+        .from('organization_members')
+        .select('user_id, role')
+        .eq('organization_id', buildingOrgId)
+        .in('role', ['admin', 'manager', 'caretaker'])
+
+      const staffIds = Array.from(new Set((staff || []).map((row: any) => row.user_id).filter(Boolean)))
+      await Promise.all(
+        staffIds.map((recipientId) =>
+          logNotification({
+            senderUserId: userId,
+            recipientUserId: recipientId,
+            messageText: `New bank deposit submitted for verification.`,
+            relatedEntityType: 'payment',
+            relatedEntityId: payment.id,
+          })
+        )
+      )
     }
 
     return {
