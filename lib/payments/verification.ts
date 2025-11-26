@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { updateInvoiceStatus } from '@/lib/invoices/invoiceGeneration'
 import { logNotification } from '@/lib/communications/notifications'
 import { processRentPrepayment } from '@/lib/payments/prepayment'
+import { createAdminClient } from '@/lib/supabase/admin'
 
 export interface VerifyPaymentRequest {
   invoice_id: string
@@ -45,9 +46,10 @@ export async function createPaymentWithDepositSlip(
 ): Promise<VerifyPaymentResult> {
   try {
     const supabase = await createClient()
+    const admin = createAdminClient()
 
     // 1. Validate invoice exists and user has access
-    const { data: invoice, error: invoiceError } = await supabase
+    const { data: invoice, error: invoiceError } = await admin
       .from('invoices')
       .select(
         `
@@ -88,7 +90,9 @@ export async function createPaymentWithDepositSlip(
       }
     }
 
-    const monthsPaid = 1
+    const monthsPaid = Number.isFinite(request.months_paid) && request.months_paid && request.months_paid > 0
+      ? Math.min(12, request.months_paid)
+      : 1
     const expectedAmount = invoiceAmount * monthsPaid
 
     if (Math.abs(request.amount - expectedAmount) > 0.01) {
@@ -99,7 +103,7 @@ export async function createPaymentWithDepositSlip(
     }
 
     // 4. Create payment record
-    const { data: payment, error: paymentError } = await supabase
+    const { data: payment, error: paymentError } = await admin
       .from('payments')
       .insert({
         invoice_id: request.invoice_id,
