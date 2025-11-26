@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 
-const BUCKET = 'lease_documents'
+const BUCKET = 'lease-documents'
 
 export async function GET() {
   try {
@@ -31,9 +31,7 @@ export async function GET() {
     }
 
     const stored = leaseRow.lease_agreement_url as string
-    // Derive storage path
-    const parts = stored.split(BUCKET + '/')
-    const path = parts.length > 1 ? parts.slice(1).join(BUCKET + '/') : stored
+    const path = stored
 
     const { data: signedData, error: signedError } = await admin.storage
       .from(BUCKET)

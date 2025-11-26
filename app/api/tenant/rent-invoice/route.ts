@@ -3,6 +3,8 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { startOfMonthUtc, addMonthsUtc, toIsoDate } from '@/lib/invoices/rentPeriods'
 
+const UNPAID_STATUSES = ['unpaid', 'overdue', 'partially_paid', false, null]
+
 async function selectExistingInvoice(
   adminSupabase: ReturnType<typeof createAdminClient>,
   leaseId: string,
@@ -15,6 +17,7 @@ async function selectExistingInvoice(
     .select('id, amount, due_date, status, invoice_type, description, months_covered, lease_id')
     .eq('lease_id', leaseId)
     .eq('invoice_type', 'rent')
+    .in('status', UNPAID_STATUSES as any[])
     .gte('due_date', toIsoDate(periodStart))
     .lt('due_date', toIsoDate(nextPeriod))
     .maybeSingle()
@@ -86,7 +89,7 @@ export async function GET(request: NextRequest) {
       .select('id, due_date, status')
       .eq('lease_id', lease.id)
       .eq('invoice_type', 'rent')
-      .or('status.eq.false,status.eq.unpaid,status.eq.overdue,status.eq.partially_paid')
+      .in('status', UNPAID_STATUSES as any[])
       .order('due_date', { ascending: true })
       .limit(1)
       .maybeSingle()
@@ -113,6 +116,12 @@ export async function GET(request: NextRequest) {
 
     const dueDate = toIsoDate(targetPeriod)
     let invoice = await selectExistingInvoice(adminSupabase, lease.id, targetPeriod)
+
+    // If we found an invoice but it's marked paid, move to next period and prepare again
+    if (invoice?.status === true) {
+      targetPeriod = addMonthsUtc(targetPeriod, 1)
+      invoice = await selectExistingInvoice(adminSupabase, lease.id, targetPeriod)
+    }
 
     if (!invoice) {
         const dueLabel = targetPeriod.toLocaleString('en-US', { month: 'long', year: 'numeric' })

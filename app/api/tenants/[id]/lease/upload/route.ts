@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 
 const MANAGER_ROLES = new Set(['admin', 'manager', 'caretaker'])
-const BUCKET = 'lease_documents'
+const BUCKET = 'lease-documents'
 
 async function verifyManager() {
   const supabase = await createClient()
