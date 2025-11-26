@@ -47,30 +47,27 @@ export async function GET() {
       .eq('user_id', user.id)
       .maybeSingle()
 
-    if (!membership?.organization_id) {
-      return NextResponse.json({ success: true, data: [] })
-    }
-
     const propertyScope =
       (user.user_metadata as any)?.property_id ||
       (user.user_metadata as any)?.building_id ||
-      membership.property_id ||
+      membership?.property_id ||
       null
 
-    const { data: orgStaff, error: staffError } = await admin
-      .from('organization_members')
-      .select('user_id')
-      .eq('organization_id', membership.organization_id)
-      .in('role', Array.from(MANAGER_ROLES))
+    let staffIds = new Set<string>([user.id])
+    if (membership?.organization_id) {
+      const { data: orgStaff, error: staffError } = await admin
+        .from('organization_members')
+        .select('user_id')
+        .eq('organization_id', membership.organization_id)
+        .in('role', Array.from(MANAGER_ROLES))
 
-    if (staffError) throw staffError
-
-    const staffIds = Array.from(new Set((orgStaff || []).map((row) => row.user_id).filter(Boolean)))
-    if (staffIds.length === 0) {
-      return NextResponse.json({ success: true, data: [] })
+      if (staffError) throw staffError
+      (orgStaff || []).forEach((row) => {
+        if (row.user_id) staffIds.add(row.user_id)
+      })
     }
 
-    const staffList = staffIds.map((id) => id.replace(/,/g, '')).join(',')
+    const staffList = Array.from(staffIds).map((id) => id.replace(/,/g, '')).join(',')
 
     let tenantIdsForScope: string[] | null = null
     if (userRole === 'caretaker' && propertyScope) {
@@ -114,7 +111,7 @@ export async function GET() {
 
     const profileIds = new Set<string>()
     const conversations = new Map<string, ConversationSummary>()
-    const staffSet = new Set(staffIds)
+    const staffSet = staffIds
 
     ;(data || []).forEach((row: CommunicationRow) => {
       if (row.related_entity_type === 'payment') return
