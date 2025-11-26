@@ -723,62 +723,65 @@ function DashboardContent() {
                       <Wrench className="w-5 h-5 text-red-600" />
                     </div>
                     <div>
-                      <CardTitle className="text-lg">Recent Maintenance</CardTitle>
-                      <CardDescription>Latest reported issues</CardDescription>
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  {Array.isArray(overview?.maintenance) && overview.maintenance.length ? (
-                    overview.maintenance.slice(0, 3).map((item) => (
-                      <div
-                        key={item.id}
-                        className="flex items-start justify-between rounded-lg border border-gray-100 p-3 bg-white"
-                      >
-                        <div>
-                          <p className="font-semibold text-gray-900">{item.title}</p>
-                          <p className="text-sm text-gray-600">
-                            {item.property} • {item.unit}
-                          </p>
-                          <p className="text-xs text-gray-500">
-                            {item.updated_at
-                              ? new Date(item.updated_at).toLocaleString()
-                              : item.created_at
-                                ? new Date(item.created_at).toLocaleString()
-                                : '—'}
-                          </p>
-                        </div>
-                        <div className="flex flex-col items-end gap-2">
-                          <span
-                            className={cn(
-                              'text-xs px-2 py-1 rounded-full font-medium',
-                              item.status === 'resolved'
-                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-100'
-                                : 'bg-amber-50 text-amber-700 border border-amber-100'
-                            )}
-                          >
-                            {item.status}
-                          </span>
-                          <span
-                            className={cn(
-                              'text-xs px-2 py-1 rounded-full font-medium capitalize',
-                              item.priority === 'high'
-                                ? 'bg-red-50 text-red-700 border border-red-100'
-                                : item.priority === 'low'
-                                  ? 'bg-gray-50 text-gray-700 border border-gray-100'
-                                  : 'bg-blue-50 text-blue-700 border border-blue-100'
-                            )}
-                          >
-                            {item.priority} priority
-                          </span>
-                        </div>
+                  <CardTitle className="text-lg">Recent Maintenance</CardTitle>
+                  <CardDescription>Latest reported issues</CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {Array.isArray(overview?.maintenance) && overview.maintenance.length ? (
+                overview.maintenance.slice(0, 3).map((item) => (
+                  <Link
+                    key={item.id}
+                    href="/dashboard/maintenance"
+                    className="block rounded-lg border border-gray-100 p-3 bg-white hover:shadow-sm transition-shadow"
+                  >
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <p className="font-semibold text-gray-900">{item.title}</p>
+                        <p className="text-sm text-gray-600">
+                          {item.property} • {item.unit}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          {item.updated_at
+                            ? new Date(item.updated_at).toLocaleString()
+                            : item.created_at
+                              ? new Date(item.created_at).toLocaleString()
+                              : '—'}
+                        </p>
                       </div>
-                    ))
-                  ) : (
-                    <p className="text-sm text-gray-500">No recent maintenance requests.</p>
-                  )}
-                </CardContent>
-              </Card>
+                      <div className="flex flex-col items-end gap-2">
+                        <span
+                          className={cn(
+                            'text-xs px-2 py-1 rounded-full font-medium',
+                            item.status === 'resolved'
+                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-100'
+                              : 'bg-amber-50 text-amber-700 border border-amber-100'
+                          )}
+                        >
+                          {item.status}
+                        </span>
+                        <span
+                          className={cn(
+                            'text-xs px-2 py-1 rounded-full font-medium capitalize',
+                            item.priority === 'high'
+                              ? 'bg-red-50 text-red-700 border border-red-100'
+                              : item.priority === 'low'
+                                ? 'bg-gray-50 text-gray-700 border border-gray-100'
+                                : 'bg-blue-50 text-blue-700 border border-blue-100'
+                          )}
+                        >
+                          {item.priority} priority
+                        </span>
+                      </div>
+                    </div>
+                  </Link>
+                ))
+              ) : (
+                <p className="text-sm text-gray-500">No recent maintenance requests.</p>
+              )}
+            </CardContent>
+          </Card>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {[

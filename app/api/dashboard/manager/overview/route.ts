@@ -203,7 +203,6 @@ export async function GET() {
           potential: 0,
           name: displayName,
         }
-        mBucket.potential += amount
         if (inv.status === true) mBucket.paid += amount
         mBucket.name = displayName
         propertyIncomeMonth.set(buildingKey, mBucket)
