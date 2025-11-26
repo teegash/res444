@@ -47,6 +47,7 @@ export default function TenantPaymentPortal() {
   const [mpesaNumber, setMpesaNumber] = useState('')
   const [cardDetails, setCardDetails] = useState({ name: '', number: '', expiry: '', cvv: '' })
   const [depositSnapshot, setDepositSnapshot] = useState<File | null>(null)
+  const [depositPreviewUrl, setDepositPreviewUrl] = useState<string | null>(null)
   const [depositNotes, setDepositNotes] = useState('')
   const [bankReference, setBankReference] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -227,13 +228,18 @@ export default function TenantPaymentPortal() {
         clearInterval(mpesaPollIntervalRef.current)
         mpesaPollIntervalRef.current = null
       }
+      if (depositPreviewUrl) {
+        URL.revokeObjectURL(depositPreviewUrl)
+      }
     }
-  }, [mpesaPollPaymentId, fetchInvoice])
+  }, [mpesaPollPaymentId, fetchInvoice, depositPreviewUrl])
 
   const handleDepositUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (file) {
       setDepositSnapshot(file)
+      if (depositPreviewUrl) URL.revokeObjectURL(depositPreviewUrl)
+      setDepositPreviewUrl(file.type.startsWith('image/') ? URL.createObjectURL(file) : null)
     }
   }
 
@@ -723,10 +729,37 @@ export default function TenantPaymentPortal() {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="deposit-upload">Upload deposit slip</Label>
-                    <Input id="deposit-upload" type="file" accept="image/*,application/pdf" onChange={handleDepositUpload} />
-                    {depositSnapshot && (
-                      <p className="text-xs text-muted-foreground">Uploaded: {depositSnapshot.name}</p>
-                    )}
+                    <div className="rounded-xl border-2 border-dashed border-slate-300 bg-white p-4 flex flex-col gap-3 items-start">
+                      <div className="flex items-center gap-3">
+                        <Button type="button" variant="outline" onClick={() => document.getElementById('deposit-upload')?.click()}>
+                          Choose file
+                        </Button>
+                        <p className="text-xs text-muted-foreground">
+                          Upload a clear photo or PDF of your bank deposit slip.
+                        </p>
+                      </div>
+                      <Input
+                        id="deposit-upload"
+                        type="file"
+                        accept="image/*,application/pdf"
+                        className="hidden"
+                        onChange={handleDepositUpload}
+                      />
+                      {depositSnapshot && (
+                        <div className="w-full">
+                          <p className="text-xs text-muted-foreground mb-2">Selected: {depositSnapshot.name}</p>
+                          {depositPreviewUrl ? (
+                            <img
+                              src={depositPreviewUrl}
+                              alt="Deposit slip preview"
+                              className="max-h-64 rounded-lg border object-contain"
+                            />
+                          ) : (
+                            <div className="text-xs text-muted-foreground">Preview unavailable (PDF selected).</div>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="deposit-notes">Additional notes</Label>
