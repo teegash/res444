@@ -15,8 +15,22 @@ export async function GET() {
     }
 
     const admin = createAdminClient()
+    let propertyScope: string | null =
+      (user.user_metadata as any)?.property_id || (user.user_metadata as any)?.building_id || null
+    try {
+      const { data: membership } = await admin
+        .from('organization_members')
+        .select('property_id')
+        .eq('user_id', user.id)
+        .maybeSingle()
+      if (membership?.property_id) {
+        propertyScope = membership.property_id
+      }
+    } catch {
+      // ignore missing column
+    }
 
-    const { data, error } = await admin
+    const waterBillQuery = admin
       .from('water_bills')
       .select(
         `
@@ -51,6 +65,12 @@ export async function GET() {
       )
       .order('billing_month', { ascending: false })
       .limit(500)
+
+    if (propertyScope) {
+      waterBillQuery.eq('unit.building_id', propertyScope)
+    }
+
+    const { data, error } = await waterBillQuery
 
     if (error) {
       throw error

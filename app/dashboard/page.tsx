@@ -177,6 +177,11 @@ function DashboardContent() {
   const [overviewError, setOverviewError] = useState<string | null>(null)
   const [topTenants, setTopTenants] = useState<Array<{ tenant_id: string; name: string; on_time_rate: number; payments: number }>>([])
   const [ratingsError, setRatingsError] = useState<string | null>(null)
+  const role =
+    organization?.user_role ||
+    (user?.user_metadata as any)?.role ||
+    (user as any)?.role ||
+    null
 
   const revenueSeries = overview?.revenue?.series || []
   const expensesSeries = overview?.expenses?.monthly || []
@@ -220,6 +225,7 @@ function DashboardContent() {
   }, [propertyIncomeMonthData])
 
   useEffect(() => {
+    if (role === 'caretaker') return
     const loadOverview = async () => {
       try {
         setOverviewError(null)
@@ -235,9 +241,10 @@ function DashboardContent() {
       }
     }
     loadOverview()
-  }, [])
+  }, [role])
 
   useEffect(() => {
+    if (role === 'caretaker') return
     const loadRatings = async () => {
       try {
         setRatingsError(null)
@@ -253,7 +260,7 @@ function DashboardContent() {
       }
     }
     loadRatings()
-  }, [])
+  }, [role])
 
   if (loadingOrg) {
     return (
@@ -270,6 +277,55 @@ function DashboardContent() {
               </div>
               <SkeletonPropertyCard count={3} />
               <SkeletonTable rows={4} columns={4} />
+            </div>
+          </main>
+        </div>
+      </div>
+    )
+  }
+
+  if (role === 'caretaker') {
+    const quickActions = [
+      { label: 'Water Bills', href: '/dashboard/water-bills', icon: Droplet, color: 'bg-blue-50 text-blue-700' },
+      { label: 'Tenants', href: '/dashboard/tenants', icon: Users, color: 'bg-emerald-50 text-emerald-700' },
+      { label: 'Messages', href: '/dashboard/communications', icon: MessageSquare, color: 'bg-orange-50 text-orange-700' },
+      { label: 'Maintenance', href: '/dashboard/maintenance', icon: Wrench, color: 'bg-amber-50 text-amber-700' },
+    ]
+
+    return (
+      <div className="flex min-h-screen bg-gray-50">
+        <Sidebar />
+        <div className="flex-1 flex flex-col">
+          <Header />
+          <main className="flex-1 p-6 overflow-auto">
+            <div className="max-w-6xl mx-auto space-y-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h1 className="text-3xl font-bold text-gray-900">Caretaker Dashboard</h1>
+                  <p className="text-gray-600">Focus on your property tasks with quick actions.</p>
+                </div>
+              </div>
+
+              <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+                {quickActions.map((action) => {
+                  const Icon = action.icon
+                  return (
+                    <Link key={action.label} href={action.href}>
+                      <Card className="hover:shadow-md transition-shadow border border-gray-100">
+                        <CardContent className="p-4 flex items-center gap-3">
+                          <div className={`${action.color} p-3 rounded-lg`}>
+                            <Icon className="h-5 w-5" />
+                          </div>
+                          <div>
+                            <p className="font-semibold">{action.label}</p>
+                            <p className="text-xs text-muted-foreground">Open</p>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </Link>
+                  )
+                })}
+              </div>
             </div>
           </main>
         </div>

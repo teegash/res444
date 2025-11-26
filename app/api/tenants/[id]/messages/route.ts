@@ -29,6 +29,8 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     }
 
     const userRole = (user.user_metadata?.role as string | undefined)?.toLowerCase()
+    let propertyScope: string | null =
+      (user.user_metadata as any)?.property_id || (user.user_metadata as any)?.building_id || null
     if (!userRole || !MANAGER_ROLES.has(userRole)) {
       return NextResponse.json(
         { success: false, error: 'Access denied. Manager permissions required.' },
@@ -37,6 +39,18 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     }
 
     const adminSupabase = createAdminClient()
+    try {
+      const { data: membership } = await adminSupabase
+        .from('organization_members')
+        .select('property_id')
+        .eq('user_id', user.id)
+        .maybeSingle()
+      if (membership?.property_id) {
+        propertyScope = membership.property_id
+      }
+    } catch {
+      // ignore if column missing
+    }
 
     const { data: tenantProfile, error: profileError } = await adminSupabase
       .from('user_profiles')
@@ -89,6 +103,15 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       if (!membership && userRole !== 'admin') {
         return NextResponse.json(
           { success: false, error: 'You are not assigned to this organization.' },
+          { status: 403 }
+        )
+      }
+    }
+
+    if (userRole === 'caretaker' && propertyScope && tenantLease?.unit?.building?.id) {
+      if (tenantLease.unit.building.id !== propertyScope) {
+        return NextResponse.json(
+          { success: false, error: 'You are not assigned to this property.' },
           { status: 403 }
         )
       }

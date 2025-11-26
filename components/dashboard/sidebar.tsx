@@ -127,6 +127,7 @@ function Sidebar() {
       '/dashboard/tenants',
       '/dashboard/payments',
       '/dashboard/water-bills',
+      '/dashboard/communications',
       '/dashboard/maintenance',
     ])
     return menuItems.filter((item) => allowed.has(item.href))

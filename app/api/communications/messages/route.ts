@@ -36,11 +36,25 @@ export async function GET() {
     }
 
     const userRole = (user.user_metadata?.role as string | undefined)?.toLowerCase()
+    let propertyScope: string | null =
+      (user.user_metadata as any)?.property_id || (user.user_metadata as any)?.building_id || null
     if (!userRole || !MANAGER_ROLES.has(userRole)) {
       return NextResponse.json({ success: false, error: 'Access denied.' }, { status: 403 })
     }
 
     const admin = createAdminClient()
+    try {
+      const { data: membership } = await admin
+        .from('organization_members')
+        .select('property_id')
+        .eq('user_id', user.id)
+        .maybeSingle()
+      if (membership?.property_id) {
+        propertyScope = membership.property_id
+      }
+    } catch {
+      // ignore missing column
+    }
     const { data, error } = await admin
       .from('communications')
       .select(
@@ -96,12 +110,28 @@ export async function GET() {
       }
     })
 
+    let allowedTenantIds = Array.from(profileIds)
+    if (userRole === 'caretaker' && propertyScope) {
+      const { data: leases } = await admin
+        .from('leases')
+        .select('tenant_user_id, unit:apartment_units ( building_id )')
+        .in('tenant_user_id', Array.from(profileIds))
+        .in('status', ['active', 'pending'])
+
+      const permitted = new Set(
+        (leases || [])
+          .filter((lease: any) => lease?.unit?.building_id === propertyScope)
+          .map((lease: any) => lease.tenant_user_id)
+      )
+      allowedTenantIds = allowedTenantIds.filter((id) => permitted.has(id))
+    }
+
     let profileMap = new Map<string, { full_name: string | null }>()
-    if (profileIds.size > 0) {
+    if (allowedTenantIds.length > 0) {
       const { data: profiles, error: profileError } = await admin
         .from('user_profiles')
         .select('id, full_name')
-        .in('id', Array.from(profileIds))
+        .in('id', allowedTenantIds)
 
       if (profileError) {
         throw profileError
@@ -111,6 +141,7 @@ export async function GET() {
     }
 
     const payload = Array.from(conversations.values())
+      .filter((conversation) => allowedTenantIds.includes(conversation.tenantId))
       .map((conversation) => ({
         tenantId: conversation.tenantId,
         tenantName: profileMap.get(conversation.tenantId)?.full_name || 'Tenant',

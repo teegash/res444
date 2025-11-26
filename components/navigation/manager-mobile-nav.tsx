@@ -32,6 +32,7 @@ export function ManagerMobileNav() {
         { key: 'tenants', label: 'Tenants', icon: Users, href: '/dashboard/tenants' },
         { key: 'payments', label: 'Pay', icon: CreditCard, href: '/dashboard/payments' },
         { key: 'water', label: 'Water', icon: Droplet, href: '/dashboard/water-bills' },
+        { key: 'messages', label: 'Msgs', icon: MessageSquare, href: '/dashboard/communications' },
         { key: 'maintenance', label: 'Fix', icon: Wrench, href: '/dashboard/maintenance' },
       ]
     }
@@ -62,6 +63,7 @@ export function ManagerMobileNav() {
     if (!pathname) return 'dashboard'
     if (pathname.startsWith('/dashboard/properties')) return 'properties'
     if (pathname.startsWith('/dashboard/tenants')) return 'tenants'
+    if (pathname.startsWith('/dashboard/communications')) return 'messages'
     if (pathname.startsWith('/dashboard/water-bills')) return 'water'
     if (pathname.startsWith('/dashboard/maintenance')) return 'maintenance'
     if (pathname.includes('/reports')) return 'reports'
