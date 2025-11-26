@@ -24,6 +24,22 @@ async function selectExistingInvoice(
   return data
 }
 
+async function selectByDueDate(
+  adminSupabase: ReturnType<typeof createAdminClient>,
+  leaseId: string,
+  dueDateIso: string
+) {
+  const { data } = await adminSupabase
+    .from('invoices')
+    .select('id, amount, due_date, status, invoice_type, description, months_covered, lease_id')
+    .eq('lease_id', leaseId)
+    .eq('invoice_type', 'rent')
+    .eq('due_date', dueDateIso)
+    .maybeSingle()
+
+  return data
+}
+
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient()
@@ -115,11 +131,16 @@ export async function GET(request: NextRequest) {
 
     const dueDate = toIsoDate(targetPeriod)
     let invoice = await selectExistingInvoice(adminSupabase, lease.id, targetPeriod)
+    const dueDateIso = toIsoDate(targetPeriod)
 
     // If we found an invoice but it's marked paid, move to next period and prepare again
     if (invoice?.status === true) {
       targetPeriod = addMonthsUtc(targetPeriod, 1)
       invoice = await selectExistingInvoice(adminSupabase, lease.id, targetPeriod)
+    }
+
+    if (!invoice) {
+      invoice = await selectByDueDate(adminSupabase, lease.id, dueDateIso)
     }
 
     if (!invoice) {
@@ -144,7 +165,7 @@ export async function GET(request: NextRequest) {
       if (createError) {
         console.error('[RentInvoice] Insert error', createError.code, createError.message)
         if (createError.code === '23505') {
-          invoice = await selectExistingInvoice(adminSupabase, lease.id, targetPeriod)
+          invoice = await selectByDueDate(adminSupabase, lease.id, dueDateIso)
         }
       }
 
@@ -157,11 +178,10 @@ export async function GET(request: NextRequest) {
       }
 
       if (!invoice) {
-        console.error(
-          '[RentInvoice] Failed to create or find invoice',
-          createError?.message || 'unknown',
-          { leaseId: lease.id, dueDate }
-        )
+        console.error('[RentInvoice] Failed to create or find invoice', createError?.message || 'unknown', {
+          leaseId: lease.id,
+          dueDate,
+        })
         return NextResponse.json(
           { success: false, error: 'Unable to prepare rent invoice.' },
           { status: 500 }

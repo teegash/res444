@@ -77,12 +77,13 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     const extension = (file.name?.split('.').pop() || 'pdf').replace(/[^a-z0-9]/gi, '') || 'pdf'
     const filePath = `tenant-${tenantId}/${targetLeaseId}-${Date.now()}.${extension}`
 
-    const { error: uploadError } = await admin.storage
-      .from(BUCKET)
-      .upload(filePath, file, {
-        contentType: file.type || 'application/pdf',
-        upsert: true,
-      })
+    const arrayBuffer = await file.arrayBuffer()
+    const buffer = Buffer.from(arrayBuffer)
+
+    const { error: uploadError } = await admin.storage.from(BUCKET).upload(filePath, buffer, {
+      contentType: file.type || 'application/pdf',
+      upsert: true,
+    })
 
     if (uploadError) {
       console.error('[LeaseUpload] storage failed', uploadError)
