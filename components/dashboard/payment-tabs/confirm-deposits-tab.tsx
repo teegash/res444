@@ -215,15 +215,36 @@ export function ConfirmDepositsTab({
                               <DialogDescription>Review the uploaded deposit slip</DialogDescription>
                             </DialogHeader>
                             <div className="mt-4">
-                              {selectedDeposit?.depositSlipUrl ? (
+                          {selectedDeposit?.depositSlipUrl ? (
+                            <div className="space-y-3">
+                              {selectedDeposit.depositSlipUrl.match(/\\.pdf($|\\?)/i) ? (
+                                <a
+                                  href={selectedDeposit.depositSlipUrl}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="text-sm text-blue-600 underline"
+                                >
+                                  Open deposit slip (PDF)
+                                </a>
+                              ) : (
                                 <img
                                   src={selectedDeposit.depositSlipUrl}
                                   alt="Deposit Slip"
-                                  className="w-full rounded-lg border"
+                                  className="w-full rounded-lg border object-contain max-h-[70vh]"
                                 />
-                              ) : (
-                                <p className="text-sm text-muted-foreground">No slip uploaded.</p>
                               )}
+                              <a
+                                href={selectedDeposit.depositSlipUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-xs text-muted-foreground underline"
+                              >
+                                Download slip
+                              </a>
+                            </div>
+                          ) : (
+                            <p className="text-sm text-muted-foreground">No slip uploaded.</p>
+                          )}
                             </div>
                           </DialogContent>
                         </Dialog>

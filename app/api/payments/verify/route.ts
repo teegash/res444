@@ -111,7 +111,8 @@ export async function POST(request: NextRequest) {
         )
       }
 
-      depositSlipUrl = uploadResult.url
+      // Prefer storing storage path to enable signed URLs on private buckets
+      depositSlipUrl = uploadResult.path || uploadResult.url
     } else if (paymentMethod === 'bank_transfer') {
       // Bank transfers should have a deposit slip
       return NextResponse.json(
