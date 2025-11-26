@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { createClient } from '@/lib/supabase/server'
+
+const MANAGER_ROLES = new Set(['admin', 'manager', 'caretaker'])
 
 interface RouteParams {
   params: {
@@ -76,12 +79,26 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
   }
 
   try {
+    // Ensure caller is manager/admin/caretaker
+    const supabase = await createClient()
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser()
+    if (authError || !user) {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
+    }
+    const callerRole = (user.user_metadata as any)?.role || (user as any)?.role || null
+    if (!callerRole || !MANAGER_ROLES.has(String(callerRole).toLowerCase())) {
+      return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })
+    }
+
     const adminSupabase = createAdminClient()
     const leaseIds: string[] = []
     const { data: leases } = await adminSupabase.from('leases').select('id').eq('tenant_user_id', tenantId)
     leases?.forEach((row) => row.id && leaseIds.push(row.id))
 
-    // Clean up dependent data
+    // Clean up dependent data (best effort)
     await adminSupabase.from('communications').delete().or(`sender_user_id.eq.${tenantId},recipient_user_id.eq.${tenantId}`)
     await adminSupabase.from('payments').delete().eq('tenant_user_id', tenantId)
     if (leaseIds.length > 0) {
@@ -90,8 +107,9 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     } else {
       await adminSupabase.from('leases').delete().eq('tenant_user_id', tenantId)
     }
-
+    await adminSupabase.from('organization_members').delete().eq('user_id', tenantId)
     await adminSupabase.from('user_profiles').delete().eq('id', tenantId)
+
     const { error } = await adminSupabase.auth.admin.deleteUser(tenantId)
     if (error) {
       throw error
