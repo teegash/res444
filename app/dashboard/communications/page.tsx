@@ -41,6 +41,7 @@ import { useToast } from '@/components/ui/use-toast'
 import { SkeletonLoader, SkeletonTable } from '@/components/ui/skeletons'
 import { renderTemplateContent } from '@/lib/sms/templateRenderer'
 import type { TemplatePlaceholder, TemplateKey } from '@/lib/sms/templateMetadata'
+import { useAuth } from '@/lib/auth/context'
 
 type SmsTemplate = {
   key: TemplateKey
@@ -69,6 +70,7 @@ type InboxItem = {
 export default function CommunicationsPage() {
   const router = useRouter()
   const { toast } = useToast()
+  const { user } = useAuth()
   const [activeTab, setActiveTab] = useState('messages')
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [newMessage, setNewMessage] = useState('')
@@ -99,6 +101,8 @@ export default function CommunicationsPage() {
   const [inboxError, setInboxError] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
   const allPropertiesSelected = selectedProperties.length === 0
+  const role = (user?.user_metadata as any)?.role || (user as any)?.role || null
+  const isCaretaker = role === 'caretaker'
 
   const fetchTemplates = async () => {
     try {
@@ -154,11 +158,13 @@ export default function CommunicationsPage() {
   }
 
   useEffect(() => {
-    fetchTemplates()
-    fetchProperties()
+    if (!isCaretaker) {
+      fetchTemplates()
+      fetchProperties()
+      fetchAnnouncementHistory()
+    }
     fetchInbox()
-    fetchAnnouncementHistory()
-  }, [])
+  }, [isCaretaker])
 
   const fetchAnnouncementHistory = async () => {
     try {
@@ -381,10 +387,10 @@ export default function CommunicationsPage() {
           </div>
 
           <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className={`grid w-full ${isCaretaker ? 'grid-cols-1' : 'grid-cols-3'}`}>
             <TabsTrigger value="messages">Messages</TabsTrigger>
-            <TabsTrigger value="sms">SMS Reminders</TabsTrigger>
-            <TabsTrigger value="announcements">Announcements</TabsTrigger>
+            {!isCaretaker && <TabsTrigger value="sms">SMS Reminders</TabsTrigger>}
+            {!isCaretaker && <TabsTrigger value="announcements">Announcements</TabsTrigger>}
           </TabsList>
 
           {/* Messages Tab */}
@@ -473,6 +479,7 @@ export default function CommunicationsPage() {
           </TabsContent>
 
           {/* SMS Reminders Tab */}
+          {!isCaretaker && (
           <TabsContent value="sms" className="space-y-4">
             <div className="flex justify-end mb-4">
               <Button onClick={() => setSettingsOpen(true)} className="gap-2">
@@ -570,6 +577,9 @@ export default function CommunicationsPage() {
           </TabsContent>
 
           {/* Announcements Tab */}
+          </TabsContent>
+          )}
+          {!isCaretaker && (
           <TabsContent value="announcements" className="space-y-4">
             <Card className="shadow-lg">
               <CardHeader>
@@ -682,7 +692,8 @@ export default function CommunicationsPage() {
                     )}
                   </CardContent>
                 </Card>
-        </TabsContent>
+          </TabsContent>
+          )}
         </Tabs>
             </>
           )}
