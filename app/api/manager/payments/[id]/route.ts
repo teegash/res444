@@ -8,15 +8,25 @@ const MANAGER_ROLES = new Set(['admin', 'manager', 'caretaker'])
 export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
   try {
     // Resolve payment id from params, query, or body (defensive)
-    let paymentId = params?.id || request.nextUrl.searchParams.get('paymentId') || null
+    const paymentIdFromParams = params?.id || null
+    const paymentIdFromQuery =
+      request.nextUrl.searchParams.get('paymentId') ||
+      request.nextUrl.searchParams.get('id') ||
+      null
 
     // Parse body once (used for action too)
     const body = await request.json().catch(() => ({}))
-    if (!paymentId) {
-      paymentId = body?.payment_id || body?.id || null
-    }
+    const paymentIdFromBody = body?.payment_id || body?.id || null
+
+    const paymentId = paymentIdFromParams || paymentIdFromQuery || paymentIdFromBody
 
     if (!paymentId) {
+      console.error('[ManagerPaymentAction] Missing payment id', {
+        paymentIdFromParams,
+        paymentIdFromQuery,
+        paymentIdFromBody,
+        path: request.nextUrl.pathname,
+      })
       return NextResponse.json({ success: false, error: 'Payment id is required.' }, { status: 400 })
     }
 
