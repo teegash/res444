@@ -54,7 +54,7 @@ cat .env.local
 ```
 
 ### Missing Tables
-Run SQL schema from `COMPLETE-RENTALKENYA-FULL-GUIDE.md` in Supabase SQL editor.
+Run SQL schema from `COMPLETE-RES-FULL-GUIDE.md` in Supabase SQL editor.
 
 ### Missing Storage Buckets
 1. Go to Supabase Dashboard → Storage
@@ -89,4 +89,3 @@ Once all tests pass, you can:
 ## 📚 Full Documentation
 
 See `SUPABASE_TEST_GUIDE.md` for detailed documentation.
-

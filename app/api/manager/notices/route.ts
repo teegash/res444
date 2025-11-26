@@ -104,7 +104,7 @@ async function sendNoticeEmail(
     <div style="background:#0f172a;padding:32px 0;font-family:Inter,Arial,sans-serif;">
       <div style="max-width:640px;margin:0 auto;background:#ffffff;border-radius:18px;overflow:hidden;box-shadow:0 20px 70px rgba(15,23,42,0.2);">
         <div style="background:linear-gradient(120deg,#1e3a8a,#0ea5e9);padding:28px 32px;color:#fff;">
-          <div style="font-size:13px;letter-spacing:0.12em;text-transform:uppercase;opacity:0.8;">RentalKenya Notice</div>
+          <div style="font-size:13px;letter-spacing:0.12em;text-transform:uppercase;opacity:0.8;">RES Notice</div>
           <div style="font-size:26px;font-weight:700;margin-top:8px;">${subject}</div>
         </div>
         <div style="padding:28px 32px;color:#0f172a;">
@@ -113,7 +113,7 @@ async function sendNoticeEmail(
           <div style="margin-top:28px;font-size:13px;color:#64748b;">If you have any questions, reply to this email.</div>
         </div>
         <div style="background:#f8fafc;padding:18px 32px;font-size:13px;color:#475569;display:flex;justify-content:space-between;align-items:center;">
-          <span>RentalKenya • Tenant Experience</span>
+          <span>RES • Tenant Experience</span>
           <span style="color:#0ea5e9;">${new Date().toLocaleDateString()}</span>
         </div>
       </div>

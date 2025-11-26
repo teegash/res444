@@ -198,7 +198,7 @@ function LoginForm() {
                 </svg>
               </div>
               <div className="text-left">
-                <h1 className="text-xl font-bold text-blue-600">RentalKenya</h1>
+                <h1 className="text-xl font-bold text-blue-600">RES</h1>
                 <p className="text-xs text-gray-600 font-medium">
                   Manager Portal
                 </p>

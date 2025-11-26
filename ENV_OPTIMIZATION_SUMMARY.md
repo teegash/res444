@@ -87,7 +87,7 @@ MPESA_AUTO_VERIFY_ENABLED=true
 # =============================================================================
 AFRICAS_TALKING_API_KEY=your_api_key_here
 AFRICAS_TALKING_USERNAME=your_username_here
-AFRICAS_TALKING_SENDER_ID=RentalKenya
+AFRICAS_TALKING_SENDER_ID=RES
 AFRICAS_TALKING_ENVIRONMENT=sandbox
 
 # =============================================================================

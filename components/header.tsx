@@ -13,7 +13,7 @@ export function Header() {
             <Building2 className="w-6 h-6 text-primary-foreground" />
           </div>
           <div className="flex flex-col">
-            <span className="font-bold text-lg text-primary leading-none">RentalKenya</span>
+            <span className="font-bold text-lg text-primary leading-none">RES</span>
             <span className="text-xs text-accent font-medium">Premium Property Management</span>
           </div>
         </Link>

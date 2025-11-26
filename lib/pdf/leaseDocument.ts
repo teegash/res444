@@ -133,7 +133,7 @@ export function exportLeasePdf(options: LeasePdfOptions) {
   doc.setFontSize(10)
   doc.setTextColor(MUTED)
   doc.text(
-    'RentalKenya • Confidential tenant document',
+    'RES • Confidential tenant document',
     PAGE_MARGIN,
     doc.internal.pageSize.getHeight() - 24
   )

@@ -120,7 +120,7 @@ export default function ReportPreviewPage() {
                   <span className="text-2xl">🏢</span>
                 </div>
                 <div>
-                  <h2 className="text-2xl font-bold text-blue-600">RentalKenya</h2>
+                  <h2 className="text-2xl font-bold text-blue-600">RES</h2>
                   <p className="text-sm text-orange-600 font-medium">Premium Property Management</p>
                 </div>
               </div>
@@ -264,7 +264,7 @@ export default function ReportPreviewPage() {
             <div className="pt-6 border-t text-center text-sm text-muted-foreground">
               <p className="mb-1">This premium report was generated on {new Date().toLocaleDateString()}</p>
               <p className="mb-4">
-                RentalKenya Ltd. | P.O. Box 12345-00100, Nairobi | www.rentalkenya.com
+                RES Ltd. | P.O. Box 12345-00100, Nairobi | www.res.com
               </p>
               <p className="text-xs text-orange-600 font-medium">Premium Property Management Solutions</p>
               <p className="text-xs mt-2">Preview • Not for distribution</p>

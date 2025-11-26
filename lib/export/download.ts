@@ -33,7 +33,7 @@ function drawPremiumHeader(doc: jsPDF, title?: string, subtitle?: string) {
   doc.setTextColor('#ffffff')
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(20)
-  doc.text(title || 'RentalKenya Report', PAGE_MARGIN, 50)
+  doc.text(title || 'RES Report', PAGE_MARGIN, 50)
 
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(11)

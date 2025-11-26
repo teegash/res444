@@ -257,7 +257,7 @@ export default function TenantStatementPage({ params }: { params: { id: string }
                   <span className="text-2xl">🏢</span>
                 </div>
                 <div>
-                  <h2 className="text-2xl font-bold text-green-600">RentalKenya</h2>
+                  <h2 className="text-2xl font-bold text-green-600">RES</h2>
                   <p className="text-sm text-muted-foreground">Property Management</p>
                 </div>
               </div>
@@ -348,12 +348,12 @@ export default function TenantStatementPage({ params }: { params: { id: string }
                 This statement is a summary of your account activity for the specified period.
               </p>
               <p className="text-muted-foreground">
-                For any inquiries, please contact us at support@rentalkenya.com or call +254 712 345 678
+                For any inquiries, please contact us at support@res.com or call +254 712 345 678
               </p>
             </div>
 
             <div className="pt-6 border-t text-center text-sm text-muted-foreground">
-              <p>RentalKenya Ltd. | P.O. Box 12345-00100, Nairobi | www.rentalkenya.com</p>
+              <p>RES Ltd. | P.O. Box 12345-00100, Nairobi | www.res.com</p>
             </div>
           </div>
         </div>

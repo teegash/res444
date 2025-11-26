@@ -220,7 +220,7 @@ function Sidebar() {
                     .toUpperCase()}
                 </span>
               ) : (
-                // Fallback to RentalKenya logo while loading
+                // Fallback to RES logo while loading
                 <span className="text-white font-bold text-lg">RK</span>
               )}
             </div>
@@ -230,9 +230,9 @@ function Sidebar() {
               <div className="overflow-hidden flex-1 min-w-0 max-w-[200px]">
                 <h1 
                   className="text-lg font-bold text-[#4682B4] whitespace-nowrap truncate"
-                  title={organization?.name || 'RentalKenya'}
+                  title={organization?.name || 'RES'}
                 >
-                  {displayName || (organization?.name || 'RentalKenya')}
+                  {displayName || (organization?.name || 'RES')}
                 </h1>
                 <p className="text-xs text-gray-600 whitespace-nowrap">Manager Portal</p>
               </div>

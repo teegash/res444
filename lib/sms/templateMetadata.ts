@@ -28,7 +28,7 @@ export const TEMPLATE_METADATA: Record<TemplateKey, TemplateMeta> = {
       { token: '[PROPERTY_NAME]', label: 'Property name', sample: 'Kilimani Heights' },
     ],
     defaultContent:
-      'RentalKenya: Hello [TENANT_NAME], your rent of [AMOUNT] for [PROPERTY_NAME] is due on [DUE_DATE]. Invoice #[INVOICE_ID]. Please pay to avoid late fees.',
+      'RES: Hello [TENANT_NAME], your rent of [AMOUNT] for [PROPERTY_NAME] is due on [DUE_DATE]. Invoice #[INVOICE_ID]. Please pay to avoid late fees.',
   },
   water_bill: {
     key: 'water_bill',
@@ -42,7 +42,7 @@ export const TEMPLATE_METADATA: Record<TemplateKey, TemplateMeta> = {
       { token: '[AMOUNT]', label: 'Bill amount', sample: 'KES 2,450' },
     ],
     defaultContent:
-      'RentalKenya: Water bill for [PROPERTY_NAME] Unit [UNIT_NUMBER] - [BILL_MONTH] totals [AMOUNT]. Kindly settle via tenant portal.',
+      'RES: Water bill for [PROPERTY_NAME] Unit [UNIT_NUMBER] - [BILL_MONTH] totals [AMOUNT]. Kindly settle via tenant portal.',
   },
   maintenance_update: {
     key: 'maintenance_update',
@@ -56,7 +56,7 @@ export const TEMPLATE_METADATA: Record<TemplateKey, TemplateMeta> = {
       { token: '[ASSIGNED_TO]', label: 'Technician/Caretaker', sample: 'David' },
     ],
     defaultContent:
-      'RentalKenya: Update for maintenance request "[REQUEST_TITLE]" in Unit [UNIT_NUMBER]. Status: [STATUS]. [ASSIGNED_TO]',
+      'RES: Update for maintenance request "[REQUEST_TITLE]" in Unit [UNIT_NUMBER]. Status: [STATUS]. [ASSIGNED_TO]',
   },
   lease_renewal: {
     key: 'lease_renewal',
@@ -70,7 +70,7 @@ export const TEMPLATE_METADATA: Record<TemplateKey, TemplateMeta> = {
       { token: '[DAYS_REMAINING]', label: 'Days remaining', sample: '30' },
     ],
     defaultContent:
-      'RentalKenya: Your lease for [PROPERTY_NAME] Unit [UNIT_NUMBER] expires on [CURRENT_END_DATE] ([DAYS_REMAINING] days left). Contact management to renew.',
+      'RES: Your lease for [PROPERTY_NAME] Unit [UNIT_NUMBER] expires on [CURRENT_END_DATE] ([DAYS_REMAINING] days left). Contact management to renew.',
   },
 }
 

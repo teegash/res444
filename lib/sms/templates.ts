@@ -2,7 +2,7 @@
 
 /**
  * SMS Message Templates
- * All templates follow Kenya SMS format and include RentalKenya branding
+ * All templates follow Kenya SMS format and include RES branding
  */
 
 export interface RentReminderData {
@@ -77,9 +77,9 @@ export function generateRentReminderMessage(data: RentReminderData): string {
   const invoiceShortId = data.invoiceId.substring(0, 8).toUpperCase()
 
   if (data.isOverdue) {
-    return `RentalKenya: Your rent payment of ${formattedAmount} is OVERDUE (due ${formattedDate}). Invoice #${invoiceShortId}. Please make payment immediately to avoid penalties.`
+    return `RES: Your rent payment of ${formattedAmount} is OVERDUE (due ${formattedDate}). Invoice #${invoiceShortId}. Please make payment immediately to avoid penalties.`
   } else {
-    return `RentalKenya: Reminder - Your rent payment of ${formattedAmount} is due on ${formattedDate}. Invoice #${invoiceShortId}. Please make payment to avoid late fees.`
+    return `RES: Reminder - Your rent payment of ${formattedAmount} is due on ${formattedDate}. Invoice #${invoiceShortId}. Please make payment to avoid late fees.`
   }
 }
 
@@ -88,7 +88,7 @@ export function generateRentReminderMessage(data: RentReminderData): string {
  */
 export function generateWaterBillReminderMessage(data: WaterBillReminderData): string {
   const formattedAmount = formatCurrency(data.amount)
-  return `RentalKenya: Water bill reminder for ${data.buildingName}, Unit ${data.unitNumber} - ${data.month}. Amount: ${formattedAmount}. Please add meter reading.`
+  return `RES: Water bill reminder for ${data.buildingName}, Unit ${data.unitNumber} - ${data.month}. Amount: ${formattedAmount}. Please add meter reading.`
 }
 
 /**
@@ -98,7 +98,7 @@ export function generateMaintenanceUpdateMessage(data: MaintenanceUpdateData): s
   const statusText = data.status.replace('_', ' ').toLowerCase()
   const assignedText = data.assignedTo ? ` Assigned to: ${data.assignedTo}.` : ''
 
-  return `RentalKenya: Maintenance update for "${data.requestTitle}" in Unit ${data.unitNumber}. Status: ${statusText}.${assignedText} Check your dashboard for details.`
+  return `RES: Maintenance update for "${data.requestTitle}" in Unit ${data.unitNumber}. Status: ${statusText}.${assignedText} Check your dashboard for details.`
 }
 
 /**
@@ -108,13 +108,13 @@ export function generateLeaseRenewalMessage(data: LeaseRenewalData): string {
   const formattedDate = formatDate(data.currentEndDate)
 
   if (data.daysUntilExpiry === 0) {
-    return `RentalKenya: URGENT - Your lease for Unit ${data.unitNumber}, ${data.buildingName} expires TODAY (${formattedDate}). Please contact management immediately.`
+    return `RES: URGENT - Your lease for Unit ${data.unitNumber}, ${data.buildingName} expires TODAY (${formattedDate}). Please contact management immediately.`
   } else if (data.daysUntilExpiry === 1) {
-    return `RentalKenya: URGENT - Your lease for Unit ${data.unitNumber}, ${data.buildingName} expires TOMORROW (${formattedDate}). Please contact management.`
+    return `RES: URGENT - Your lease for Unit ${data.unitNumber}, ${data.buildingName} expires TOMORROW (${formattedDate}). Please contact management.`
   } else if (data.daysUntilExpiry <= 7) {
-    return `RentalKenya: Your lease for Unit ${data.unitNumber}, ${data.buildingName} expires in ${data.daysUntilExpiry} days (${formattedDate}). Please contact management to renew.`
+    return `RES: Your lease for Unit ${data.unitNumber}, ${data.buildingName} expires in ${data.daysUntilExpiry} days (${formattedDate}). Please contact management to renew.`
   } else {
-    return `RentalKenya: Your lease for Unit ${data.unitNumber}, ${data.buildingName} expires on ${formattedDate} (${data.daysUntilExpiry} days remaining). Please plan for renewal.`
+    return `RES: Your lease for Unit ${data.unitNumber}, ${data.buildingName} expires on ${formattedDate} (${data.daysUntilExpiry} days remaining). Please plan for renewal.`
   }
 }
 
@@ -126,7 +126,7 @@ export function generatePaymentConfirmationMessage(data: PaymentConfirmationData
   const invoiceShortId = data.invoiceId.substring(0, 8).toUpperCase()
   const receiptText = data.receiptNumber ? ` Receipt: ${data.receiptNumber}.` : ''
 
-  return `RentalKenya: Your payment of ${formattedAmount} via ${data.paymentMethod} has been confirmed. Invoice #${invoiceShortId} is now paid.${receiptText} Thank you!`
+  return `RES: Your payment of ${formattedAmount} via ${data.paymentMethod} has been confirmed. Invoice #${invoiceShortId} is now paid.${receiptText} Thank you!`
 }
 
 /**
@@ -140,7 +140,7 @@ export function generatePaymentRejectionMessage(
   const formattedAmount = formatCurrency(amount)
   const invoiceShortId = invoiceId.substring(0, 8).toUpperCase()
 
-  return `RentalKenya: Your payment of ${formattedAmount} for Invoice #${invoiceShortId} has been rejected. Reason: ${reason}. Please contact support for assistance.`
+  return `RES: Your payment of ${formattedAmount} for Invoice #${invoiceShortId} has been rejected. Reason: ${reason}. Please contact support for assistance.`
 }
 
 /**
@@ -156,10 +156,10 @@ export function generatePaymentVerificationMessage(
   const invoiceShortId = invoiceId.substring(0, 8).toUpperCase()
 
   if (status === 'approved') {
-    return `RentalKenya: Your payment of ${formattedAmount} has been verified and approved. Invoice #${invoiceShortId} is now paid. Thank you!`
+    return `RES: Your payment of ${formattedAmount} has been verified and approved. Invoice #${invoiceShortId} is now paid. Thank you!`
   } else {
     const reasonText = reason ? ` Reason: ${reason}.` : ''
-    return `RentalKenya: Your payment of ${formattedAmount} for Invoice #${invoiceShortId} has been rejected.${reasonText} Please contact support for assistance.`
+    return `RES: Your payment of ${formattedAmount} for Invoice #${invoiceShortId} has been rejected.${reasonText} Please contact support for assistance.`
   }
 }
 

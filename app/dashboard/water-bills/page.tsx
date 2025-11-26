@@ -353,7 +353,7 @@ export default function WaterBillsPage() {
       doc.setFontSize(10)
       doc.setTextColor('#94a3b8')
       doc.text(
-        'Thank you for staying current with your utilities • RentalKenya Utility Desk',
+        'Thank you for staying current with your utilities • RES Utility Desk',
         48,
         doc.internal.pageSize.getHeight() - 30
       )

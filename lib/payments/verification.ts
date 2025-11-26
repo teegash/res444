@@ -449,10 +449,10 @@ async function sendPaymentVerificationNotification(
     // Generate message
     let message: string
     if (status === 'approved') {
-      message = `RentalKenya: Your payment of ${formattedAmount} has been verified and approved. Invoice #${invoiceShortId} is now paid. Thank you!`
+      message = `RES: Your payment of ${formattedAmount} has been verified and approved. Invoice #${invoiceShortId} is now paid. Thank you!`
     } else {
       const reasonText = reason ? ` Reason: ${reason}.` : ''
-      message = `RentalKenya: Your payment of ${formattedAmount} for Invoice #${invoiceShortId} has been rejected.${reasonText} Please contact support for assistance.`
+      message = `RES: Your payment of ${formattedAmount} for Invoice #${invoiceShortId} has been rejected.${reasonText} Please contact support for assistance.`
     }
 
     // Send SMS via Africa's Talking

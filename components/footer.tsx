@@ -10,7 +10,7 @@ export function Footer() {
               <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
                 <span className="text-white font-bold text-sm">RK</span>
               </div>
-              <span className="font-bold text-white">RentalKenya</span>
+              <span className="font-bold text-white">RES</span>
             </div>
             <p className="text-sm text-gray-400">Managing properties across Kenya with confidence and simplicity.</p>
           </div>
@@ -44,7 +44,7 @@ export function Footer() {
         </div>
 
         <div className="border-t border-gray-700 pt-8 flex flex-col sm:flex-row justify-between items-center">
-          <p className="text-sm text-gray-400">© 2025 RentalKenya. All rights reserved.</p>
+          <p className="text-sm text-gray-400">© 2025 RES. All rights reserved.</p>
           <div className="flex gap-6 mt-4 sm:mt-0">
             <a href="#" className="text-gray-400 hover:text-white transition">Twitter</a>
             <a href="#" className="text-gray-400 hover:text-white transition">LinkedIn</a>

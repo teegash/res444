@@ -277,7 +277,7 @@ export default function TenantStatementPage({ params }: { params: { id?: string 
                 <span className="text-2xl">🏢</span>
               </div>
               <div>
-                <h2 className="text-2xl font-bold text-green-600">RentalKenya</h2>
+                <h2 className="text-2xl font-bold text-green-600">RES</h2>
                 <p className="text-sm text-muted-foreground">Property Management</p>
               </div>
             </div>

@@ -92,14 +92,14 @@ export default function HelpSupportPage() {
           <div className="rounded-lg border p-4">
             <p className="font-semibold">Knowledge Base</p>
             <p className="text-sm text-muted-foreground">Guides on payments, leases, reporting, and maintenance.</p>
-            <Button variant="link" className="px-0" onClick={() => window.open('https://support.rentalkenya.com', '_blank')}>
+            <Button variant="link" className="px-0" onClick={() => window.open('https://support.res.com', '_blank')}>
               Open knowledge base
             </Button>
           </div>
           <div className="rounded-lg border p-4">
             <p className="font-semibold">System Status</p>
             <p className="text-sm text-muted-foreground">Check if there are ongoing outages.</p>
-            <Button variant="link" className="px-0" onClick={() => window.open('https://status.rentalkenya.com', '_blank')}>
+            <Button variant="link" className="px-0" onClick={() => window.open('https://status.res.com', '_blank')}>
               View status
             </Button>
           </div>

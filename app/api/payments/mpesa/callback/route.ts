@@ -298,7 +298,7 @@ async function sendPaymentConfirmationSMS(
     }).format(paymentDetails.amount)
 
     // Generate message
-    const message = `RentalKenya: Your payment of ${formattedAmount} has been confirmed. Receipt: ${paymentDetails.receiptNumber}. Invoice #${paymentDetails.invoiceId.substring(0, 8)}. Thank you!`
+    const message = `RES: Your payment of ${formattedAmount} has been confirmed. Receipt: ${paymentDetails.receiptNumber}. Invoice #${paymentDetails.invoiceId.substring(0, 8)}. Thank you!`
 
     // Send SMS via Africa's Talking
     const { sendSMSWithLogging } = await import('@/lib/sms/smsService')

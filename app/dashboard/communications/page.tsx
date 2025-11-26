@@ -712,7 +712,7 @@ export default function CommunicationsPage() {
               </div>
               <div>
                 <Label>Sender ID</Label>
-                <Input placeholder="RentalKenya" />
+                <Input placeholder="RES" />
               </div>
               <Button>Save Settings</Button>
             </div>

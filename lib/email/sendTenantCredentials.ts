@@ -48,7 +48,7 @@ export async function sendTenantCredentialsEmail({
   const textBody = [
     `Hello ${friendlyName},`,
     '',
-    'Welcome to the RentalKenya tenant portal.',
+    'Welcome to the RES tenant portal.',
     '',
     'Your credentials:',
     `  • Login URL: ${loginUrl}`,
@@ -58,7 +58,7 @@ export async function sendTenantCredentialsEmail({
     'Please sign in and change your password after your first login to keep your account secure.',
     '',
     'Warm regards,',
-    'RentalKenya Support',
+    'RES Support',
   ].join('\n')
 
   const htmlBody = `
@@ -66,7 +66,7 @@ export async function sendTenantCredentialsEmail({
       <table role="presentation" cellspacing="0" cellpadding="0" width="100%" style="max-width:560px;margin:0 auto;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 12px 45px rgba(15,23,42,0.08);">
         <tr>
           <td style="background:#0f172a;padding:32px;text-align:center;">
-            <div style="font-size:24px;font-weight:600;color:#ffffff;">RentalKenya Tenant Portal</div>
+            <div style="font-size:24px;font-weight:600;color:#ffffff;">RES Tenant Portal</div>
             <div style="margin-top:8px;font-size:14px;color:#cbd5f5;">Secure access to your home</div>
           </td>
         </tr>
@@ -74,7 +74,7 @@ export async function sendTenantCredentialsEmail({
           <td style="padding:32px;">
             <p style="font-size:16px;margin:0 0 16px 0;">Hello ${friendlyName},</p>
             <p style="font-size:15px;line-height:1.6;margin:0 0 24px 0;">
-              Welcome to the RentalKenya tenant portal. We’ve created your account and you can sign in immediately using the credentials below.
+              Welcome to the RES tenant portal. We’ve created your account and you can sign in immediately using the credentials below.
             </p>
             <div style="border:1px solid #e2e8f0;border-radius:12px;padding:20px;background:#f8fafc;margin-bottom:24px;">
               <div style="font-size:13px;font-weight:600;color:#475569;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:12px;">Your Access Details</div>
@@ -103,7 +103,7 @@ export async function sendTenantCredentialsEmail({
         </tr>
         <tr>
           <td style="background:#f1f5f9;padding:20px;text-align:center;font-size:13px;color:#64748b;">
-            RentalKenya • Secure Tenant Experience
+            RES • Secure Tenant Experience
           </td>
         </tr>
       </table>

@@ -23,7 +23,7 @@ export function AlternativePaymentMethods({ selectedMethod }) {
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Account Name:</span>
-              <span className="font-semibold">RentalKenya Ltd</span>
+              <span className="font-semibold">RES Ltd</span>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Account Number:</span>
@@ -55,12 +55,12 @@ export function AlternativePaymentMethods({ selectedMethod }) {
           </Alert>
           <div className="bg-muted p-4 rounded-lg space-y-2">
             <p className="font-semibold">Mail Cheque To:</p>
-            <p className="text-sm">RentalKenya Ltd<br />Westlands Plaza<br />Nairobi, Kenya 00100</p>
+            <p className="text-sm">RES Ltd<br />Westlands Plaza<br />Nairobi, Kenya 00100</p>
           </div>
           <div className="space-y-2">
             <p className="text-xs text-muted-foreground font-semibold">Cheque Details:</p>
             <div className="text-sm space-y-1">
-              <p>Payee: RentalKenya Ltd</p>
+              <p>Payee: RES Ltd</p>
               <p>Amount: KES 18,500</p>
               <p>Reference: Unit 12B</p>
             </div>

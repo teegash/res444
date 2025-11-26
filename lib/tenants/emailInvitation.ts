@@ -112,7 +112,7 @@ First payment due: ${formatDate(data.firstPaymentDue)}
 Please check your email to verify your account and set your password.
 
 Best regards,
-RentalKenya Team
+RES Team
   `.trim()
 }
 

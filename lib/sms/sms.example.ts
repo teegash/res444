@@ -11,7 +11,7 @@ export async function sendSMSExample() {
     },
     body: JSON.stringify({
       phone_number: '+254712345678',
-      message: 'Hello from RentalKenya!',
+      message: 'Hello from RES!',
       recipient_user_id: 'user-uuid', // Optional
       related_entity_type: 'payment', // Optional
       related_entity_id: 'invoice-uuid', // Optional
@@ -52,7 +52,7 @@ const rentReminder = generateRentReminderMessage({
   invoiceId: 'invoice-uuid',
   isOverdue: false,
 })
-// Output: "RentalKenya: Reminder - Your rent payment of KES 10,000 is due on Feb 5, 2024. Invoice #INVOICEU. Please make payment to avoid late fees."
+// Output: "RES: Reminder - Your rent payment of KES 10,000 is due on Feb 5, 2024. Invoice #INVOICEU. Please make payment to avoid late fees."
 
 // Payment confirmation
 const paymentConfirmation = generatePaymentConfirmationMessage({
@@ -62,7 +62,7 @@ const paymentConfirmation = generatePaymentConfirmationMessage({
   receiptNumber: 'ABC123456789',
   paymentMethod: 'M-Pesa',
 })
-// Output: "RentalKenya: Your payment of KES 10,000 via M-Pesa has been confirmed. Invoice #INVOICEU is now paid. Receipt: ABC123456789. Thank you!"
+// Output: "RES: Your payment of KES 10,000 via M-Pesa has been confirmed. Invoice #INVOICEU is now paid. Receipt: ABC123456789. Thank you!"
 
 // Example 3: Send SMS with retry
 import { sendSMSWithRetry } from '@/lib/sms/smsService'
@@ -160,7 +160,7 @@ export const requiredEnvVars = `
 # Africa's Talking Configuration
 AFRICAS_TALKING_API_KEY=your_api_key_here
 AFRICAS_TALKING_USERNAME=your_username_here
-AFRICAS_TALKING_SENDER_ID=RentalKenya  # Optional, for production
+AFRICAS_TALKING_SENDER_ID=RES  # Optional, for production
 AFRICAS_TALKING_ENVIRONMENT=sandbox  # or 'production'
 `
 

@@ -1,4 +1,4 @@
-# COMPLETE RENTALKENYA PROPERTY MANAGEMENT SYSTEM
+# COMPLETE RES PROPERTY MANAGEMENT SYSTEM
 ## Full Implementation Guide - Everything You Need in One File
 
 **Status:** ✅ PRODUCTION-READY  
@@ -552,7 +552,7 @@ CREATE INDEX idx_audit_timestamp ON mpesa_verification_audit(query_timestamp);
 
 ## PROMPT 1: Landing Page
 ```
-Create a beautiful, modern landing page for "RentalKenya" property management platform for Kenya.
+Create a beautiful, modern landing page for "RES" property management platform for Kenya.
 
 HERO SECTION:
 - Headline: "Manage Your Properties with Confidence"
@@ -587,11 +587,11 @@ USE: Tailwind CSS, shadcn/ui, Next.js
 
 ## PROMPT 2: Sign Up Page
 ```
-Create comprehensive sign-up page for RentalKenya.
+Create comprehensive sign-up page for RES.
 
 TWO COLUMN LAYOUT:
 LEFT: Sign-up form
-- Title: "Create Your RentalKenya Account"
+- Title: "Create Your RES Account"
 - Step indicator: "Step 1 of 2"
 - Form fields:
   * Full Name (text)
@@ -618,11 +618,11 @@ USE: Tailwind CSS, shadcn/ui, React forms
 
 ## PROMPT 3: Login Page
 ```
-Create login page for RentalKenya.
+Create login page for RES.
 
 CENTERED CARD LAYOUT:
 - Logo/Brand at top
-- Heading: "Welcome Back to RentalKenya"
+- Heading: "Welcome Back to RES"
 - Subheading: "Sign in to manage your properties"
 
 FORM:
@@ -687,7 +687,7 @@ USE: Multi-step form pattern, Tailwind CSS, shadcn/ui
 Create admin dashboard with complete overview.
 
 TOP NAVIGATION:
-- RentalKenya logo (left)
+- RES logo (left)
 - Search bar (center)
 - Notifications icon (bell)
 - User profile dropdown (right)
@@ -1881,7 +1881,7 @@ Email: john@example.com
 First payment due: February 6, 2024
 
 Best regards,
-RentalKenya Team
+RES Team
 
 ERROR SCENARIOS:
 - Unit already occupied → "Unit is currently occupied"
@@ -2293,7 +2293,7 @@ MPESA_ENVIRONMENT=sandbox
 # Africa's Talking SMS
 AFRICAS_TALKING_API_KEY=your_api_key
 AFRICAS_TALKING_USERNAME=your_username
-AFRICAS_TALKING_SENDER_ID=RentalKenya
+AFRICAS_TALKING_SENDER_ID=RES
 
 # Application
 NEXT_PUBLIC_APP_URL=https://yourdomain.com

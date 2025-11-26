@@ -2,7 +2,7 @@
 
 ## Overview
 
-This guide covers comprehensive testing of all Supabase integrations in the RentalKenya system.
+This guide covers comprehensive testing of all Supabase integrations in the RES system.
 
 ## Test Methods
 
@@ -156,7 +156,7 @@ node scripts/test-supabase.js
 
 ### Issue: "Tables don't exist"
 **Solution:**
-1. Run SQL schema from `COMPLETE-RENTALKENYA-FULL-GUIDE.md`
+1. Run SQL schema from `COMPLETE-RES-FULL-GUIDE.md`
 2. Verify tables created in Supabase dashboard
 3. Check table names match exactly
 
@@ -264,4 +264,3 @@ If tests fail:
 3. Verify environment variables
 4. Check network connectivity
 5. Review RLS policies in Supabase
-

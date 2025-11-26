@@ -1,6 +1,6 @@
 # RBAC (Role-Based Access Control) System
 
-Complete 4-tier role-based access control system for RentalKenya property management platform.
+Complete 4-tier role-based access control system for RES property management platform.
 
 ## Roles
 

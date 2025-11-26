@@ -1063,7 +1063,7 @@ export default function PaymentHistoryPage() {
                     {isSuccess ? (
                       <>
                         <p className="font-semibold">Thank you for keeping your payments up to date!</p>
-                        <p>Need help? Reach us at support@rentalkenya.com</p>
+                        <p>Need help? Reach us at support@res.com</p>
                       </>
                     ) : (
                       <p className="font-semibold">
