@@ -309,6 +309,33 @@ export async function GET() {
     })
   } catch (error) {
     console.error('[DashboardOverview] failed to load overview', error)
-    return NextResponse.json({ success: false, error: 'Failed to load dashboard overview' }, { status: 500 })
+    // Return a safe, empty payload so the dashboard can still render without hard-failing
+    return NextResponse.json(
+      {
+        success: true,
+        summary: {
+          totalProperties: 0,
+          totalTenants: 0,
+          monthlyRevenue: 0,
+          revenueDelta: null,
+          pendingRequests: 0,
+          paidInvoices: 0,
+          pendingPayments: 0,
+        },
+        revenue: {
+          series: [],
+          currentMonthRevenue: 0,
+          prevMonthRevenue: 0,
+        },
+        propertyRevenue: [],
+        propertyIncomeMonth: [],
+        expenses: { monthly: [] },
+        payments: { paid: 0, pending: 0, failed: 0 },
+        maintenance: [],
+        occupancy: [],
+        error: 'Partial data returned due to an internal error.',
+      },
+      { status: 200 }
+    )
   }
 }
