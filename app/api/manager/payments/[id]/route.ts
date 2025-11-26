@@ -18,13 +18,18 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     const body = await request.json().catch(() => ({}))
     const paymentIdFromBody = body?.payment_id || body?.id || null
 
-    const paymentId = paymentIdFromParams || paymentIdFromQuery || paymentIdFromBody
+    // Fallback: parse from pathname last segment (in case params not injected)
+    const segments = request.nextUrl.pathname.split('/').filter(Boolean)
+    const paymentIdFromPath = segments[segments.length - 1] || null
+
+    const paymentId = paymentIdFromParams || paymentIdFromQuery || paymentIdFromBody || paymentIdFromPath
 
     if (!paymentId) {
       console.error('[ManagerPaymentAction] Missing payment id', {
         paymentIdFromParams,
         paymentIdFromQuery,
         paymentIdFromBody,
+        paymentIdFromPath,
         path: request.nextUrl.pathname,
       })
       return NextResponse.json({ success: false, error: 'Payment id is required.' }, { status: 400 })
