@@ -7,7 +7,7 @@ const ALLOWED_ROLES = ['manager', 'caretaker']
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json().catch(() => ({}))
-    const { email, full_name, role, password } = body || {}
+    const { email, full_name, role, password, property_id } = body || {}
 
     if (!email || !full_name || !role || !password || !ALLOWED_ROLES.includes(role)) {
       return NextResponse.json(
@@ -19,6 +19,13 @@ export async function POST(request: NextRequest) {
     if (typeof password !== 'string' || password.length < 8) {
       return NextResponse.json(
         { success: false, error: 'Password must be at least 8 characters long.' },
+        { status: 400 }
+      )
+    }
+
+    if (role === 'caretaker' && !property_id) {
+      return NextResponse.json(
+        { success: false, error: 'Caretaker invites require a property selection.' },
         { status: 400 }
       )
     }
@@ -45,11 +52,29 @@ export async function POST(request: NextRequest) {
     }
 
     const orgId = membership.organization_id
+
+    let validatedPropertyId: string | null = null
+    if (role === 'caretaker' && property_id) {
+      const { data: property, error: propertyError } = await admin
+        .from('apartment_buildings')
+        .select('id')
+        .eq('id', property_id)
+        .eq('organization_id', orgId)
+        .maybeSingle()
+      if (propertyError) throw propertyError
+      if (!property?.id) {
+        return NextResponse.json(
+          { success: false, error: 'Selected property is not part of this organization.' },
+          { status: 400 }
+        )
+      }
+      validatedPropertyId = property.id
+    }
     const { data: newUser, error: createError } = await admin.auth.admin.createUser({
       email,
       password,
       email_confirm: true,
-      user_metadata: { role },
+      user_metadata: { role, organization_id: orgId, property_id: validatedPropertyId || null },
     })
     if (createError) throw createError
     if (!newUser?.user?.id) {
@@ -64,15 +89,38 @@ export async function POST(request: NextRequest) {
       .upsert({ id: userId, full_name, role })
     if (profileError) throw profileError
 
-    const { error: memberError } = await admin
-      .from('organization_members')
-      .insert({ user_id: userId, organization_id: orgId, role })
-    if (memberError) throw memberError
+    const memberPayload: Record<string, any> = {
+      user_id: userId,
+      organization_id: orgId,
+      role,
+      ...(validatedPropertyId ? { property_id: validatedPropertyId } : {}),
+    }
+
+    let memberError: any = null
+    try {
+      const { error } = await admin.from('organization_members').insert(memberPayload)
+      memberError = error
+    } catch (err: any) {
+      memberError = err
+    }
+
+    if (memberError) {
+      const message = (memberError?.message || '').toLowerCase()
+      const isMissingColumn = message.includes('property_id') || message.includes('column')
+      if (!isMissingColumn) {
+        throw memberError
+      }
+      // Fallback if the column does not exist yet
+      const { error: fallbackError } = await admin
+        .from('organization_members')
+        .insert({ user_id: userId, organization_id: orgId, role })
+      if (fallbackError) throw fallbackError
+    }
 
     // Ideally send an email via your notification system; for now return success
     return NextResponse.json({
       success: true,
-      data: { user_id: userId },
+      data: { user_id: userId, property_id: validatedPropertyId },
       message: 'Team member invited successfully.',
     })
   } catch (error) {

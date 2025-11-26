@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { createClient } from '@/lib/supabase/server'
 
 function summarizeLeaseState(lease: any) {
   if (!lease) {
@@ -50,7 +51,29 @@ function summarizeLeaseState(lease: any) {
 
 export async function GET() {
   try {
+    const supabase = await createClient()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    if (!user) {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
+    }
     const adminSupabase = createAdminClient()
+    let propertyScope: string | null =
+      (user.user_metadata as any)?.property_id || (user.user_metadata as any)?.building_id || null
+    let userRole: string | null = (user.user_metadata as any)?.role || null
+    try {
+      const { data: membership } = await adminSupabase
+        .from('organization_members')
+        .select('role, property_id')
+        .eq('user_id', user.id)
+        .maybeSingle()
+      if (membership?.role) userRole = membership.role
+      if (membership?.property_id) propertyScope = membership.property_id
+    } catch (err) {
+      // ignore missing column errors
+    }
+    const isCaretaker = userRole === 'caretaker'
     const currencyFormatter = new Intl.NumberFormat('en-KE', {
       style: 'currency',
       currency: 'KES',
@@ -306,7 +329,12 @@ export async function GET() {
       }
     })
 
-    return NextResponse.json({ success: true, data: payload })
+    const scopedPayload =
+      isCaretaker && propertyScope
+        ? payload.filter((tenant: any) => tenant?.unit?.building_id === propertyScope)
+        : payload
+
+    return NextResponse.json({ success: true, data: scopedPayload })
   } catch (error) {
     console.error('[Tenants.GET] Failed to fetch tenants', error)
     return NextResponse.json(

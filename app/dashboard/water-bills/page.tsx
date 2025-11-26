@@ -13,6 +13,7 @@ import { Droplet, Send, Calculator, Loader2 } from 'lucide-react'
 import { Textarea } from '@/components/ui/textarea'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { useToast } from '@/components/ui/use-toast'
+import { useAuth } from '@/lib/auth/context'
 import jsPDF from 'jspdf'
 import { SkeletonLoader, SkeletonTable } from '@/components/ui/skeletons'
 import { Badge } from '@/components/ui/badge'
@@ -41,6 +42,12 @@ interface PropertySummary {
 
 export default function WaterBillsPage() {
   const { toast } = useToast()
+  const { user } = useAuth()
+  const propertyScope =
+    (user?.user_metadata as any)?.property_id ||
+    (user?.user_metadata as any)?.building_id ||
+    (user as any)?.property_id ||
+    null
   const [selectedProperty, setSelectedProperty] = useState('')
   const [selectedUnit, setSelectedUnit] = useState('')
   const [previousReading, setPreviousReading] = useState('')
@@ -89,7 +96,13 @@ export default function WaterBillsPage() {
           throw new Error(payload.error || 'Failed to load data.')
         }
         const payload = await response.json()
-        setProperties(payload.data?.properties || [])
+        const loadedProperties: PropertySummary[] = payload.data?.properties || []
+        const scopedProperties =
+          propertyScope ? loadedProperties.filter((p) => p.id === propertyScope) : loadedProperties
+        setProperties(scopedProperties)
+        if (propertyScope) {
+          setSelectedProperty(propertyScope)
+        }
         setPricePerUnit(
           payload.data?.default_rate ? payload.data.default_rate.toString() : pricePerUnit
         )

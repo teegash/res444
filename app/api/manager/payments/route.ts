@@ -10,6 +10,8 @@ const AUTO_VERIFY_TIMEOUT_MINUTES = Number(process.env.MPESA_AUTO_VERIFY_TIMEOUT
 type ManagerContext = {
   adminSupabase: ReturnType<typeof createAdminClient>
   user: { id: string }
+  role: (typeof MANAGER_ROLES)[number]
+  propertyId: string | null
 }
 
 type ManagerContextResult = ManagerContext | { error: NextResponse }
@@ -36,7 +38,21 @@ async function getManagerContext(): Promise<ManagerContextResult> {
     return { error: NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 }) }
   }
 
-  return { adminSupabase, user }
+  let propertyId: string | null = (user.user_metadata as any)?.property_id || (user.user_metadata as any)?.building_id || null
+  try {
+    const { data: membership } = await adminSupabase
+      .from('organization_members')
+      .select('property_id')
+      .eq('user_id', user.id)
+      .maybeSingle()
+    if (membership?.property_id) {
+      propertyId = membership.property_id
+    }
+  } catch (err) {
+    // ignore errors (e.g., missing column) and fall back to metadata
+  }
+
+  return { adminSupabase, user, role: profile.role, propertyId }
 }
 
 async function expireLongPendingMpesaPayments(adminSupabase: ReturnType<typeof createAdminClient>) {
@@ -127,6 +143,7 @@ function mapPayment(
     tenantId: row.tenant_user_id || null,
     tenantName: tenantProfile?.full_name || 'Tenant',
     tenantPhone: tenantProfile?.phone_number || null,
+    propertyId: building?.id || null,
     propertyName: building?.name || null,
     propertyLocation: building?.location || null,
     unitLabel: unit?.unit_number || null,
@@ -186,7 +203,7 @@ export async function GET() {
     if ('error' in ctx) {
       return ctx.error
     }
-    const { adminSupabase } = ctx
+    const { adminSupabase, role, propertyId } = ctx
     const settings = await getMpesaSettings()
 
     await expireLongPendingMpesaPayments(adminSupabase)
@@ -227,6 +244,7 @@ export async function GET() {
             unit:apartment_units (
               unit_number,
               building:apartment_buildings (
+                id,
                 name,
                 location
               )
@@ -271,12 +289,16 @@ export async function GET() {
       verifiedMap = new Map((verifiedProfiles || []).map((profile) => [profile.id, profile.full_name]))
     }
 
-    const mapped = (data || []).map((payment) =>
+    let mapped = (data || []).map((payment) =>
       mapPayment(payment, {
         tenantMap,
         verifiedMap,
       })
     )
+
+    if (role === 'caretaker' && propertyId) {
+      mapped = mapped.filter((payment) => payment.propertyId === propertyId)
+    }
 
     const failed = mapped.filter(isFailure)
     const failedIds = new Set(failed.map((payment) => payment.id))

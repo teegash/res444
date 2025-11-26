@@ -66,6 +66,7 @@ type TenantRecord = {
 interface TenantsTableProps {
   searchQuery?: string
   viewMode?: 'grid' | 'list'
+  propertyId?: string | null
 }
 
 const getInitials = (value: string) => {
@@ -172,7 +173,7 @@ function TenantActions({
   )
 }
 
-export function TenantsTable({ searchQuery = '', viewMode = 'list' }: TenantsTableProps) {
+export function TenantsTable({ searchQuery = '', viewMode = 'list', propertyId }: TenantsTableProps) {
   const { toast } = useToast()
   const [tenants, setTenants] = useState<TenantRecord[]>([])
   const [loading, setLoading] = useState(true)
@@ -206,7 +207,11 @@ export function TenantsTable({ searchQuery = '', viewMode = 'list' }: TenantsTab
           throw new Error(errorPayload.error || 'Failed to fetch tenants.')
         }
         const payload = await response.json()
-        setTenants(payload.data || [])
+        const data: TenantRecord[] = payload.data || []
+        const filteredByScope = propertyId
+          ? data.filter((tenant: any) => tenant?.unit?.building_id === propertyId)
+          : data
+        setTenants(filteredByScope)
       } catch (requestError) {
         console.error('[TenantsTable] fetch error', requestError)
         setError(requestError instanceof Error ? requestError.message : 'Unable to load tenants.')

@@ -8,11 +8,19 @@ import { LayoutGrid, Plus, Rows4 } from 'lucide-react'
 import { Sidebar } from '@/components/dashboard/sidebar'
 import { Header } from '@/components/dashboard/header'
 import { useRouter } from 'next/navigation'
+import { useAuth } from '@/lib/auth/context'
 
 export default function TenantsPage() {
   const router = useRouter()
+  const { user } = useAuth()
   const [searchTerm, setSearchTerm] = useState('')
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('list')
+
+  const propertyScope =
+    (user?.user_metadata as any)?.property_id ||
+    (user?.user_metadata as any)?.building_id ||
+    (user as any)?.property_id ||
+    null
 
   return (
     <div className="flex min-h-screen bg-gray-50">
@@ -64,7 +72,7 @@ export default function TenantsPage() {
               </div>
             </div>
 
-            <TenantsTable searchQuery={searchTerm} viewMode={viewMode} />
+            <TenantsTable searchQuery={searchTerm} viewMode={viewMode} propertyId={propertyScope} />
           </div>
         </main>
       </div>

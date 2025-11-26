@@ -1,6 +1,6 @@
 'use client'
 
-import { FormEvent, useEffect, useMemo, useState } from 'react'
+import { FormEvent, useEffect, useMemo, useState, useCallback } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -29,6 +29,7 @@ import { Sidebar } from '@/components/dashboard/sidebar'
 import { Header } from '@/components/dashboard/header'
 import { useToast } from '@/components/ui/use-toast'
 import { SkeletonLoader, SkeletonTable } from '@/components/ui/skeletons'
+import { useAuth } from '@/lib/auth/context'
 
 type MaintenanceRequest = {
   id: string
@@ -96,6 +97,12 @@ function formatDate(value?: string | null) {
 export default function MaintenancePage() {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const { user } = useAuth()
+  const propertyScope =
+    (user?.user_metadata as any)?.property_id ||
+    (user?.user_metadata as any)?.building_id ||
+    (user as any)?.property_id ||
+    null
   const [requests, setRequests] = useState<MaintenanceRequest[]>([])
   const [selectedRequest, setSelectedRequest] = useState<MaintenanceRequest | null>(null)
   const [assignModalOpen, setAssignModalOpen] = useState(false)
@@ -112,6 +119,11 @@ export default function MaintenancePage() {
   const [assignError, setAssignError] = useState<string | null>(null)
   const [completeSubmitting, setCompleteSubmitting] = useState(false)
   const { toast } = useToast()
+  const applyScope = useCallback(
+    (items: MaintenanceRequest[]) =>
+      propertyScope ? items.filter((item) => item.unit?.building?.id === propertyScope) : items,
+    [propertyScope]
+  )
 
   const openRequests = useMemo(() => requests.filter((r) => r.status === 'open').length, [requests])
   const inProgress = useMemo(
@@ -209,7 +221,7 @@ export default function MaintenancePage() {
           throw new Error(payload.error || 'Failed to load maintenance requests.')
         }
         const payload = await response.json()
-        setRequests(payload.data || [])
+        setRequests(applyScope(payload.data || []))
       } catch (error) {
         console.error('[MaintenancePage] fetch failed', error)
         setRequestError(error instanceof Error ? error.message : 'Unable to load maintenance requests.')
@@ -219,7 +231,7 @@ export default function MaintenancePage() {
     }
 
     fetchRequests()
-  }, [])
+  }, [applyScope])
 
   useEffect(() => {
     if (!highlightedRequestId || requests.length === 0) return
@@ -273,16 +285,18 @@ export default function MaintenancePage() {
       }
 
       setRequests((current) =>
-        current.map((request) =>
-          request.id === updated.id
-            ? {
-                ...request,
-                assigned_to_name: updated.assigned_technician_name || request.assigned_to_name,
-                assigned_technician_phone:
-                  updated.assigned_technician_phone || request.assigned_technician_phone || null,
-                status: updated.status || request.status,
-              }
-            : request
+        applyScope(
+          current.map((request) =>
+            request.id === updated.id
+              ? {
+                  ...request,
+                  assigned_to_name: updated.assigned_technician_name || request.assigned_to_name,
+                  assigned_technician_phone:
+                    updated.assigned_technician_phone || request.assigned_technician_phone || null,
+                  status: updated.status || request.status,
+                }
+              : request
+          )
         )
       )
 
@@ -336,14 +350,16 @@ export default function MaintenancePage() {
       const updated = payload.data as { id: string; status?: string | null; completed_at?: string | null }
 
       setRequests((current) =>
-        current.map((request) =>
-          request.id === updated.id
-            ? {
-                ...request,
-                status: updated.status || 'completed',
-                completed_at: updated.completed_at || request.completed_at,
-              }
-            : request
+        applyScope(
+          current.map((request) =>
+            request.id === updated.id
+              ? {
+                  ...request,
+                  status: updated.status || 'completed',
+                  completed_at: updated.completed_at || request.completed_at,
+                }
+              : request
+          )
         )
       )
 

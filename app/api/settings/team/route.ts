@@ -27,11 +27,33 @@ export async function GET() {
     }
 
     const orgId = membership.organization_id
-    const { data: members, error: membersError } = await admin
-      .from('organization_members')
-      .select('user_id, role')
-      .eq('organization_id', orgId)
-    if (membersError) throw membersError
+    let members: any[] | null = null
+    let membersError: any = null
+
+    try {
+      const { data, error } = await admin
+        .from('organization_members')
+        .select('user_id, role, property_id')
+        .eq('organization_id', orgId)
+      members = data
+      membersError = error
+    } catch (err: any) {
+      membersError = err
+    }
+
+    if (membersError) {
+      const message = (membersError?.message || '').toLowerCase()
+      if (!message.includes('property_id')) {
+        throw membersError
+      }
+      // Fallback if property_id column does not exist
+      const { data, error } = await admin
+        .from('organization_members')
+        .select('user_id, role')
+        .eq('organization_id', orgId)
+      if (error) throw error
+      members = data
+    }
 
     const userIds = (members || []).map((m) => m.user_id)
     let profiles: Record<string, { full_name: string | null }> = {}
@@ -57,11 +79,35 @@ export async function GET() {
       }
     }
 
+    const propertyIds = Array.from(
+      new Set(
+        (members || [])
+          .map((m) => m.property_id)
+          .filter((id: string | null | undefined): id is string => Boolean(id))
+      )
+    )
+
+    let propertyMap = new Map<string, { name: string | null; location: string | null }>()
+    if (propertyIds.length > 0) {
+      const { data: properties, error: propertiesError } = await admin
+        .from('apartment_buildings')
+        .select('id, name, location')
+        .in('id', propertyIds)
+      if (!propertiesError) {
+        propertyMap = new Map(
+          (properties || []).map((p: any) => [p.id, { name: p.name || null, location: p.location || null }])
+        )
+      }
+    }
+
     const result = (members || []).map((m) => ({
       id: m.user_id,
       role: m.role,
       full_name: profiles[m.user_id]?.full_name ?? null,
       email: emails[m.user_id] ?? null,
+      property_id: m.property_id || null,
+      property_name: m.property_id ? propertyMap.get(m.property_id || '')?.name ?? null : null,
+      property_location: m.property_id ? propertyMap.get(m.property_id || '')?.location ?? null : null,
     }))
 
     return NextResponse.json({ success: true, data: result })

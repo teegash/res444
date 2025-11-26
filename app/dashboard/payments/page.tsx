@@ -11,9 +11,11 @@ import { Activity } from 'lucide-react'
 import { useToast } from '@/components/ui/use-toast'
 import { IntegrationSummary } from '@/components/dashboard/payment-tabs/types'
 import { SkeletonLoader } from '@/components/ui/skeletons'
+import { useAuth } from '@/lib/auth/context'
 
 export default function PaymentsPage() {
   const { toast } = useToast()
+  const { user } = useAuth()
   const [manualSyncedAt, setManualSyncedAt] = useState<string | null>(null)
   const [autoSyncedAt, setAutoSyncedAt] = useState<string | null>(null)
   const [autoCheckFrequency, setAutoCheckFrequency] = useState<number>(30)
@@ -58,6 +60,12 @@ export default function PaymentsPage() {
     setAutoCheckFrequency(Math.max(5, integration?.autoVerifyFrequencySeconds || 30))
     setLoadingSummary(false)
   }, [])
+
+  const propertyScope =
+    (user?.user_metadata as any)?.property_id ||
+    (user?.user_metadata as any)?.building_id ||
+    (user as any)?.property_id ||
+    null
 
   return (
     <div className="flex min-h-screen bg-gray-50">
@@ -113,7 +121,11 @@ export default function PaymentsPage() {
             </CardContent>
           </Card>
 
-          <PaymentTabs refreshKey={refreshKey} onIntegrationUpdate={handleIntegrationUpdate} />
+          <PaymentTabs
+            refreshKey={refreshKey}
+            onIntegrationUpdate={handleIntegrationUpdate}
+            propertyId={propertyScope}
+          />
         </main>
       </div>
     </div>

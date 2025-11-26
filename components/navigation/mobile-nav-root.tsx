@@ -14,7 +14,6 @@ export function MobileNavRoot() {
   const role = (user?.user_metadata as any)?.role || (user as any)?.role || null
   const isDashboardPath = pathname?.startsWith('/dashboard') ?? false
   const isAuthenticated = !!user && !loading
-
   const variant: 'manager' | 'tenant' | null = useMemo(() => {
     if (!isAuthenticated || !isDashboardPath) return null
     if (role === 'tenant') return 'tenant'

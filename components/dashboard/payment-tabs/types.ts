@@ -4,6 +4,7 @@ export type PaymentRecord = {
   tenantId: string | null
   tenantName: string
   tenantPhone: string | null
+  propertyId?: string | null
   propertyName: string | null
   propertyLocation: string | null
   unitLabel: string | null

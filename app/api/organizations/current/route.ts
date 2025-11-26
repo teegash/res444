@@ -78,8 +78,8 @@ export async function GET(request: NextRequest) {
     }
 
     // Direct HTTP request to Supabase REST API with service role key to bypass RLS
-    const membershipResponse = await fetchWithTimeout(
-      `${supabaseUrl}/rest/v1/organization_members?user_id=eq.${user.id}&select=organization_id,role&limit=1`,
+    let membershipResponse = await fetchWithTimeout(
+      `${supabaseUrl}/rest/v1/organization_members?user_id=eq.${user.id}&select=organization_id,role,property_id&limit=1`,
       {
         method: 'GET',
         headers: {
@@ -93,6 +93,24 @@ export async function GET(request: NextRequest) {
       2000,
       'Organization membership lookup'
     )
+    if (!membershipResponse.ok) {
+      // Fallback if property_id column is missing
+      membershipResponse = await fetchWithTimeout(
+        `${supabaseUrl}/rest/v1/organization_members?user_id=eq.${user.id}&select=organization_id,role&limit=1`,
+        {
+          method: 'GET',
+          headers: {
+            apikey: serviceRoleKey,
+            Authorization: `Bearer ${serviceRoleKey}`,
+            Accept: 'application/json',
+            'Content-Type': 'application/json',
+            Prefer: 'return=representation',
+          },
+        },
+        2000,
+        'Organization membership fallback lookup'
+      )
+    }
 
     if (!membershipResponse.ok) {
       console.error('Error fetching organization membership:', membershipResponse.status, membershipResponse.statusText)
@@ -111,11 +129,13 @@ export async function GET(request: NextRequest) {
 
     let organizationId: string | null = null
     let userRole: string | null = null
+    let propertyId: string | null = null
 
     if (membership && membership.organization_id) {
       // Found membership record - use it
       organizationId = membership.organization_id
       userRole = membership.role
+      propertyId = (membership as any)?.property_id || null
       console.log(`✓ Found membership: org_id=${organizationId}, role=${userRole}`)
     } else {
       // No membership found - try comprehensive fallback strategies
@@ -177,6 +197,7 @@ export async function GET(request: NextRequest) {
             if (Array.isArray(orgData) && orgData.length > 0 && orgData[0].id) {
               organizationId = orgData[0].id
               userRole = 'admin'
+              propertyId = null
               console.log(`✓ Found organization via email match: ${orgData[0].id} (${orgData[0].name})`)
             }
           }
@@ -225,6 +246,7 @@ export async function GET(request: NextRequest) {
                 if (allOrgs.length === 1) {
                   organizationId = allOrgs[0].id
                   userRole = 'admin'
+                  propertyId = null
                   console.log(`✓ Assigned single organization to admin user: ${organizationId}`)
                 }
               }
@@ -352,6 +374,7 @@ export async function GET(request: NextRequest) {
         data: {
           ...organization,
           user_role: userRole || 'admin',
+          property_id: propertyId,
         },
       },
       { status: 200 }
@@ -369,4 +392,3 @@ export async function GET(request: NextRequest) {
     )
   }
 }
-

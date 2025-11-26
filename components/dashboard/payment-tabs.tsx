@@ -29,9 +29,10 @@ type PaymentsDashboardData = {
 interface PaymentTabsProps {
   refreshKey: number
   onIntegrationUpdate?: (integration: IntegrationSummary | null) => void
+  propertyId?: string | null
 }
 
-export function PaymentTabs({ refreshKey, onIntegrationUpdate }: PaymentTabsProps) {
+export function PaymentTabs({ refreshKey, onIntegrationUpdate, propertyId }: PaymentTabsProps) {
   const [data, setData] = useState<PaymentsDashboardData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -46,8 +47,53 @@ export function PaymentTabs({ refreshKey, onIntegrationUpdate }: PaymentTabsProp
       if (!response.ok) {
         throw new Error(payload.error || 'Failed to fetch payment data.')
       }
-      setData(payload.data)
-      onIntegrationUpdate?.(payload.data?.integration || null)
+      const scopedData = (() => {
+        if (!propertyId) return payload.data
+        if (!payload.data) return null
+        const filterPayments = (list?: PaymentRecord[]) =>
+          (list || []).filter((payment) => !propertyId || payment.propertyId === propertyId)
+
+        const scopedPending = filterPayments(payload.data.pending)
+        const scopedFailed = filterPayments(payload.data.failed)
+        const scopedVerified = filterPayments(payload.data.verified)
+        const scopedPendingDeposits = filterPayments(payload.data.deposits?.pending)
+        const scopedConfirmedDeposits = filterPayments(payload.data.deposits?.confirmed)
+
+        const scopedStats: PaymentStats = {
+          pendingAmount: scopedPending.reduce((sum, p) => sum + p.amount, 0),
+          pendingCount: scopedPending.length,
+          depositsPendingAmount: scopedPendingDeposits.reduce((sum, p) => sum + p.amount, 0),
+          depositsPendingCount: scopedPendingDeposits.length,
+          depositsRejectedCount: payload.data.stats.depositsRejectedCount, // maintain source
+          verifiedAmount: scopedVerified.reduce((sum, p) => sum + p.amount, 0),
+          verifiedCount: scopedVerified.length,
+          autoVerifiedAmount: scopedVerified
+            .filter((p) => p.paymentMethod === 'mpesa' && p.mpesaAutoVerified)
+            .reduce((sum, p) => sum + p.amount, 0),
+          autoVerifiedCount: scopedVerified.filter((p) => p.paymentMethod === 'mpesa' && p.mpesaAutoVerified).length,
+          managerVerifiedAmount: scopedVerified
+            .filter((p) => !p.mpesaAutoVerified)
+            .reduce((sum, p) => sum + p.amount, 0),
+          managerVerifiedCount: scopedVerified.filter((p) => !p.mpesaAutoVerified).length,
+          failedAmount: scopedFailed.reduce((sum, p) => sum + p.amount, 0),
+          failedCount: scopedFailed.length,
+        }
+
+        return {
+          ...payload.data,
+          pending: scopedPending,
+          deposits: {
+            ...payload.data.deposits,
+            pending: scopedPendingDeposits,
+            confirmed: scopedConfirmedDeposits,
+          },
+          verified: scopedVerified,
+          failed: scopedFailed,
+          stats: scopedStats,
+        }
+      })()
+      setData(scopedData)
+      onIntegrationUpdate?.(scopedData?.integration || null)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to load payment data.')
       setData(null)
@@ -55,7 +101,7 @@ export function PaymentTabs({ refreshKey, onIntegrationUpdate }: PaymentTabsProp
     } finally {
       setLoading(false)
     }
-  }, [onIntegrationUpdate])
+  }, [onIntegrationUpdate, propertyId])
 
   useEffect(() => {
     fetchData()

@@ -28,6 +28,8 @@ function Sidebar() {
   const pathname = usePathname()
   const router = useRouter()
   const { user } = useAuth()
+  const role = (user?.user_metadata as any)?.role || (user as any)?.role || null
+  const isCaretaker = role === 'caretaker'
   const [organization, setOrganization] = useState<{
     name: string
     logo_url: string | null
@@ -117,6 +119,18 @@ function Sidebar() {
       if (retryTimeout) clearTimeout(retryTimeout)
     }
   }, [user])
+
+  const visibleMenuItems = useMemo(() => {
+    if (!isCaretaker) return menuItems
+    const allowed = new Set([
+      '/dashboard',
+      '/dashboard/tenants',
+      '/dashboard/payments',
+      '/dashboard/water-bills',
+      '/dashboard/maintenance',
+    ])
+    return menuItems.filter((item) => allowed.has(item.href))
+  }, [isCaretaker])
 
   // Get display name - truncate if too long
   const displayName = useMemo(() => {
@@ -227,7 +241,7 @@ function Sidebar() {
 
         {/* Menu Items */}
         <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
-          {menuItems.map((item) => {
+          {visibleMenuItems.map((item) => {
             const Icon = item.icon
             const isActive = pathname === item.href || pathname.startsWith(item.href + '/')
             return (

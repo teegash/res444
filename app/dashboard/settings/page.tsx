@@ -24,6 +24,9 @@ type TeamMember = {
   email: string | null
   full_name: string | null
   role: string
+  property_id?: string | null
+  property_name?: string | null
+  property_location?: string | null
 }
 
 export default function SettingsPage() {
@@ -49,6 +52,10 @@ export default function SettingsPage() {
   const [invitePassword, setInvitePassword] = useState('')
   const [inviteConfirmPassword, setInviteConfirmPassword] = useState('')
   const [inviteSaving, setInviteSaving] = useState(false)
+  const [invitePropertyId, setInvitePropertyId] = useState('')
+  const [properties, setProperties] = useState<Array<{ id: string; name: string }>>([])
+  const [propertiesLoading, setPropertiesLoading] = useState(false)
+  const [propertiesError, setPropertiesError] = useState<string | null>(null)
   const { setTheme, theme } = useTheme()
   const { toast } = useToast()
 
@@ -86,6 +93,28 @@ export default function SettingsPage() {
 
     loadProfile()
     loadTeam()
+    const loadProperties = async () => {
+      try {
+        setPropertiesLoading(true)
+        const res = await fetch('/api/properties', { cache: 'no-store' })
+        const json = await res.json()
+        if (!res.ok || !json.success) {
+          throw new Error(json.error || 'Failed to load properties.')
+        }
+        const opts =
+          (json.data || []).map((p: any) => ({
+            id: p.id,
+            name: p.name || 'Unnamed property',
+          })) || []
+        setProperties(opts)
+      } catch (err) {
+        setPropertiesError(err instanceof Error ? err.message : 'Unable to load properties.')
+      } finally {
+        setPropertiesLoading(false)
+      }
+    }
+
+    loadProperties()
   }, [])
 
   const handleProfileSave = async () => {
@@ -172,6 +201,14 @@ export default function SettingsPage() {
       toast({ title: 'Missing info', description: 'Name, email, and password are required.', variant: 'destructive' })
       return
     }
+    if (inviteRole === 'caretaker' && !invitePropertyId) {
+      toast({
+        title: 'Select property',
+        description: 'Caretakers must be scoped to a property.',
+        variant: 'destructive',
+      })
+      return
+    }
     if (invitePassword.length < 8) {
       toast({ title: 'Weak password', description: 'Password must be at least 8 characters.', variant: 'destructive' })
       return
@@ -185,7 +222,13 @@ export default function SettingsPage() {
       const res = await fetch('/api/settings/team/invite', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: inviteEmail, full_name: inviteName, role: inviteRole, password: invitePassword }),
+        body: JSON.stringify({
+          email: inviteEmail,
+          full_name: inviteName,
+          role: inviteRole,
+          password: invitePassword,
+          property_id: inviteRole === 'caretaker' ? invitePropertyId : undefined,
+        }),
       })
       const json = await res.json()
       if (!res.ok || !json.success) {
@@ -195,6 +238,7 @@ export default function SettingsPage() {
       setInviteName('')
       setInvitePassword('')
       setInviteConfirmPassword('')
+      setInvitePropertyId('')
       setInviteOpen(false)
       toast({ title: 'Invite sent', description: 'Credentials have been emailed to the member.' })
       // refresh team
@@ -394,7 +438,15 @@ export default function SettingsPage() {
                   </div>
                   <div className="grid gap-2">
                     <Label>Role</Label>
-                    <Select value={inviteRole} onValueChange={(val) => setInviteRole(val as 'manager' | 'caretaker')}>
+                    <Select
+                      value={inviteRole}
+                      onValueChange={(val) => {
+                        setInviteRole(val as 'manager' | 'caretaker')
+                        if (val !== 'caretaker') {
+                          setInvitePropertyId('')
+                        }
+                      }}
+                    >
                       <SelectTrigger>
                         <SelectValue placeholder="Select role" />
                       </SelectTrigger>
@@ -404,6 +456,37 @@ export default function SettingsPage() {
                       </SelectContent>
                     </Select>
                   </div>
+                  {inviteRole === 'caretaker' && (
+                    <div className="grid gap-2">
+                      <Label>Property (scope)</Label>
+                      <Select
+                        value={invitePropertyId}
+                        onValueChange={setInvitePropertyId}
+                        disabled={propertiesLoading || properties.length === 0}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder={propertiesLoading ? 'Loading properties...' : 'Select property'} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {properties.map((property) => (
+                            <SelectItem key={property.id} value={property.id}>
+                              {property.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {propertiesError && (
+                        <p className="text-xs text-destructive">
+                          {propertiesError}
+                        </p>
+                      )}
+                      {properties.length === 0 && !propertiesLoading && (
+                        <p className="text-xs text-muted-foreground">
+                          No properties found in this organization.
+                        </p>
+                      )}
+                    </div>
+                  )}
                   <Button className="w-full" onClick={handleInvite} disabled={inviteSaving}>
                     {inviteSaving ? 'Sending…' : 'Send Invite'}
                   </Button>
@@ -417,6 +500,12 @@ export default function SettingsPage() {
                     <div>
                       <p className="font-semibold">{member.full_name || member.email || 'Unnamed'}</p>
                       <p className="text-sm text-muted-foreground">{member.email || 'No email'}</p>
+                      {member.property_name && (
+                        <p className="text-xs text-muted-foreground">
+                          Property: {member.property_name}
+                          {member.property_location ? ` • ${member.property_location}` : ''}
+                        </p>
+                      )}
                     </div>
                     <Badge variant="secondary" className="capitalize">
                       {member.role}
