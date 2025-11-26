@@ -72,7 +72,19 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 }
 
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
-  const tenantId = params.id
+  // Accept id from route, query, or JSON body (defensive in case params are not forwarded)
+  let tenantId = params?.id
+  if (!tenantId) {
+    tenantId = request.nextUrl.searchParams.get('tenantId') || null
+  }
+  if (!tenantId) {
+    try {
+      const body = await request.json().catch(() => null)
+      tenantId = body?.tenant_id || body?.tenant_user_id || null
+    } catch {
+      // ignore body parsing errors
+    }
+  }
 
   if (!tenantId) {
     return NextResponse.json({ success: false, error: 'Tenant id is required.' }, { status: 400 })
