@@ -374,10 +374,13 @@ export async function GET() {
     const pending = mapped.filter((payment) => !payment.verified && !failedIds.has(payment.id))
     const verified = mapped.filter((payment) => payment.verified)
 
-    const pendingDeposits = pending.filter((payment) => payment.paymentMethod === 'bank_transfer')
+    const rejectedFlag = (notes?: string | null) => (notes || '').toLowerCase().includes('[rejected')
+    const pendingDeposits = pending.filter(
+      (payment) => payment.paymentMethod === 'bank_transfer' && !rejectedFlag(payment.notes)
+    )
     const confirmedDeposits = verified.filter((payment) => payment.paymentMethod === 'bank_transfer')
     const rejectedDeposits = pending.filter(
-      (payment) => payment.paymentMethod === 'bank_transfer' && (payment.notes || '').toLowerCase().includes('reject')
+      (payment) => payment.paymentMethod === 'bank_transfer' && rejectedFlag(payment.notes)
     )
 
     const stats = {
