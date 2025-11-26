@@ -140,14 +140,16 @@ export async function GET() {
         .from('leases')
         .select('tenant_user_id, unit:apartment_units ( building_id )')
         .in('tenant_user_id', Array.from(profileIds))
-        .in('status', ['active', 'pending'])
 
       const permitted = new Set(
         (leases || [])
           .filter((lease: any) => lease?.unit?.building_id === propertyScope)
           .map((lease: any) => lease.tenant_user_id)
       )
-      allowedTenantIds = allowedTenantIds.filter((id) => permitted.has(id))
+      // If we found matching leases, scope to them; otherwise keep existing list to avoid hiding conversations unnecessarily.
+      if (permitted.size > 0) {
+        allowedTenantIds = allowedTenantIds.filter((id) => permitted.has(id))
+      }
     }
 
     let profileMap = new Map<string, { full_name: string | null }>()
