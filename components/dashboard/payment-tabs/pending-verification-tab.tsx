@@ -11,10 +11,11 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import { AlertCircle, CheckCircle2 } from 'lucide-react'
+import { AlertCircle, CheckCircle2, Clock } from 'lucide-react'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { PaymentRecord } from '@/components/dashboard/payment-tabs/types'
 import { SkeletonTable } from '@/components/ui/skeletons'
+import { useRouter } from 'next/navigation'
 
 const currencyFormatter = new Intl.NumberFormat('en-KE', {
   style: 'currency',
@@ -62,6 +63,7 @@ export function PendingVerificationTab({
   pollFrequencySeconds,
 }: PendingVerificationTabProps) {
   const frequency = Math.max(5, pollFrequencySeconds || 30)
+  const router = useRouter()
 
   return (
     <div className="space-y-6">
@@ -152,7 +154,13 @@ export function PendingVerificationTab({
                         </Button>
                       )}
                       {payment.paymentMethod === 'bank_transfer' && payment.depositSlipUrl && (
-                        <Button variant="ghost" size="sm">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => router.push('/dashboard/payments?tab=deposits')}
+                          className="gap-1"
+                        >
+                          <Clock className="w-3 h-3" />
                           Review Slip
                         </Button>
                       )}

@@ -170,10 +170,15 @@ export async function uploadDepositSlip(
     const filePath = generateFilePath('deposit-slips', userId, file.name, prefix)
 
     // Upload file
-    const result = await uploadFile('deposit-slips', file, filePath, {
+    const bucket = 'deposit-slips'
+    const result = await uploadFile(bucket, file, filePath, {
       contentType: file.type,
       useAdminClient: true,
     })
+
+    if (result.success && result.path) {
+      return { ...result, path: `${bucket}/${result.path}` }
+    }
 
     return result
   } catch (error) {
