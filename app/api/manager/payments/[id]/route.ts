@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { approvePayment, rejectPayment } from '@/lib/payments/verification'
 
 const MANAGER_ROLES = new Set(['admin', 'manager', 'caretaker'])
@@ -12,6 +13,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
 
   try {
     const supabase = await createClient()
+    const adminSupabase = createAdminClient()
     const {
       data: { user },
       error: authError,
@@ -21,7 +23,15 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
     }
 
-    const role = (user.user_metadata as any)?.role || (user as any)?.role || null
+    // Prefer membership/profile role over metadata
+    let role: string | null = null
+    const { data: membership } = await adminSupabase
+      .from('organization_members')
+      .select('role')
+      .eq('user_id', user.id)
+      .maybeSingle()
+    role = membership?.role || (user.user_metadata as any)?.role || (user as any)?.role || null
+
     if (!role || !MANAGER_ROLES.has(String(role).toLowerCase())) {
       return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })
     }

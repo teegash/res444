@@ -123,17 +123,44 @@ async function expireLongPendingMpesaPayments(adminSupabase: ReturnType<typeof c
 
 async function getSignedDepositUrl(adminSupabase: ReturnType<typeof createAdminClient>, raw?: string | null) {
   if (!raw) return null
-  if (raw.startsWith('http')) return raw
+
+  // Attempt to parse a full storage URL and extract bucket/path for signing
+  let parsedBucket: string | null = null
+  let parsedPath: string | null = null
+
+  try {
+    if (raw.startsWith('http')) {
+      const url = new URL(raw)
+      const segments = url.pathname.split('/').filter(Boolean)
+      // expect: /storage/v1/object/<visibility>/<bucket>/<path...>
+      const objectIdx = segments.findIndex((seg) => seg === 'object')
+      if (objectIdx >= 0 && segments.length > objectIdx + 2) {
+        parsedBucket = segments[objectIdx + 2] || null
+        parsedPath = segments.slice(objectIdx + 3).join('/')
+      }
+    }
+  } catch {
+    // ignore parse errors; fallback to raw handling
+  }
+
+  // If we got bucket/path from URL, try to sign that
+  if (parsedBucket && parsedPath) {
+    const { data, error } = await adminSupabase.storage.from(parsedBucket).createSignedUrl(parsedPath, 60 * 60 * 12)
+    if (!error && data?.signedUrl) {
+      return data.signedUrl
+    }
+  }
 
   // raw may already include bucket prefix; extract
   const parts = raw.split('/')
-  const candidateBucket = parts[0]
-  const candidatePath = parts.slice(1).join('/')
+  const candidateBucket = parsedBucket || parts[0]
+  const candidatePath = parsedPath || parts.slice(1).join('/')
 
   const buckets = ['deposit-slips', 'deposit_slips', candidateBucket].filter(Boolean)
   for (const bucket of buckets) {
-    const cleanPath = raw.startsWith(bucket + '/') ? candidatePath : raw
-    const { data, error } = await adminSupabase.storage.from(bucket).createSignedUrl(cleanPath, 60 * 60 * 12)
+    const cleanPath = raw.replace(/^(deposit[-_]slips)\//, '')
+    const pathToUse = raw.startsWith(bucket + '/') ? candidatePath : cleanPath || candidatePath || raw
+    const { data, error } = await adminSupabase.storage.from(bucket).createSignedUrl(pathToUse, 60 * 60 * 12)
     if (!error && data?.signedUrl) {
       return data.signedUrl
     }
@@ -141,8 +168,11 @@ async function getSignedDepositUrl(adminSupabase: ReturnType<typeof createAdminC
 
   // Fallback public URL shape in case bucket is public
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-  if (supabaseUrl) {
-    return `${supabaseUrl}/storage/v1/object/public/${candidateBucket || 'deposit-slips'}/${candidatePath || raw}`
+  if (supabaseUrl && (candidateBucket || candidatePath)) {
+    const bucketsFallback = ['deposit-slips', 'deposit_slips', candidateBucket].filter(Boolean)
+    for (const bucket of bucketsFallback) {
+      return `${supabaseUrl}/storage/v1/object/public/${bucket}/${candidatePath || raw.replace(/^(deposit[-_]slips)\//, '')}`
+    }
   }
 
   return raw
