@@ -126,6 +126,7 @@ function mapPayment(
   lookups?: {
     tenantMap?: Map<string, { full_name: string | null; phone_number: string | null }>
     verifiedMap?: Map<string, string | null>
+    depositUrlMap?: Map<string, string>
   }
 ) {
   const amount = Number(row.amount_paid) || 0
@@ -155,7 +156,7 @@ function mapPayment(
     paymentDate: row.payment_date,
     mpesaReceiptNumber: row.mpesa_receipt_number || null,
     bankReferenceNumber: row.bank_reference_number || null,
-    depositSlipUrl: row.deposit_slip_url || null,
+    depositSlipUrl: lookups?.depositUrlMap?.get(row.id) || row.deposit_slip_url || null,
     verified: Boolean(row.verified),
     verifiedBy: verifiedByName,
     verifiedAt: row.verified_at,
@@ -289,10 +290,31 @@ export async function GET() {
       verifiedMap = new Map((verifiedProfiles || []).map((profile) => [profile.id, profile.full_name]))
     }
 
+    // Build signed URLs for deposit slips if needed
+    const depositUrlMap = new Map<string, string>()
+    for (const row of data || []) {
+      const url = row.deposit_slip_url as string | null
+      if (!url) continue
+      if (url.startsWith('http')) {
+        depositUrlMap.set(row.id, url)
+        continue
+      }
+      const cleanPath = url
+        .replace(/^deposit-slips\//, '')
+        .replace(/^https?:\/\/[^/]+\/storage\/v1\/object\/public\/deposit-slips\//, '')
+      const { data: signed } = await adminSupabase.storage.from('deposit-slips').createSignedUrl(cleanPath, 60 * 60 * 12)
+      if (signed?.signedUrl) {
+        depositUrlMap.set(row.id, signed.signedUrl)
+      } else {
+        depositUrlMap.set(row.id, url)
+      }
+    }
+
     let mapped = (data || []).map((payment) =>
       mapPayment(payment, {
         tenantMap,
         verifiedMap,
+        depositUrlMap,
       })
     )
 
