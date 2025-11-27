@@ -3,8 +3,9 @@
 import { createClient } from '@/lib/supabase/server'
 import { updateInvoiceStatus } from '@/lib/invoices/invoiceGeneration'
 import { logNotification } from '@/lib/communications/notifications'
-import { processRentPrepayment } from '@/lib/payments/prepayment'
+import { processRentPrepayment, applyRentPayment } from '@/lib/payments/prepayment'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { startOfMonthUtc } from '@/lib/invoices/rentPeriods'
 
 export interface VerifyPaymentRequest {
   invoice_id: string
@@ -246,6 +247,32 @@ export async function approvePayment(
       }
     }
 
+    // Guard against already-paid or covered invoice
+    if (invoice.status === true) {
+      return {
+        success: false,
+        error: 'This invoice is already paid.',
+      }
+    }
+
+    // Fetch lease for coverage validation
+    const { data: lease } = await admin
+      .from('leases')
+      .select('id, rent_paid_until')
+      .eq('id', invoice.lease_id)
+      .maybeSingle()
+
+    if (lease?.rent_paid_until) {
+      const dueMonth = startOfMonthUtc(new Date(invoice.due_date || new Date()))
+      const paidUntil = startOfMonthUtc(new Date(lease.rent_paid_until))
+      if (dueMonth <= paidUntil) {
+        return {
+          success: false,
+          error: 'This month is already covered by a previous payment.',
+        }
+      }
+    }
+
     // 3. Update payment as verified
     const now = new Date().toISOString()
     const { error: updateError } = await admin
@@ -275,41 +302,9 @@ export async function approvePayment(
     const invoiceType = invoice.invoice_type || 'rent'
 
     if (invoiceType === 'rent') {
-      const prepaymentResult = await processRentPrepayment({
-        paymentId: paymentId,
-        leaseId: invoice.lease_id,
-        tenantUserId: payment.tenant_user_id,
-        amountPaid: Number(payment.amount_paid),
-        monthsPaid,
-        paymentDate: payment.payment_date ? new Date(payment.payment_date) : new Date(),
-        paymentMethod: 'bank_transfer',
-      })
-
-      if (!prepaymentResult.success) {
-        console.warn('[approvePayment] Prepayment processing failed', {
-          paymentId,
-          leaseId: invoice.lease_id,
-          tenantId: payment.tenant_user_id,
-          validationErrors: prepaymentResult.validationErrors,
-          message: prepaymentResult.message,
-        })
-
-        // Fallback: still mark invoice paid and continue (manual override)
-        await updateInvoiceStatus(invoice.id)
-
-        return {
-          success: true,
-          message: 'Payment verified (manual override). Rent allocation will be rechecked.',
-          data: {
-            payment_id: paymentId,
-            invoice_id: invoice.id,
-            amount: parseFloat(payment.amount_paid.toString()),
-            verified: true,
-          },
-        }
-      }
-
-      primaryInvoiceId = prepaymentResult.appliedInvoices[0] || invoice.id
+      // Apply rent coverage directly
+      await applyRentPayment(admin, payment, invoice, lease || { id: invoice.lease_id })
+      primaryInvoiceId = invoice.id
     } else {
       await admin.from('invoices').update({ months_covered: monthsPaid }).eq('id', invoice.id)
       await updateInvoiceStatus(invoice.id)

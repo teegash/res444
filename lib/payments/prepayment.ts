@@ -130,6 +130,37 @@ const describeCoverage = (dueIso: string, months: number) => {
   return months > 1 ? `Rent for ${monthLabel} (covers ${months} months)` : `Rent for ${monthLabel}`
 }
 
+// Apply a verified rent payment to invoice + lease pointers
+export async function applyRentPayment(
+  admin: AdminClient,
+  payment: { months_paid?: number | null },
+  invoice: { id: string; due_date: string },
+  lease: { id: string }
+) {
+  const months = payment.months_paid && Number(payment.months_paid) > 0 ? Number(payment.months_paid) : 1
+  const baseMonth = startOfMonthUtc(new Date(invoice.due_date))
+  const paidUntil = addMonthsUtc(baseMonth, months - 1)
+
+  await admin
+    .from('invoices')
+    .update({
+      status: true,
+      payment_date: new Date().toISOString(),
+      months_covered: months,
+    })
+    .eq('id', invoice.id)
+
+  await admin
+    .from('leases')
+    .update({
+      rent_paid_until: toIsoDate(paidUntil),
+      next_rent_due_date: toIsoDate(addMonthsUtc(paidUntil, 1)),
+    })
+    .eq('id', lease.id)
+
+  return paidUntil
+}
+
 const normalizeCurrency = (value: number | string | null | undefined): number => {
   if (typeof value === 'number') return value
   if (typeof value === 'string') return Number(value)
