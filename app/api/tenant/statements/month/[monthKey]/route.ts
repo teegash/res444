@@ -131,18 +131,21 @@ export async function GET(
     }
 
     const transactions: Array<{
-    id: string
-    type: 'charge' | 'payment'
-    description: string
-    reference: string | null
-    amount: number
-    category: string | null
-    posted_at: string | null
-    balance_after?: number
-    coverage_label?: string | null
-  }> = []
+      id: string
+      type: 'charge' | 'payment'
+      description: string
+      reference: string | null
+      amount: number
+      category: string | null
+      posted_at: string | null
+      balance_after?: number
+      coverage_label?: string | null
+    }> = []
 
     const rentPaidUntil = leaseRecord?.rent_paid_until ? new Date(leaseRecord.rent_paid_until) : null
+    const toShort = (dateObj: Date | null) =>
+      dateObj ? dateObj.toLocaleString('en-US', { month: 'short' }).toUpperCase() : 'COV'
+
     const charges = (invoices || []).map((invoice) => {
       const dueDateObj = invoice.due_date ? new Date(invoice.due_date) : null
       const isRent = (invoice.invoice_type || 'rent') === 'rent'
@@ -152,20 +155,20 @@ export async function GET(
         dueDateObj &&
         !Number.isNaN(dueDateObj.getTime()) &&
         startOfMonthUtc(dueDateObj) <= startOfMonthUtc(rentPaidUntil)
+      const hasCoverageMonths = Number(invoice.months_covered || 0) > 1
+      const coverageLabel =
+        (hasCoverageMonths || isCovered) && dueDateObj ? `COV ${toShort(dueDateObj)}` : null
 
-      if (isCovered) {
-        const abbrev = dueDateObj
-          ? dueDateObj.toLocaleDateString(undefined, { month: 'short' }).toUpperCase()
-          : 'COV'
+      if (coverageLabel) {
         return {
           id: `coverage-${invoice.id}`,
           type: 'charge' as const,
-          description: `${abbrev} COV`,
-          reference: `${abbrev} COV`,
+          description: coverageLabel,
+          reference: coverageLabel,
           amount: 0,
           category: 'rent',
           posted_at: invoice.due_date,
-          coverage_label: `${abbrev} COV`,
+          coverage_label: coverageLabel,
           status: 'covered',
         }
       }
@@ -180,6 +183,7 @@ export async function GET(
         amount: Number(invoice.amount || 0),
         category: invoice.invoice_type || 'rent',
         posted_at: invoice.created_at || invoice.due_date,
+        coverage_label: hasCoverageMonths && dueDateObj ? coverageLabel : null,
       }
     })
 
@@ -192,10 +196,13 @@ export async function GET(
           ? 'failed'
           : payment.mpesa_query_status || 'pending'
 
-      const coverageLabel = getCoverageRangeLabel(
-        (payment.invoice as { due_date: string | null } | null)?.due_date,
-        payment.months_paid || 1
-      )
+      const coverageLabel =
+        payment.invoice?.due_date && (payment.months_paid || 1) > 0
+          ? getCoverageRangeLabel(
+              (payment.invoice as { due_date: string | null } | null)?.due_date,
+              payment.months_paid || 1
+            )
+          : null
 
       transactions.push({
         id: payment.id,
@@ -219,23 +226,7 @@ export async function GET(
     const hasRentCharge = charges.some(
       (charge) => (charge.category || '').toLowerCase() === 'rent'
     )
-    const rentPaidUntilDate = leaseRecord?.rent_paid_until ? new Date(leaseRecord.rent_paid_until) : null
-    const monthStart = new Date(periodStartIso)
-    const coverageActive =
-      rentPaidUntilDate !== null && !Number.isNaN(rentPaidUntilDate.getTime()) && rentPaidUntilDate >= monthStart
-
-    if (!hasRentCharge && coverageActive && leaseRecord?.monthly_rent) {
-      const abbrev = monthStart.toLocaleDateString(undefined, { month: 'short' }).toUpperCase()
-      transactions.push({
-        id: `coverage-${monthKey}`,
-        type: 'charge',
-        description: `${abbrev} COV`,
-        reference: `${abbrev} COV`,
-        amount: Number(leaseRecord.monthly_rent),
-        category: 'rent',
-        posted_at: monthStart.toISOString(),
-      })
-    }
+    // No synthetic rent charge when covered; charges already include coverage labels/amount 0
 
     transactions.sort((a, b) => {
       const aTime = a.posted_at ? new Date(a.posted_at).getTime() : 0
