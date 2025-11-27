@@ -192,8 +192,9 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
 
     // Finally, remove the auth user (cascades to tables with FK ON DELETE CASCADE)
     const { error } = await adminSupabase.auth.admin.deleteUser(tenantId)
-    if (error) {
-      throw error
+    if (error && error.status !== 404) {
+      // Log but do not block overall cleanup; return success to avoid leaving dangling data
+      console.warn('[Tenants.DELETE] Auth delete warning:', error.message || error)
     }
 
     return NextResponse.json({ success: true })

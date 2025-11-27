@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { startOfMonthUtc } from '@/lib/invoices/rentPeriods'
 
 export async function GET(request: NextRequest) {
   try {
@@ -18,7 +19,7 @@ export async function GET(request: NextRequest) {
     const { data: leases, error: leaseError } = await adminSupabase
       .from('leases')
       .select(
-        `id, status, tenant_user_id, rent_paid_until, unit:apartment_units (
+        `id, status, tenant_user_id, rent_paid_until, start_date, unit:apartment_units (
           id,
           unit_number,
           building:apartment_buildings (
@@ -43,7 +44,9 @@ export async function GET(request: NextRequest) {
     const leaseMap = new Map(
       leases.map((lease) => {
         const leaseStartDate = lease.start_date ? new Date(lease.start_date) : null
-        const leaseStartMonth = leaseStartDate ? new Date(Date.UTC(leaseStartDate.getUTCFullYear(), leaseStartDate.getUTCMonth(), 1)) : null
+        const leaseStartMonth = leaseStartDate
+          ? new Date(Date.UTC(leaseStartDate.getUTCFullYear(), leaseStartDate.getUTCMonth(), 1))
+          : null
         const leaseEligible =
           leaseStartDate && leaseStartDate.getUTCDate() > 1 && leaseStartMonth
             ? new Date(Date.UTC(leaseStartMonth.getUTCFullYear(), leaseStartMonth.getUTCMonth() + 1, 1))
@@ -88,8 +91,13 @@ export async function GET(request: NextRequest) {
         !Number.isNaN(dueDateObj.getTime()) &&
         startOfMonthUtc(dueDateObj) < startOfMonthUtc(eligibleStart)
       const rawStatus = invoice.status
+      const normalizedPaid =
+        rawStatus === true ||
+        rawStatus === 'paid' ||
+        rawStatus === 'verified' ||
+        rawStatus === 'settled'
       const statusValue =
-        isCovered || isPreStart || rawStatus === true
+        isCovered || isPreStart || normalizedPaid
           ? true
           : rawStatus === false
             ? false
