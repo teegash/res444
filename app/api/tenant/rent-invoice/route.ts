@@ -98,7 +98,27 @@ export async function GET(request: NextRequest) {
       // 2. Check if invoice exists for this month
       const { data: existing } = await admin
         .from('invoices')
-        .select('id, amount, due_date, status, invoice_type, description, months_covered, lease_id')
+        .select(`
+          id,
+          amount,
+          due_date,
+          status,
+          invoice_type,
+          description,
+          months_covered,
+          lease_id,
+          lease:leases (
+            id,
+            unit:apartment_units (
+              unit_number,
+              unit_label:unit_number,
+              building:apartment_buildings (
+                name,
+                location
+              )
+            )
+          )
+        `)
         .eq('lease_id', lease.id)
         .eq('invoice_type', 'rent')
         .eq('due_date', dueDateIso)
@@ -113,10 +133,17 @@ export async function GET(request: NextRequest) {
           continue
         }
         // pending/failed/unverified: return same invoice
+        const transformedInvoice = {
+          ...existing,
+          property_name: existing?.lease?.unit?.building?.name || null,
+          property_location: existing?.lease?.unit?.building?.location || null,
+          unit_label: existing?.lease?.unit?.unit_number || null,
+        }
+
         return NextResponse.json({
           success: true,
           data: {
-            invoice: existing,
+            invoice: transformedInvoice,
             lease: {
               monthly_rent: monthlyRent,
               rent_paid_until: lease.rent_paid_until,
@@ -158,10 +185,43 @@ export async function GET(request: NextRequest) {
       await admin.from('leases').update({ next_rent_due_date: toIsoDate(nextPointer) }).eq('id', lease.id)
 
       const property = lease.unit?.building
+      const { data: fullInvoice } = await admin
+        .from('invoices')
+        .select(`
+          id,
+          amount,
+          due_date,
+          status,
+          invoice_type,
+          description,
+          months_covered,
+          lease_id,
+          lease:leases (
+            id,
+            unit:apartment_units (
+              unit_number,
+              unit_label:unit_number,
+              building:apartment_buildings (
+                name,
+                location
+              )
+            )
+          )
+        `)
+        .eq('id', created.id)
+        .maybeSingle()
+      const transformedInvoice = fullInvoice
+        ? {
+            ...fullInvoice,
+            property_name: fullInvoice?.lease?.unit?.building?.name || null,
+            property_location: fullInvoice?.lease?.unit?.building?.location || null,
+            unit_label: fullInvoice?.lease?.unit?.unit_number || null,
+          }
+        : created
       return NextResponse.json({
         success: true,
         data: {
-          invoice: created,
+          invoice: transformedInvoice,
           lease: {
             monthly_rent: monthlyRent,
             rent_paid_until: lease.rent_paid_until,
