@@ -188,14 +188,14 @@ export async function GET(request: NextRequest) {
     }
 
     // Enforce lease start eligibility: if lease starts after day 1, first billable month is the following month
+    let leaseEligibleStart: Date | null = null
     if (lease.start_date) {
       const leaseStartDate = new Date(lease.start_date)
       if (!Number.isNaN(leaseStartDate.getTime())) {
         const leaseStartMonth = startOfMonthUtc(leaseStartDate)
-        const leaseEligible =
-          leaseStartDate.getUTCDate() > 1 ? addMonthsUtc(leaseStartMonth, 1) : leaseStartMonth
-        if (targetPeriod < leaseEligible) {
-          targetPeriod = leaseEligible
+        leaseEligibleStart = leaseStartDate.getUTCDate() > 1 ? addMonthsUtc(leaseStartMonth, 1) : leaseStartMonth
+        if (targetPeriod < leaseEligibleStart) {
+          targetPeriod = leaseEligibleStart
         }
       }
     }
@@ -207,6 +207,17 @@ export async function GET(request: NextRequest) {
       invoice = await selectExistingInvoice(adminSupabase, lease.id, targetPeriod)
       if (!invoice) {
         invoice = await selectByDueDate(adminSupabase, lease.id, dueDateIso)
+      }
+      // If invoice exists but is before lease eligibility, mark it covered and advance
+      if (invoice?.due_date && leaseEligibleStart) {
+        const invMonth = startOfMonthUtc(new Date(invoice.due_date))
+        if (invMonth < leaseEligibleStart) {
+          await adminSupabase.from('invoices').update({ status: true }).eq('id', invoice.id)
+          invoice = null
+          targetPeriod = leaseEligibleStart
+          attempts += 1
+          continue
+        }
       }
       if (invoice?.status === true) {
         targetPeriod = addMonthsUtc(targetPeriod, 1)

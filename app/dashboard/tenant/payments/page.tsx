@@ -193,7 +193,7 @@ export default function PaymentHistoryPage() {
           property_name: invoice.property_name || null,
           unit_label: invoice.unit_label || null,
           raw_status: invoice.raw_status,
-          is_covered: Boolean(invoice.is_covered),
+          is_covered: Boolean(invoice.is_covered || invoice.is_prestart),
         }))
         setInvoices(normalized)
         const nextPending = normalized.find((invoice) => {

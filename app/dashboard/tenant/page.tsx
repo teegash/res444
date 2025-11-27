@@ -44,6 +44,9 @@ type TenantInvoiceRecord = {
   property_location: string | null
   unit_label: string | null
   created_at?: string | null
+  raw_status?: string | null
+  is_covered?: boolean
+  is_prestart?: boolean
 } | null
 
 type TenantPaymentActivity = {
@@ -114,9 +117,13 @@ export default function TenantDashboard() {
         throw new Error(payload.error || 'Failed to load pending invoices.')
       }
       const payload = await response.json()
-      const list = ((payload.data || []) as TenantInvoiceRecord[]).filter(
-        (inv) => !inv.is_covered
-      )
+      const list = ((payload.data || []) as TenantInvoiceRecord[]).filter((inv) => {
+        if (!inv) return false
+        const covered = Boolean(inv.is_covered)
+        const prestart = Boolean(inv.is_prestart)
+        const paid = Boolean(inv.status)
+        return !covered && !prestart && !paid
+      })
       const sorted = [...list].sort((a, b) => {
         const aTime = a?.due_date ? new Date(a.due_date).getTime() : 0
         const bTime = b?.due_date ? new Date(b.due_date).getTime() : 0
@@ -170,7 +177,13 @@ export default function TenantDashboard() {
 
       const invoiceItems: ActivityItem[] = invoices
         .filter(Boolean)
-        .filter((invoice) => !invoice?.status && !paidInvoiceIds.has(invoice?.id || ''))
+        .filter((invoice) => {
+          if (!invoice) return false
+          const covered = Boolean(invoice.is_covered)
+          const prestart = Boolean(invoice.is_prestart)
+          const paid = Boolean(invoice.status)
+          return !covered && !prestart && !paid && !paidInvoiceIds.has(invoice.id || '')
+        })
         .sort((a, b) => {
           const aTime = a?.created_at ? new Date(a.created_at).getTime() : 0
           const bTime = b?.created_at ? new Date(b.created_at).getTime() : 0

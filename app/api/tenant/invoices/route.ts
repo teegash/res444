@@ -41,14 +41,23 @@ export async function GET(request: NextRequest) {
 
     const leaseIds = leases.map((lease) => lease.id)
     const leaseMap = new Map(
-      leases.map((lease) => [
-        lease.id,
-        {
-          rent_paid_until: lease.rent_paid_until || null,
-          unit_number: lease.unit?.unit_number || null,
-          building: lease.unit?.building || null,
-        },
-      ])
+      leases.map((lease) => {
+        const leaseStartDate = lease.start_date ? new Date(lease.start_date) : null
+        const leaseStartMonth = leaseStartDate ? new Date(Date.UTC(leaseStartDate.getUTCFullYear(), leaseStartDate.getUTCMonth(), 1)) : null
+        const leaseEligible =
+          leaseStartDate && leaseStartDate.getUTCDate() > 1 && leaseStartMonth
+            ? new Date(Date.UTC(leaseStartMonth.getUTCFullYear(), leaseStartMonth.getUTCMonth() + 1, 1))
+            : leaseStartMonth
+        return [
+          lease.id,
+          {
+            rent_paid_until: lease.rent_paid_until || null,
+            unit_number: lease.unit?.unit_number || null,
+            building: lease.unit?.building || null,
+            eligible_start: leaseEligible ? leaseEligible.toISOString() : null,
+          },
+        ]
+      })
     )
 
     const { data: invoices, error: invoiceError } = await adminSupabase
@@ -67,14 +76,20 @@ export async function GET(request: NextRequest) {
       const building = leaseMeta?.building
       const rentPaidUntilDate = leaseMeta?.rent_paid_until ? new Date(leaseMeta.rent_paid_until) : null
       const dueDateObj = invoice.due_date ? new Date(invoice.due_date) : null
+      const eligibleStart = leaseMeta?.eligible_start ? new Date(leaseMeta.eligible_start) : null
       const isCovered =
         rentPaidUntilDate !== null &&
         dueDateObj !== null &&
         !Number.isNaN(dueDateObj.getTime()) &&
         dueDateObj.getTime() <= rentPaidUntilDate.getTime()
+      const isPreStart =
+        eligibleStart !== null &&
+        dueDateObj !== null &&
+        !Number.isNaN(dueDateObj.getTime()) &&
+        startOfMonthUtc(dueDateObj) < startOfMonthUtc(eligibleStart)
       const rawStatus = invoice.status
       const statusValue =
-        isCovered || rawStatus === true
+        isCovered || isPreStart || rawStatus === true
           ? true
           : rawStatus === false
             ? false
@@ -95,6 +110,7 @@ export async function GET(request: NextRequest) {
         property_location: building?.location || null,
         lease_paid_until: leaseMeta?.rent_paid_until || null,
         is_covered: isCovered,
+        is_prestart: isPreStart,
         raw_status: rawStatus,
       }
     })
