@@ -106,12 +106,11 @@ export async function GET(request: NextRequest) {
           invoice_type,
           description,
           months_covered,
-          lease_id,
           lease:leases (
             id,
+            rent_paid_until,
             unit:apartment_units (
               unit_number,
-              unit_label:unit_number,
               building:apartment_buildings (
                 name,
                 location
@@ -138,18 +137,15 @@ export async function GET(request: NextRequest) {
           property_name: existing?.lease?.unit?.building?.name || null,
           property_location: existing?.lease?.unit?.building?.location || null,
           unit_label: existing?.lease?.unit?.unit_number || null,
+          lease: {
+            rent_paid_until: existing?.lease?.rent_paid_until || null,
+          },
         }
 
         return NextResponse.json({
           success: true,
           data: {
             invoice: transformedInvoice,
-            lease: {
-              monthly_rent: monthlyRent,
-              rent_paid_until: lease.rent_paid_until,
-              next_rent_due_date: lease.next_rent_due_date,
-            },
-            coverage_note: null,
           },
         })
       }
