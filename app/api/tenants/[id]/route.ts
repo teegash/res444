@@ -164,30 +164,58 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       if ((row as any).unit_id) unitIds.push((row as any).unit_id)
     })
 
-    // Best-effort cleanup of dependent data before deleting the auth user
-    const cleanupTasks = [
-      adminSupabase.from('communications').delete().or(`sender_user_id.eq.${tenantId},recipient_user_id.eq.${tenantId}`),
-      adminSupabase.from('payments').delete().eq('tenant_user_id', tenantId),
-      adminSupabase.from('maintenance_requests').delete().eq('tenant_user_id', tenantId),
-      adminSupabase.from('organization_members').delete().eq('user_id', tenantId),
-      adminSupabase.from('user_profiles').delete().eq('id', tenantId),
-    ]
+    // Hard-delete dependent financial data first to remove revenue traces
+    const { error: paymentsError } = await adminSupabase
+      .from('payments')
+      .delete()
+      .eq('tenant_user_id', tenantId)
+    if (paymentsError) throw paymentsError
 
     if (leaseIds.length) {
-      cleanupTasks.push(adminSupabase.from('invoices').delete().in('lease_id', leaseIds))
-      cleanupTasks.push(adminSupabase.from('leases').delete().in('id', leaseIds))
-    } else {
-      cleanupTasks.push(adminSupabase.from('leases').delete().eq('tenant_user_id', tenantId))
+      const { error: invoiceError } = await adminSupabase
+        .from('invoices')
+        .delete()
+        .in('lease_id', leaseIds)
+      if (invoiceError) throw invoiceError
     }
 
-    await Promise.allSettled(cleanupTasks)
+    if (leaseIds.length) {
+      const { error: leaseDeleteError } = await adminSupabase.from('leases').delete().in('id', leaseIds)
+      if (leaseDeleteError) throw leaseDeleteError
+    } else {
+      const { error: leaseDeleteError } = await adminSupabase
+        .from('leases')
+        .delete()
+        .eq('tenant_user_id', tenantId)
+      if (leaseDeleteError) throw leaseDeleteError
+    }
+
+    // Communications, maintenance, org membership, profile
+    const { error: commsError } = await adminSupabase
+      .from('communications')
+      .delete()
+      .or(`sender_user_id.eq.${tenantId},recipient_user_id.eq.${tenantId}`)
+    if (commsError) throw commsError
+
+    const { error: maintError } = await adminSupabase
+      .from('maintenance_requests')
+      .delete()
+      .eq('tenant_user_id', tenantId)
+    if (maintError) throw maintError
+
+    const { error: orgError } = await adminSupabase.from('organization_members').delete().eq('user_id', tenantId)
+    if (orgError) throw orgError
+
+    const { error: profileError } = await adminSupabase.from('user_profiles').delete().eq('id', tenantId)
+    if (profileError) throw profileError
 
     // Vacate units that were occupied by this tenant
     if (unitIds.length) {
-      await adminSupabase
+      const { error: unitError } = await adminSupabase
         .from('apartment_units')
         .update({ status: 'vacant' })
         .in('id', unitIds)
+      if (unitError) throw unitError
     }
 
     // Finally, remove the auth user (cascades to tables with FK ON DELETE CASCADE)
