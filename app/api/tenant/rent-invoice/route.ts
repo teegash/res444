@@ -155,24 +155,8 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // If we have an unpaid/pending invoice, surface it first
+    // Target period will be set after we consider unpaid/pending + eligibility
     let targetPeriod = currentPeriod
-
-    // Otherwise advance to the max coverage pointer vs current period
-    if (!earliestUnpaid?.due_date && coveragePointers.length) {
-      targetPeriod = coveragePointers.reduce((latest, d) => (d > latest ? d : latest), currentPeriod)
-    }
-
-    // Lock out covered months (1–3 month prepay) by advancing beyond coverage
-    if (coveragePointers.length) {
-      const maxPointer = coveragePointers.reduce((latest, d) => (d > latest ? d : latest), coveragePointers[0])
-      const coveredUntil = addMonthsUtc(maxPointer, -1) // pointers represent next unpaid start
-      let guard = 0
-      while (targetPeriod <= coveredUntil && guard < 6) {
-        targetPeriod = addMonthsUtc(targetPeriod, 1)
-        guard += 1
-      }
-    }
 
     // Enforce lease start eligibility: if lease starts after day 1, first billable month is the following month
     let leaseEligibleStart: Date | null = null
@@ -208,6 +192,22 @@ export async function GET(request: NextRequest) {
     targetPeriod = earliestUnpaid?.due_date
       ? startOfMonthUtc(new Date(earliestUnpaid.due_date))
       : currentPeriod
+
+    // Otherwise advance to the max coverage pointer vs current period
+    if (!earliestUnpaid?.due_date && coveragePointers.length) {
+      targetPeriod = coveragePointers.reduce((latest, d) => (d > latest ? d : latest), currentPeriod)
+    }
+
+    // Lock out covered months (1–3 month prepay) by advancing beyond coverage
+    if (coveragePointers.length) {
+      const maxPointer = coveragePointers.reduce((latest, d) => (d > latest ? d : latest), coveragePointers[0])
+      const coveredUntil = addMonthsUtc(maxPointer, -1) // pointers represent next unpaid start
+      let guard = 0
+      while (targetPeriod <= coveredUntil && guard < 6) {
+        targetPeriod = addMonthsUtc(targetPeriod, 1)
+        guard += 1
+      }
+    }
 
     if (leaseEligibleStart && targetPeriod < leaseEligibleStart) {
       targetPeriod = leaseEligibleStart
