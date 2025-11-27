@@ -131,17 +131,6 @@ export async function GET(request: NextRequest) {
       .limit(1)
       .maybeSingle()
 
-    // earliest unpaid/pending (keep showing if exists)
-    const { data: earliestUnpaid } = await adminSupabase
-      .from('invoices')
-      .select('id, due_date, status')
-      .eq('lease_id', lease.id)
-      .eq('invoice_type', 'rent')
-      .in('status', UNPAID_STATUSES as any[])
-      .order('due_date', { ascending: true })
-      .limit(1)
-      .maybeSingle()
-
     const coveragePointers: Date[] = []
     if (latestPayment?.invoices?.due_date) {
       const coverageStart = startOfMonthUtc(new Date(latestPayment.invoices.due_date))
@@ -167,9 +156,7 @@ export async function GET(request: NextRequest) {
     }
 
     // If we have an unpaid/pending invoice, surface it first
-    let targetPeriod = earliestUnpaid?.due_date
-      ? startOfMonthUtc(new Date(earliestUnpaid.due_date))
-      : currentPeriod
+    let targetPeriod = currentPeriod
 
     // Otherwise advance to the max coverage pointer vs current period
     if (!earliestUnpaid?.due_date && coveragePointers.length) {
@@ -194,10 +181,36 @@ export async function GET(request: NextRequest) {
       if (!Number.isNaN(leaseStartDate.getTime())) {
         const leaseStartMonth = startOfMonthUtc(leaseStartDate)
         leaseEligibleStart = leaseStartDate.getUTCDate() > 1 ? addMonthsUtc(leaseStartMonth, 1) : leaseStartMonth
-        if (targetPeriod < leaseEligibleStart) {
-          targetPeriod = leaseEligibleStart
-        }
       }
+    }
+
+    // Clean up any invoices that fall before the eligible start by marking them paid/covered
+    if (leaseEligibleStart) {
+      await adminSupabase
+        .from('invoices')
+        .update({ status: true })
+        .eq('lease_id', lease.id)
+        .eq('invoice_type', 'rent')
+        .lt('due_date', toIsoDate(leaseEligibleStart))
+    }
+
+    // earliest unpaid/pending (keep showing if exists)
+    const { data: earliestUnpaid } = await adminSupabase
+      .from('invoices')
+      .select('id, due_date, status')
+      .eq('lease_id', lease.id)
+      .eq('invoice_type', 'rent')
+      .in('status', UNPAID_STATUSES as any[])
+      .order('due_date', { ascending: true })
+      .limit(1)
+      .maybeSingle()
+
+    targetPeriod = earliestUnpaid?.due_date
+      ? startOfMonthUtc(new Date(earliestUnpaid.due_date))
+      : currentPeriod
+
+    if (leaseEligibleStart && targetPeriod < leaseEligibleStart) {
+      targetPeriod = leaseEligibleStart
     }
 
     let invoice: any = null
