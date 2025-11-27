@@ -123,7 +123,8 @@ const buildCoverageCharges = (
           posted_at: cursor.toISOString(),
           description: `${abbrev} COV`,
           reference: `${abbrev} COV`,
-          amount: rentAmount,
+          amount: 0, // informational only; avoid double-counting
+          coverage_label: `${abbrev} COV`,
         })
         chargedMonthKeys.add(key)
       }

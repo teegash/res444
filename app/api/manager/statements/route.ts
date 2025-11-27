@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { getCoverageRangeLabel } from '@/lib/payments/leaseHelpers'
 import { getPeriodRange } from '../reports/utils'
 
 export async function GET(request: NextRequest) {
@@ -21,8 +22,10 @@ export async function GET(request: NextRequest) {
         payment_method,
         mpesa_receipt_number,
         tenant_user_id,
+        months_paid,
         invoices:invoice_id (
           id,
+          due_date,
           lease_id,
           leases:lease_id (
             tenant_user_id,
@@ -77,6 +80,10 @@ export async function GET(request: NextRequest) {
           row.tenant_user_id ||
           'Tenant'
         const unitLabel = unitNumber && building?.name ? `${unitNumber} • ${building.name}` : unitNumber || ''
+        const coverageLabel = getCoverageRangeLabel(
+          (row.invoices as any)?.due_date || row.payment_date,
+          row.months_paid || 1
+        )
         return {
           id: row.id,
           tenantId: row.tenant_user_id,
@@ -89,6 +96,7 @@ export async function GET(request: NextRequest) {
           paymentDate: row.payment_date,
           method: row.payment_method || 'payment',
           receipt: row.mpesa_receipt_number || null,
+          coverage_label: coverageLabel || null,
         }
       })
       .filter((row) => {

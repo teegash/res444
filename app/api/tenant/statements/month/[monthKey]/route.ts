@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getCoverageRangeLabel } from '@/lib/payments/leaseHelpers'
+import { startOfMonthUtc } from '@/lib/invoices/rentPeriods'
 
 const formatDateKey = (input: string) => {
   const [yearStr, monthStr] = input.split('-')
@@ -141,17 +142,46 @@ export async function GET(
     coverage_label?: string | null
   }> = []
 
-    const charges = (invoices || []).map((invoice) => ({
-      id: invoice.id,
-      type: 'charge' as const,
-      description:
-        invoice.description ||
-        (invoice.invoice_type === 'water' ? 'Water Bill' : 'Rent Charge'),
-      reference: invoice.id.slice(0, 8).toUpperCase(),
-      amount: Number(invoice.amount || 0),
-      category: invoice.invoice_type || 'rent',
-      posted_at: invoice.created_at || invoice.due_date,
-    }))
+    const rentPaidUntil = leaseRecord?.rent_paid_until ? new Date(leaseRecord.rent_paid_until) : null
+    const charges = (invoices || []).map((invoice) => {
+      const dueDateObj = invoice.due_date ? new Date(invoice.due_date) : null
+      const isRent = (invoice.invoice_type || 'rent') === 'rent'
+      const isCovered =
+        isRent &&
+        rentPaidUntil &&
+        dueDateObj &&
+        !Number.isNaN(dueDateObj.getTime()) &&
+        startOfMonthUtc(dueDateObj) <= startOfMonthUtc(rentPaidUntil)
+
+      if (isCovered) {
+        const abbrev = dueDateObj
+          ? dueDateObj.toLocaleDateString(undefined, { month: 'short' }).toUpperCase()
+          : 'COV'
+        return {
+          id: `coverage-${invoice.id}`,
+          type: 'charge' as const,
+          description: `${abbrev} COV`,
+          reference: `${abbrev} COV`,
+          amount: 0,
+          category: 'rent',
+          posted_at: invoice.due_date,
+          coverage_label: `${abbrev} COV`,
+          status: 'covered',
+        }
+      }
+
+      return {
+        id: invoice.id,
+        type: 'charge' as const,
+        description:
+          invoice.description ||
+          (invoice.invoice_type === 'water' ? 'Water Bill' : 'Rent Charge'),
+        reference: invoice.id.slice(0, 8).toUpperCase(),
+        amount: Number(invoice.amount || 0),
+        category: invoice.invoice_type || 'rent',
+        posted_at: invoice.created_at || invoice.due_date,
+      }
+    })
 
     transactions.push(...charges)
 

@@ -57,6 +57,8 @@ type TenantInvoiceRecord = {
   months_covered: number
   property_name: string | null
   unit_label: string | null
+  raw_status?: string | null
+  is_covered?: boolean
 }
 
 type TenantSummaryPayload = {
@@ -150,7 +152,7 @@ export default function PaymentHistoryPage() {
   const [error, setError] = useState<string | null>(null)
   const [filterMethod, setFilterMethod] = useState<string>('all')
   const [searchMonth, setSearchMonth] = useState('')
-  const [upcomingInvoice, setUpcomingInvoice] = useState<PendingInvoice | null>(null)
+  const [upcomingInvoice, setUpcomingInvoice] = useState<(PendingInvoice & { status?: string; isCovered?: boolean }) | null>(null)
   const [tenantSummary, setTenantSummary] = useState<TenantSummaryPayload | null>(null)
   const [exporting, setExporting] = useState(false)
   const [statementModalOpen, setStatementModalOpen] = useState(false)
@@ -190,14 +192,26 @@ export default function PaymentHistoryPage() {
           months_covered: Number(invoice.months_covered || 0),
           property_name: invoice.property_name || null,
           unit_label: invoice.unit_label || null,
+          raw_status: invoice.raw_status,
+          is_covered: Boolean(invoice.is_covered),
         }))
         setInvoices(normalized)
-        const nextPending = normalized.find((invoice) => !invoice.status)
+        const nextPending = normalized.find((invoice) => {
+          if (invoice.is_covered) return false
+          const raw = (invoice as any).raw_status
+          if (raw && typeof raw === 'string') {
+            const lowered = raw.toLowerCase()
+            if (['pending', 'partially_paid', 'overdue'].includes(lowered)) return true
+          }
+          return !invoice.status
+        })
         if (nextPending) {
           setUpcomingInvoice({
             id: nextPending.id,
             due_date: nextPending.due_date,
             amount: nextPending.amount,
+            status: (nextPending as any).raw_status || 'unpaid',
+            isCovered: nextPending.is_covered || false,
           })
         } else {
           setUpcomingInvoice(null)
@@ -670,7 +684,11 @@ export default function PaymentHistoryPage() {
                 <div className="flex items-center gap-4">
                   <div className="text-right">
                     <p className="text-2xl font-bold">KES {upcomingInvoice.amount.toLocaleString()}</p>
-                    <Badge variant="outline">Due</Badge>
+                    <Badge variant="outline">
+                      {upcomingInvoice.status && upcomingInvoice.status.toLowerCase() !== 'unpaid'
+                        ? upcomingInvoice.status
+                        : 'Due'}
+                    </Badge>
                   </div>
                   <Link href={`/dashboard/tenant/payment?intent=rent&invoiceId=${upcomingInvoice.id}`}>
                     <Button>Pay Now</Button>

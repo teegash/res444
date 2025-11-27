@@ -560,14 +560,46 @@ export async function processRentPrepayment(
 
     // Compute coverage months starting from the next due/coverage pointer
     const coverageStart = resolveCoverageStart(leaseRecord)
-    const dueDates = buildDueDates(coverageStart, monthsPaid, 1, leaseRecord.end_date)
+    const candidateDueDates = buildDueDates(coverageStart, monthsPaid, 1, leaseRecord.end_date)
+    if (!candidateDueDates.length) {
+      return {
+        success: false,
+        message: 'No valid months to cover.',
+        validationErrors: ['No valid months to cover.'],
+        appliedInvoices: [],
+        createdInvoices: [],
+        nextDueDate: null,
+        nextDueAmount: null,
+      }
+    }
+
+    // Map any existing invoices in range to avoid duplicates and mark as applied
+    const existingInvoices = await fetchInvoicesForRange(
+      admin,
+      leaseRecord.id,
+      candidateDueDates[0],
+      candidateDueDates[candidateDueDates.length - 1]
+    )
+    const existingByDue = new Map(
+      (existingInvoices || []).map((inv) => [toDateOnlyIso(new Date(inv.due_date)), inv])
+    )
 
     const appliedInvoices: string[] = []
     const createdInvoices: string[] = []
 
     // Upsert/pay each monthly invoice defensively (avoid 23505)
-    for (const dueDate of dueDates) {
+    for (const dueDate of candidateDueDates) {
       const dueLabel = new Date(dueDate).toLocaleDateString(undefined, { month: 'long', year: 'numeric' })
+      const existing = existingByDue.get(dueDate)
+      if (existing?.id) {
+        // If already paid/covered, just mark as applied; if unpaid, flip to paid
+        appliedInvoices.push(existing.id)
+        if (!invoiceStatusToBoolean(existing.status)) {
+          await admin.from('invoices').update({ status: true }).eq('id', existing.id)
+        }
+        continue
+      }
+
       const { data: upserted, error: upsertError } = await admin
         .from('invoices')
         .upsert(
@@ -580,7 +612,7 @@ export async function processRentPrepayment(
             status: true,
             description: `Rent for ${dueLabel}`,
           },
-          { onConflict: 'lease_id,invoice_type,due_date' }
+          { onConflict: 'lease_id,due_date' }
         )
         .select('id, status')
         .maybeSingle()
@@ -612,8 +644,8 @@ export async function processRentPrepayment(
     }
 
     // Update lease pointers (rent_paid_until & next_rent_due_date)
-    if (dueDates.length > 0) {
-      const lastDue = startOfMonthUtc(new Date(dueDates[dueDates.length - 1]))
+    if (candidateDueDates.length > 0) {
+      const lastDue = startOfMonthUtc(new Date(candidateDueDates[candidateDueDates.length - 1]))
       const nextDue = addMonthsUtc(lastDue, 1)
       await admin
         .from('leases')

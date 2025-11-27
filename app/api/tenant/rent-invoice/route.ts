@@ -120,7 +120,7 @@ export async function GET(request: NextRequest) {
       .limit(1)
       .maybeSingle()
 
-    // Latest paid invoice (fall back if months_paid missing)
+    // Latest paid invoice (captures months_covered)
     const { data: latestPaidInvoice } = await adminSupabase
       .from('invoices')
       .select('due_date, months_covered')
@@ -131,7 +131,7 @@ export async function GET(request: NextRequest) {
       .limit(1)
       .maybeSingle()
 
-    // earliest unpaid (to avoid skipping any)
+    // earliest unpaid/pending (keep showing if exists)
     const { data: earliestUnpaid } = await adminSupabase
       .from('invoices')
       .select('id, due_date, status')
@@ -166,14 +166,24 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    let targetPeriod = coveragePointers.length
-      ? coveragePointers.reduce((latest, d) => (d > latest ? d : latest), currentPeriod)
+    // If we have an unpaid/pending invoice, surface it first
+    let targetPeriod = earliestUnpaid?.due_date
+      ? startOfMonthUtc(new Date(earliestUnpaid.due_date))
       : currentPeriod
 
-    if (earliestUnpaid?.due_date) {
-      const unpaidDue = startOfMonthUtc(new Date(earliestUnpaid.due_date))
-      if (unpaidDue < targetPeriod) {
-        targetPeriod = unpaidDue
+    // Otherwise advance to the max coverage pointer vs current period
+    if (!earliestUnpaid?.due_date && coveragePointers.length) {
+      targetPeriod = coveragePointers.reduce((latest, d) => (d > latest ? d : latest), currentPeriod)
+    }
+
+    // Lock out covered months (1–3 month prepay) by advancing beyond coverage
+    if (coveragePointers.length) {
+      const maxPointer = coveragePointers.reduce((latest, d) => (d > latest ? d : latest), coveragePointers[0])
+      const coveredUntil = addMonthsUtc(maxPointer, -1) // pointers represent next unpaid start
+      let guard = 0
+      while (targetPeriod <= coveredUntil && guard < 6) {
+        targetPeriod = addMonthsUtc(targetPeriod, 1)
+        guard += 1
       }
     }
 
@@ -200,7 +210,7 @@ export async function GET(request: NextRequest) {
         const description = `Rent for ${dueLabel}`
         const { data: created, error: createError } = await adminSupabase
           .from('invoices')
-          .insert(
+          .upsert(
             {
               lease_id: lease.id,
               invoice_type: 'rent',
@@ -210,7 +220,7 @@ export async function GET(request: NextRequest) {
               status: false,
               description,
             },
-            { returning: 'representation' }
+            { returning: 'representation', onConflict: 'lease_id,due_date' }
           )
           .single()
 
@@ -242,6 +252,10 @@ export async function GET(request: NextRequest) {
     }
 
     const property = lease.unit?.building
+    const coveredThrough =
+      coveragePointers.length > 0
+        ? coveragePointers.reduce((latest, d) => (d > latest ? d : latest), coveragePointers[0])
+        : null
     const payloadInvoice = {
       id: invoice.id,
       amount: Number(invoice.amount),
@@ -264,6 +278,9 @@ export async function GET(request: NextRequest) {
           rent_paid_until: lease.rent_paid_until,
           next_rent_due_date: lease.next_rent_due_date,
         },
+        coverage_note: coveredThrough
+          ? `Rent covered through ${coveredThrough.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}`
+          : null,
       },
     })
   } catch (error) {

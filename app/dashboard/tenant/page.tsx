@@ -58,6 +58,8 @@ type TenantPaymentActivity = {
   payment_type: string | null
   property_name: string | null
   unit_label: string | null
+  raw_status?: string | null
+  is_covered?: boolean
 }
 
 type ActivityItem = {
@@ -112,7 +114,9 @@ export default function TenantDashboard() {
         throw new Error(payload.error || 'Failed to load pending invoices.')
       }
       const payload = await response.json()
-      const list = (payload.data || []) as TenantInvoiceRecord[]
+      const list = ((payload.data || []) as TenantInvoiceRecord[]).filter(
+        (inv) => !inv.is_covered
+      )
       const sorted = [...list].sort((a, b) => {
         const aTime = a?.due_date ? new Date(a.due_date).getTime() : 0
         const bTime = b?.due_date ? new Date(b.due_date).getTime() : 0

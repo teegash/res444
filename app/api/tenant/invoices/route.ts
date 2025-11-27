@@ -72,7 +72,13 @@ export async function GET(request: NextRequest) {
         dueDateObj !== null &&
         !Number.isNaN(dueDateObj.getTime()) &&
         dueDateObj.getTime() <= rentPaidUntilDate.getTime()
-      const statusValue = isCovered ? true : Boolean(invoice.status)
+      const rawStatus = invoice.status
+      const statusValue =
+        isCovered || rawStatus === true
+          ? true
+          : rawStatus === false
+            ? false
+            : false
 
       return {
         id: invoice.id,
@@ -89,6 +95,7 @@ export async function GET(request: NextRequest) {
         property_location: building?.location || null,
         lease_paid_until: leaseMeta?.rent_paid_until || null,
         is_covered: isCovered,
+        raw_status: rawStatus,
       }
     })
 
