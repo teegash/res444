@@ -612,7 +612,7 @@ export async function processRentPrepayment(
             status: true,
             description: `Rent for ${dueLabel}`,
           },
-          { onConflict: 'lease_id,due_date' }
+          { onConflict: 'lease_id,invoice_type,due_date' }
         )
         .select('id, status')
         .maybeSingle()

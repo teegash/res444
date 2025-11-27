@@ -187,6 +187,19 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // Enforce lease start eligibility: if lease starts after day 1, first billable month is the following month
+    if (lease.start_date) {
+      const leaseStartDate = new Date(lease.start_date)
+      if (!Number.isNaN(leaseStartDate.getTime())) {
+        const leaseStartMonth = startOfMonthUtc(leaseStartDate)
+        const leaseEligible =
+          leaseStartDate.getUTCDate() > 1 ? addMonthsUtc(leaseStartMonth, 1) : leaseStartMonth
+        if (targetPeriod < leaseEligible) {
+          targetPeriod = leaseEligible
+        }
+      }
+    }
+
     let invoice: any = null
     let attempts = 0
     while (attempts < 6) {
@@ -220,7 +233,7 @@ export async function GET(request: NextRequest) {
               status: false,
               description,
             },
-            { returning: 'representation', onConflict: 'lease_id,due_date' }
+            { returning: 'representation', onConflict: 'lease_id,invoice_type,due_date' }
           )
           .single()
 
