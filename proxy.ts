@@ -20,7 +20,7 @@ export async function proxy(request: NextRequest) {
     if (!hasInvite) {
       const url = request.nextUrl.clone()
       url.pathname = '/get-started'
-      url.searchParams.set('redirectTo', pathname)
+      url.searchParams.set('redirectTo', pathname + request.nextUrl.search)
       return NextResponse.redirect(url)
     }
   }
@@ -45,7 +45,7 @@ export async function proxy(request: NextRequest) {
         },
         setAll(cookiesToSet) {
           cookiesToSet.forEach(({ name, value, options }) =>
-            forwardedRequest.cookies.set(name, value)
+            forwardedRequest.cookies.set(name, value, options)
           )
           supabaseResponse = NextResponse.next({
             request: forwardedRequest,
@@ -64,8 +64,16 @@ export async function proxy(request: NextRequest) {
   } = await supabase.auth.getUser()
 
   // Public routes that don't require authentication
-  const publicPaths = ['/', '/auth/login', '/auth/signup', '/auth/callback', '/auth/forgot-password', '/auth/reset-password']
-  const isPublicPath = publicPaths.some((path) => pathname === path)
+  const publicPaths = [
+    '/',
+    '/get-started',
+    '/auth/login',
+    '/auth/signup',
+    '/auth/callback',
+    '/auth/forgot-password',
+    '/auth/reset-password',
+  ]
+  const isPublicPath = publicPaths.some((path) => pathname.startsWith(path))
 
   // Auth routes
   const authPaths = ['/auth/login', '/auth/signup']
