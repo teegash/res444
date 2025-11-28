@@ -165,6 +165,7 @@ export async function GET(request: NextRequest) {
           },
           { returning: 'representation', onConflict: 'lease_id,invoice_type,due_date' }
         )
+        .select()
         .single()
 
       if (createError) {
@@ -174,6 +175,14 @@ export async function GET(request: NextRequest) {
           continue
         }
         return NextResponse.json({ success: false, error: 'Unable to prepare rent invoice.' }, { status: 500 })
+      }
+
+      if (!created || !created.id) {
+        console.error('[RentInvoice] Upsert returned null data', created)
+        return NextResponse.json(
+          { success: false, error: 'Invoice creation failed (null returned).' },
+          { status: 500 }
+        )
       }
 
       // advance lease pointer to month after this invoice
@@ -206,14 +215,20 @@ export async function GET(request: NextRequest) {
         `)
         .eq('id', created.id)
         .maybeSingle()
-      const transformedInvoice = fullInvoice
-        ? {
-            ...fullInvoice,
-            property_name: fullInvoice?.lease?.unit?.building?.name || null,
-            property_location: fullInvoice?.lease?.unit?.building?.location || null,
-            unit_label: fullInvoice?.lease?.unit?.unit_number || null,
-          }
-        : created
+      if (!fullInvoice || !fullInvoice.id) {
+        console.error('[RentInvoice] Failed to fetch full invoice after upsert')
+        return NextResponse.json(
+          { success: false, error: 'Unable to prepare rent invoice.' },
+          { status: 500 }
+        )
+      }
+
+      const transformedInvoice = {
+        ...fullInvoice,
+        property_name: fullInvoice?.lease?.unit?.building?.name || null,
+        property_location: fullInvoice?.lease?.unit?.building?.location || null,
+        unit_label: fullInvoice?.lease?.unit?.unit_number || null,
+      }
       return NextResponse.json({
         success: true,
         data: {
