@@ -1,13 +1,21 @@
 import { createServerClient } from '@supabase/ssr'
-import { NextResponse, type NextRequest } from 'next/server'
+import { NextResponse, NextRequest } from 'next/server'
 import { roleCanAccessRoute, UserRole } from './lib/rbac/roles'
 
 export async function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname
 
+  // Ensure cookies (including invite_access) are forwarded properly during internal navigation
+  const forwardedRequest = new NextRequest(request.url, {
+    method: request.method,
+    headers: request.headers,
+    body: request.body,
+    redirect: request.redirect,
+  })
+
   // Gate signup: require invite_access cookie to reach /auth/signup
   if (pathname.startsWith('/auth/signup')) {
-    const cookieHeader = request.headers.get('cookie') || ''
+    const cookieHeader = forwardedRequest.headers.get('cookie') || ''
     const hasInvite = cookieHeader.includes('invite_access=')
     if (!hasInvite) {
       const url = request.nextUrl.clone()
@@ -24,7 +32,7 @@ export async function proxy(request: NextRequest) {
   }
 
   let supabaseResponse = NextResponse.next({
-    request,
+    request: forwardedRequest,
   })
 
   const supabase = createServerClient(
@@ -33,14 +41,14 @@ export async function proxy(request: NextRequest) {
     {
       cookies: {
         getAll() {
-          return request.cookies.getAll()
+          return forwardedRequest.cookies.getAll()
         },
         setAll(cookiesToSet) {
           cookiesToSet.forEach(({ name, value, options }) =>
-            request.cookies.set(name, value)
+            forwardedRequest.cookies.set(name, value)
           )
           supabaseResponse = NextResponse.next({
-            request,
+            request: forwardedRequest,
           })
           cookiesToSet.forEach(({ name, value, options }) =>
             supabaseResponse.cookies.set(name, value, options)
