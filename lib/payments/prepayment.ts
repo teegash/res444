@@ -133,7 +133,7 @@ const describeCoverage = (dueIso: string, months: number) => {
 // Apply a verified rent payment to invoice + lease pointers
 export async function applyRentPayment(
   admin: AdminClient,
-  payment: { months_paid?: number | null },
+  payment: { id?: string; months_paid?: number | null },
   invoice: { id: string; due_date: string },
   lease: { id: string }
 ) {
@@ -141,6 +141,7 @@ export async function applyRentPayment(
   const baseMonth = startOfMonthUtc(new Date(invoice.due_date))
   const paidUntil = addMonthsUtc(baseMonth, months - 1)
 
+  // Mark invoice paid/covered
   await admin
     .from('invoices')
     .update({
@@ -150,6 +151,18 @@ export async function applyRentPayment(
     })
     .eq('id', invoice.id)
 
+  // Sync payment row (if provided) so payment/invoice statuses stay aligned
+  if (payment?.id) {
+    await admin
+      .from('payments')
+      .update({
+        verified: true,
+        verified_at: new Date().toISOString(),
+      })
+      .eq('id', payment.id)
+  }
+
+  // Advance lease pointers
   await admin
     .from('leases')
     .update({
