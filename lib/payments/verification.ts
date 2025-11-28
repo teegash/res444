@@ -259,14 +259,6 @@ export async function approvePayment(
       }
     }
 
-    // Guard against already-paid or covered invoice
-    if (invoice.status === true) {
-      return {
-        success: false,
-        error: 'This invoice is already paid.',
-      }
-    }
-
     // Fetch lease for coverage validation
     const { data: lease } = await admin
       .from('leases')
@@ -314,16 +306,12 @@ export async function approvePayment(
     const invoiceType = invoice.invoice_type || 'rent'
 
     if (invoiceType === 'rent') {
-      // Apply rent coverage directly (updates invoice.status + lease pointers)
-      await applyRentPayment(admin, payment, invoice, lease || { id: invoice.lease_id })
+      // Apply rent coverage directly; trigger will mark invoice status
+      await applyRentPayment(admin, { ...payment, id: paymentId, months_paid: monthsPaid }, invoice, lease || { id: invoice.lease_id })
       primaryInvoiceId = invoice.id
     } else {
-      // Non-rent: mark invoice covered for the paid months and refresh status
-      await admin
-        .from('invoices')
-        .update({ months_covered: monthsPaid, status: true, payment_date: now })
-        .eq('id', invoice.id)
-      await updateInvoiceStatus(invoice.id)
+      // For non-rent, just ensure months_covered is stored; trigger handles status from verified payment
+      await admin.from('invoices').update({ months_covered: monthsPaid, payment_date: now }).eq('id', invoice.id)
     }
 
     // 5. Send notification to tenant

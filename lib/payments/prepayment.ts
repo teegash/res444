@@ -141,13 +141,13 @@ export async function applyRentPayment(
   const baseMonth = startOfMonthUtc(new Date(invoice.due_date))
   const paidUntil = addMonthsUtc(baseMonth, months - 1)
 
-  // Mark invoice paid/covered
+  // Mark invoice payment metadata (trigger will handle status)
   await admin
     .from('invoices')
     .update({
-      status: true,
       payment_date: new Date().toISOString(),
       months_covered: months,
+      updated_at: new Date().toISOString(),
     })
     .eq('id', invoice.id)
 
@@ -158,6 +158,7 @@ export async function applyRentPayment(
       .update({
         verified: true,
         verified_at: new Date().toISOString(),
+        months_paid: months,
       })
       .eq('id', payment.id)
   }
