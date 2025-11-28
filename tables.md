@@ -252,3 +252,5 @@ create table public.user_profiles (
 create index IF not exists idx_user_profiles_id on public.user_profiles using btree (id) TABLESPACE pg_default;
 
 create index IF not exists idx_user_profiles_role on public.user_profiles using btree (role) TABLESPACE pg_default;
+
+to add more later
