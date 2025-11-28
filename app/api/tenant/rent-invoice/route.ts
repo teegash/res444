@@ -130,14 +130,6 @@ export async function GET(request: NextRequest) {
         .maybeSingle()
 
       if (existing) {
-        const coveredMonths = Number(existing.months_covered || 1)
-        if (existing.status === true || coveredMonths > 1) {
-          // advance to month after coverage
-          nextDue = addMonthsUtc(nextDue, coveredMonths)
-          attempts += 1
-          continue
-        }
-        // pending/failed/unverified: return same invoice
         const transformedInvoice = {
           ...existing,
           property_name: existing?.lease?.unit?.building?.name || null,
@@ -147,7 +139,6 @@ export async function GET(request: NextRequest) {
             rent_paid_until: existing?.lease?.rent_paid_until || null,
           },
         }
-
         return NextResponse.json({
           success: true,
           data: {
@@ -190,10 +181,6 @@ export async function GET(request: NextRequest) {
           { status: 500 }
         )
       }
-
-      // advance lease pointer to month after this invoice
-      const nextPointer = addMonthsUtc(nextDue, 1)
-      await admin.from('leases').update({ next_rent_due_date: toIsoDate(nextPointer) }).eq('id', lease.id)
 
       const property = lease.unit?.building
       const { data: fullInvoice } = await admin
@@ -239,12 +226,6 @@ export async function GET(request: NextRequest) {
         success: true,
         data: {
           invoice: transformedInvoice,
-          lease: {
-            monthly_rent: monthlyRent,
-            rent_paid_until: lease.rent_paid_until,
-            next_rent_due_date: nextPointer.toISOString(),
-          },
-          coverage_note: null,
         },
       })
     }
