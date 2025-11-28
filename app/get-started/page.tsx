@@ -60,7 +60,8 @@ export default function GetStartedPage() {
         throw new Error(payload.error || 'Invalid code.')
       }
       toast({ title: 'Access granted', description: 'Redirecting to sign up…' })
-      router.push('/auth/signup')
+      const next = payload.redirect || '/auth/signup'
+      router.push(next)
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'Unable to validate code.')
       toast({

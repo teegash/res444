@@ -56,7 +56,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'Failed to update code usage.' }, { status: 500 })
     }
 
-    const res = NextResponse.json({ success: true, message: 'Access granted. Continue to sign up.' })
+    const res = NextResponse.json({
+      success: true,
+      message: 'Access granted. Continue to sign up.',
+      redirect: '/auth/signup',
+    })
     res.cookies.set({
       name: 'invite_access',
       value: record.id,
