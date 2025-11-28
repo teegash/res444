@@ -54,6 +54,7 @@ export default function GetStartedPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ code }),
+        credentials: 'include',
       })
       const payload = await res.json().catch(() => ({}))
       if (!res.ok) {
