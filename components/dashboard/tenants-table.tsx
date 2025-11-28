@@ -131,6 +131,16 @@ const paymentBadgeVariant = (status: string) => {
 const buildStatementHref = (tenantId?: string | null) =>
   tenantId ? `/dashboard/manager/statements/${encodeURIComponent(tenantId)}` : ''
 
+const ratingMeta = (rate?: number) => {
+  if (rate === undefined || rate === null) {
+    return { color: 'bg-slate-300', label: 'No rating available' }
+  }
+  if (rate >= 95) return { color: 'bg-green-500', label: 'Excellent (95-100%)' }
+  if (rate >= 87) return { color: 'bg-yellow-400', label: 'Good (87-94%)' }
+  if (rate >= 80) return { color: 'bg-orange-500', label: 'Fair (80-86%)' }
+  return { color: 'bg-red-500', label: 'Needs improvement (<80%)' }
+}
+
 function TenantActions({
   tenant,
   onEdit,
@@ -176,6 +186,7 @@ function TenantActions({
 export function TenantsTable({ searchQuery = '', viewMode = 'list', propertyId }: TenantsTableProps) {
   const { toast } = useToast()
   const [tenants, setTenants] = useState<TenantRecord[]>([])
+  const [ratingsMap, setRatingsMap] = useState<Record<string, { on_time_rate: number; payments: number }>>({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [refreshIndex, setRefreshIndex] = useState(0)
@@ -221,6 +232,33 @@ export function TenantsTable({ searchQuery = '', viewMode = 'list', propertyId }
     }
 
     fetchTenants()
+  }, [refreshIndex])
+
+  useEffect(() => {
+    const fetchRatings = async () => {
+      try {
+        const res = await fetch('/api/dashboard/manager/tenant-ratings', { cache: 'no-store' })
+        const json = await res.json()
+        if (!res.ok || !json.success) {
+          throw new Error(json.error || 'Failed to load tenant ratings')
+        }
+        const map: Record<string, { on_time_rate: number; payments: number }> = {}
+        ;(json.data || []).forEach((item: any) => {
+          if (item?.tenant_id) {
+            map[item.tenant_id] = {
+              on_time_rate: Number(item.on_time_rate || 0),
+              payments: Number(item.payments || 0),
+            }
+          }
+        })
+        setRatingsMap(map)
+      } catch (err) {
+        console.warn('[TenantsTable] ratings load failed', err)
+        setRatingsMap({})
+      }
+    }
+
+    fetchRatings()
   }, [refreshIndex])
 
   useEffect(() => {
@@ -476,7 +514,10 @@ export function TenantsTable({ searchQuery = '', viewMode = 'list', propertyId }
               )}
 
               {!loading &&
-                filteredTenants.map((tenant) => (
+                filteredTenants.map((tenant) => {
+                  const rating = ratingsMap[tenant.tenant_user_id]
+                  const meta = ratingMeta(rating?.on_time_rate)
+                  return (
                   <TableRow key={tenant.lease_id}>
                     <TableCell>
                       <div className="flex items-center gap-3">
@@ -487,7 +528,29 @@ export function TenantsTable({ searchQuery = '', viewMode = 'list', propertyId }
                           <AvatarFallback>{getInitials(tenant.full_name)}</AvatarFallback>
                         </Avatar>
                         <div>
-                          <p className="font-medium leading-tight">{tenant.full_name}</p>
+                          <div className="flex items-center gap-2">
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span
+                                  className={`h-2.5 w-2.5 rounded-full ${meta.color}`}
+                                  aria-label="Tenant rating indicator"
+                                />
+                              </TooltipTrigger>
+                              <TooltipContent className="bg-black text-white text-xs">
+                                <div className="space-y-1">
+                                  <p className="font-semibold">
+                                    {meta.label}
+                                  </p>
+                                  <p>
+                                    {rating
+                                      ? `${rating.on_time_rate}% on time • ${rating.payments} payments`
+                                      : 'No payment history yet.'}
+                                  </p>
+                                </div>
+                              </TooltipContent>
+                            </Tooltip>
+                            <p className="font-medium leading-tight">{tenant.full_name}</p>
+                          </div>
                           <p className="text-xs text-muted-foreground">
                             ID: {tenant.national_id || 'Not Provided'}
                           </p>
@@ -580,7 +643,7 @@ export function TenantsTable({ searchQuery = '', viewMode = 'list', propertyId }
                       <TenantActions tenant={tenant} onEdit={setEditTenant} onRemove={setTenantToDelete} />
                     </TableCell>
                   </TableRow>
-                ))}
+                )})}
             </TableBody>
           </Table>
           </div>
