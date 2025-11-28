@@ -108,7 +108,7 @@ export default function GetStartedPage() {
 
           <div className="border-t pt-4 space-y-2">
             <p className="text-sm text-muted-foreground">
-              Don’t have a code? Request one and the admin (nategadgets@gmail.com) will share it with you.
+              Don’t have a code? Request one and the super-admin will share it with you.
             </p>
             <Button variant="outline" onClick={handleRequestCode} disabled={loadingRequest} className="w-full">
               {loadingRequest ? 'Requesting…' : 'Request access code'}

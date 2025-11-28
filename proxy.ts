@@ -7,8 +7,9 @@ export async function proxy(request: NextRequest) {
 
   // Gate signup: require invite_access cookie to reach /auth/signup
   if (pathname.startsWith('/auth/signup')) {
-    const inviteCookie = request.cookies.get('invite_access')
-    if (!inviteCookie) {
+    const cookieHeader = request.headers.get('cookie') || ''
+    const hasInvite = cookieHeader.includes('invite_access=')
+    if (!hasInvite) {
       const url = request.nextUrl.clone()
       url.pathname = '/get-started'
       url.searchParams.set('redirectTo', pathname)

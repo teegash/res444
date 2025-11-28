@@ -56,21 +56,18 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'Failed to update code usage.' }, { status: 500 })
     }
 
-    const res = NextResponse.json({
+    const response = NextResponse.json({
       success: true,
       message: 'Access granted. Continue to sign up.',
       redirect: '/auth/signup',
     })
-    res.cookies.set({
-      name: 'invite_access',
-      value: record.id || 'granted',
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      path: '/',
-      maxAge: 60 * 30, // 30 minutes
-    })
-    return res
+
+    response.headers.append(
+      'Set-Cookie',
+      `invite_access=${record.id ?? 'granted'}; Path=/; HttpOnly; Max-Age=1800; SameSite=Lax`
+    )
+
+    return response
   } catch (error) {
     console.error('[InviteCode] Validation failed', error)
     return NextResponse.json(
