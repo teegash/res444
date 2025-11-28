@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { ArrowLeft, CheckCircle2, CreditCard, Smartphone, UploadCloud, ShieldCheck, Lock } from 'lucide-react'
+import { ArrowLeft, CheckCircle2, CreditCard, Smartphone, UploadCloud, ShieldCheck, Lock, AlertCircle } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -12,6 +12,13 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Textarea } from '@/components/ui/textarea'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { useToast } from '@/components/ui/use-toast'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { SkeletonLoader } from '@/components/ui/skeletons'
 
 type InvoiceSummary = {
@@ -47,9 +54,11 @@ export default function TenantPaymentPortal() {
   const [mpesaMessage, setMpesaMessage] = useState<string | null>(null)
   const [bankMessage, setBankMessage] = useState<string | null>(null)
   const [cardMessage, setCardMessage] = useState<string | null>(null)
-  const [mpesaStatus, setMpesaStatus] = useState<'idle' | 'pending' | 'success' | 'error'>('idle')
-  const [mpesaStatusMessage, setMpesaStatusMessage] = useState<string | null>(null)
-  const [mpesaSuccessOverlay, setMpesaSuccessOverlay] = useState(false)
+  const [securityModalOpen, setSecurityModalOpen] = useState(false)
+  const [securityModalStatus, setSecurityModalStatus] = useState<'prompt' | 'success' | 'error'>('prompt')
+  const [securityModalMessage, setSecurityModalMessage] = useState(
+    'We are securing your request. Approve the prompt on your phone.'
+  )
   const [mpesaPollPaymentId, setMpesaPollPaymentId] = useState<string | null>(null)
   const mpesaPollIntervalRef = useRef<NodeJS.Timeout | null>(null)
 
@@ -192,20 +201,18 @@ export default function TenantPaymentPortal() {
         const message = payload.data?.message
 
         if (status === 'success') {
-          setMpesaStatus('success')
-          setMpesaStatusMessage(message || 'Payment confirmed.')
+          setSecurityModalStatus('success')
+          setSecurityModalMessage(message || 'Payment confirmed.')
           setMpesaMessage(message || null)
           setMpesaPollPaymentId(null)
-          setMpesaSuccessOverlay(true)
-          setTimeout(() => router.push('/dashboard/tenant'), 1000)
           await fetchInvoice()
         } else if (status === 'failed') {
-          setMpesaStatus('error')
-          setMpesaStatusMessage(message || 'Payment failed. Please try again.')
+          setSecurityModalStatus('error')
+          setSecurityModalMessage(message || 'Payment failed. Please try again.')
           setMpesaPollPaymentId(null)
         } else {
-          setMpesaStatus('pending')
-          setMpesaStatusMessage(message || 'Awaiting confirmation from Safaricom…')
+          setSecurityModalStatus('prompt')
+          setSecurityModalMessage(message || 'Awaiting confirmation from Safaricom…')
         }
       } catch (error) {
         console.error('[MpesaStatusPoll] Failed to fetch status', error)
@@ -247,11 +254,14 @@ export default function TenantPaymentPortal() {
     try {
       setSubmitting(true)
       setMpesaMessage(null)
-      setMpesaStatus('pending')
-      setMpesaStatusMessage('Enter your M-Pesa PIN on your phone to continue.')
+      setSecurityModalStatus('prompt')
+      setSecurityModalMessage('Enter your M-Pesa PIN on your phone to continue.')
+      setSecurityModalOpen(true)
       const refreshedInvoice = await fetchInvoice()
       const currentInvoice = refreshedInvoice || invoice
       if (!currentInvoice || !currentInvoice.id) {
+        setSecurityModalStatus('error')
+        setSecurityModalMessage('Unable to locate your rent invoice. Please refresh and try again.')
         toast({
           title: 'Invoice missing',
           description: 'Unable to locate the rent invoice. Please refresh the page and try again.',
@@ -286,18 +296,18 @@ export default function TenantPaymentPortal() {
         ? `${payload.message || 'STK push initiated successfully.'} Checkout ID: ${checkoutId}`
         : payload.message || 'STK push initiated successfully. Approve the prompt on your phone.'
       setMpesaMessage(toastDescription)
-      setMpesaStatus('pending')
-      setMpesaStatusMessage('Awaiting confirmation from Safaricom…')
+      setSecurityModalStatus('prompt')
+      setSecurityModalMessage('Awaiting confirmation from Safaricom…')
       toast({
         title: 'STK push sent',
         description: toastDescription,
       })
     } catch (error) {
-      setMpesaPollPaymentId(null)
-      setMpesaStatus('error')
-      setMpesaStatusMessage(
+      setSecurityModalStatus('error')
+      setSecurityModalMessage(
         error instanceof Error ? error.message : 'Unable to initiate M-Pesa payment. Please try again.'
       )
+      setMpesaPollPaymentId(null)
       toast({
         title: 'Payment failed',
         description: error instanceof Error ? error.message : 'Unable to initiate M-Pesa payment.',
@@ -470,8 +480,14 @@ export default function TenantPaymentPortal() {
   }
 
   const isInvoicePaid = Boolean(invoice.status)
-  const isMpesaPolling = mpesaStatus === 'pending' || Boolean(mpesaPollPaymentId)
-  const isActionBlocked = submitting || isInvoicePaid || isMpesaPolling
+  const modalAccent =
+    securityModalStatus === 'success'
+      ? 'text-emerald-600'
+      : securityModalStatus === 'error'
+        ? 'text-red-600'
+        : 'text-blue-600'
+  const ModalIcon =
+    securityModalStatus === 'success' ? CheckCircle2 : securityModalStatus === 'error' ? AlertCircle : Smartphone
 
   return (
     <div className="min-h-screen bg-slate-950/5 py-10">
@@ -646,20 +662,7 @@ export default function TenantPaymentPortal() {
                       onChange={(event) => setMpesaNumber(event.target.value)}
                     />
                   </div>
-                  {mpesaStatusMessage && (
-                    <p
-                      className={`text-xs ${
-                        mpesaStatus === 'error'
-                          ? 'text-red-700'
-                          : mpesaStatus === 'success'
-                            ? 'text-emerald-700'
-                            : 'text-slate-700'
-                      }`}
-                    >
-                      {mpesaStatusMessage}
-                    </p>
-                  )}
-                  {!mpesaStatusMessage && mpesaMessage && <p className="text-xs text-green-700">{mpesaMessage}</p>}
+                  {mpesaMessage && <p className="text-xs text-green-700">{mpesaMessage}</p>}
                 </div>
               )}
 
@@ -772,36 +775,46 @@ export default function TenantPaymentPortal() {
                 </div>
               )}
 
-              <Button
-                onClick={handleSubmit}
-                disabled={isActionBlocked}
-                className="w-full gap-2 bg-[#4682B4] hover:bg-[#3b6c99] disabled:opacity-60"
-              >
+              <Button onClick={handleSubmit} disabled={submitting || isInvoicePaid} className="w-full gap-2 bg-[#4682B4] hover:bg-[#3b6c99]">
                 <CheckCircle2 className="h-5 w-5" />
-                {isInvoicePaid
-                  ? 'Invoice already paid'
-                  : isMpesaPolling
-                    ? 'Awaiting M-Pesa confirmation…'
-                    : submitting
-                      ? 'Processing…'
-                      : 'Confirm payment option'}
+                {isInvoicePaid ? 'Invoice already paid' : submitting ? 'Processing…' : 'Confirm payment option'}
               </Button>
             </CardContent>
           </Card>
         </div>
       </div>
-
-      {mpesaSuccessOverlay && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl px-8 py-6 text-center space-y-3 max-w-sm w-full border border-emerald-100">
-            <div className="mx-auto h-12 w-12 rounded-full bg-emerald-50 flex items-center justify-center">
-              <CheckCircle2 className="h-8 w-8 text-emerald-600" />
-            </div>
-            <h3 className="text-lg font-semibold text-emerald-700">Payment received</h3>
-            <p className="text-sm text-slate-600">Redirecting you to your dashboard…</p>
+      <Dialog open={securityModalOpen} onOpenChange={(open) => (!submitting ? setSecurityModalOpen(open) : undefined)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-lg">
+              <ModalIcon className={`${modalAccent} h-5 w-5`} />
+              {securityModalStatus === 'success'
+                ? 'Payment initiated securely'
+                : securityModalStatus === 'error'
+                  ? 'Payment could not start'
+                  : 'Secure confirmation required'}
+            </DialogTitle>
+            <DialogDescription className="text-sm text-muted-foreground">
+              {securityModalStatus === 'success'
+                ? 'We will confirm your payment automatically once Safaricom sends the confirmation.'
+                : securityModalStatus === 'error'
+                  ? 'Please review the message below and try again.'
+                  : 'Confirm the STK prompt on your phone to continue.'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <p className="text-sm font-medium">{securityModalMessage}</p>
+            <p className="text-xs text-muted-foreground">
+              Keep this window open while we secure your transaction. You can close it once you’re done.
+            </p>
           </div>
-        </div>
-      )}
+          <div className="flex justify-end">
+            <Button variant="outline" onClick={() => setSecurityModalOpen(false)}>
+              Close
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
