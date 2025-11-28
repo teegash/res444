@@ -17,6 +17,12 @@ export async function GET(
     }
 
     const admin = createAdminClient()
+    if (!admin) {
+      return NextResponse.json(
+        { success: false, error: 'Server misconfigured: Supabase admin unavailable.' },
+        { status: 500 }
+      )
+    }
     const { data: payment, error: paymentError } = await admin
       .from('payments')
       .select('*')
@@ -52,25 +58,27 @@ export async function GET(
       }
     }
 
-    // If M-Pesa says success and payment not yet applied, mark invoice paid and verify payment
-    if (status === 'success' && !payment.verified) {
+    // If M-Pesa says success ensure invoice is applied/verified
+    if (status === 'success') {
       const { data: invoice } = await admin
         .from('invoices')
         .select('*')
         .eq('id', payment.invoice_id)
         .maybeSingle()
 
-      if (invoice?.lease_id) {
+      if (invoice?.lease_id && invoice.status !== true) {
         const { data: lease } = await admin.from('leases').select('*').eq('id', invoice.lease_id).maybeSingle()
         if (lease) {
           await applyRentPayment(admin, payment, invoice, lease)
         }
       }
 
-      await admin
-        .from('payments')
-        .update({ verified: true, verified_at: new Date().toISOString() })
-        .eq('id', paymentId)
+      if (!payment.verified) {
+        await admin
+          .from('payments')
+          .update({ verified: true, verified_at: new Date().toISOString() })
+          .eq('id', paymentId)
+      }
     }
 
     return NextResponse.json({

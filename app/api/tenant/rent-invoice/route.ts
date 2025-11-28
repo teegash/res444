@@ -20,6 +20,12 @@ export async function GET(request: NextRequest) {
     }
 
     const admin = createAdminClient()
+    if (!admin) {
+      return NextResponse.json(
+        { success: false, error: 'Server misconfigured: Supabase admin client unavailable.' },
+        { status: 500 }
+      )
+    }
     const { data: lease, error: leaseError } = await admin
       .from('leases')
       .select(

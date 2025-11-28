@@ -80,6 +80,12 @@ export async function GET() {
     }
 
     const admin = createAdminClient()
+    if (!admin) {
+      return NextResponse.json(
+        { success: false, error: 'Server misconfigured: Supabase admin client unavailable.' },
+        { status: 500 }
+      )
+    }
 
     await reconcileTenantPaymentCoverage(admin, user.id)
     const { data, error } = await admin

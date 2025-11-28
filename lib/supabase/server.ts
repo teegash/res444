@@ -6,12 +6,19 @@ export async function createClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
-  if (!supabaseUrl) {
-    throw new Error('NEXT_PUBLIC_SUPABASE_URL is not set. Please check your environment variables.')
-  }
-
-  if (!anonKey) {
-    throw new Error('NEXT_PUBLIC_SUPABASE_ANON_KEY is not set. Please check your environment variables.')
+  if (!supabaseUrl || !anonKey) {
+    console.error(
+      '[Supabase SSR] Missing env vars: NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY'
+    )
+    // Return a dummy client so login page doesn't crash
+    return createServerClient('https://placeholder.supabase.co', 'public-anon-key', {
+      cookies: {
+        getAll() {
+          return []
+        },
+        setAll() {},
+      },
+    })
   }
 
   const cookieStore = await cookies()
@@ -35,4 +42,3 @@ export async function createClient() {
     },
   })
 }
-

@@ -10,12 +10,11 @@ export function createAdminClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
-  if (!supabaseUrl) {
-    throw new Error('NEXT_PUBLIC_SUPABASE_URL is not set. Required for Supabase operations.')
-  }
-
-  if (!serviceRoleKey) {
-    throw new Error('SUPABASE_SERVICE_ROLE_KEY is not set. Required for admin operations.')
+  if (!supabaseUrl || !serviceRoleKey) {
+    console.error(
+      '[Supabase Admin] Missing env variables (NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY). Returning null client.'
+    )
+    return null
   }
 
   return createClient<Database>(supabaseUrl, serviceRoleKey, {
@@ -25,4 +24,3 @@ export function createAdminClient() {
     },
   })
 }
-

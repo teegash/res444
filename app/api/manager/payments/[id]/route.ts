@@ -37,6 +37,12 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
 
     const supabase = await createClient()
     const adminSupabase = createAdminClient()
+    if (!adminSupabase) {
+      return NextResponse.json(
+        { success: false, error: 'Server misconfigured: Admin client unavailable.' },
+        { status: 500 }
+      )
+    }
     const {
       data: { user },
       error: authError,

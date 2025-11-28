@@ -48,6 +48,12 @@ export async function createPaymentWithDepositSlip(
   try {
     const supabase = await createClient()
     const admin = createAdminClient()
+    if (!admin) {
+      return {
+        success: false,
+        error: 'Server misconfigured: Admin client unavailable.',
+      }
+    }
 
     // 1. Validate invoice exists and user has access
     const { data: invoice, error: invoiceError } = await admin
@@ -192,6 +198,12 @@ export async function approvePayment(
   try {
     const supabase = await createClient()
     const admin = createAdminClient()
+    if (!admin) {
+      return {
+        success: false,
+        error: 'Server misconfigured: Admin client unavailable.',
+      }
+    }
 
     // 1. Get payment details
     const { data: payment, error: paymentError } = await admin
@@ -302,11 +314,15 @@ export async function approvePayment(
     const invoiceType = invoice.invoice_type || 'rent'
 
     if (invoiceType === 'rent') {
-      // Apply rent coverage directly
+      // Apply rent coverage directly (updates invoice.status + lease pointers)
       await applyRentPayment(admin, payment, invoice, lease || { id: invoice.lease_id })
       primaryInvoiceId = invoice.id
     } else {
-      await admin.from('invoices').update({ months_covered: monthsPaid }).eq('id', invoice.id)
+      // Non-rent: mark invoice covered for the paid months and refresh status
+      await admin
+        .from('invoices')
+        .update({ months_covered: monthsPaid, status: true, payment_date: now })
+        .eq('id', invoice.id)
       await updateInvoiceStatus(invoice.id)
     }
 
@@ -358,6 +374,12 @@ export async function rejectPayment(
   try {
     const supabase = await createClient()
     const admin = createAdminClient()
+    if (!admin) {
+      return {
+        success: false,
+        error: 'Server misconfigured: Admin client unavailable.',
+      }
+    }
 
     // 1. Get payment details
     const { data: payment, error: paymentError } = await admin
@@ -467,6 +489,7 @@ async function sendPaymentVerificationNotification(
   try {
     const supabase = await createClient()
     const admin = createAdminClient()
+    if (!admin) return
 
     // Get tenant phone number (admin client to bypass RLS and avoid null profile lookups)
     const { data: profile } = await admin
