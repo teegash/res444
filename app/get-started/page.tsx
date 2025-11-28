@@ -62,7 +62,8 @@ export default function GetStartedPage() {
       }
       toast({ title: 'Access granted', description: 'Redirecting to sign up…' })
       const next = payload.redirect || '/auth/signup'
-      router.push(next)
+      // Force full navigation so proxy sees the invite cookie
+      window.location.href = next
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'Unable to validate code.')
       toast({
