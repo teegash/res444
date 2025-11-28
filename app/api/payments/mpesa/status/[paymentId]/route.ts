@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { applyRentPayment } from '@/lib/payments/prepayment'
 
 export async function GET(
   request: NextRequest,
@@ -16,22 +16,10 @@ export async function GET(
       )
     }
 
-    const supabase = await createClient()
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser()
-
-    if (authError || !user) {
-      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
-    }
-
     const admin = createAdminClient()
     const { data: payment, error: paymentError } = await admin
       .from('payments')
-      .select(
-        'id, tenant_user_id, verified, mpesa_query_status, mpesa_response_code, mpesa_auto_verified, mpesa_receipt_number, verified_at, notes'
-      )
+      .select('*')
       .eq('id', paymentId)
       .maybeSingle()
 
@@ -42,10 +30,6 @@ export async function GET(
 
     if (!payment) {
       return NextResponse.json({ success: false, error: 'Payment not found' }, { status: 404 })
-    }
-
-    if (payment.tenant_user_id !== user.id) {
-      return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })
     }
 
     let status: 'pending' | 'success' | 'failed' = 'pending'
@@ -66,6 +50,27 @@ export async function GET(
         status = 'failed'
         message = payment.mpesa_query_status
       }
+    }
+
+    // If M-Pesa says success and payment not yet applied, mark invoice paid and verify payment
+    if (status === 'success' && !payment.verified) {
+      const { data: invoice } = await admin
+        .from('invoices')
+        .select('*')
+        .eq('id', payment.invoice_id)
+        .maybeSingle()
+
+      if (invoice?.lease_id) {
+        const { data: lease } = await admin.from('leases').select('*').eq('id', invoice.lease_id).maybeSingle()
+        if (lease) {
+          await applyRentPayment(admin, payment, invoice, lease)
+        }
+      }
+
+      await admin
+        .from('payments')
+        .update({ verified: true, verified_at: new Date().toISOString() })
+        .eq('id', paymentId)
     }
 
     return NextResponse.json({
