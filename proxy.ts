@@ -5,6 +5,17 @@ import { roleCanAccessRoute, UserRole } from './lib/rbac/roles'
 export async function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname
 
+  // Gate signup: require invite_access cookie to reach /auth/signup
+  if (pathname.startsWith('/auth/signup')) {
+    const inviteCookie = request.cookies.get('invite_access')
+    if (!inviteCookie) {
+      const url = request.nextUrl.clone()
+      url.pathname = '/get-started'
+      url.searchParams.set('redirectTo', pathname)
+      return NextResponse.redirect(url)
+    }
+  }
+
   // Allow API routes to bypass Supabase auth checks completely to avoid any delays
   // This is critical for registration API which needs to run without interference
   if (pathname.startsWith('/api')) {
