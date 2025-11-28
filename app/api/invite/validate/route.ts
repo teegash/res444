@@ -63,12 +63,12 @@ export async function POST(req: NextRequest) {
     })
     res.cookies.set({
       name: 'invite_access',
-      value: record.id,
+      value: record.id || 'granted',
       httpOnly: true,
-      secure: true,
+      secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
       path: '/',
-      maxAge: 60 * 60, // 1 hour
+      maxAge: 60 * 30, // 30 minutes
     })
     return res
   } catch (error) {
