@@ -47,6 +47,9 @@ export default function TenantPaymentPortal() {
   const [mpesaMessage, setMpesaMessage] = useState<string | null>(null)
   const [bankMessage, setBankMessage] = useState<string | null>(null)
   const [cardMessage, setCardMessage] = useState<string | null>(null)
+  const [mpesaStatus, setMpesaStatus] = useState<'idle' | 'pending' | 'success' | 'error'>('idle')
+  const [mpesaStatusMessage, setMpesaStatusMessage] = useState<string | null>(null)
+  const [mpesaSuccessOverlay, setMpesaSuccessOverlay] = useState(false)
   const [mpesaPollPaymentId, setMpesaPollPaymentId] = useState<string | null>(null)
   const mpesaPollIntervalRef = useRef<NodeJS.Timeout | null>(null)
 
@@ -189,18 +192,20 @@ export default function TenantPaymentPortal() {
         const message = payload.data?.message
 
         if (status === 'success') {
-          setSecurityModalStatus('success')
-          setSecurityModalMessage(message || 'Payment confirmed.')
+          setMpesaStatus('success')
+          setMpesaStatusMessage(message || 'Payment confirmed.')
           setMpesaMessage(message || null)
           setMpesaPollPaymentId(null)
+          setMpesaSuccessOverlay(true)
+          setTimeout(() => router.push('/dashboard/tenant'), 1000)
           await fetchInvoice()
         } else if (status === 'failed') {
-          setSecurityModalStatus('error')
-          setSecurityModalMessage(message || 'Payment failed. Please try again.')
+          setMpesaStatus('error')
+          setMpesaStatusMessage(message || 'Payment failed. Please try again.')
           setMpesaPollPaymentId(null)
         } else {
-          setSecurityModalStatus('prompt')
-          setSecurityModalMessage(message || 'Awaiting confirmation from Safaricom…')
+          setMpesaStatus('pending')
+          setMpesaStatusMessage(message || 'Awaiting confirmation from Safaricom…')
         }
       } catch (error) {
         console.error('[MpesaStatusPoll] Failed to fetch status', error)
@@ -242,6 +247,8 @@ export default function TenantPaymentPortal() {
     try {
       setSubmitting(true)
       setMpesaMessage(null)
+      setMpesaStatus('pending')
+      setMpesaStatusMessage('Enter your M-Pesa PIN on your phone to continue.')
       const refreshedInvoice = await fetchInvoice()
       const currentInvoice = refreshedInvoice || invoice
       if (!currentInvoice || !currentInvoice.id) {
@@ -279,12 +286,18 @@ export default function TenantPaymentPortal() {
         ? `${payload.message || 'STK push initiated successfully.'} Checkout ID: ${checkoutId}`
         : payload.message || 'STK push initiated successfully. Approve the prompt on your phone.'
       setMpesaMessage(toastDescription)
+      setMpesaStatus('pending')
+      setMpesaStatusMessage('Awaiting confirmation from Safaricom…')
       toast({
         title: 'STK push sent',
         description: toastDescription,
       })
     } catch (error) {
       setMpesaPollPaymentId(null)
+      setMpesaStatus('error')
+      setMpesaStatusMessage(
+        error instanceof Error ? error.message : 'Unable to initiate M-Pesa payment. Please try again.'
+      )
       toast({
         title: 'Payment failed',
         description: error instanceof Error ? error.message : 'Unable to initiate M-Pesa payment.',
@@ -457,6 +470,8 @@ export default function TenantPaymentPortal() {
   }
 
   const isInvoicePaid = Boolean(invoice.status)
+  const isMpesaPolling = mpesaStatus === 'pending' || Boolean(mpesaPollPaymentId)
+  const isActionBlocked = submitting || isInvoicePaid || isMpesaPolling
 
   return (
     <div className="min-h-screen bg-slate-950/5 py-10">
@@ -631,7 +646,20 @@ export default function TenantPaymentPortal() {
                       onChange={(event) => setMpesaNumber(event.target.value)}
                     />
                   </div>
-                  {mpesaMessage && <p className="text-xs text-green-700">{mpesaMessage}</p>}
+                  {mpesaStatusMessage && (
+                    <p
+                      className={`text-xs ${
+                        mpesaStatus === 'error'
+                          ? 'text-red-700'
+                          : mpesaStatus === 'success'
+                            ? 'text-emerald-700'
+                            : 'text-slate-700'
+                      }`}
+                    >
+                      {mpesaStatusMessage}
+                    </p>
+                  )}
+                  {!mpesaStatusMessage && mpesaMessage && <p className="text-xs text-green-700">{mpesaMessage}</p>}
                 </div>
               )}
 
@@ -744,14 +772,36 @@ export default function TenantPaymentPortal() {
                 </div>
               )}
 
-              <Button onClick={handleSubmit} disabled={submitting || isInvoicePaid} className="w-full gap-2 bg-[#4682B4] hover:bg-[#3b6c99]">
+              <Button
+                onClick={handleSubmit}
+                disabled={isActionBlocked}
+                className="w-full gap-2 bg-[#4682B4] hover:bg-[#3b6c99] disabled:opacity-60"
+              >
                 <CheckCircle2 className="h-5 w-5" />
-                {isInvoicePaid ? 'Invoice already paid' : submitting ? 'Processing…' : 'Confirm payment option'}
+                {isInvoicePaid
+                  ? 'Invoice already paid'
+                  : isMpesaPolling
+                    ? 'Awaiting M-Pesa confirmation…'
+                    : submitting
+                      ? 'Processing…'
+                      : 'Confirm payment option'}
               </Button>
             </CardContent>
           </Card>
         </div>
       </div>
+
+      {mpesaSuccessOverlay && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl px-8 py-6 text-center space-y-3 max-w-sm w-full border border-emerald-100">
+            <div className="mx-auto h-12 w-12 rounded-full bg-emerald-50 flex items-center justify-center">
+              <CheckCircle2 className="h-8 w-8 text-emerald-600" />
+            </div>
+            <h3 className="text-lg font-semibold text-emerald-700">Payment received</h3>
+            <p className="text-sm text-slate-600">Redirecting you to your dashboard…</p>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
