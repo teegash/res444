@@ -16,51 +16,53 @@ export async function POST(request: NextRequest) {
       full_name, 
       phone, 
       role, 
-      organization_id, 
-      building_id,
+      organization,
       national_id,
       address,
       date_of_birth
     } = body
 
-    if (!email || !password || !full_name || !phone || !role) {
+    if (!email || !password || !full_name || !phone) {
       return NextResponse.json(
         {
           success: false,
-          error: 'Missing required fields. Please provide: email, password, full_name, phone, and role',
+          error: 'Missing required fields. Please provide: email, password, full_name, and phone',
         },
         { status: 400 }
       )
     }
 
-    // NOTE: During registration, we ONLY create:
-    // 1. User account in auth.users (via Supabase signUp)
-    // 2. User profile in user_profiles (via database trigger)
-    // 
-    // We do NOT create:
-    // - organization_members (created after login)
-    // - organizations (created after login by owners)
-    // - Any other tables
-    //
-    // organization_id and building_id are stored in user_metadata for later use
-    // but are NOT required during registration - they can be set up in forms after login
-
-    // Validate role is one of the allowed values (removed tenant)
-    const validRoles = ['admin', 'manager', 'caretaker']
-    const normalizedRole = role.trim().toLowerCase()
-    if (!validRoles.includes(normalizedRole)) {
+    // Only property owners/admins can self-register
+    const normalizedRole = (role || 'admin').trim().toLowerCase()
+    if (normalizedRole !== 'admin') {
       return NextResponse.json(
         {
           success: false,
-          error: `Invalid role. Role must be one of: ${validRoles.join(', ')}. Received: ${role}`,
+          error: 'Only property owners can self-register. Please contact your admin for an invitation.',
         },
         { status: 400 }
       )
     }
 
-    // Organization data is NOT required during registration
-    // Owners will set up their organization after email confirmation and first login
-    // This prevents Vercel API timeout issues
+    // Require organization details up front
+    if (!organization?.name) {
+      return NextResponse.json(
+        { success: false, error: 'Organization name is required.' },
+        { status: 400 }
+      )
+    }
+    if (!organization?.location) {
+      return NextResponse.json(
+        { success: false, error: 'Organization location is required.' },
+        { status: 400 }
+      )
+    }
+    if (!organization?.registration_number) {
+      return NextResponse.json(
+        { success: false, error: 'Organization registration number is required.' },
+        { status: 400 }
+      )
+    }
 
     // Log the role being registered for debugging
     console.log('Registration API - Registering user with role:', normalizedRole)
@@ -71,13 +73,18 @@ export async function POST(request: NextRequest) {
       password,
       full_name: full_name.trim(),
       phone: phone.trim(),
-      role: normalizedRole as RegisterInput['role'],
-      organization_id: organization_id?.trim(),
-      building_id: building_id?.trim(), // For caretakers
+      role: 'admin',
+      organization: {
+        name: organization.name?.trim(),
+        email: organization.email?.trim() || email.trim(),
+        phone: organization.phone?.trim() || phone.trim(),
+        location: organization.location?.trim(),
+        registration_number: organization.registration_number?.trim(),
+        logo_url: organization.logo_url ?? null,
+      },
       national_id: national_id?.trim(), // Optional - national ID
       address: address?.trim(), // Optional - address
       date_of_birth: date_of_birth?.trim(), // Optional - date of birth (YYYY-MM-DD)
-      // organization is NOT included - owners set it up after first login
     }
 
     // Call registration function with timeout wrapper
@@ -183,4 +190,3 @@ export async function GET() {
     { status: 405 }
   )
 }
-

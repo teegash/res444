@@ -2,7 +2,6 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { AuthError } from '@/lib/supabase/types'
 
 export type UserRole = 'admin' | 'manager' | 'caretaker' | 'tenant'
 
@@ -36,6 +35,8 @@ export interface RegisterResult {
     email: string
     role: UserRole // Include role in response
     profile_created: boolean
+    organization_created?: boolean
+    organization_id?: string
     verification_email_sent: boolean
     organization_member_created: boolean
   }
@@ -350,6 +351,9 @@ async function createOrganizationMember(
 
     // Use admin client during registration to bypass RLS
     const supabase = useAdminClient ? createAdminClient() : await createClient()
+    if (!supabase) {
+      return { success: false, error: 'Supabase client not available' }
+    }
 
     // Try to create organization member
     // Matches your schema: user_id, organization_id, role, joined_at
@@ -441,6 +445,13 @@ export async function registerUser(input: RegisterInput): Promise<RegisterResult
         error: roleValidation.error,
       }
     }
+    // Self-registration is owner/admin only
+    if (input.role !== 'admin') {
+      return {
+        success: false,
+        error: 'Only property owners can self-register.',
+      }
+    }
 
     // Skip email check - Supabase will handle duplicate email validation during signUp
     // This saves 5 seconds and prevents unnecessary database queries
@@ -451,6 +462,9 @@ export async function registerUser(input: RegisterInput): Promise<RegisterResult
     // signUp works fine with admin client - it will still send verification emails
     console.log('Creating Supabase admin client for auth...')
     const supabase = createAdminClient()
+    if (!supabase) {
+      return { success: false, error: 'Server configuration error. Please try again later.' }
+    }
     console.log('Supabase admin client created')
 
     // Log the role being stored in user metadata
@@ -464,17 +478,6 @@ export async function registerUser(input: RegisterInput): Promise<RegisterResult
       full_name: input.full_name.trim(),
       phone: input.phone.trim(),
       role: input.role, // Used by trigger to populate user_profiles.role
-    }
-    
-    // Store building_id for caretakers (stored in metadata for later use after login)
-    if (input.building_id) {
-      userMetadata.building_id = input.building_id
-    }
-    
-    // Store organization_id for managers/caretakers (stored in metadata for later use after login)
-    // This is NOT used during registration - just stored for reference
-    if (input.organization_id) {
-      userMetadata.organization_id = input.organization_id
     }
 
     console.log('Calling supabase.auth.signUp...')
@@ -605,52 +608,92 @@ export async function registerUser(input: RegisterInput): Promise<RegisterResult
     }
 
     const userId = authData.user.id
+    let organizationId: string | undefined
+    let organizationCreated = false
+    let organizationMemberCreated = false
+
+    // Create organization immediately for owners/admins
+    if (input.role === 'admin') {
+      if (!input.organization?.name?.trim()) {
+        return { success: false, error: 'Organization name is required for owner signup' }
+      }
+      if (!input.organization?.location?.trim()) {
+        return { success: false, error: 'Organization location is required for owner signup' }
+      }
+      if (!input.organization?.registration_number?.trim()) {
+        return { success: false, error: 'Organization registration number is required for owner signup' }
+      }
+
+      const orgPayload = {
+        name: input.organization.name.trim(),
+        email: input.organization.email?.trim().toLowerCase() || input.email.toLowerCase().trim(),
+        phone: input.organization.phone?.trim() || input.phone.trim(),
+        location: input.organization.location?.trim(),
+        registration_number: input.organization.registration_number?.trim(),
+        logo_url: input.organization.logo_url ?? null,
+      }
+
+      const { data: organization, error: orgError } = await supabase
+        .from('organizations')
+        .insert(orgPayload)
+        .select()
+        .single()
+
+      if (orgError || !organization) {
+        if (orgError?.code === '23505') {
+          return { success: false, error: 'An organization with this registration number already exists' }
+        }
+        return { success: false, error: orgError?.message || 'Failed to create organization' }
+      }
+
+      organizationCreated = true
+      organizationId = organization.id
+
+      const memberResult = await createOrganizationMember(userId, 'admin', organizationId, true)
+      if (!memberResult.success) {
+        return {
+          success: false,
+          error: memberResult.error || 'Failed to add owner to organization',
+        }
+      }
+      organizationMemberCreated = true
+
+      try {
+        await supabase.auth.admin.updateUserById(userId, {
+          user_metadata: {
+            ...authData.user.user_metadata,
+            organization_id: organizationId,
+          },
+        })
+      } catch (metaError: any) {
+        console.warn('Failed to persist organization_id in metadata:', metaError?.message)
+      }
+    }
     
-    // ============================================================================
-    // REGISTRATION ONLY CREATES TWO TABLES:
-    // ============================================================================
-    // 1. auth.users - Created by Supabase signUp (user account)
-    // 2. user_profiles - Created by database trigger (user profile with role)
-    //
-    // The trigger automatically creates the profile with:
-    // - id (from user.id)
-    // - full_name (from user_metadata.full_name)
-    // - phone_number (from user_metadata.phone)
-    // - role (from user_metadata.role)
-    //
-    // ============================================================================
-    // ALL OTHER TABLES ARE CREATED AFTER LOGIN:
-    // ============================================================================
-    // - organization_members (created on first login for managers/caretakers)
-    // - organizations (created after login by owners via organization setup form)
-    // - Any other tables (created in subsequent forms after login)
-    //
-    // ============================================================================
-    // organization_id and building_id are stored in user_metadata for later use
-    // but are NOT used during registration - they're just stored for reference
-    // ============================================================================
     console.log('✓ User account created in auth.users')
     console.log('✓ Profile will be created by database trigger in user_profiles')
-    console.log('ℹ Organization/organization_member creation skipped - will be done after login')
+    if (input.role === 'admin') {
+      console.log('✓ Organization created during signup:', organizationId)
+      console.log('✓ Organization member created for owner:', organizationMemberCreated)
+    }
 
     // Determine if verification email was sent
     // Supabase sends verification email automatically if email confirmation is enabled
     const verificationEmailSent = !authData.session && authData.user
 
     // ============================================================================
-    // REGISTRATION SUCCESS - ONLY TWO TABLES CREATED:
-    // ============================================================================
-    // 1. auth.users - User account (created by Supabase signUp)
-    // 2. user_profiles - User profile (created by database trigger)
-    //
-    // All other tables (organizations, organization_members, etc.) are created
-    // after login in subsequent forms/pages.
+    // REGISTRATION SUCCESS
     // ============================================================================
     
     console.log('✓ Registration completed successfully:')
     console.log('  ✓ User account created in auth.users:', userId)
     console.log('  ✓ Profile will be created by database trigger in user_profiles')
-    console.log('  ℹ Additional tables (organizations, organization_members) will be created after login')
+    if (input.role === 'admin') {
+      console.log('  ✓ Organization created during signup:', organizationId)
+      console.log('  ✓ Organization member created for admin:', organizationMemberCreated)
+    } else {
+      console.log('  ℹ Additional tables (organizations, organization_members) will be created after login')
+    }
 
     return {
       success: true,
@@ -660,9 +703,9 @@ export async function registerUser(input: RegisterInput): Promise<RegisterResult
         email: input.email.toLowerCase().trim(),
         role: input.role,
         profile_created: true, // Created by trigger
-        organization_created: false, // Created after login
-        organization_id: undefined, // Created after login
-        organization_member_created: false, // Created after login
+        organization_created: organizationCreated,
+        organization_id: organizationId,
+        organization_member_created: organizationMemberCreated,
         verification_email_sent: verificationEmailSent,
       },
     }

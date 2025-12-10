@@ -3,35 +3,19 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Eye, EyeOff, Loader2, CheckCircle2, Upload, X, ArrowLeft, ArrowRight } from 'lucide-react'
+import { Eye, EyeOff, Loader2, CheckCircle2 } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Card } from '@/components/ui/card'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import { useAuth } from '@/lib/auth/context'
 import { createClient } from '@/lib/supabase/client'
-
-type UserType = 'owner' | 'manager' | 'caretaker'
-
-const USER_TYPES = [
-  { id: 'owner', label: 'Property Owner', icon: '🏠' },
-  { id: 'manager', label: 'Manager', icon: '👔' },
-  { id: 'caretaker', label: 'Caretaker', icon: '🔑' },
-] as const
 
 export default function SignupPage() {
   const router = useRouter()
   const { user, loading: authLoading } = useAuth()
-  const [currentPage, setCurrentPage] = useState<1 | 2>(1)
   
   // Page 1: User Registration
   const [formData, setFormData] = useState({
@@ -40,7 +24,6 @@ export default function SignupPage() {
     phone: '+254',
     password: '',
     confirmPassword: '',
-    userType: 'owner' as UserType,
     termsAccepted: false,
   })
 
@@ -60,66 +43,12 @@ export default function SignupPage() {
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const [showPassword, setShowPassword] = useState(false)
-  const [organizations, setOrganizations] = useState<Array<{ id: string; name: string }>>([])
-  const [buildings, setBuildings] = useState<Array<{ id: string; name: string }>>([])
-  const [loadingOrgs, setLoadingOrgs] = useState(false)
-  const [selectedOrganizationId, setSelectedOrganizationId] = useState('')
-  const [selectedBuildingId, setSelectedBuildingId] = useState('')
 
   useEffect(() => {
     if (!authLoading && user) {
       router.push('/dashboard')
     }
   }, [user, authLoading, router])
-
-  // Fetch organizations when manager or caretaker is selected
-  useEffect(() => {
-    if (formData.userType === 'manager' || formData.userType === 'caretaker') {
-      fetchOrganizations()
-    } else {
-      setOrganizations([])
-      setBuildings([])
-      setSelectedOrganizationId('')
-      setSelectedBuildingId('')
-    }
-  }, [formData.userType])
-
-  // Fetch buildings when organization is selected for caretaker
-  useEffect(() => {
-    if (formData.userType === 'caretaker' && selectedOrganizationId) {
-      fetchBuildings(selectedOrganizationId)
-    } else {
-      setBuildings([])
-      setSelectedBuildingId('')
-    }
-  }, [selectedOrganizationId, formData.userType])
-
-  const fetchOrganizations = async () => {
-    setLoadingOrgs(true)
-    try {
-      const response = await fetch('/api/organizations/list')
-      const result = await response.json()
-      if (result.success) {
-        setOrganizations(result.data || [])
-      }
-    } catch (error) {
-      console.error('Error fetching organizations:', error)
-    } finally {
-      setLoadingOrgs(false)
-    }
-  }
-
-  const fetchBuildings = async (organizationId: string) => {
-    try {
-      const response = await fetch(`/api/buildings/list?organization_id=${organizationId}`)
-      const result = await response.json()
-      if (result.success) {
-        setBuildings(result.data || [])
-      }
-    } catch (error) {
-      console.error('Error fetching buildings:', error)
-    }
-  }
 
   // Real-time validation
   const validateEmail = (email: string) => {
@@ -195,13 +124,6 @@ export default function SignupPage() {
     const newErrors = { ...orgErrors }
     delete newErrors[name]
     setOrgErrors(newErrors)
-  }
-
-  const handleUserTypeChange = (type: UserType) => {
-    setFormData((prev) => ({
-      ...prev,
-      userType: type,
-    }))
   }
 
   const compressImage = (file: File, maxWidth: number = 800, quality: number = 0.8): Promise<File> => {
@@ -343,6 +265,7 @@ export default function SignupPage() {
 
     // Validate all fields
     const newErrors: Record<string, string> = {}
+    const newOrgErrors: Record<string, string> = {}
 
     if (!formData.fullName) newErrors.fullName = 'Full name is required'
     if (!formData.email || !validateEmail(formData.email))
@@ -353,47 +276,18 @@ export default function SignupPage() {
       newErrors.password = 'Password must be at least 8 characters'
     if (formData.password !== formData.confirmPassword)
       newErrors.confirmPassword = 'Passwords do not match'
-    
-    // Require organization for managers and caretakers
-    if ((formData.userType === 'manager' || formData.userType === 'caretaker') && !selectedOrganizationId) {
-      newErrors.organizationId = 'Please select an organization'
-    }
-    
-    // Require building for caretakers
-    if (formData.userType === 'caretaker' && !selectedBuildingId) {
-      newErrors.buildingId = 'Please select an apartment building'
-    }
+    if (!orgData.name.trim()) newOrgErrors.name = 'Organization name is required'
+    if (!orgData.location.trim()) newOrgErrors.location = 'Location is required'
+    if (!orgData.registrationNumber.trim()) newOrgErrors.registrationNumber = 'Registration number is required'
     
     if (!formData.termsAccepted)
       newErrors.terms = 'You must accept the terms and conditions'
 
     setErrors(newErrors)
+    setOrgErrors(newOrgErrors)
 
-    if (Object.keys(newErrors).length === 0) {
-      // All user types register immediately (organization setup happens after email confirmation)
+    if (Object.keys(newErrors).length === 0 && Object.keys(newOrgErrors).length === 0) {
       handleRegistration()
-    }
-  }
-
-  const handlePage2Submit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    console.log('Page 2 form submitted')
-
-    // Validate organization fields
-    const newErrors: Record<string, string> = {}
-
-    if (!orgData.name.trim()) newErrors.name = 'Organization name is required'
-    if (!orgData.location.trim()) newErrors.location = 'Location is required'
-    if (!orgData.registrationNumber.trim()) newErrors.registrationNumber = 'Registration number is required'
-
-    console.log('Validation errors:', newErrors)
-    setOrgErrors(newErrors)
-
-    if (Object.keys(newErrors).length === 0) {
-      console.log('No validation errors, calling handleRegistration...')
-      await handleRegistration()
-    } else {
-      console.log('Validation failed, not submitting')
     }
   }
 
@@ -403,26 +297,27 @@ export default function SignupPage() {
     setSuccess(null)
 
     try {
-      // Map userType to role (owner -> admin, others stay the same)
-      const role = formData.userType === 'owner' ? 'admin' : formData.userType
-
-      // Prepare registration payload (NO organization data - that happens after email confirmation)
+      // Prepare registration payload (includes organization data)
       const registrationPayload: any = {
         email: formData.email,
         password: formData.password,
         full_name: formData.fullName,
         phone: formData.phone,
-        role: role,
-        organization_id: formData.userType === 'owner' ? undefined : selectedOrganizationId,
-        building_id: formData.userType === 'caretaker' ? selectedBuildingId : undefined,
-        // Organization data is NOT included - owners will set it up after first login
+        role: 'admin',
+        organization: {
+          name: orgData.name,
+          email: formData.email,
+          phone: formData.phone,
+          location: orgData.location,
+          registration_number: orgData.registrationNumber,
+          logo_url: orgData.logoUrl || null,
+        },
       }
 
       // Call the registration API endpoint
-      console.log('Submitting registration (Step 1 only - organization setup happens after login):', {
+      console.log('Submitting registration (owner only, organization created during signup):', {
         email: registrationPayload.email,
         role: registrationPayload.role,
-        hasOrganizationId: !!registrationPayload.organization_id,
         payloadKeys: Object.keys(registrationPayload),
       })
 
@@ -526,10 +421,11 @@ export default function SignupPage() {
             Create Your Account
           </h1>
           <p className="text-sm text-muted-foreground">
-            {formData.userType === 'owner' 
-              ? 'Complete your account setup. You\'ll configure your organization after email confirmation.'
-              : 'Sign up to get started'}
+            Property owner signup only. We’ll create your organization from this form so you can jump straight into the dashboard.
           </p>
+          <div className="mt-3 inline-flex items-center gap-2 rounded-full bg-primary/10 text-primary px-3 py-1 text-xs font-semibold">
+            Property Owner · Admin access
+          </div>
         </div>
 
         {error && (
@@ -672,128 +568,100 @@ export default function SignupPage() {
                 disabled={isLoading}
                 className={errors.confirmPassword ? 'border-destructive' : ''}
               />
-              {errors.confirmPassword && (
-                <p className="text-xs text-destructive">
-                  {errors.confirmPassword}
-                </p>
-              )}
-            </div>
-
-            {/* User Type Selection */}
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <Label className="text-sm font-medium">User Type</Label>
-                {formData.userType && (
-                  <span className="text-xs text-muted-foreground">
-                    Selected: <span className="font-semibold text-primary">
-                      {formData.userType === 'owner' ? 'Admin' : formData.userType.charAt(0).toUpperCase() + formData.userType.slice(1)}
-                    </span>
-                  </span>
-                )}
-              </div>
-              <div className="space-y-2">
-                {USER_TYPES.map(({ id, label }) => (
-                  <div key={id} className="flex items-center gap-3">
-                    <input
-                      type="radio"
-                      id={id}
-                      name="userType"
-                      value={id}
-                      checked={formData.userType === id}
-                      onChange={() => handleUserTypeChange(id as UserType)}
-                      disabled={isLoading}
-                      className="w-4 h-4 cursor-pointer accent-primary"
-                    />
-                    <Label htmlFor={id} className="font-normal cursor-pointer">
-                      {label}
-                    </Label>
-                  </div>
-                ))}
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Your role will be: <span className="font-semibold">
-                  {formData.userType === 'owner' ? 'Admin' : formData.userType === 'manager' ? 'Manager' : 'Caretaker'}
-                </span>
+            {errors.confirmPassword && (
+              <p className="text-xs text-destructive">
+                {errors.confirmPassword}
               </p>
+            )}
+          </div>
+
+            {/* Organization Details */}
+            <div className="pt-4 space-y-3 border-t">
+              <div>
+                <h3 className="text-sm font-semibold">Organization Details</h3>
+                <p className="text-xs text-muted-foreground">
+                  We’ll create a dedicated organization for your properties.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="organizationName" className="text-sm font-medium">
+                  Organization Name
+                </Label>
+                <Input
+                  id="organizationName"
+                  name="name"
+                  type="text"
+                  placeholder="Acme Homes Ltd"
+                  value={orgData.name}
+                  onChange={handleOrgChange}
+                  disabled={isLoading}
+                  className={orgErrors.name ? 'border-destructive' : ''}
+                />
+                {orgErrors.name && (
+                  <p className="text-xs text-destructive">{orgErrors.name}</p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="organizationLocation" className="text-sm font-medium">
+                  Location
+                </Label>
+                <Input
+                  id="organizationLocation"
+                  name="location"
+                  type="text"
+                  placeholder="Nairobi, Kenya"
+                  value={orgData.location}
+                  onChange={handleOrgChange}
+                  disabled={isLoading}
+                  className={orgErrors.location ? 'border-destructive' : ''}
+                />
+                {orgErrors.location && (
+                  <p className="text-xs text-destructive">{orgErrors.location}</p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="registrationNumber" className="text-sm font-medium">
+                  Registration Number
+                </Label>
+                <Input
+                  id="registrationNumber"
+                  name="registrationNumber"
+                  type="text"
+                  placeholder="ABC-12345"
+                  value={orgData.registrationNumber}
+                  onChange={handleOrgChange}
+                  disabled={isLoading}
+                  className={orgErrors.registrationNumber ? 'border-destructive' : ''}
+                />
+                {orgErrors.registrationNumber && (
+                  <p className="text-xs text-destructive">{orgErrors.registrationNumber}</p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="organizationLogo" className="text-sm font-medium">
+                  Organization Logo (optional)
+                </Label>
+                <Input
+                  id="organizationLogo"
+                  name="organizationLogo"
+                  type="file"
+                  accept="image/*"
+                  onChange={handleLogoUpload}
+                  disabled={isLoading || isUploadingLogo}
+                />
+                <p className="text-xs text-muted-foreground">
+                  {isUploadingLogo
+                    ? 'Uploading logo...'
+                    : orgData.logoUrl
+                      ? 'Logo uploaded successfully.'
+                      : 'Optional. Upload a logo to personalize your organization.'}
+                </p>
+              </div>
             </div>
-
-            {/* Organization Selection - Required for Manager and Caretaker */}
-            {(formData.userType === 'manager' || formData.userType === 'caretaker') && (
-              <div className="space-y-2">
-                <Label htmlFor="organizationId" className="text-sm font-medium">
-                  Organization <span className="text-destructive">*</span>
-                </Label>
-                <Select
-                  value={selectedOrganizationId}
-                  onValueChange={(value) => {
-                    setSelectedOrganizationId(value)
-                    setErrors(prev => {
-                      const newErrors = { ...prev }
-                      delete newErrors.organizationId
-                      return newErrors
-                    })
-                  }}
-                  disabled={isLoading || loadingOrgs}
-                >
-                  <SelectTrigger className={errors.organizationId ? 'border-destructive' : ''}>
-                    <SelectValue placeholder={loadingOrgs ? 'Loading organizations...' : 'Select an organization'} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {organizations.length === 0 ? (
-                      <SelectItem value="none" disabled>No organizations available</SelectItem>
-                    ) : (
-                      organizations.map((org) => (
-                        <SelectItem key={org.id} value={org.id}>
-                          {org.name}
-                        </SelectItem>
-                      ))
-                    )}
-                  </SelectContent>
-                </Select>
-                {errors.organizationId && (
-                  <p className="text-xs text-destructive">{errors.organizationId}</p>
-                )}
-              </div>
-            )}
-
-            {/* Building Selection - Required for Caretaker */}
-            {formData.userType === 'caretaker' && selectedOrganizationId && (
-              <div className="space-y-2">
-                <Label htmlFor="buildingId" className="text-sm font-medium">
-                  Apartment Building <span className="text-destructive">*</span>
-                </Label>
-                <Select
-                  value={selectedBuildingId}
-                  onValueChange={(value) => {
-                    setSelectedBuildingId(value)
-                    setErrors(prev => {
-                      const newErrors = { ...prev }
-                      delete newErrors.buildingId
-                      return newErrors
-                    })
-                  }}
-                  disabled={isLoading || buildings.length === 0}
-                >
-                  <SelectTrigger className={errors.buildingId ? 'border-destructive' : ''}>
-                    <SelectValue placeholder={buildings.length === 0 ? 'No buildings available' : 'Select an apartment building'} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {buildings.length === 0 ? (
-                      <SelectItem value="none" disabled>No buildings available for this organization</SelectItem>
-                    ) : (
-                      buildings.map((building) => (
-                        <SelectItem key={building.id} value={building.id}>
-                          {building.name}
-                        </SelectItem>
-                      ))
-                    )}
-                  </SelectContent>
-                </Select>
-                {errors.buildingId && (
-                  <p className="text-xs text-destructive">{errors.buildingId}</p>
-                )}
-              </div>
-            )}
 
             {/* Terms & Conditions */}
             <div className="flex items-center gap-3 pt-2">
@@ -808,7 +676,11 @@ export default function SignupPage() {
                     termsAccepted: checked === true,
                   }))
                   if (checked === true) {
-                    delete errors.terms
+                    setErrors((prev) => {
+                      const next = { ...prev }
+                      delete next.terms
+                      return next
+                    })
                   }
                 }}
               />
