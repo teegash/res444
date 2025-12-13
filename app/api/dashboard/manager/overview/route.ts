@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { createClient } from '@/lib/supabase/server'
 
 const parseRent = (value?: string | number | null) => {
   if (typeof value === 'number' && !Number.isNaN(value) && value > 0) return value
@@ -53,7 +54,28 @@ type MaintenanceRow = {
 }
 
 export async function GET() {
+  const supabase = await createClient()
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser()
+
+  if (authError || !user) {
+    return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
+  }
+
   const admin = createAdminClient()
+  const { data: membership, error: membershipError } = await admin
+    .from('organization_members')
+    .select('organization_id')
+    .eq('user_id', user.id)
+    .maybeSingle()
+
+  if (membershipError || !membership?.organization_id) {
+    return NextResponse.json({ success: false, error: 'Organization not found for user.' }, { status: 403 })
+  }
+
+  const orgId = membership.organization_id
 
   try {
     const now = new Date()
@@ -62,8 +84,8 @@ export async function GET() {
 
     const [propertiesRes, tenantsRes, invoicesRes, paymentsRes, maintenanceRes, expensesRes, unitsRes] =
       await Promise.all([
-        admin.from('apartment_buildings').select('id, name'),
-        admin.from('user_profiles').select('id').eq('role', 'tenant'),
+        admin.from('apartment_buildings').select('id, name').eq('organization_id', orgId),
+        admin.from('user_profiles').select('id').eq('role', 'tenant').eq('organization_id', orgId),
         admin
           .from('invoices')
           .select(
@@ -85,10 +107,12 @@ export async function GET() {
         `
           )
           .eq('invoice_type', 'rent')
+          .eq('organization_id', orgId)
           .gte('due_date', startIso),
         admin
           .from('payments')
-          .select('id, amount_paid, verified, payment_date, mpesa_response_code, mpesa_query_status'),
+          .select('id, amount_paid, verified, payment_date, mpesa_response_code, mpesa_query_status')
+          .eq('organization_id', orgId),
         admin
           .from('maintenance_requests')
           .select(
@@ -107,11 +131,13 @@ export async function GET() {
           )
         `
           )
+          .eq('organization_id', orgId)
           .order('updated_at', { ascending: false })
           .limit(10),
         admin
           .from('expenses')
-          .select('id, amount, incurred_at, property_id')
+          .select('id, amount, incurred_at, property_id, organization_id')
+          .eq('organization_id', orgId)
           .gte('incurred_at', startIso),
         admin
           .from('apartment_units')
@@ -122,7 +148,8 @@ export async function GET() {
           unit_price_category,
           leases!left ( status, monthly_rent )
         `
-          ),
+          )
+          .eq('organization_id', orgId),
       ])
 
     const fetchErrors = [
