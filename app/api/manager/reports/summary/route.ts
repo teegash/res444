@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
         `
         amount_paid,
         payment_date,
-        invoices:invoice_id (
+        invoice:invoices!payments_invoice_org_fk (
           lease_id,
           leases:lease_id (
             unit:apartment_units (
