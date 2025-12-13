@@ -132,8 +132,10 @@ export function CommunicationsTab() {
       }
 
       const payload = await response.json()
-      const newEntries = Array.isArray(payload.data) ? payload.data : [payload.data]
-      setMessages((existing) => [...existing, ...newEntries])
+      const newEntry = Array.isArray(payload.data) ? payload.data[0] : payload.data
+      if (newEntry) {
+        setMessages((existing) => [...existing, newEntry])
+      }
       setNewMessage('')
       toast({
         title: 'Message sent',

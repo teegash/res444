@@ -18,7 +18,7 @@ export async function GET() {
 
     const { data, error } = await adminSupabase
       .from('communications')
-      .select('id, sender_user_id, recipient_user_id, message_text, read, created_at, related_entity_type')
+      .select('id, sender_user_id, recipient_user_id, message_text, read, created_at, related_entity_type, related_entity_id')
       .or(`sender_user_id.eq.${user.id},recipient_user_id.eq.${user.id}`)
       .order('created_at', { ascending: true })
       .limit(200)
@@ -50,10 +50,24 @@ export async function GET() {
 
     const profileMap = new Map(profiles.map((p) => [p.id, p.full_name || null]))
 
+    const seenTenantSends = new Set<string>()
     const payload = (data || [])
       .filter((message) => message.related_entity_type !== 'payment')
+      .filter((message) => {
+        if (message.sender_user_id !== user.id) return true
+        const key = [
+          message.message_text || '',
+          message.related_entity_type || '',
+          message.related_entity_id || '',
+          message.created_at || '',
+        ].join('|')
+        if (seenTenantSends.has(key)) return false
+        seenTenantSends.add(key)
+        return true
+      })
       .map((message) => ({
         ...message,
+        message_text: message.message_text || '',
         sender_name:
           message.sender_user_id === user.id
             ? 'You'
@@ -171,7 +185,8 @@ export async function POST(request: NextRequest) {
       throw insertError
     }
 
-    return NextResponse.json({ success: true, data })
+    const firstMessage = Array.isArray(data) ? data[0] : data
+    return NextResponse.json({ success: true, data: firstMessage })
   } catch (error) {
     console.error('[TenantMessages.POST] Failed to send message', error)
     return NextResponse.json(
