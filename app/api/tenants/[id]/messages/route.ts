@@ -142,6 +142,21 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       throw messagesError
     }
 
+    // Deduplicate tenant-sent messages that were fanned out to multiple staff recipients
+    const seenTenantMessages = new Set<string>()
+    const dedupedMessages = (messages || []).filter((msg) => {
+      if (msg.sender_user_id !== tenantId) return true
+      const key = [
+        msg.message_text || '',
+        msg.related_entity_type || '',
+        msg.related_entity_id || '',
+        msg.created_at || '',
+      ].join('|')
+      if (seenTenantMessages.has(key)) return false
+      seenTenantMessages.add(key)
+      return true
+    })
+
     await adminSupabase
       .from('communications')
       .update({ read: true })
@@ -166,7 +181,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
               : tenantLease?.unit?.unit_number || null,
         },
         lease: tenantLease || null,
-        messages: messages || [],
+        messages: dedupedMessages,
       },
     })
   } catch (error) {
