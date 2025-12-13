@@ -2,16 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 
-function pickRecipient(members: Array<{ user_id: string; role: string }>) {
-  if (!members?.length) return null
-  const priority = ['manager', 'admin', 'caretaker']
-  for (const role of priority) {
-    const match = members.find((member) => member.role === role)
-    if (match) return match.user_id
-  }
-  return members[0]?.user_id || null
-}
-
 export async function GET() {
   try {
     const supabase = await createClient()
@@ -146,29 +136,36 @@ export async function POST(request: NextRequest) {
       throw orgError
     }
 
-    const recipientUserId = pickRecipient(orgMembers || [])
+    const recipientIds = Array.from(
+      new Set(
+        (orgMembers || [])
+          .map((m) => m.user_id)
+          .filter((id): id is string => Boolean(id))
+      )
+    ).filter((id) => id !== user.id)
 
-    if (!recipientUserId) {
+    if (recipientIds.length === 0) {
       return NextResponse.json(
         { success: false, error: 'No organization contact available to receive the message.' },
         { status: 400 }
       )
     }
 
+    const rows = recipientIds.map((recipientId) => ({
+      sender_user_id: user.id,
+      recipient_user_id: recipientId,
+      message_text: message.toString().trim(),
+      message_type: 'in_app',
+      related_entity_type: lease?.id ? 'lease' : null,
+      related_entity_id: lease?.id || null,
+      read: false,
+      organization_id: organizationId,
+    }))
+
     const { data, error: insertError } = await adminSupabase
       .from('communications')
-      .insert({
-        sender_user_id: user.id,
-        recipient_user_id: recipientUserId,
-        message_text: message.toString().trim(),
-        message_type: 'in_app',
-        related_entity_type: lease?.id ? 'lease' : null,
-        related_entity_id: lease?.id || null,
-        read: false,
-        organization_id: organizationId,
-      })
+      .insert(rows)
       .select('id, sender_user_id, recipient_user_id, message_text, read, created_at')
-      .single()
 
     if (insertError) {
       throw insertError
