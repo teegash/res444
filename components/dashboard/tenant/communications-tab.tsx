@@ -109,6 +109,7 @@ export function CommunicationsTab() {
   }, [supabase, user?.id])
 
   const handleSendMessage = async () => {
+    if (sending) return
     if (!newMessage.trim()) {
       toast({
         title: 'Message required',
@@ -131,7 +132,8 @@ export function CommunicationsTab() {
       }
 
       const payload = await response.json()
-      setMessages((existing) => [...existing, payload.data])
+      const newEntries = Array.isArray(payload.data) ? payload.data : [payload.data]
+      setMessages((existing) => [...existing, ...newEntries])
       setNewMessage('')
       toast({
         title: 'Message sent',
@@ -148,14 +150,16 @@ export function CommunicationsTab() {
     }
   }
 
-  const formattedMessages = messages.map((message) => ({
-    ...message,
-    isTenant: message.sender_user_id === user?.id,
-    isNotice: (message.message_text || '').startsWith('[NOTICE]'),
-    timestamp: message.created_at
-      ? format(new Date(message.created_at), 'MMM d, yyyy • h:mm a')
-      : '',
-  }))
+  const formattedMessages = messages.map((message) => {
+    const text = message.message_text || ''
+    return {
+      ...message,
+      message_text: text,
+      isTenant: message.sender_user_id === user?.id,
+      isNotice: text.startsWith('[NOTICE]'),
+      timestamp: message.created_at ? format(new Date(message.created_at), 'MMM d, yyyy • h:mm a') : '',
+    }
+  })
 
   return (
     <div className="space-y-4 mt-6">
@@ -220,7 +224,7 @@ export function CommunicationsTab() {
                     }`}
                   >
                     <p className="text-sm leading-relaxed whitespace-pre-line">
-                      {message.message_text.replace(/^\[NOTICE\]\s*/, '')}
+                      {message.message_text ? message.message_text.replace(/^\[NOTICE\]\s*/, '') : ''}
                     </p>
                   </div>
                   <span className="text-xs text-muted-foreground mt-1 px-1">{message.timestamp}</span>
