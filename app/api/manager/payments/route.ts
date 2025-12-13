@@ -12,6 +12,7 @@ type ManagerContext = {
   user: { id: string }
   role: (typeof MANAGER_ROLES)[number]
   propertyId: string | null
+  orgId: string
 }
 
 type ManagerContextResult = ManagerContext | { error: NextResponse }
@@ -28,6 +29,15 @@ async function getManagerContext(): Promise<ManagerContextResult> {
   }
 
   const adminSupabase = createAdminClient()
+  const { data: membership, error: membershipError } = await adminSupabase
+    .from('organization_members')
+    .select('organization_id, property_id')
+    .eq('user_id', user.id)
+    .maybeSingle()
+
+  if (membershipError || !membership?.organization_id) {
+    return { error: NextResponse.json({ success: false, error: 'Organization not found' }, { status: 403 }) }
+  }
   const { data: profile, error: profileError } = await adminSupabase
     .from('user_profiles')
     .select('role')
@@ -39,23 +49,17 @@ async function getManagerContext(): Promise<ManagerContextResult> {
   }
 
   let propertyId: string | null = (user.user_metadata as any)?.property_id || (user.user_metadata as any)?.building_id || null
-  try {
-    const { data: membership } = await adminSupabase
-      .from('organization_members')
-      .select('property_id')
-      .eq('user_id', user.id)
-      .maybeSingle()
-    if (membership?.property_id) {
-      propertyId = membership.property_id
-    }
-  } catch (err) {
-    // ignore errors (e.g., missing column) and fall back to metadata
+  if (membership.property_id) {
+    propertyId = membership.property_id
   }
 
-  return { adminSupabase, user, role: profile.role, propertyId }
+  return { adminSupabase, user, role: profile.role, propertyId, orgId: membership.organization_id }
 }
 
-async function expireLongPendingMpesaPayments(adminSupabase: ReturnType<typeof createAdminClient>) {
+async function expireLongPendingMpesaPayments(
+  adminSupabase: ReturnType<typeof createAdminClient>,
+  orgId: string
+) {
   if (AUTO_VERIFY_TIMEOUT_MINUTES <= 0) {
     return
   }
@@ -67,6 +71,7 @@ async function expireLongPendingMpesaPayments(adminSupabase: ReturnType<typeof c
     .select('id, notes, mpesa_query_status, mpesa_response_code, last_status_check')
     .eq('payment_method', 'mpesa')
     .eq('verified', false)
+    .eq('organization_id', orgId)
     .lte('created_at', cutoff)
     .order('created_at', { ascending: true })
     .limit(200)
@@ -261,10 +266,10 @@ export async function GET() {
     if ('error' in ctx) {
       return ctx.error
     }
-    const { adminSupabase, role, propertyId } = ctx
+    const { adminSupabase, role, propertyId, orgId } = ctx
     const settings = await getMpesaSettings()
 
-    await expireLongPendingMpesaPayments(adminSupabase)
+    await expireLongPendingMpesaPayments(adminSupabase, orgId)
 
     const { data, error } = await adminSupabase
       .from('payments')
@@ -311,6 +316,7 @@ export async function GET() {
         )
       `
       )
+      .eq('organization_id', orgId)
       .order('payment_date', { ascending: false })
       .limit(300)
 
@@ -330,6 +336,7 @@ export async function GET() {
       const { data: tenantProfiles } = await adminSupabase
         .from('user_profiles')
         .select('id, full_name, phone_number')
+        .eq('organization_id', orgId)
         .in('id', tenantIds)
 
       tenantMap = new Map(
@@ -342,6 +349,7 @@ export async function GET() {
       const { data: verifiedProfiles } = await adminSupabase
         .from('user_profiles')
         .select('id, full_name')
+        .eq('organization_id', orgId)
         .in('id', verifiedIds)
 
       verifiedMap = new Map((verifiedProfiles || []).map((profile) => [profile.id, profile.full_name]))

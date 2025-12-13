@@ -62,17 +62,24 @@ export async function GET() {
     let propertyScope: string | null =
       (user.user_metadata as any)?.property_id || (user.user_metadata as any)?.building_id || null
     let userRole: string | null = (user.user_metadata as any)?.role || null
-    try {
-      const { data: membership } = await adminSupabase
-        .from('organization_members')
-        .select('role, property_id')
-        .eq('user_id', user.id)
-        .maybeSingle()
-      if (membership?.role) userRole = membership.role
-      if (membership?.property_id) propertyScope = membership.property_id
-    } catch (err) {
-      // ignore missing column errors
+
+    const { data: membership, error: membershipError } = await adminSupabase
+      .from('organization_members')
+      .select('organization_id, role, property_id')
+      .eq('user_id', user.id)
+      .maybeSingle()
+
+    if (membershipError) {
+      console.error('[Tenants.GET] membership lookup failed', membershipError)
+      return NextResponse.json({ success: false, error: 'Unable to verify organization.' }, { status: 500 })
     }
+
+    if (!membership?.organization_id) {
+      return NextResponse.json({ success: false, error: 'Organization not found.' }, { status: 403 })
+    }
+
+    if (membership?.role) userRole = membership.role
+    if (membership?.property_id) propertyScope = membership.property_id
     const isCaretaker = userRole === 'caretaker'
     const currencyFormatter = new Intl.NumberFormat('en-KE', {
       style: 'currency',
@@ -86,6 +93,7 @@ export async function GET() {
         'id, full_name, phone_number, national_id, profile_picture_url, address, date_of_birth, created_at, role'
       )
       .eq('role', 'tenant')
+      .eq('organization_id', membership.organization_id)
       .order('created_at', { ascending: false })
 
     if (profileError) {
@@ -123,7 +131,7 @@ export async function GET() {
 
     let leases: any[] = []
     if (tenantIds.length > 0) {
-      const { data, error } = await adminSupabase
+      let leaseQuery = adminSupabase
         .from('leases')
         .select(
           `
@@ -146,9 +154,16 @@ export async function GET() {
           )
         `
         )
+        .eq('organization_id', membership.organization_id)
         .in('status', ['active', 'pending'])
         .in('tenant_user_id', tenantIds)
         .order('start_date', { ascending: false })
+
+      if (isCaretaker && propertyScope) {
+        leaseQuery = leaseQuery.eq('unit.apartment_buildings.id', propertyScope)
+      }
+
+      const { data, error } = await leaseQuery
 
       if (error) {
         throw error
@@ -156,11 +171,20 @@ export async function GET() {
       leases = data || []
     }
 
+    if (isCaretaker && propertyScope) {
+      const scopedTenantIds = Array.from(
+        new Set(leases.map((lease) => lease?.tenant_user_id).filter(Boolean) as string[])
+      )
+      tenantIds.length = 0
+      scopedTenantIds.forEach((id) => tenantIds.push(id))
+    }
+
     let payments: any[] = []
     if (tenantIds.length > 0) {
       const { data, error } = await adminSupabase
         .from('payments')
         .select('tenant_user_id, amount_paid, payment_date, verified')
+        .eq('organization_id', membership.organization_id)
         .in('tenant_user_id', tenantIds)
         .order('payment_date', { ascending: false })
 

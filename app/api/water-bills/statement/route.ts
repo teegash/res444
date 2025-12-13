@@ -17,17 +17,23 @@ export async function GET() {
     const admin = createAdminClient()
     let propertyScope: string | null =
       (user.user_metadata as any)?.property_id || (user.user_metadata as any)?.building_id || null
-    try {
-      const { data: membership } = await admin
-        .from('organization_members')
-        .select('property_id')
-        .eq('user_id', user.id)
-        .maybeSingle()
-      if (membership?.property_id) {
-        propertyScope = membership.property_id
-      }
-    } catch {
-      // ignore missing column
+    const { data: membership, error: membershipError } = await admin
+      .from('organization_members')
+      .select('organization_id, property_id')
+      .eq('user_id', user.id)
+      .maybeSingle()
+
+    if (membershipError) {
+      console.error('[WaterBills.statement] membership lookup failed', membershipError)
+      return NextResponse.json({ success: false, error: 'Unable to verify organization.' }, { status: 500 })
+    }
+
+    if (!membership?.organization_id) {
+      return NextResponse.json({ success: false, error: 'Organization not found.' }, { status: 403 })
+    }
+
+    if (membership?.property_id) {
+      propertyScope = membership.property_id
     }
 
     const waterBillQuery = admin
@@ -63,11 +69,14 @@ export async function GET() {
         )
       `
       )
+      .eq('organization_id', membership.organization_id)
       .order('billing_month', { ascending: false })
       .limit(500)
 
     if (propertyScope) {
       waterBillQuery.eq('unit.building_id', propertyScope)
+    } else {
+      waterBillQuery.eq('unit.apartment_buildings.organization_id', membership.organization_id)
     }
 
     const { data, error } = await waterBillQuery
@@ -119,6 +128,7 @@ export async function GET() {
       const { data: leaseRows } = await admin
         .from('leases')
         .select('id, unit_id, tenant_user_id, status, start_date, end_date')
+        .eq('organization_id', membership.organization_id)
         .in('unit_id', unitIds)
         .order('start_date', { ascending: false })
 
@@ -139,6 +149,7 @@ export async function GET() {
       const { data: invoiceLeases } = await admin
         .from('leases')
         .select('id, unit_id, tenant_user_id, status, start_date, end_date')
+        .eq('organization_id', membership.organization_id)
         .in('id', missingLeaseIds)
 
       invoiceLeases?.forEach(registerLease)
@@ -197,6 +208,7 @@ export async function GET() {
       const { data: paymentRows } = await admin
         .from('payments')
         .select('invoice_id, tenant_user_id, verified, payment_date')
+        .eq('organization_id', membership.organization_id)
         .in('invoice_id', invoiceIds)
         .order('payment_date', { ascending: false })
 

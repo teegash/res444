@@ -15,12 +15,22 @@ async function assertManager() {
     throw new Error('UNAUTHORIZED')
   }
 
-  const role = (user.user_metadata?.role as string | undefined)?.toLowerCase()
-  if (!role || !MANAGER_ROLES.has(role)) {
+  const admin = createAdminClient()
+  const { data: membership, error: membershipError } = await admin
+    .from('organization_members')
+    .select('organization_id, role')
+    .eq('user_id', user.id)
+    .maybeSingle()
+
+  const role = (membership?.role || user.user_metadata?.role || '').toLowerCase()
+  if (membershipError || !membership?.organization_id) {
+    throw new Error('ORG_NOT_FOUND')
+  }
+  if (!role || !MANAGER_ROLES.has(role as any)) {
     throw new Error('FORBIDDEN')
   }
 
-  return user
+  return { user, orgId: membership.organization_id, admin }
 }
 
 function nextMonthFirst(from: Date = new Date()) {
@@ -32,8 +42,7 @@ function nextMonthFirst(from: Date = new Date()) {
 
 export async function GET() {
   try {
-    await assertManager()
-    const admin = createAdminClient()
+    const { orgId, admin } = await assertManager()
 
     const { data, error } = await admin
       .from('recurring_expenses')
@@ -49,6 +58,7 @@ export async function GET() {
         apartment_buildings ( id, name, location )
       `
       )
+      .eq('organization_id', orgId)
       .order('next_run', { ascending: true })
 
     if (error) throw error
@@ -73,8 +83,7 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
-    const user = await assertManager()
-    const admin = createAdminClient()
+    const { user, orgId, admin } = await assertManager()
     const body = await request.json().catch(() => ({}))
     const { property_id, amount, category, notes, start_date } = body || {}
 
@@ -94,6 +103,7 @@ export async function POST(request: NextRequest) {
       .from('recurring_expenses')
       .insert({
         property_id,
+        organization_id: orgId,
         amount: Number(amount),
         category,
         notes: notes || null,
@@ -110,6 +120,7 @@ export async function POST(request: NextRequest) {
     const incurredAt = start_date ? new Date(start_date).toISOString() : new Date().toISOString()
     await admin.from('expenses').insert({
       property_id,
+      organization_id: orgId,
       amount: Number(amount),
       category,
       notes: notes || null,

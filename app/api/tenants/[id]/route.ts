@@ -28,6 +28,16 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
   }
 
   try {
+    const supabase = await createClient()
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser()
+
+    if (authError || !user) {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
+    }
+
     if (
       !full_name &&
       !phone_number &&
@@ -42,6 +52,31 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     }
 
     const adminSupabase = createAdminClient()
+    const { data: membership } = await adminSupabase
+      .from('organization_members')
+      .select('organization_id, role')
+      .eq('user_id', user.id)
+      .maybeSingle()
+
+    const callerRole = membership?.role ? String(membership.role).toLowerCase() : null
+
+    if (!membership?.organization_id || !callerRole || !MANAGER_ROLES.has(callerRole)) {
+      return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })
+    }
+
+    const { data: tenantProfile, error: tenantProfileError } = await adminSupabase
+      .from('user_profiles')
+      .select('id, organization_id, role')
+      .eq('id', tenantId)
+      .maybeSingle()
+
+    if (tenantProfileError) {
+      throw tenantProfileError
+    }
+
+    if (!tenantProfile || tenantProfile.organization_id !== membership.organization_id || tenantProfile.role !== 'tenant') {
+      return NextResponse.json({ success: false, error: 'Tenant not found in your organization.' }, { status: 404 })
+    }
 
     const profileUpdate: Record<string, string | null | undefined> = {}
     if (full_name !== undefined) profileUpdate.full_name = full_name
@@ -55,6 +90,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         .from('user_profiles')
         .update(profileUpdate)
         .eq('id', tenantId)
+        .eq('organization_id', membership.organization_id)
 
       if (profileError) {
         throw profileError
@@ -116,7 +152,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     // Check membership/role with service role to avoid RLS issues
     const { data: membership, error: membershipError } = await adminSupabase
       .from('organization_members')
-      .select('role')
+      .select('role, organization_id')
       .eq('user_id', user.id)
       .maybeSingle()
 
@@ -137,7 +173,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     // Validate tenant record exists and is a tenant (user_profiles role)
     const { data: tenantProfile, error: tenantProfileError } = await adminSupabase
       .from('user_profiles')
-      .select('id, role')
+      .select('id, role, organization_id')
       .eq('id', tenantId)
       .maybeSingle()
 
@@ -145,7 +181,11 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       console.warn('[Tenants.DELETE] Failed to read tenant profile:', tenantProfileError.message)
     }
 
-    if (!tenantProfile || tenantProfile.role !== 'tenant') {
+    if (
+      !tenantProfile ||
+      tenantProfile.role !== 'tenant' ||
+      tenantProfile.organization_id !== membership?.organization_id
+    ) {
       return NextResponse.json(
         { success: false, error: 'Tenant not found or not a tenant role.' },
         { status: 404 }
@@ -159,6 +199,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       .from('leases')
       .select('id, unit_id')
       .eq('tenant_user_id', tenantId)
+      .eq('organization_id', membership?.organization_id || '')
     leases?.forEach((row) => {
       if (row.id) leaseIds.push(row.id)
       if ((row as any).unit_id) unitIds.push((row as any).unit_id)
@@ -169,6 +210,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       .from('payments')
       .delete()
       .eq('tenant_user_id', tenantId)
+      .eq('organization_id', membership?.organization_id || '')
     if (paymentsError) throw paymentsError
 
     if (leaseIds.length) {
@@ -180,13 +222,18 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     }
 
     if (leaseIds.length) {
-      const { error: leaseDeleteError } = await adminSupabase.from('leases').delete().in('id', leaseIds)
+      const { error: leaseDeleteError } = await adminSupabase
+        .from('leases')
+        .delete()
+        .in('id', leaseIds)
+        .eq('organization_id', membership?.organization_id || '')
       if (leaseDeleteError) throw leaseDeleteError
     } else {
       const { error: leaseDeleteError } = await adminSupabase
         .from('leases')
         .delete()
         .eq('tenant_user_id', tenantId)
+        .eq('organization_id', membership?.organization_id || '')
       if (leaseDeleteError) throw leaseDeleteError
     }
 
@@ -195,12 +242,14 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       .from('communications')
       .delete()
       .or(`sender_user_id.eq.${tenantId},recipient_user_id.eq.${tenantId}`)
+      .eq('organization_id', membership?.organization_id || '')
     if (commsError) throw commsError
 
     const { error: maintError } = await adminSupabase
       .from('maintenance_requests')
       .delete()
       .eq('tenant_user_id', tenantId)
+      .eq('organization_id', membership?.organization_id || '')
     if (maintError) throw maintError
 
     const { error: orgError } = await adminSupabase.from('organization_members').delete().eq('user_id', tenantId)

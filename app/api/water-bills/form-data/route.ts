@@ -1,26 +1,54 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { createClient } from '@/lib/supabase/server'
 
 export async function GET() {
   try {
+    const supabase = await createClient()
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser()
+
+    if (authError || !user) {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
+    }
+
     const adminSupabase = createAdminClient()
+    const { data: membership, error: membershipError } = await adminSupabase
+      .from('organization_members')
+      .select('organization_id')
+      .eq('user_id', user.id)
+      .maybeSingle()
+
+    if (membershipError) {
+      console.error('[WaterBillFormData] membership lookup failed', membershipError)
+      return NextResponse.json({ success: false, error: 'Unable to verify organization.' }, { status: 500 })
+    }
+
+    if (!membership?.organization_id) {
+      return NextResponse.json({ success: false, error: 'Organization not found.' }, { status: 403 })
+    }
 
     const { data: buildings, error: buildingError } = await adminSupabase
       .from('apartment_buildings')
       .select('id, name, location')
+      .eq('organization_id', membership.organization_id)
       .order('name', { ascending: true })
 
     if (buildingError) throw buildingError
 
     const { data: units, error: unitsError } = await adminSupabase
       .from('apartment_units')
-      .select('id, unit_number, status, building_id')
+      .select('id, unit_number, status, building_id, organization_id')
+      .eq('organization_id', membership.organization_id)
 
     if (unitsError) throw unitsError
 
     const { data: leases, error: leasesError } = await adminSupabase
       .from('leases')
       .select('id, tenant_user_id, unit_id, status')
+      .eq('organization_id', membership.organization_id)
       .in('status', ['active', 'pending'])
 
     if (leasesError) throw leasesError
@@ -28,6 +56,7 @@ export async function GET() {
     const { data: tenants, error: tenantsError } = await adminSupabase
       .from('user_profiles')
       .select('id, full_name, phone_number, address')
+      .eq('organization_id', membership.organization_id)
       .eq('role', 'tenant')
 
     if (tenantsError) throw tenantsError
@@ -51,6 +80,7 @@ export async function GET() {
     const { data: readings, error: readingsError } = await adminSupabase
       .from('water_bills')
       .select('unit_id, meter_reading_end, billing_month')
+      .eq('organization_id', membership.organization_id)
       .order('billing_month', { ascending: false })
 
     if (readingsError) throw readingsError

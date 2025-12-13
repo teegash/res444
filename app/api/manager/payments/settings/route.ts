@@ -17,17 +17,21 @@ async function requireManager() {
   }
 
   const admin = createAdminClient()
-  const { data: profile } = await admin
-    .from('user_profiles')
-    .select('role')
-    .eq('id', user.id)
+  const { data: membership } = await admin
+    .from('organization_members')
+    .select('organization_id, role')
+    .eq('user_id', user.id)
     .maybeSingle()
 
-  if (!profile || !MANAGER_ROLES.includes((profile.role || '') as (typeof MANAGER_ROLES)[number])) {
+  if (
+    !membership?.organization_id ||
+    !membership.role ||
+    !MANAGER_ROLES.includes((membership.role || '') as (typeof MANAGER_ROLES)[number])
+  ) {
     return { error: NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 }) }
   }
 
-  return { user }
+  return { user, organizationId: membership.organization_id }
 }
 
 const normalize = (settings: MpesaSettings) => ({

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { createClient } from '@/lib/supabase/server'
 import { getCoverageRangeLabel } from '@/lib/payments/leaseHelpers'
 import { getPeriodRange } from '../reports/utils'
 
@@ -10,7 +11,28 @@ export async function GET(request: NextRequest) {
     const search = (request.nextUrl.searchParams.get('q') || '').toLowerCase()
     const { startDate } = getPeriodRange(period)
 
+    const supabase = await createClient()
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser()
+
+    if (authError || !user) {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
+    }
+
     const admin = createAdminClient()
+    const { data: membership, error: membershipError } = await admin
+      .from('organization_members')
+      .select('organization_id')
+      .eq('user_id', user.id)
+      .maybeSingle()
+
+    if (membershipError || !membership?.organization_id) {
+      return NextResponse.json({ success: false, error: 'Organization not found.' }, { status: 403 })
+    }
+
+    const orgId = membership.organization_id
 
     const paymentsQuery = admin
       .from('payments')
@@ -41,6 +63,7 @@ export async function GET(request: NextRequest) {
         )
       `
       )
+      .eq('organization_id', orgId)
       .order('payment_date', { ascending: false })
 
     if (startDate) {
@@ -65,6 +88,7 @@ export async function GET(request: NextRequest) {
       const { data: profiles, error: profileError } = await admin
         .from('user_profiles')
         .select('id, full_name')
+        .eq('organization_id', orgId)
         .in('id', tenantIds)
       if (profileError) throw profileError
       profileMap = new Map((profiles || []).map((p) => [p.id, p.full_name || 'Tenant']))

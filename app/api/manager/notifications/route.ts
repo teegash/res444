@@ -22,10 +22,23 @@ export async function GET() {
     }
 
     const adminSupabase = createAdminClient()
+    const { data: membership, error: membershipError } = await adminSupabase
+      .from('organization_members')
+      .select('organization_id')
+      .eq('user_id', user.id)
+      .maybeSingle()
+
+    if (membershipError || !membership?.organization_id) {
+      return NextResponse.json({ success: false, error: 'Organization not found.' }, { status: 403 })
+    }
+
+    const orgId = membership.organization_id
+
     const { data, error } = await adminSupabase
       .from('communications')
       .select('id, sender_user_id, recipient_user_id, message_text, read, created_at, related_entity_type, related_entity_id, message_type')
       .eq('recipient_user_id', user.id)
+      .eq('organization_id', orgId)
       .order('created_at', { ascending: false })
       .limit(30)
 
@@ -67,11 +80,24 @@ export async function PATCH(request: NextRequest) {
     }
 
     const adminSupabase = createAdminClient()
+    const { data: membership, error: membershipError } = await adminSupabase
+      .from('organization_members')
+      .select('organization_id')
+      .eq('user_id', user.id)
+      .maybeSingle()
+
+    if (membershipError || !membership?.organization_id) {
+      return NextResponse.json({ success: false, error: 'Organization not found.' }, { status: 403 })
+    }
+
+    const orgId = membership.organization_id
+
     const { error } = await adminSupabase
       .from('communications')
       .update({ read: true })
       .in('id', ids)
       .eq('recipient_user_id', user.id)
+      .eq('organization_id', orgId)
 
     if (error) {
       throw error

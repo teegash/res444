@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { createClient } from '@/lib/supabase/server'
 import { getPeriodRange } from '../utils'
 
 export async function GET(request: NextRequest) {
@@ -7,7 +8,29 @@ export async function GET(request: NextRequest) {
     const period = request.nextUrl.searchParams.get('period') || 'quarter'
     const propertyFilter = request.nextUrl.searchParams.get('property') || 'all'
     const { startDate } = getPeriodRange(period)
+
+    const supabase = await createClient()
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser()
+
+    if (authError || !user) {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
+    }
+
     const admin = createAdminClient()
+    const { data: membership, error: membershipError } = await admin
+      .from('organization_members')
+      .select('organization_id')
+      .eq('user_id', user.id)
+      .maybeSingle()
+
+    if (membershipError || !membership?.organization_id) {
+      return NextResponse.json({ success: false, error: 'Organization not found.' }, { status: 403 })
+    }
+
+    const orgId = membership.organization_id
 
     const query = admin
       .from('payments')
@@ -30,6 +53,7 @@ export async function GET(request: NextRequest) {
         )
       `
       )
+      .eq('organization_id', orgId)
       .order('payment_date', { ascending: false })
 
     if (startDate) {

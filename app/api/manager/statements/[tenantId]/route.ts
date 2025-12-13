@@ -8,6 +8,7 @@ const MANAGER_ROLES = ['admin', 'manager', 'caretaker'] as const
 type ManagerContext =
   | {
       adminSupabase: ReturnType<typeof createAdminClient>
+      orgId: string
     }
   | { error: NextResponse }
 
@@ -23,17 +24,29 @@ async function getManagerContext(): Promise<ManagerContext> {
   }
 
   const adminSupabase = createAdminClient()
+  const { data: membership, error: membershipError } = await adminSupabase
+    .from('organization_members')
+    .select('organization_id, role')
+    .eq('user_id', user.id)
+    .maybeSingle()
+
+  if (membershipError || !membership?.organization_id) {
+    return { error: NextResponse.json({ success: false, error: 'Organization not found' }, { status: 403 }) }
+  }
+
   const { data: profile, error: profileError } = await adminSupabase
     .from('user_profiles')
     .select('role')
     .eq('id', user.id)
     .maybeSingle()
 
-  if (profileError || !profile || !MANAGER_ROLES.includes((profile.role || '') as typeof MANAGER_ROLES[number])) {
+  const role = (membership?.role || profile?.role || '') as typeof MANAGER_ROLES[number]
+
+  if (profileError || !role || !MANAGER_ROLES.includes(role)) {
     return { error: NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 }) }
   }
 
-  return { adminSupabase }
+  return { adminSupabase, orgId: membership.organization_id }
 }
 
 type StatementTransaction = {
@@ -175,11 +188,11 @@ export async function GET(
       return ctx.error
     }
 
-    const { adminSupabase } = ctx
+    const { adminSupabase, orgId } = ctx
 
     const { data: tenantProfile, error: tenantError } = await adminSupabase
       .from('user_profiles')
-      .select('id, full_name, phone_number, profile_picture_url')
+      .select('id, full_name, phone_number, profile_picture_url, organization_id')
       .eq('id', tenantId)
       .maybeSingle()
 
@@ -189,6 +202,9 @@ export async function GET(
 
     if (!tenantProfile) {
       return NextResponse.json({ success: false, error: 'Tenant not found.' }, { status: 404 })
+    }
+    if (tenantProfile.organization_id !== orgId) {
+      return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })
     }
 
     const { data: lease, error: leaseError } = await adminSupabase
@@ -213,6 +229,7 @@ export async function GET(
       `
       )
       .eq('tenant_user_id', tenantId)
+      .eq('organization_id', orgId)
       .order('start_date', { ascending: false })
       .limit(1)
       .maybeSingle()
@@ -238,6 +255,7 @@ export async function GET(
         .from('invoices')
         .select('id, invoice_type, amount, due_date, status, description, created_at')
         .eq('lease_id', leaseId)
+        .eq('organization_id', orgId)
         .order('due_date', { ascending: true })
         .limit(48)
 
@@ -281,6 +299,7 @@ export async function GET(
       `
       )
       .eq('tenant_user_id', tenantId)
+      .eq('organization_id', orgId)
       .order('payment_date', { ascending: true })
       .limit(120)
 

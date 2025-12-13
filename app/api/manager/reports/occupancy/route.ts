@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { createClient } from '@/lib/supabase/server'
 import { getPeriodRange } from '../utils'
 
 export async function GET(request: NextRequest) {
@@ -8,10 +9,32 @@ export async function GET(request: NextRequest) {
     const propertyFilter = request.nextUrl.searchParams.get('property') || 'all'
     const { startDate, endDate } = getPeriodRange(period)
 
+    const supabase = await createClient()
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser()
+
+    if (authError || !user) {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
+    }
+
     const admin = createAdminClient()
+    const { data: membership, error: membershipError } = await admin
+      .from('organization_members')
+      .select('organization_id')
+      .eq('user_id', user.id)
+      .maybeSingle()
+
+    if (membershipError || !membership?.organization_id) {
+      return NextResponse.json({ success: false, error: 'Organization not found.' }, { status: 403 })
+    }
+
+    const orgId = membership.organization_id
     const { data: units, error: unitsError } = await admin
       .from('apartment_units')
       .select('id, building_id, apartment_buildings ( id, name, location )')
+      .eq('organization_id', orgId)
 
     if (unitsError) throw unitsError
 
@@ -19,6 +42,7 @@ export async function GET(request: NextRequest) {
       .from('leases')
       .select('id, status, start_date, end_date, unit:apartment_units ( id, building_id )')
       .in('status', ['active', 'pending'])
+      .eq('organization_id', orgId)
 
     if (leasesError) throw leasesError
 

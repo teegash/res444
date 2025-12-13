@@ -20,14 +20,24 @@ async function assertManager() {
     throw new Error('FORBIDDEN')
   }
 
-  return user
+  const admin = createAdminClient()
+  const { data: membership, error: membershipError } = await admin
+    .from('organization_members')
+    .select('organization_id')
+    .eq('user_id', user.id)
+    .maybeSingle()
+
+  if (membershipError || !membership?.organization_id) {
+    throw new Error('ORG_NOT_FOUND')
+  }
+
+  return { user, orgId: membership.organization_id, admin }
 }
 
 export async function GET(request: NextRequest) {
   try {
-    const user = await assertManager()
+    const { user, orgId, admin } = await assertManager()
     const propertyId = request.nextUrl.searchParams.get('propertyId') || null
-    const admin = createAdminClient()
 
     const query = admin
       .from('expenses')
@@ -44,6 +54,7 @@ export async function GET(request: NextRequest) {
       )
       .order('incurred_at', { ascending: false })
       .eq('created_by', user.id)
+      .eq('organization_id', orgId)
 
     if (propertyId && propertyId !== 'all') {
       query.eq('property_id', propertyId)
@@ -72,8 +83,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const user = await assertManager()
-    const admin = createAdminClient()
+    const { user, orgId, admin } = await assertManager()
     const body = await request.json().catch(() => ({}))
     const { property_id, amount, category, incurred_at, notes } = body || {}
 
@@ -91,6 +101,7 @@ export async function POST(request: NextRequest) {
       .from('expenses')
       .insert({
         property_id,
+        organization_id: orgId,
         amount: Number(amount),
         category,
         incurred_at: incurred_at || new Date().toISOString(),
@@ -110,6 +121,9 @@ export async function POST(request: NextRequest) {
       }
       if (error.message === 'FORBIDDEN') {
         return NextResponse.json({ success: false, error: 'Access denied' }, { status: 403 })
+      }
+      if (error.message === 'ORG_NOT_FOUND') {
+        return NextResponse.json({ success: false, error: 'Organization not found' }, { status: 403 })
       }
     }
     console.error('[Expenses.POST] Failed to create expense', error)

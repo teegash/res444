@@ -16,6 +16,21 @@ export async function GET() {
     }
 
     const adminSupabase = createAdminClient()
+    const { data: membership, error: membershipError } = await adminSupabase
+      .from('organization_members')
+      .select('organization_id, role')
+      .eq('user_id', user.id)
+      .maybeSingle()
+
+    if (membershipError) {
+      console.error('[ManagerMaintenance.GET] membership lookup failed', membershipError)
+      return NextResponse.json({ success: false, error: 'Unable to verify organization.' }, { status: 500 })
+    }
+
+    if (!membership?.organization_id) {
+      return NextResponse.json({ success: false, error: 'Organization not found.' }, { status: 403 })
+    }
+
     const { data, error } = await adminSupabase
       .from('maintenance_requests')
       .select(
@@ -44,6 +59,7 @@ export async function GET() {
         )
       `
       )
+      .eq('organization_id', membership.organization_id)
       .order('created_at', { ascending: false })
 
     if (error) {
@@ -59,6 +75,7 @@ export async function GET() {
       const { data: tenantProfiles, error: tenantError } = await adminSupabase
         .from('user_profiles')
         .select('id, full_name, phone_number')
+        .eq('organization_id', membership.organization_id)
         .in('id', tenantIds)
 
       if (tenantError) {
@@ -79,6 +96,7 @@ export async function GET() {
       const { data: assignedProfiles } = await adminSupabase
         .from('user_profiles')
         .select('id, full_name')
+        .eq('organization_id', membership.organization_id)
         .in('id', assignedIds)
 
       assignedMap = new Map(
@@ -180,19 +198,24 @@ export async function PATCH(request: NextRequest) {
     }
 
     const adminSupabase = createAdminClient()
-    const { data: profile } = await adminSupabase
-      .from('user_profiles')
-      .select('role')
-      .eq('id', user.id)
+    const { data: membership } = await adminSupabase
+      .from('organization_members')
+      .select('role, organization_id')
+      .eq('user_id', user.id)
       .maybeSingle()
 
-    if (!profile || !profile.role || !['admin', 'manager', 'caretaker'].includes(profile.role)) {
+    const callerRole = membership?.role
+    if (
+      !membership?.organization_id ||
+      !callerRole ||
+      !['admin', 'manager', 'caretaker'].includes(String(callerRole).toLowerCase())
+    ) {
       return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })
     }
 
     const { data: targetRequest, error: targetError } = await adminSupabase
       .from('maintenance_requests')
-      .select('id, tenant_user_id, title')
+      .select('id, tenant_user_id, title, organization_id')
       .eq('id', requestId)
       .maybeSingle()
 
@@ -200,7 +223,7 @@ export async function PATCH(request: NextRequest) {
       throw targetError
     }
 
-    if (!targetRequest) {
+    if (!targetRequest || targetRequest.organization_id !== membership.organization_id) {
       return NextResponse.json({ success: false, error: 'Request not found.' }, { status: 404 })
     }
 
@@ -224,6 +247,7 @@ export async function PATCH(request: NextRequest) {
           updated_at: new Date().toISOString(),
         })
         .eq('id', requestId)
+        .eq('organization_id', membership.organization_id)
         .select('id, title, status, assigned_technician_name, assigned_technician_phone, tenant_user_id')
         .single()
 
@@ -234,6 +258,7 @@ export async function PATCH(request: NextRequest) {
       await adminSupabase.from('communications').insert({
         sender_user_id: user.id,
         recipient_user_id: updated.tenant_user_id,
+        organization_id: membership.organization_id,
         related_entity_type: 'maintenance_request',
         related_entity_id: updated.id,
         message_text: `Technician ${trimmedName} has been assigned (${trimmedPhone}).`,
@@ -254,6 +279,7 @@ export async function PATCH(request: NextRequest) {
           updated_at: now,
         })
         .eq('id', requestId)
+        .eq('organization_id', membership.organization_id)
         .select('id, title, status, completed_at, tenant_user_id')
         .single()
 
@@ -264,6 +290,7 @@ export async function PATCH(request: NextRequest) {
       await adminSupabase.from('communications').insert({
         sender_user_id: user.id,
         recipient_user_id: updated.tenant_user_id,
+        organization_id: membership.organization_id,
         related_entity_type: 'maintenance_request',
         related_entity_id: updated.id,
         message_text: `Your maintenance request "${updated.title}" has been marked as complete.`,

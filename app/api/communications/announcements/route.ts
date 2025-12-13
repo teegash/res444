@@ -16,10 +16,21 @@ export async function GET() {
     }
 
     const admin = createAdminClient()
+    const { data: membership } = await admin
+      .from('organization_members')
+      .select('organization_id')
+      .eq('user_id', user.id)
+      .maybeSingle()
+
+    if (!membership?.organization_id) {
+      return NextResponse.json({ success: false, error: 'Organization not found.' }, { status: 403 })
+    }
+
     const { data, error } = await admin
       .from('communications')
       .select('id, message_text, created_at, message_type, related_entity_type')
       .eq('sender_user_id', user.id)
+      .eq('organization_id', membership.organization_id)
       .eq('message_type', 'in_app')
       .is('related_entity_type', null)
       .order('created_at', { ascending: false })
@@ -93,11 +104,28 @@ export async function POST(request: NextRequest) {
       )
       .in('status', ['active', 'pending'])
 
+    let allowedBuildingIds: string[] = []
     if (buildingIds.length > 0) {
-      query = query.in('apartment_units.building_id', buildingIds)
-    } else {
-      query = query.eq('apartment_units.apartment_buildings.organization_id', membership.organization_id)
+      const { data: allowedBuildings, error: buildingError } = await admin
+        .from('apartment_buildings')
+        .select('id')
+        .eq('organization_id', membership.organization_id)
+        .in('id', buildingIds)
+
+      if (buildingError) throw buildingError
+      allowedBuildingIds = (allowedBuildings || []).map((b) => b.id)
+
+      if (allowedBuildingIds.length === 0) {
+        return NextResponse.json(
+          { success: false, error: 'No matching buildings for your organization.' },
+          { status: 403 }
+        )
+      }
+
+      query = query.in('apartment_units.building_id', allowedBuildingIds)
     }
+
+    query = query.eq('apartment_units.apartment_buildings.organization_id', membership.organization_id)
 
     const { data: leases, error: leaseError } = await query
 
@@ -130,6 +158,7 @@ export async function POST(request: NextRequest) {
     const communicationRows = tenantIds.map((tenantId) => ({
       sender_user_id: user.id,
       recipient_user_id: tenantId,
+      organization_id: membership.organization_id,
       message_text: message.trim(),
       message_type: 'in_app',
       related_entity_type: null,
@@ -149,6 +178,7 @@ export async function POST(request: NextRequest) {
       const { data: profiles, error: profilesError } = await admin
         .from('user_profiles')
         .select('id, phone_number')
+        .eq('organization_id', membership.organization_id)
         .in('id', tenantIds)
 
       if (profilesError) {

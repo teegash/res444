@@ -23,19 +23,30 @@ async function assertManager() {
     throw new Error('UNAUTHORIZED')
   }
 
-  const role = (user.user_metadata?.role as string | undefined)?.toLowerCase()
-  if (!role || !MANAGER_ROLES.has(role)) {
+  const admin = createAdminClient()
+  const { data: membership, error: membershipError } = await admin
+    .from('organization_members')
+    .select('organization_id, role')
+    .eq('user_id', user.id)
+    .maybeSingle()
+
+  const role = (membership?.role || user.user_metadata?.role || '').toLowerCase()
+  if (membershipError || !membership?.organization_id) {
+    throw new Error('ORG_NOT_FOUND')
+  }
+  if (!role || !MANAGER_ROLES.has(role as any)) {
     throw new Error('FORBIDDEN')
   }
 
-  return user
+  return { user, orgId: membership.organization_id, admin }
 }
 
-async function fetchTenantProfiles(admin: ReturnType<typeof createAdminClient>, ids: string[]) {
+async function fetchTenantProfiles(admin: ReturnType<typeof createAdminClient>, ids: string[], orgId: string) {
   if (ids.length === 0) return []
   const { data, error } = await admin
     .from('user_profiles')
     .select('id, full_name, phone_number')
+    .eq('organization_id', orgId)
     .in('id', ids)
 
   if (error) {
@@ -130,13 +141,13 @@ async function sendNoticeEmail(
 
 export async function GET() {
   try {
-    const user = await assertManager()
-    const admin = createAdminClient()
+    const { user, orgId, admin } = await assertManager()
 
     const { data, error } = await admin
       .from('communications')
       .select('id, recipient_user_id, message_text, message_type, created_at')
       .eq('sender_user_id', user.id)
+      .eq('organization_id', orgId)
       .order('created_at', { ascending: false })
       .limit(15)
 
@@ -147,7 +158,7 @@ export async function GET() {
     const recipientIds = Array.from(
       new Set((data || []).map((row) => row.recipient_user_id).filter(Boolean) as string[])
     )
-    const profiles = await fetchTenantProfiles(admin, recipientIds)
+    const profiles = await fetchTenantProfiles(admin, recipientIds, orgId)
     const profileMap = new Map(profiles.map((profile) => [profile.id, profile.full_name || 'Tenant']))
 
     const payload = (data || [])
@@ -165,6 +176,9 @@ export async function GET() {
   } catch (error) {
     if (error instanceof Error && (error.message === 'UNAUTHORIZED' || error.message === 'FORBIDDEN')) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
+    }
+    if (error instanceof Error && error.message === 'ORG_NOT_FOUND') {
+      return NextResponse.json({ success: false, error: 'Organization not found' }, { status: 403 })
     }
 
     console.error('[ManagerNotices.GET] Failed to load notices', error)
@@ -253,7 +267,7 @@ export async function POST(request: NextRequest) {
     const sendSms = channels.sms === true
     const sendEmail = channels.email === true
 
-    const profiles = await fetchTenantProfiles(admin, recipientIds)
+    const profiles = await fetchTenantProfiles(admin, recipientIds, orgId)
     const emails = sendEmail ? await fetchTenantEmails(admin, recipientIds) : {}
 
     const profileMap = new Map(profiles.map((profile) => [profile.id, profile]))
@@ -268,6 +282,7 @@ export async function POST(request: NextRequest) {
         related_entity_id: null,
         message_type: 'in_app',
         read: false,
+        organization_id: orgId,
       }))
       const { error } = await admin.from('communications').insert(rows)
       if (error) throw error
@@ -319,6 +334,7 @@ export async function POST(request: NextRequest) {
               related_entity_id: null,
               message_type: 'email',
               read: false,
+              organization_id: orgId,
             })
           return { success: true }
         })

@@ -56,12 +56,29 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     let role: string | null = null
     const { data: membership } = await adminSupabase
       .from('organization_members')
-      .select('role')
+      .select('role, organization_id')
       .eq('user_id', user.id)
       .maybeSingle()
+    const orgId = membership?.organization_id || null
     role = membership?.role || (user.user_metadata as any)?.role || (user as any)?.role || null
 
     if (!role || !MANAGER_ROLES.has(String(role).toLowerCase())) {
+      return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })
+    }
+    if (!orgId) {
+      return NextResponse.json({ success: false, error: 'Organization not found' }, { status: 403 })
+    }
+
+    const { data: paymentRow, error: paymentFetchError } = await adminSupabase
+      .from('payments')
+      .select('organization_id')
+      .eq('id', paymentId)
+      .maybeSingle()
+
+    if (paymentFetchError || !paymentRow) {
+      return NextResponse.json({ success: false, error: 'Payment not found.' }, { status: 404 })
+    }
+    if (paymentRow.organization_id !== orgId) {
       return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })
     }
 

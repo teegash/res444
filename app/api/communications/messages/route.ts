@@ -47,6 +47,10 @@ export async function GET() {
       .eq('user_id', user.id)
       .maybeSingle()
 
+    if (!membership?.organization_id) {
+      return NextResponse.json({ success: false, error: 'Organization not found.' }, { status: 403 })
+    }
+
     const propertyScope =
       (user.user_metadata as any)?.property_id ||
       (user.user_metadata as any)?.building_id ||
@@ -77,8 +81,9 @@ export async function GET() {
     if (userRole === 'caretaker' && propertyScope) {
       const { data: leases } = await admin
         .from('leases')
-        .select('tenant_user_id, unit:apartment_units ( building_id )')
+        .select('tenant_user_id, unit:apartment_units ( building_id, apartment_buildings ( organization_id ) )')
         .eq('unit.building_id', propertyScope)
+        .eq('unit.apartment_buildings.organization_id', membership.organization_id)
 
       tenantIdsForScope = Array.from(
         new Set((leases || []).map((lease: any) => lease.tenant_user_id).filter(Boolean))
@@ -105,6 +110,7 @@ export async function GET() {
       .select(
         'id, sender_user_id, recipient_user_id, message_text, read, created_at, related_entity_type, message_type'
       )
+      .eq('organization_id', membership.organization_id)
       .or(orFilter)
       .order('created_at', { ascending: false })
       .limit(800)
@@ -172,6 +178,7 @@ export async function GET() {
       const { data: profiles, error: profileError } = await admin
         .from('user_profiles')
         .select('id, full_name')
+        .eq('organization_id', membership.organization_id)
         .in('id', allowedTenantIds)
 
       if (profileError) {

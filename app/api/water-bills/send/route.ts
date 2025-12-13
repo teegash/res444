@@ -94,12 +94,41 @@ export async function POST(request: NextRequest) {
     }
 
     const adminSupabase = createAdminClient()
+    const { data: membership, error: membershipError } = await adminSupabase
+      .from('organization_members')
+      .select('organization_id')
+      .eq('user_id', user.id)
+      .maybeSingle()
+
+    if (membershipError) {
+      console.error('[WaterBill.Send] membership lookup failed', membershipError)
+      return NextResponse.json({ success: false, error: 'Unable to verify organization.' }, { status: 500 })
+    }
+
+    if (!membership?.organization_id) {
+      return NextResponse.json({ success: false, error: 'Organization not found.' }, { status: 403 })
+    }
+
+    const { data: tenantProfile } = await adminSupabase
+      .from('user_profiles')
+      .select('id')
+      .eq('id', tenantUserId)
+      .eq('organization_id', membership.organization_id)
+      .maybeSingle()
+
+    if (!tenantProfile) {
+      return NextResponse.json(
+        { success: false, error: 'Tenant not found in your organization.' },
+        { status: 404 }
+      )
+    }
 
     const { data: lease, error: leaseError } = await adminSupabase
       .from('leases')
       .select('id, tenant_user_id, unit_id')
       .eq('tenant_user_id', tenantUserId)
       .eq('unit_id', unitId)
+      .eq('organization_id', membership.organization_id)
       .order('start_date', { ascending: false })
       .limit(1)
       .maybeSingle()
@@ -119,6 +148,7 @@ export async function POST(request: NextRequest) {
       .select('id')
       .eq('lease_id', lease.id)
       .eq('invoice_type', 'water')
+      .eq('organization_id', membership.organization_id)
       .eq('due_date', dueDateDisplay)
       .maybeSingle()
 
@@ -133,6 +163,7 @@ export async function POST(request: NextRequest) {
           amount: Number(totalAmount),
           due_date: dueDateDisplay,
           status: false,
+          organization_id: membership.organization_id,
           description: `Water invoice ${invoiceRef} for ${propertyName || 'unit'} ${unitNumber || ''}`.trim(),
         })
         .select('id')
@@ -155,6 +186,7 @@ export async function POST(request: NextRequest) {
       .upsert(
         {
           unit_id: unitId,
+          organization_id: membership.organization_id,
           billing_month: billingMonth,
           meter_reading_start: previousReading ? Number(previousReading) : null,
           meter_reading_end: currentReading ? Number(currentReading) : null,
@@ -167,12 +199,13 @@ export async function POST(request: NextRequest) {
           is_estimated: false,
           notes: notes || null,
         },
-        { onConflict: 'unit_id,billing_month' }
+        { onConflict: 'unit_id,billing_month,organization_id' }
       )
 
     await adminSupabase.from('communications').insert({
       sender_user_id: user.id,
       recipient_user_id: tenantUserId,
+      organization_id: membership.organization_id,
       related_entity_type: 'payment',
       related_entity_id: invoiceId,
       message_text: `A new water bill (${invoiceRef}) for ${propertyName || 'your unit'} is due on ${dueDateDisplay}.`,

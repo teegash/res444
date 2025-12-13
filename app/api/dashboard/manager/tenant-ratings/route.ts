@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { createClient } from '@/lib/supabase/server'
 
 type PaymentRow = {
   tenant_user_id: string
@@ -20,7 +21,31 @@ function onTimeScore(due: Date | null, paid: Date | null): number {
 }
 
 export async function GET() {
+  const supabase = await createClient()
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser()
+
+  if (authError || !user) {
+    return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
+  }
+
   const admin = createAdminClient()
+  const { data: membership, error: membershipError } = await admin
+    .from('organization_members')
+    .select('organization_id')
+    .eq('user_id', user.id)
+    .maybeSingle()
+
+  if (membershipError) {
+    console.error('[TenantRatings] membership lookup failed', membershipError)
+    return NextResponse.json({ success: false, error: 'Unable to verify organization' }, { status: 500 })
+  }
+
+  if (!membership?.organization_id) {
+    return NextResponse.json({ success: false, error: 'Organization not found' }, { status: 403 })
+  }
 
   try {
     const { data: payments, error } = await admin
@@ -37,6 +62,7 @@ export async function GET() {
       `
       )
       .eq('verified', true)
+      .eq('organization_id', membership.organization_id)
       .not('tenant_user_id', 'is', null)
 
     if (error) {
@@ -71,6 +97,7 @@ export async function GET() {
       const { data: profileRows } = await admin
         .from('user_profiles')
         .select('id, full_name')
+        .eq('organization_id', membership.organization_id)
         .in('id', tenantIds)
       profiles = profileRows || []
     }
