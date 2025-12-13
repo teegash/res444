@@ -31,29 +31,38 @@ async function getManagerContext(): Promise<ManagerContextResult> {
   const adminSupabase = createAdminClient()
   const { data: membership, error: membershipError } = await adminSupabase
     .from('organization_members')
-    .select('organization_id, property_id')
+    .select('organization_id')
     .eq('user_id', user.id)
     .maybeSingle()
 
-  if (membershipError || !membership?.organization_id) {
-    return { error: NextResponse.json({ success: false, error: 'Organization not found' }, { status: 403 }) }
-  }
+  let orgId = membership?.organization_id || null
+
   const { data: profile, error: profileError } = await adminSupabase
     .from('user_profiles')
-    .select('role')
+    .select('role, organization_id')
     .eq('id', user.id)
     .maybeSingle()
 
-  if (profileError || !profile || !MANAGER_ROLES.includes(profile.role || '')) {
+  if (profileError) {
+    return { error: NextResponse.json({ success: false, error: 'Unable to load profile' }, { status: 500 }) }
+  }
+
+  if (profile?.organization_id && !orgId) {
+    orgId = profile.organization_id
+  }
+
+  if (!orgId) {
+    return { error: NextResponse.json({ success: false, error: 'Organization not found' }, { status: 403 }) }
+  }
+
+  if (!profile || !MANAGER_ROLES.includes(profile.role || '')) {
     return { error: NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 }) }
   }
 
-  let propertyId: string | null = (user.user_metadata as any)?.property_id || (user.user_metadata as any)?.building_id || null
-  if (membership.property_id) {
-    propertyId = membership.property_id
-  }
+  const propertyId: string | null =
+    (user.user_metadata as any)?.property_id || (user.user_metadata as any)?.building_id || null
 
-  return { adminSupabase, user, role: profile.role, propertyId, orgId: membership.organization_id }
+  return { adminSupabase, user, role: profile.role, propertyId, orgId }
 }
 
 async function expireLongPendingMpesaPayments(

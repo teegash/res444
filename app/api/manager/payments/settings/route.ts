@@ -23,15 +23,24 @@ async function requireManager() {
     .eq('user_id', user.id)
     .maybeSingle()
 
-  if (
-    !membership?.organization_id ||
-    !membership.role ||
-    !MANAGER_ROLES.includes((membership.role || '') as (typeof MANAGER_ROLES)[number])
-  ) {
+  let organizationId = membership?.organization_id || null
+  let role = membership?.role || null
+
+  if (!organizationId || !role) {
+    const { data: profile } = await admin
+      .from('user_profiles')
+      .select('organization_id, role')
+      .eq('id', user.id)
+      .maybeSingle()
+    organizationId = organizationId || profile?.organization_id || null
+    role = role || profile?.role || null
+  }
+
+  if (!organizationId || !role || !MANAGER_ROLES.includes((role || '') as (typeof MANAGER_ROLES)[number])) {
     return { error: NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 }) }
   }
 
-  return { user, organizationId: membership.organization_id }
+  return { user, organizationId }
 }
 
 const normalize = (settings: MpesaSettings) => ({

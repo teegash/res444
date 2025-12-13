@@ -14,23 +14,13 @@ import { Input } from '@/components/ui/input'
 import { SkeletonLoader, SkeletonTable } from '@/components/ui/skeletons'
 
 type RevenueRow = {
+  id?: string
   property: string
+  propertyId?: string
   period: string
   month: string
   amount: number
 }
-
-const revenueRows: RevenueRow[] = [
-  { property: 'Kilimani Heights', period: '2024-Q4', month: 'Oct', amount: 520000 },
-  { property: 'Kilimani Heights', period: '2024-Q4', month: 'Nov', amount: 545000 },
-  { property: 'Kilimani Heights', period: '2024-Q4', month: 'Dec', amount: 562000 },
-  { property: 'Westlands Plaza', period: '2024-Q4', month: 'Oct', amount: 410000 },
-  { property: 'Westlands Plaza', period: '2024-Q4', month: 'Nov', amount: 430000 },
-  { property: 'Westlands Plaza', period: '2024-Q4', month: 'Dec', amount: 438000 },
-  { property: 'Karen Villas', period: '2024-Q4', month: 'Oct', amount: 205000 },
-  { property: 'Karen Villas', period: '2024-Q4', month: 'Nov', amount: 210000 },
-  { property: 'Karen Villas', period: '2024-Q4', month: 'Dec', amount: 215000 },
-]
 
 const periods = [
   { value: 'month', label: 'Last 30 days' },
@@ -43,8 +33,8 @@ const periods = [
 export default function RevenueReportPage() {
   const [period, setPeriod] = useState('quarter')
   const [property, setProperty] = useState('all')
-  const [rows, setRows] = useState<RevenueRow[]>(revenueRows)
-  const [loading, setLoading] = useState(false)
+  const [rows, setRows] = useState<RevenueRow[]>([])
+  const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [search, setSearch] = useState('')
 
@@ -203,22 +193,32 @@ export default function RevenueReportPage() {
               <CardDescription>Aggregate totals for the selected period and property scope.</CardDescription>
             </CardHeader>
             <CardContent className="grid md:grid-cols-3 gap-4">
-              <div className="p-4 rounded-xl bg-gradient-to-br from-emerald-50 to-white border">
-                <p className="text-xs text-muted-foreground">Total revenue</p>
-                <p className="text-3xl font-bold text-emerald-700">KES {totals.total.toLocaleString()}</p>
-                <p className="text-xs text-emerald-600 mt-1 flex items-center gap-1">
-                  <TrendingUp className="h-3 w-3" /> Healthy upward trend
-                </p>
-              </div>
-              <div className="p-4 rounded-xl bg-gradient-to-br from-blue-50 to-white border">
-                <p className="text-xs text-muted-foreground">Properties</p>
-                <p className="text-3xl font-bold text-blue-700">{totals.properties.length}</p>
-                <p className="text-xs text-muted-foreground mt-1">Filtered scope</p>
-              </div>
-              <div className="p-4 rounded-xl bg-gradient-to-br from-slate-50 to-white border">
-                <p className="text-xs text-muted-foreground">Period</p>
-                <p className="text-lg font-semibold capitalize">{period}</p>
-              </div>
+              {loading ? (
+                <>
+                  <SkeletonLoader height={20} width="60%" />
+                  <SkeletonLoader height={20} width="40%" />
+                  <SkeletonLoader height={20} width="50%" />
+                </>
+              ) : (
+                <>
+                  <div className="p-4 rounded-xl bg-gradient-to-br from-emerald-50 to-white border">
+                    <p className="text-xs text-muted-foreground">Total revenue</p>
+                    <p className="text-3xl font-bold text-emerald-700">KES {totals.total.toLocaleString()}</p>
+                    <p className="text-xs text-emerald-600 mt-1 flex items-center gap-1">
+                      <TrendingUp className="h-3 w-3" /> Healthy upward trend
+                    </p>
+                  </div>
+                  <div className="p-4 rounded-xl bg-gradient-to-br from-blue-50 to-white border">
+                    <p className="text-xs text-muted-foreground">Properties</p>
+                    <p className="text-3xl font-bold text-blue-700">{totals.properties.length}</p>
+                    <p className="text-xs text-muted-foreground mt-1">Filtered scope</p>
+                  </div>
+                  <div className="p-4 rounded-xl bg-gradient-to-br from-slate-50 to-white border">
+                    <p className="text-xs text-muted-foreground">Period</p>
+                    <p className="text-lg font-semibold capitalize">{period}</p>
+                  </div>
+                </>
+              )}
             </CardContent>
           </Card>
 

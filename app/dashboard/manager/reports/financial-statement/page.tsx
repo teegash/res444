@@ -13,20 +13,13 @@ import { Badge } from '@/components/ui/badge'
 import { SkeletonLoader, SkeletonTable } from '@/components/ui/skeletons'
 
 type StatementRow = {
+  id?: string
   property: string
+  propertyId?: string
   month: string
   income: number
   expenses: number
 }
-
-const rows: StatementRow[] = [
-  { property: 'Kilimani Heights', month: 'Oct', income: 520000, expenses: 210000 },
-  { property: 'Kilimani Heights', month: 'Nov', income: 545000, expenses: 215000 },
-  { property: 'Kilimani Heights', month: 'Dec', income: 562000, expenses: 218000 },
-  { property: 'Westlands Plaza', month: 'Oct', income: 410000, expenses: 165000 },
-  { property: 'Westlands Plaza', month: 'Nov', income: 430000, expenses: 170000 },
-  { property: 'Westlands Plaza', month: 'Dec', income: 438000, expenses: 175000 },
-]
 
 const periods = [
   { value: 'month', label: 'Last 30 days' },
@@ -39,8 +32,8 @@ const periods = [
 export default function FinancialStatementPage() {
   const [period, setPeriod] = useState('quarter')
   const [property, setProperty] = useState('all')
-  const [rowsState, setRowsState] = useState<StatementRow[]>(rows)
-  const [loading, setLoading] = useState(false)
+  const [rowsState, setRowsState] = useState<StatementRow[]>([])
+  const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   const filtered = useMemo(() => {
@@ -136,7 +129,7 @@ export default function FinancialStatementPage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All properties</SelectItem>
-                  {Array.from(new Set(rows.map((row) => row.property))).map((p) => (
+                  {Array.from(new Set(rowsState.map((row) => row.property))).map((p) => (
                     <SelectItem key={p} value={p}>
                       {p}
                     </SelectItem>
@@ -164,18 +157,28 @@ export default function FinancialStatementPage() {
               <CardDescription>Net position for the selected scope.</CardDescription>
             </CardHeader>
             <CardContent className="grid md:grid-cols-3 gap-4">
-              <div className="p-4 rounded-xl bg-gradient-to-br from-emerald-50 to-white border">
-                <p className="text-xs text-muted-foreground">Total income</p>
-                <p className="text-3xl font-bold text-emerald-700">KES {summary.income.toLocaleString()}</p>
-              </div>
-              <div className="p-4 rounded-xl bg-gradient-to-br from-red-50 to-white border">
-                <p className="text-xs text-muted-foreground">Total expenses</p>
-                <p className="text-3xl font-bold text-red-600">KES {summary.expenses.toLocaleString()}</p>
-              </div>
-              <div className="p-4 rounded-xl bg-gradient-to-br from-blue-50 to-white border">
-                <p className="text-xs text-muted-foreground">Net</p>
-                <p className="text-3xl font-bold text-blue-700">KES {summary.net.toLocaleString()}</p>
-              </div>
+              {loading ? (
+                <>
+                  <SkeletonLoader height={20} width="70%" />
+                  <SkeletonLoader height={20} width="60%" />
+                  <SkeletonLoader height={20} width="50%" />
+                </>
+              ) : (
+                <>
+                  <div className="p-4 rounded-xl bg-gradient-to-br from-emerald-50 to-white border">
+                    <p className="text-xs text-muted-foreground">Total income</p>
+                    <p className="text-3xl font-bold text-emerald-700">KES {summary.income.toLocaleString()}</p>
+                  </div>
+                  <div className="p-4 rounded-xl bg-gradient-to-br from-red-50 to-white border">
+                    <p className="text-xs text-muted-foreground">Total expenses</p>
+                    <p className="text-3xl font-bold text-red-600">KES {summary.expenses.toLocaleString()}</p>
+                  </div>
+                  <div className="p-4 rounded-xl bg-gradient-to-br from-blue-50 to-white border">
+                    <p className="text-xs text-muted-foreground">Net</p>
+                    <p className="text-3xl font-bold text-blue-700">KES {summary.net.toLocaleString()}</p>
+                  </div>
+                </>
+              )}
             </CardContent>
           </Card>
 

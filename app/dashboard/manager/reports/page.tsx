@@ -31,13 +31,6 @@ type PropertyMetric = {
   location?: string
 }
 
-const propertyMetrics: PropertyMetric[] = [
-  { name: 'Kilimani Heights', units: '22/24', revenue: 1080000, avg: 49000, occupancy: 92, collectionRate: 95 },
-  { name: 'Westlands Plaza', units: '16/18', revenue: 864000, avg: 54000, occupancy: 89, collectionRate: 93 },
-  { name: 'Karen Villas', units: '7/8', revenue: 420000, avg: 60000, occupancy: 88, collectionRate: 90 },
-  { name: 'Eastlands Court', units: '28/32', revenue: 672000, avg: 24000, occupancy: 88, collectionRate: 91 },
-]
-
 function GaugeCard({
   title,
   value,
@@ -75,9 +68,9 @@ function GaugeCard({
 export default function ReportsPage() {
   const [period, setPeriod] = useState('quarter')
   const [propertyScope, setPropertyScope] = useState('all')
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [properties, setProperties] = useState<typeof propertyMetrics>(propertyMetrics)
+  const [properties, setProperties] = useState<PropertyMetric[]>([])
   const [totals, setTotals] = useState({
     revenue: 0,
     occupancyRate: 0,
@@ -248,17 +241,11 @@ export default function ReportsPage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All properties</SelectItem>
-                  {properties.length
-                    ? properties.map((p) => (
-                        <SelectItem key={p.id || p.name} value={p.id || p.name}>
-                          {p.name}
-                        </SelectItem>
-                      ))
-                    : propertyMetrics.map((p) => (
-                        <SelectItem key={p.name} value={p.name}>
-                          {p.name}
-                        </SelectItem>
-                      ))}
+                  {properties.map((p) => (
+                    <SelectItem key={p.id || p.name} value={p.id || p.name}>
+                      {p.name}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
               <DropdownMenu>
@@ -291,69 +278,78 @@ export default function ReportsPage() {
             </div>
           )}
 
-          <div className="grid gap-4 md:grid-cols-4">
-            <Card className="bg-white shadow-lg border-0">
-              <CardHeader className="pb-3">
-                <CardDescription>Total Revenue</CardDescription>
-                <CardTitle className="text-3xl text-green-700">
-                  KES {Math.round(totals.revenue).toLocaleString()}
-                </CardTitle>
-                <div className="flex items-center text-xs text-green-600">
-                  <TrendingUp className="h-3 w-3 mr-1" />
-                  +8.2% vs prior period
-                </div>
-              </CardHeader>
-            </Card>
-            <Card className="bg-white shadow-lg border-0">
-              <CardHeader className="pb-3">
-                <CardDescription>Occupancy rate</CardDescription>
-                <CardTitle className="text-3xl text-blue-700">
-                  {(summary.occupancy || totals.occupancyRate).toFixed(2)}%
-                </CardTitle>
-                <div className="flex items-center text-xs text-green-600">
-                  <TrendingUp className="h-3 w-3 mr-1" />
-                  Stable vs last period
-                </div>
-              </CardHeader>
-            </Card>
-            <Card className="bg-white shadow-lg border-0">
-              <CardHeader className="pb-3">
-                <CardDescription>Collection rate</CardDescription>
-                <CardTitle className="text-3xl text-blue-700">
-                  {(summary.collection || totals.collectionRate).toFixed(2)}%
-                </CardTitle>
-                <div
-                  className={`flex items-center text-xs ${
-                    (summary.collection || totals.collectionRate) >= totals.prevCollectionRate
-                      ? 'text-green-600'
-                      : 'text-red-600'
-                  }`}
-                >
-                  {(summary.collection || totals.collectionRate) >= totals.prevCollectionRate ? (
+          {loading ? (
+            <div className="grid gap-4 md:grid-cols-4">
+              <SkeletonLoader height={120} />
+              <SkeletonLoader height={120} />
+              <SkeletonLoader height={120} />
+              <SkeletonLoader height={120} />
+            </div>
+          ) : (
+            <div className="grid gap-4 md:grid-cols-4">
+              <Card className="bg-white shadow-lg border-0">
+                <CardHeader className="pb-3">
+                  <CardDescription>Total Revenue</CardDescription>
+                  <CardTitle className="text-3xl text-green-700">
+                    KES {Math.round(totals.revenue).toLocaleString()}
+                  </CardTitle>
+                  <div className="flex items-center text-xs text-green-600">
                     <TrendingUp className="h-3 w-3 mr-1" />
-                  ) : (
-                    <TrendingDown className="h-3 w-3 mr-1" />
-                  )}
-                  {Math.abs(
-                    (summary.collection || totals.collectionRate) - totals.prevCollectionRate
-                  ).toFixed(2)}
-                  % vs prev period
-                </div>
-              </CardHeader>
-            </Card>
-            <Card className="bg-white shadow-lg border-0">
-              <CardHeader className="pb-3">
-                <CardDescription>Avg. Rent / Unit</CardDescription>
-                <CardTitle className="text-3xl text-orange-600">
-                  KES {Math.round(summary.avgRent || totals.avgRent).toLocaleString()}
-                </CardTitle>
-                <div className="flex items-center text-xs text-green-600">
-                  <ArrowUpRight className="h-3 w-3 mr-1" />
-                  Healthy uplift
-                </div>
-              </CardHeader>
-            </Card>
-          </div>
+                    +8.2% vs prior period
+                  </div>
+                </CardHeader>
+              </Card>
+              <Card className="bg-white shadow-lg border-0">
+                <CardHeader className="pb-3">
+                  <CardDescription>Occupancy rate</CardDescription>
+                  <CardTitle className="text-3xl text-blue-700">
+                    {(summary.occupancy || totals.occupancyRate).toFixed(2)}%
+                  </CardTitle>
+                  <div className="flex items-center text-xs text-green-600">
+                    <TrendingUp className="h-3 w-3 mr-1" />
+                    Stable vs last period
+                  </div>
+                </CardHeader>
+              </Card>
+              <Card className="bg-white shadow-lg border-0">
+                <CardHeader className="pb-3">
+                  <CardDescription>Collection rate</CardDescription>
+                  <CardTitle className="text-3xl text-blue-700">
+                    {(summary.collection || totals.collectionRate).toFixed(2)}%
+                  </CardTitle>
+                  <div
+                    className={`flex items-center text-xs ${
+                      (summary.collection || totals.collectionRate) >= totals.prevCollectionRate
+                        ? 'text-green-600'
+                        : 'text-red-600'
+                    }`}
+                  >
+                    {(summary.collection || totals.collectionRate) >= totals.prevCollectionRate ? (
+                      <TrendingUp className="h-3 w-3 mr-1" />
+                    ) : (
+                      <TrendingDown className="h-3 w-3 mr-1" />
+                    )}
+                    {Math.abs(
+                      (summary.collection || totals.collectionRate) - totals.prevCollectionRate
+                    ).toFixed(2)}
+                    % vs prev period
+                  </div>
+                </CardHeader>
+              </Card>
+              <Card className="bg-white shadow-lg border-0">
+                <CardHeader className="pb-3">
+                  <CardDescription>Avg. Rent / Unit</CardDescription>
+                  <CardTitle className="text-3xl text-orange-600">
+                    KES {Math.round(summary.avgRent || totals.avgRent).toLocaleString()}
+                  </CardTitle>
+                  <div className="flex items-center text-xs text-green-600">
+                    <ArrowUpRight className="h-3 w-3 mr-1" />
+                    Healthy uplift
+                  </div>
+                </CardHeader>
+              </Card>
+            </div>
+          )}
 
           <Card className="border-0 shadow-lg bg-white/90">
             <CardHeader className="flex flex-col md:flex-row md:items-center md:justify-between">
@@ -377,31 +373,37 @@ export default function ReportsPage() {
               </div>
             </CardHeader>
             <CardContent>
-              <div className="space-y-3">
-                {filteredProperties.map((item) => {
-                  const expected = item.billed || item.revenue || 1
-                  const fill = expected === 0 ? 0 : Math.min(100, (item.revenue / expected) * 100)
-                  return (
-                    <div key={item.name} className="space-y-1">
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="font-medium">{item.name}</span>
-                        <span className="font-bold">
-                          {item.revenue.toLocaleString()} / {expected.toLocaleString()}
-                        </span>
+              {loading ? (
+                <SkeletonTable rows={3} columns={3} />
+              ) : filteredProperties.length === 0 ? (
+                <div className="text-sm text-muted-foreground">No report data for this scope.</div>
+              ) : (
+                <div className="space-y-3">
+                  {filteredProperties.map((item) => {
+                    const expected = item.billed || item.revenue || 1
+                    const fill = expected === 0 ? 0 : Math.min(100, (item.revenue / expected) * 100)
+                    return (
+                      <div key={item.name} className="space-y-1">
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="font-medium">{item.name}</span>
+                          <span className="font-bold">
+                            {item.revenue.toLocaleString()} / {expected.toLocaleString()}
+                          </span>
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-3">
+                          <div
+                            className="h-3 rounded-full transition-all"
+                            style={{
+                              width: `${fill}%`,
+                              background: 'linear-gradient(90deg,#10b981,#2563eb)',
+                            }}
+                          />
+                        </div>
                       </div>
-                      <div className="w-full bg-gray-200 rounded-full h-3">
-                        <div
-                          className="h-3 rounded-full transition-all"
-                          style={{
-                            width: `${fill}%`,
-                            background: 'linear-gradient(90deg,#10b981,#2563eb)',
-                          }}
-                        />
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
+                    )
+                  })}
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -411,32 +413,38 @@ export default function ReportsPage() {
               <CardDescription>Occupancy and revenue by property</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-6">
-                {filteredProperties.map((property) => (
-                  <div key={property.name} className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h4 className="font-semibold">{property.name}</h4>
-                      <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
-                        <span>Units: {property.units}</span>
-                        <span>Revenue: KES {property.revenue.toLocaleString()}</span>
-                        <span>Avg/Unit: KES {Number(property.avg || 0).toFixed(2)}</span>
+              {loading ? (
+                <SkeletonPropertyCard count={3} />
+              ) : filteredProperties.length === 0 ? (
+                <div className="text-sm text-muted-foreground">No property performance data.</div>
+              ) : (
+                <div className="space-y-6">
+                  {filteredProperties.map((property) => (
+                    <div key={property.name} className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h4 className="font-semibold">{property.name}</h4>
+                          <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
+                            <span>Units: {property.units}</span>
+                            <span>Revenue: KES {property.revenue.toLocaleString()}</span>
+                            <span>Avg/Unit: KES {Number(property.avg || 0).toFixed(2)}</span>
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <Badge variant="outline">{Number(property.occupancy || 0).toFixed(2)}% occupied</Badge>
+                          <Badge variant="secondary">{Number(property.collectionRate || 0).toFixed(2)}% collected</Badge>
+                        </div>
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div
+                          className="h-2 rounded-full"
+                          style={{ width: `${property.occupancy}%`, background: '#10b981' }}
+                        />
                       </div>
                     </div>
-                    <div className="flex gap-2">
-                      <Badge variant="outline">{Number(property.occupancy || 0).toFixed(2)}% occupied</Badge>
-                      <Badge variant="secondary">{Number(property.collectionRate || 0).toFixed(2)}% collected</Badge>
-                    </div>
-                  </div>
-                    <div className="w-full bg-gray-200 rounded-full h-2">
-                      <div
-                        className="h-2 rounded-full"
-                        style={{ width: `${property.occupancy}%`, background: '#10b981' }}
-                      />
-                    </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
 

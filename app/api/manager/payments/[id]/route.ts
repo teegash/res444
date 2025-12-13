@@ -59,8 +59,18 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
       .select('role, organization_id')
       .eq('user_id', user.id)
       .maybeSingle()
-    const orgId = membership?.organization_id || null
+    let orgId = membership?.organization_id || null
     role = membership?.role || (user.user_metadata as any)?.role || (user as any)?.role || null
+
+    if (!orgId || !role) {
+      const { data: profile } = await adminSupabase
+        .from('user_profiles')
+        .select('organization_id, role')
+        .eq('id', user.id)
+        .maybeSingle()
+      orgId = orgId || profile?.organization_id || null
+      role = role || profile?.role || null
+    }
 
     if (!role || !MANAGER_ROLES.has(String(role).toLowerCase())) {
       return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })
