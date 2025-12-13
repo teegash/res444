@@ -45,7 +45,7 @@ export async function GET(request: NextRequest) {
           description,
           image_url,
           created_at,
-          apartment_units!apartment_units_building_id_fkey ( status )
+          apartment_units!apartment_units_building_org_fk ( status )
         `
       )
       .eq('organization_id', membership.organization_id)
