@@ -23,15 +23,15 @@ export async function GET(request: NextRequest) {
         mpesa_receipt_number,
         tenant_user_id,
         months_paid,
-        invoices:invoice_id (
+        invoice:invoices!payments_invoice_org_fk (
           id,
           due_date,
           lease_id,
-          leases:lease_id (
+          lease:leases!invoices_lease_org_fk (
             tenant_user_id,
             unit:apartment_units (
               unit_number,
-              building:apartment_buildings (
+              building:apartment_buildings!apartment_units_building_org_fk (
                 id,
                 name,
                 location
@@ -72,16 +72,16 @@ export async function GET(request: NextRequest) {
 
     const rows = (data || [])
       .map((row) => {
-        const building = row.invoices?.leases?.unit?.building
-        const unitNumber = row.invoices?.leases?.unit?.unit_number || ''
+        const building = row.invoice?.lease?.unit?.building
+        const unitNumber = row.invoice?.lease?.unit?.unit_number || ''
         const tenantName =
           profileMap.get(row.tenant_user_id || '') ||
-          row.invoices?.leases?.tenant_user_id ||
+          row.invoice?.lease?.tenant_user_id ||
           row.tenant_user_id ||
           'Tenant'
         const unitLabel = unitNumber && building?.name ? `${unitNumber} • ${building.name}` : unitNumber || ''
         const coverageLabel = getCoverageRangeLabel(
-          (row.invoices as any)?.due_date || row.payment_date,
+          (row.invoice as any)?.due_date || row.payment_date,
           row.months_paid || 1
         )
         return {

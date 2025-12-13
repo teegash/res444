@@ -23,11 +23,11 @@ export async function GET(request: NextRequest) {
         `
         amount_paid,
         payment_date,
-        invoices:invoice_id (
+        invoice:invoices!payments_invoice_org_fk (
           lease_id,
-          leases:lease_id (
+          lease:leases!invoices_lease_org_fk (
             unit:apartment_units (
-              building:apartment_buildings (
+              building:apartment_buildings!apartment_units_building_org_fk (
                 id,
                 name,
                 location
@@ -79,7 +79,7 @@ export async function GET(request: NextRequest) {
 
     const rows: StatementRow[] = [
       ...(payments || []).map((payment) => {
-        const building = payment.invoices?.leases?.unit?.building
+        const building = payment.invoice?.lease?.unit?.building
         const date = payment.payment_date ? new Date(payment.payment_date) : null
         const monthLabel = date
           ? date.toLocaleString('default', { month: 'short', year: 'numeric' })

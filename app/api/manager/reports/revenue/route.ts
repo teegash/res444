@@ -16,11 +16,11 @@ export async function GET(request: NextRequest) {
         id,
         amount_paid,
         payment_date,
-        invoices:invoice_id (
+        invoice:invoices!payments_invoice_org_fk (
           lease_id,
-          leases:lease_id (
+          lease:leases!invoices_lease_org_fk (
             unit:apartment_units (
-              building:apartment_buildings (
+              building:apartment_buildings!apartment_units_building_org_fk (
                 id,
                 name,
                 location
@@ -42,16 +42,16 @@ export async function GET(request: NextRequest) {
     }
 
     const rows = (data || []).filter((row) => {
-      const building = row.invoices?.leases?.unit?.building
+      const building = row.invoice?.lease?.unit?.building
       if (propertyFilter === 'all') return true
       return building?.name === propertyFilter || building?.id === propertyFilter
     })
 
     const mapped = rows.map((row) => ({
       id: row.id,
-      property: row.invoices?.leases?.unit?.building?.name || 'Property',
-      propertyId: row.invoices?.leases?.unit?.building?.id || null,
-      location: row.invoices?.leases?.unit?.building?.location || null,
+      property: row.invoice?.lease?.unit?.building?.name || 'Property',
+      propertyId: row.invoice?.lease?.unit?.building?.id || null,
+      location: row.invoice?.lease?.unit?.building?.location || null,
       amount: Number(row.amount_paid || 0),
       payment_date: row.payment_date,
     }))
