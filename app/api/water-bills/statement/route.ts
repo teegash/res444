@@ -19,7 +19,7 @@ export async function GET() {
       (user.user_metadata as any)?.property_id || (user.user_metadata as any)?.building_id || null
     const { data: membership, error: membershipError } = await admin
       .from('organization_members')
-      .select('organization_id, property_id')
+      .select('organization_id')
       .eq('user_id', user.id)
       .maybeSingle()
 
@@ -30,10 +30,6 @@ export async function GET() {
 
     if (!membership?.organization_id) {
       return NextResponse.json({ success: false, error: 'Organization not found.' }, { status: 403 })
-    }
-
-    if (membership?.property_id) {
-      propertyScope = membership.property_id
     }
 
     const waterBillQuery = admin

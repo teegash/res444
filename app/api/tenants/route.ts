@@ -65,7 +65,7 @@ export async function GET() {
 
     const { data: membership, error: membershipError } = await adminSupabase
       .from('organization_members')
-      .select('organization_id, role, property_id')
+      .select('organization_id, role')
       .eq('user_id', user.id)
       .maybeSingle()
 
@@ -79,7 +79,6 @@ export async function GET() {
     }
 
     if (membership?.role) userRole = membership.role
-    if (membership?.property_id) propertyScope = membership.property_id
     const isCaretaker = userRole === 'caretaker'
     const currencyFormatter = new Intl.NumberFormat('en-KE', {
       style: 'currency',

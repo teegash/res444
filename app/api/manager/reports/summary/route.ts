@@ -70,8 +70,7 @@ export async function GET(request: NextRequest) {
         amount_paid,
         payment_date,
         invoice:invoices!payments_invoice_org_fk (
-          lease_id,
-          leases:lease_id (
+          lease:leases!invoices_lease_org_fk (
             unit:apartment_units (
               building:apartment_buildings (
                 id,
@@ -113,6 +112,7 @@ export async function GET(request: NextRequest) {
         )
       `
       )
+      .eq('organization_id', orgId)
       .in('status', ['active', 'pending'])
 
     const { data: leases, error: leasesError } = await leasesQuery
@@ -120,7 +120,7 @@ export async function GET(request: NextRequest) {
       throw leasesError
     }
 
-    const unitsQuery = admin.from('apartment_units').select('id, building_id')
+    const unitsQuery = admin.from('apartment_units').select('id, building_id').eq('organization_id', orgId)
     const { data: units, error: unitsError } = await unitsQuery
     if (unitsError) throw unitsError
 

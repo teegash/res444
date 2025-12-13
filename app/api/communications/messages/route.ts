@@ -43,7 +43,7 @@ export async function GET() {
     const admin = createAdminClient()
     const { data: membership } = await admin
       .from('organization_members')
-      .select('organization_id, property_id')
+      .select('organization_id')
       .eq('user_id', user.id)
       .maybeSingle()
 
