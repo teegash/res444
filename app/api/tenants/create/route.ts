@@ -35,6 +35,20 @@ export async function POST(request: NextRequest) {
     }
 
     const adminSupabase = createAdminClient()
+    const { data: membership, error: membershipError } = await adminSupabase
+      .from('organization_members')
+      .select('organization_id')
+      .eq('user_id', user.id)
+      .limit(1)
+      .maybeSingle()
+
+    if (membershipError || !membership?.organization_id) {
+      return NextResponse.json(
+        { success: false, error: 'Unable to determine organization for this tenant.' },
+        { status: 400 }
+      )
+    }
+    const organizationId = membership.organization_id
 
     const { data: existingProfile } = await adminSupabase
       .from('user_profiles')
@@ -103,6 +117,7 @@ export async function POST(request: NextRequest) {
       address: address || null,
       date_of_birth: date_of_birth || null,
       role: 'tenant',
+      organization_id: organizationId,
     }, { onConflict: 'id' })
 
     if (profileError) {

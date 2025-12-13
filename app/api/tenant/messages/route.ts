@@ -165,6 +165,7 @@ export async function POST(request: NextRequest) {
         related_entity_type: lease?.id ? 'lease' : null,
         related_entity_id: lease?.id || null,
         read: false,
+        organization_id: organizationId,
       })
       .select('id, sender_user_id, recipient_user_id, message_text, read, created_at')
       .single()
