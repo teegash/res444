@@ -67,7 +67,11 @@ export async function GET() {
       })
     }
 
-    const staffList = Array.from(staffIds).map((id) => id.replace(/,/g, '')).join(',')
+    const staffListArray = Array.from(staffIds).filter(Boolean).map((id) => id.replace(/,/g, ''))
+    if (staffListArray.length === 0) {
+      return NextResponse.json({ success: true, data: [] })
+    }
+    const staffList = staffListArray.join(',')
 
     let tenantIdsForScope: string[] | null = null
     if (userRole === 'caretaker' && propertyScope) {

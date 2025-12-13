@@ -119,6 +119,7 @@ export default function ManagerTenantMessagesPage() {
   }, [supabase, tenantId, user?.id])
 
   const handleSend = async () => {
+    if (sending) return
     if (!tenantId || !newMessage.trim()) {
       toast({
         title: 'Message required',
