@@ -159,9 +159,7 @@ export default function TenantDashboard() {
   useEffect(() => {
     fetchPendingInvoices()
     fetchRecentActivity()
-    fetchTenantPayments()
-    fetchMaintenanceCount()
-  }, [fetchPendingInvoices, fetchRecentActivity, fetchTenantPayments, fetchMaintenanceCount])
+  }, [fetchPendingInvoices, fetchRecentActivity])
 
   const fetchRecentActivity = useCallback(async () => {
     try {
