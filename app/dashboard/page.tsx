@@ -164,14 +164,32 @@ function DashboardContent() {
     expenses?: {
       monthly: { label: string; key: string; expenses: number }[]
     }
-    maintenance: Array<{
-      id: string
-      title: string
-      status: string
-      priority: string
-      created_at: string | null
-      property: string
-      unit: string
+      maintenance: Array<{
+        id: string
+        title: string
+        status: string
+        priority: string
+        created_at: string | null
+        property: string
+        unit: string
+      }>
+    arrears?: Array<{
+      lease_id: string
+      tenant_id: string
+      tenant_name: string
+      tenant_phone: string | null
+      unit_number: string
+      arrears_amount: number
+      open_invoices: number
+      oldest_due_date: string | null
+    }>
+    prepayments?: Array<{
+      lease_id: string
+      tenant_id: string
+      unit_id: string
+      rent_paid_until: string | null
+      next_rent_due_date: string | null
+      prepaid_months: number
     }>
   } | null>(null)
   const [overviewError, setOverviewError] = useState<string | null>(null)
@@ -188,6 +206,8 @@ function DashboardContent() {
   const propertyRevenue = overview?.propertyRevenue || []
   const occupancyData = overview?.occupancy || []
   const propertyIncomeMonthData = overview?.propertyIncomeMonth || []
+  const arrearsData = overview?.arrears || []
+  const prepayData = overview?.prepayments || []
   const paymentData = useMemo(
     () => [
       { name: 'Paid', value: overview?.payments?.paid || 0, color: '#22c55e' },
@@ -223,6 +243,21 @@ function DashboardContent() {
         percent: item.potential ? Math.round((item.paid / item.potential) * 100) : 0,
       }))
   }, [propertyIncomeMonthData])
+
+  const arrearsComputed = useMemo(() => {
+    const positives = arrearsData.filter((a) => (a?.arrears_amount || 0) > 0)
+    const criticalThreshold = new Date()
+    criticalThreshold.setUTCDate(criticalThreshold.getUTCDate() - 30)
+    const critical = positives.filter(
+      (a) => a.oldest_due_date && new Date(a.oldest_due_date) < criticalThreshold
+    )
+    const totalAmount = positives.reduce((sum, a) => sum + Number(a.arrears_amount || 0), 0)
+    return {
+      positives,
+      critical,
+      totalAmount,
+    }
+  }, [arrearsData])
 
   useEffect(() => {
     if (role === 'caretaker') return
@@ -709,6 +744,89 @@ function DashboardContent() {
                     })
                   ) : (
                     <p className="text-sm text-gray-500">No occupancy data to display yet.</p>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Arrears and Prepayment */}
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+              <Card>
+                <CardHeader className="flex flex-col gap-2">
+                  <CardTitle>Arrears</CardTitle>
+                  <CardDescription>Outstanding rent by tenant/unit</CardDescription>
+                  <div className="flex flex-wrap gap-3 text-sm text-gray-700">
+                    <span className="px-3 py-1 rounded-full bg-red-50 text-red-700 border border-red-100">
+                      Critical (&gt;30d): {arrearsComputed.critical.length}
+                    </span>
+                    <span className="px-3 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-100">
+                      Open: {arrearsComputed.positives.length}
+                    </span>
+                    <span className="px-3 py-1 rounded-full bg-slate-50 text-slate-700 border border-slate-200">
+                      Total: {formatCurrency(arrearsComputed.totalAmount, 'KES')}
+                    </span>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {arrearsComputed.positives.length === 0 ? (
+                    <p className="text-sm text-gray-500">No arrears recorded.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {arrearsComputed.positives.slice(0, 6).map((row) => (
+                        <div
+                          key={row.lease_id}
+                          className={`flex flex-col sm:flex-row sm:items-center justify-between gap-2 rounded-lg border p-3 ${
+                            arrearsComputed.critical.find((c) => c.lease_id === row.lease_id)
+                              ? 'border-red-200 bg-red-50/40'
+                              : 'border-slate-200 bg-white'
+                          }`}
+                        >
+                          <div className="space-y-1">
+                            <p className="font-semibold text-gray-900">
+                              {row.unit_number || 'Unit'} &mdash; {row.tenant_name}
+                            </p>
+                            <p className="text-xs text-gray-500">
+                              Open invoices: {row.open_invoices} • Oldest due:{' '}
+                              {row.oldest_due_date ? new Date(row.oldest_due_date).toLocaleDateString() : '—'}
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-sm text-gray-500">Arrears</p>
+                            <p className="text-lg font-bold text-red-600">
+                              {formatCurrency(row.arrears_amount, 'KES')}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>Prepayments</CardTitle>
+                  <CardDescription>Paid-until pointers and upcoming rent</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {prepayData.length === 0 ? (
+                    <p className="text-sm text-gray-500">No prepayment records yet.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {prepayData.slice(0, 6).map((row) => (
+                        <div key={row.lease_id} className="rounded-lg border border-slate-200 p-3 flex items-center justify-between">
+                          <div>
+                            <p className="font-semibold text-gray-900">Lease {row.lease_id.slice(0, 6)}...</p>
+                            <p className="text-xs text-gray-500">
+                              Paid until: {row.rent_paid_until || '—'} • Next due: {row.next_rent_due_date || '—'}
+                            </p>
+                          </div>
+                          <span className="text-xs px-2 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100">
+                            {row.prepaid_months || 0} mo prepaid
+                          </span>
+                        </div>
+                      ))}
+                    </div>
                   )}
                 </CardContent>
               </Card>

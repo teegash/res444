@@ -82,7 +82,17 @@ export async function GET() {
     const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 11, 1))
     const startIso = start.toISOString().split('T')[0]
 
-    const [propertiesRes, tenantsRes, invoicesRes, paymentsRes, maintenanceRes, expensesRes, unitsRes] =
+    const [
+      propertiesRes,
+      tenantsRes,
+      invoicesRes,
+      paymentsRes,
+      maintenanceRes,
+      expensesRes,
+      unitsRes,
+      arrearsRes,
+      prepayRes,
+    ] =
       await Promise.all([
         admin.from('apartment_buildings').select('id, name').eq('organization_id', orgId),
         admin.from('user_profiles').select('id').eq('role', 'tenant').eq('organization_id', orgId),
@@ -150,6 +160,27 @@ export async function GET() {
         `
           )
           .eq('organization_id', orgId),
+        admin
+          .from('vw_lease_arrears')
+          .select(
+            `
+          lease_id,
+          tenant_user_id,
+          organization_id,
+          unit_id,
+          arrears_amount,
+          open_invoices_count,
+          oldest_due_date,
+          apartment_units!left ( unit_number ),
+          user_profiles:tenant_user_id!inner ( full_name, phone_number )
+        `
+          )
+          .eq('organization_id', orgId)
+          .order('arrears_amount', { ascending: false }),
+        admin
+          .from('vw_lease_prepayment_status')
+          .select('lease_id, tenant_user_id, organization_id, unit_id, rent_paid_until, next_rent_due_date, prepaid_months')
+          .eq('organization_id', orgId),
       ])
 
     const fetchErrors = [
@@ -160,6 +191,8 @@ export async function GET() {
       maintenanceRes.error,
       expensesRes.error,
       unitsRes.error,
+      arrearsRes.error,
+      prepayRes.error,
     ].filter(Boolean)
     if (fetchErrors.length) {
       // Log but continue with whatever data we have so the dashboard still renders
@@ -171,6 +204,24 @@ export async function GET() {
     const maintenance = (maintenanceRes.data || []) as MaintenanceRow[]
     const expenses = expensesRes.data || []
     const units = unitsRes.data || []
+    const arrears = (arrearsRes.data || []).map((row: any) => ({
+      lease_id: row.lease_id,
+      tenant_id: row.tenant_user_id,
+      tenant_name: row.user_profiles?.full_name || 'Tenant',
+      tenant_phone: row.user_profiles?.phone_number || null,
+      unit_number: row.apartment_units?.unit_number || '',
+      arrears_amount: Number(row.arrears_amount || 0),
+      open_invoices: Number(row.open_invoices_count || 0),
+      oldest_due_date: row.oldest_due_date || null,
+    }))
+    const prepayments = (prepayRes.data || []).map((row: any) => ({
+      lease_id: row.lease_id,
+      tenant_id: row.tenant_user_id,
+      unit_id: row.unit_id,
+      rent_paid_until: row.rent_paid_until || null,
+      next_rent_due_date: row.next_rent_due_date || null,
+      prepaid_months: Number(row.prepaid_months || 0),
+    }))
 
     // Revenue by month (last 12 months)
     const months: { label: string; key: string; revenue: number }[] = []
@@ -390,6 +441,8 @@ export async function GET() {
       },
       maintenance: maintenanceItems,
       occupancy,
+      arrears,
+      prepayments,
     })
   } catch (error) {
     console.error('[DashboardOverview] failed to load overview', error)
@@ -417,6 +470,8 @@ export async function GET() {
         payments: { paid: 0, pending: 0, failed: 0 },
         maintenance: [],
         occupancy: [],
+        arrears: [],
+        prepayments: [],
         error: 'Partial data returned due to an internal error.',
       },
       { status: 200 }

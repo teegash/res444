@@ -85,6 +85,10 @@ export default function TenantDashboard() {
   const [recentActivity, setRecentActivity] = useState<ActivityItem[]>([])
   const [tenantPayments, setTenantPayments] = useState<TenantPaymentActivity[]>([])
   const [maintenanceCount, setMaintenanceCount] = useState<number>(0)
+  const [arrears, setArrears] = useState<{ total: number; oldest_due_date: string | null }>({
+    total: 0,
+    oldest_due_date: null,
+  })
 
   const fetchSummary = useCallback(async () => {
     try {
@@ -107,7 +111,8 @@ export default function TenantDashboard() {
 
   useEffect(() => {
     fetchSummary()
-  }, [fetchSummary])
+    fetchArrears()
+  }, [fetchSummary, fetchArrears])
 
   const fetchPendingInvoices = useCallback(async () => {
     try {
@@ -136,9 +141,27 @@ export default function TenantDashboard() {
     }
   }, [])
 
+  const fetchArrears = useCallback(async () => {
+    try {
+      const res = await fetch('/api/tenant/arrears', { cache: 'no-store' })
+      const json = await res.json()
+      if (res.ok && json.success) {
+        setArrears({
+          total: Number(json.data?.total_arrears_amount || 0),
+          oldest_due_date: json.data?.oldest_due_date || null,
+        })
+      }
+    } catch {
+      // ignore
+    }
+  }, [])
+
   useEffect(() => {
     fetchPendingInvoices()
-  }, [fetchPendingInvoices])
+    fetchRecentActivity()
+    fetchTenantPayments()
+    fetchMaintenanceCount()
+  }, [fetchPendingInvoices, fetchRecentActivity, fetchTenantPayments, fetchMaintenanceCount])
 
   const fetchRecentActivity = useCallback(async () => {
     try {
@@ -372,6 +395,31 @@ export default function TenantDashboard() {
         )}
         <TenantHeader summary={summary} onProfileUpdated={fetchSummary} loading={loading} />
         <TenantInfoCards summary={summary} loading={loading} />
+
+        <Card className="shadow-sm">
+          <CardContent className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 py-4">
+            <div>
+              <p className="text-sm font-semibold text-gray-900">Your arrears</p>
+              <p className="text-xs text-gray-500">
+                Oldest due date: {arrears.oldest_due_date ? new Date(arrears.oldest_due_date).toLocaleDateString() : '—'}
+              </p>
+            </div>
+            {arrears.total > 0 ? (
+              <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                <Badge variant="destructive" className="text-base py-1 px-3">
+                  Outstanding: KES {arrears.total.toLocaleString()}
+                </Badge>
+                <Link href="/dashboard/tenant/invoices?status=unpaid">
+                  <Button>View invoices</Button>
+                </Link>
+              </div>
+            ) : (
+              <Badge variant="outline" className="text-green-700 border-green-200 bg-green-50">
+                You have no rent arrears.
+              </Badge>
+            )}
+          </CardContent>
+        </Card>
         
         <div className="grid gap-6 md:grid-cols-3 mt-8">
           {/* Recent Activity */}
