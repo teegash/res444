@@ -3,7 +3,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { invoiceStatusToBoolean } from '@/lib/invoices/status-utils'
-import { startOfMonthUtc, endOfMonthUtc, addMonthsUtc, toIsoDate, rentDueDateForPeriod } from '@/lib/invoices/rentPeriods'
+import { startOfMonthUtc, endOfMonthUtc, toIsoDate, rentDueDateForPeriod } from '@/lib/invoices/rentPeriods'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database } from '@/lib/supabase/database.types'
 
@@ -62,13 +62,6 @@ function getInvoiceClient(client?: InvoiceSupabaseClient): InvoiceSupabaseClient
 }
 
 /**
- * Check if date is within first 5 days of month
- */
-function isWithinFirst5Days(date: Date): boolean {
-  return date.getDate() <= 5
-}
-
-/**
  * Get all active leases
  */
 async function getActiveLeases(): Promise<LeaseInfo[]> {
@@ -95,25 +88,18 @@ async function getActiveLeases(): Promise<LeaseInfo[]> {
 /**
  * Check if invoice already exists for lease and month
  */
-async function invoiceExistsForMonth(
-  leaseId: string,
-  invoiceType: 'rent' | 'water',
-  periodStart: Date
-): Promise<boolean> {
+async function invoiceExistsForMonth(leaseId: string, invoiceType: 'rent' | 'water', periodStart: Date): Promise<boolean> {
   try {
     const supabase = await createClient()
 
     const startIso = toIsoDate(periodStart)
-    const nextStart = addMonthsUtc(periodStart, 1)
-    const nextIso = toIsoDate(nextStart)
 
     const { data: invoices } = await supabase
       .from('invoices')
       .select('id')
       .eq('lease_id', leaseId)
       .eq('invoice_type', invoiceType)
-      .gte('due_date', startIso)
-      .lt('due_date', nextIso)
+      .eq('period_start', startIso)
       .maybeSingle()
 
     return !!invoices
@@ -164,6 +150,7 @@ async function getPendingWaterBills(
  */
 async function createRentInvoice(
   leaseId: string,
+  periodStart: Date,
   monthlyRent: number,
   dueDate: string,
   description?: string
@@ -177,6 +164,7 @@ async function createRentInvoice(
         lease_id: leaseId,
         invoice_type: 'rent',
         amount: monthlyRent,
+        period_start: toIsoDate(periodStart),
         due_date: dueDate,
         status: false,
         months_covered: 1,
@@ -283,9 +271,7 @@ export async function generateMonthlyInvoices(
     const periodStart = startOfMonthUtc(currentDate)
     const periodEnd = endOfMonthUtc(periodStart)
     const dueDate = rentDueDateForPeriod(periodStart)
-    const currentMonthKey = toIsoDate(periodStart).substring(0, 7)
     const periodLabel = periodStart.toLocaleString('en-US', { month: 'long', year: 'numeric' })
-    const isWithin5Days = isWithinFirst5Days(currentDate)
 
     // Get all active leases
     const activeLeases = await getActiveLeases()
@@ -331,79 +317,17 @@ export async function generateMonthlyInvoices(
         )
 
         if (!rentInvoiceExists) {
-          // Get pending water bills for this unit
-          const pendingWaterBills = await getPendingWaterBills(
-            lease.unit_id,
-            currentMonthKey
-          )
-
-          const totalWaterAmount = pendingWaterBills.reduce(
-            (sum, bill) => sum + parseFloat(bill.amount.toString()),
-            0
-          )
-
-          // Create rent invoice
           const rentInvoiceId = await createRentInvoice(
             lease.id,
+            periodStart,
             parseFloat(lease.monthly_rent.toString()),
             dueDate,
             `Monthly rent for ${periodLabel}`
           )
 
           if (rentInvoiceId) {
-            // Handle water bills
-            if (pendingWaterBills.length > 0 && isWithin5Days) {
-              // Include water bills in rent invoice (update rent invoice amount)
-              const combinedAmount =
-                parseFloat(lease.monthly_rent.toString()) + totalWaterAmount
-
-              // Update rent invoice to include water
-              const { error: updateError } = await supabase
-                .from('invoices')
-                .update({
-                  amount: combinedAmount,
-                  description: `Monthly rent + water bill for ${periodLabel}`,
-                })
-                .eq('id', rentInvoiceId)
-
-              if (!updateError) {
-                // Mark water bills as added to invoice
-                for (const waterBill of pendingWaterBills) {
-                  await markWaterBillAsAdded(waterBill.id, rentInvoiceId, userId)
-                  waterBillsIncluded++
-                }
-                combinedInvoicesCreated++
-                totalAmount += combinedAmount // Combined amount (rent + water)
-              } else {
-                console.error('Error updating invoice with water:', updateError)
-                // Fallback: count as regular rent invoice
-                rentInvoicesCreated++
-                totalAmount += parseFloat(lease.monthly_rent.toString())
-              }
-            } else {
-              // Regular rent invoice (no water or after 5th)
-              rentInvoicesCreated++
-              totalAmount += parseFloat(lease.monthly_rent.toString())
-
-              // Create separate water invoices if after 5th
-              if (pendingWaterBills.length > 0 && !isWithin5Days) {
-                for (const waterBill of pendingWaterBills) {
-                  const waterInvoiceId = await createWaterInvoice(
-                    lease.id,
-                    parseFloat(waterBill.amount.toString()),
-                    dueDate,
-                    `Water bill for ${periodLabel}`
-                  )
-
-                  if (waterInvoiceId) {
-                    await markWaterBillAsAdded(waterBill.id, waterInvoiceId, userId)
-                    waterInvoicesCreated++
-                    waterBillsSeparate++
-                    totalAmount += parseFloat(waterBill.amount.toString())
-                  }
-                }
-              }
-            }
+            rentInvoicesCreated++
+            totalAmount += parseFloat(lease.monthly_rent.toString())
           } else {
             errors.push(`Failed to create rent invoice for lease ${lease.id}`)
           }

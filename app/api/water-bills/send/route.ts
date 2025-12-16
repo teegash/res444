@@ -3,6 +3,7 @@ import { sendSMSWithLogging } from '@/lib/sms/smsService'
 import { validatePhoneNumber } from '@/lib/sms/africasTalking'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { toIsoDate, waterPeriodStartForCreatedAt, waterDueDateForCreatedAt } from '@/lib/invoices/rentPeriods'
 
 export async function POST(request: NextRequest) {
   try {
@@ -56,13 +57,10 @@ export async function POST(request: NextRequest) {
     const formattedUnits = Number(unitsConsumed).toFixed(2)
     const formattedRate = Number(pricePerUnit || 0).toFixed(2)
     const formattedTotal = Number(totalAmount).toFixed(2)
-    const dueDateDisplay =
-      dueDate ||
-      (() => {
-        const date = new Date()
-        date.setDate(date.getDate() + 7)
-        return date.toISOString().split('T')[0]
-      })()
+    const createdAt = new Date()
+    const periodStart = waterPeriodStartForCreatedAt(createdAt)
+    const periodStartIso = toIsoDate(periodStart)
+    const dueDateDisplay = dueDate || waterDueDateForCreatedAt(createdAt)
 
     const message = [
       `Hello ${tenantName || 'tenant'},`,
@@ -149,37 +147,39 @@ export async function POST(request: NextRequest) {
       .eq('lease_id', lease.id)
       .eq('invoice_type', 'water')
       .eq('organization_id', membership.organization_id)
-      .eq('due_date', dueDateDisplay)
+      .eq('period_start', periodStartIso)
       .maybeSingle()
 
-    let invoiceId = existingInvoice?.id || null
-
-    if (!invoiceId) {
-      const { data: invoice, error: invoiceError } = await adminSupabase
-        .from('invoices')
-        .insert({
+    const { data: invoice, error: invoiceError } = await adminSupabase
+      .from('invoices')
+      .upsert(
+        {
           lease_id: lease.id,
           invoice_type: 'water',
           amount: Number(totalAmount),
+          period_start: periodStartIso,
           due_date: dueDateDisplay,
           status: false,
           organization_id: membership.organization_id,
-          description: `Water invoice ${invoiceRef} for ${propertyName || 'unit'} ${unitNumber || ''}`.trim(),
-        })
-        .select('id')
-        .single()
+          months_covered: 1,
+          description: `Water bill for ${periodStart.toLocaleString('en-US', {
+            month: 'long',
+            year: 'numeric',
+            timeZone: 'UTC',
+          })}`,
+        },
+        { onConflict: 'lease_id,invoice_type,period_start', returning: 'representation' }
+      )
+      .select('id')
+      .single()
 
-      if (invoiceError || !invoice) {
-        throw invoiceError || new Error('Failed to create invoice record.')
-      }
-
-      invoiceId = invoice.id
+    if (invoiceError) {
+      throw invoiceError
     }
 
-    const dueDateObj = new Date(dueDateDisplay)
-    const billingMonth = new Date(dueDateObj.getFullYear(), dueDateObj.getMonth(), 1)
-      .toISOString()
-      .split('T')[0]
+    const invoiceId = invoice?.id || existingInvoice?.id || null
+
+    const billingMonth = periodStartIso
 
     await adminSupabase
       .from('water_bills')
