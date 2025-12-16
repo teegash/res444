@@ -733,7 +733,7 @@ export default function CommunicationsPage() {
             <DialogHeader>
               <DialogTitle>Edit template</DialogTitle>
               <DialogDescription>
-                Update the SMS text. Keep placeholder tokens exactly as shown (e.g. {{amount}} or [AMOUNT]).
+                {"Update the SMS text. Keep placeholder tokens exactly as shown (e.g. {{amount}} or [AMOUNT])."}
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
