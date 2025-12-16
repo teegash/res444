@@ -1,5 +1,10 @@
 'use client'
 
+'use client'
+
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { TenantHeader } from '@/components/dashboard/tenant/tenant-header'
 import { TenantInfoCards } from '@/components/dashboard/tenant/tenant-info-cards'
@@ -8,7 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Calendar, TrendingUp, Clock, CheckCircle2 } from 'lucide-react'
+import { Calendar, TrendingUp, Clock, CheckCircle2, Droplet } from 'lucide-react'
 import Link from 'next/link'
 import { SkeletonLoader, SkeletonPropertyCard, SkeletonTable } from '@/components/ui/skeletons'
 
