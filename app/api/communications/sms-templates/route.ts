@@ -42,7 +42,7 @@ export async function GET() {
   const { admin, organizationId } = ctx
   const { data, error } = await admin
     .from('sms_templates')
-    .select('template_key, content, updated_at, name, description')
+    .select('template_key, content, name, description')
     .eq('organization_id', organizationId)
     .order('template_key', { ascending: true })
 
