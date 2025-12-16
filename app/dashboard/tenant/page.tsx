@@ -109,6 +109,21 @@ export default function TenantDashboard() {
     }
   }, [])
 
+  const fetchArrears = useCallback(async () => {
+    try {
+      const res = await fetch('/api/tenant/arrears', { cache: 'no-store' })
+      const json = await res.json()
+      if (res.ok && json.success) {
+        setArrears({
+          total: Number(json.data?.total_arrears_amount || 0),
+          oldest_due_date: json.data?.oldest_due_date || null,
+        })
+      }
+    } catch {
+      // ignore
+    }
+  }, [])
+
   useEffect(() => {
     fetchSummary()
     fetchArrears()
@@ -138,21 +153,6 @@ export default function TenantDashboard() {
     } catch (err) {
       console.error('[TenantDashboard] pending invoice fetch failed', err)
       setPendingInvoices([])
-    }
-  }, [])
-
-  const fetchArrears = useCallback(async () => {
-    try {
-      const res = await fetch('/api/tenant/arrears', { cache: 'no-store' })
-      const json = await res.json()
-      if (res.ok && json.success) {
-        setArrears({
-          total: Number(json.data?.total_arrears_amount || 0),
-          oldest_due_date: json.data?.oldest_due_date || null,
-        })
-      }
-    } catch {
-      // ignore
     }
   }, [])
 

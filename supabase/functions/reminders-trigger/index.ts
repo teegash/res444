@@ -117,6 +117,19 @@ serve(async (_req) => {
       last_reminder_stage: r.last_reminder_stage ?? null,
     })).filter((r) => r.lease_status === "active" && !!r.tenant_user_id);
 
+    const leaseIds = Array.from(new Set((data ?? []).map((r: any) => r.lease_id).filter(Boolean))) as string[];
+    const arrearsMap = new Map<string, number>();
+    if (leaseIds.length) {
+      const { data: arrearsRows, error: arrearsErr } = await admin
+        .from("vw_lease_arrears")
+        .select("lease_id, arrears_amount")
+        .in("lease_id", leaseIds);
+      if (arrearsErr) throw arrearsErr;
+      for (const row of arrearsRows ?? []) {
+        if (row.lease_id) arrearsMap.set(row.lease_id, Number(row.arrears_amount || 0));
+      }
+    }
+
     const scheduled0030 = new Date(`${todayStr}T00:30:00.000Z`).toISOString();
     const scheduled1400 = new Date(`${todayStr}T14:00:00.000Z`).toISOString();
 
@@ -145,6 +158,7 @@ serve(async (_req) => {
         due_date: inv.due_date,
         amount: inv.amount,
         stage,
+        arrears_amount: stage === 5 ? (arrearsMap.get(inv.lease_id) ?? null) : null,
       };
 
       const base = {
