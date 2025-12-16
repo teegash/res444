@@ -108,12 +108,12 @@ export default function CommunicationsPage() {
     try {
       setTemplatesLoading(true)
       setTemplatesError(null)
-      const response = await fetch('/api/sms/templates', { cache: 'no-store' })
+      const response = await fetch('/api/communications/sms-templates', { cache: 'no-store' })
       const payload = await response.json()
       if (!response.ok) {
         throw new Error(payload.error || 'Failed to load templates.')
       }
-      setSmsTemplates(payload.data || [])
+      setSmsTemplates(payload.templates || [])
     } catch (error) {
       setTemplatesError(
         error instanceof Error ? error.message : 'Unable to load SMS templates right now.'
@@ -185,20 +185,18 @@ export default function CommunicationsPage() {
     if (!editingTemplate) return
     try {
       setSavingTemplate(true)
-      const response = await fetch('/api/sms/templates', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          templates: [
-            {
-              key: editingTemplate.key,
-              content: editContent,
-              name: editingTemplate.name,
-              description: editingTemplate.description,
-            },
-          ],
-        }),
-      })
+      const response = await fetch(
+        `/api/communications/sms-templates/${encodeURIComponent(editingTemplate.key)}`,
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            content: editContent,
+            name: editingTemplate.name,
+            description: editingTemplate.description,
+          }),
+        }
+      )
       const payload = await response.json()
       if (!response.ok) {
         throw new Error(payload.error || 'Failed to save template.')
@@ -735,7 +733,7 @@ export default function CommunicationsPage() {
             <DialogHeader>
               <DialogTitle>Edit template</DialogTitle>
               <DialogDescription>
-                Update the SMS text. Keep placeholder tokens exactly as shown (e.g. [AMOUNT]).
+                Update the SMS text. Keep placeholder tokens exactly as shown (e.g. {{amount}} or [AMOUNT]).
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4">

@@ -1,4 +1,13 @@
-export type TemplateKey = 'rent_payment' | 'water_bill' | 'maintenance_update' | 'lease_renewal'
+export type TemplateKey =
+  | 'rent_payment'
+  | 'water_bill'
+  | 'maintenance_update'
+  | 'lease_renewal'
+  | 'rent_stage_1'
+  | 'rent_stage_2'
+  | 'rent_stage_3'
+  | 'rent_stage_4'
+  | 'rent_stage_5'
 
 export type TemplatePlaceholder = {
   token: string
@@ -16,6 +25,78 @@ export type TemplateMeta = {
 }
 
 export const TEMPLATE_METADATA: Record<TemplateKey, TemplateMeta> = {
+  rent_stage_1: {
+    key: 'rent_stage_1',
+    name: 'Rent Stage 1 (pre-month)',
+    description: 'Reminder 3 days before previous month end for upcoming rent.',
+    placeholders: [
+      { token: '{{tenant_name}}', label: 'Tenant name', sample: 'Jane' },
+      { token: '{{unit_label}}', label: 'Unit / property label', sample: '12B · Kilimani Heights' },
+      { token: '{{amount}}', label: 'Rent amount', sample: '45,000' },
+      { token: '{{due_date}}', label: 'Due date', sample: '2025-03-05' },
+      { token: '{{period_label}}', label: 'Period label', sample: 'March 2025' },
+    ],
+    defaultContent:
+      'Reminder: Your rent for {{period_label}} is due on {{due_date}}. Amount: KES {{amount}}.',
+  },
+  rent_stage_2: {
+    key: 'rent_stage_2',
+    name: 'Rent Stage 2 (1st of month)',
+    description: 'Reminder on the 1st of the rent month.',
+    placeholders: [
+      { token: '{{tenant_name}}', label: 'Tenant name', sample: 'Jane' },
+      { token: '{{unit_label}}', label: 'Unit / property label', sample: '12B · Kilimani Heights' },
+      { token: '{{amount}}', label: 'Rent amount', sample: '45,000' },
+      { token: '{{due_date}}', label: 'Due date', sample: '2025-03-05' },
+      { token: '{{period_label}}', label: 'Period label', sample: 'March 2025' },
+    ],
+    defaultContent:
+      'Rent reminder: Please pay KES {{amount}} by {{due_date}} for {{period_label}}.',
+  },
+  rent_stage_3: {
+    key: 'rent_stage_3',
+    name: 'Rent Stage 3 (Due day)',
+    description: 'Reminder on the due date (5th).',
+    placeholders: [
+      { token: '{{tenant_name}}', label: 'Tenant name', sample: 'Jane' },
+      { token: '{{unit_label}}', label: 'Unit / property label', sample: '12B · Kilimani Heights' },
+      { token: '{{amount}}', label: 'Rent amount', sample: '45,000' },
+      { token: '{{due_date}}', label: 'Due date', sample: '2025-03-05' },
+      { token: '{{period_label}}', label: 'Period label', sample: 'March 2025' },
+    ],
+    defaultContent:
+      'Final reminder: Rent KES {{amount}} is due today ({{due_date}}) for {{period_label}}.',
+  },
+  rent_stage_4: {
+    key: 'rent_stage_4',
+    name: 'Rent Stage 4 (+7 days)',
+    description: 'Reminder 7 days after due date.',
+    placeholders: [
+      { token: '{{tenant_name}}', label: 'Tenant name', sample: 'Jane' },
+      { token: '{{unit_label}}', label: 'Unit / property label', sample: '12B · Kilimani Heights' },
+      { token: '{{amount}}', label: 'Rent amount', sample: '45,000' },
+      { token: '{{due_date}}', label: 'Due date', sample: '2025-03-05' },
+      { token: '{{period_label}}', label: 'Period label', sample: 'March 2025' },
+      { token: '{{arrears_total}}', label: 'Total arrears', sample: '45,000' },
+    ],
+    defaultContent:
+      'Urgent: Your rent is 7 days overdue. Amount: KES {{amount}}. Please pay immediately.',
+  },
+  rent_stage_5: {
+    key: 'rent_stage_5',
+    name: 'Rent Stage 5 (+30 days)',
+    description: 'Reminder 30 days after due date.',
+    placeholders: [
+      { token: '{{tenant_name}}', label: 'Tenant name', sample: 'Jane' },
+      { token: '{{unit_label}}', label: 'Unit / property label', sample: '12B · Kilimani Heights' },
+      { token: '{{amount}}', label: 'Rent amount', sample: '45,000' },
+      { token: '{{due_date}}', label: 'Due date', sample: '2025-03-05' },
+      { token: '{{period_label}}', label: 'Period label', sample: 'March 2025' },
+      { token: '{{arrears_total}}', label: 'Total arrears', sample: '90,000' },
+    ],
+    defaultContent:
+      'Critical notice: confirm your outstanding rent arrears. Please contact management urgently.',
+  },
   rent_payment: {
     key: 'rent_payment',
     name: 'Rent Payment Reminder',
