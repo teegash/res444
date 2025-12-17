@@ -3,11 +3,5 @@
     "app/api/auth/register/route.ts": {
       "maxDuration": 60
     }
-  },
-  "crons": [
-    {
-      "path": "/api/cron/invoices-monthly",
-      "schedule": "0 0 1 * *"
-    }
-  ]
+  }
 }

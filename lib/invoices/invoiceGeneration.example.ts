@@ -166,22 +166,9 @@ export const errorExamples = {
   },
 }
 
-// Example 8: Cron job configuration (Vercel)
+// Example 8: Cron job configuration (GitHub Actions + Supabase Edge Function)
 /*
-// vercel.json
-{
-  "crons": [
-    {
-      "path": "/api/cron/invoices-monthly",
-      "schedule": "0 0 1 * *"
-    }
-  ]
-}
-*/
-
-// Example 9: Cron job configuration (GitHub Actions)
-/*
-# .github/workflows/monthly-invoices.yml
+# .github/workflows/cron-invoices-monthly.yml
 name: Generate Monthly Invoices
 
 on:
@@ -195,7 +182,8 @@ jobs:
     steps:
       - name: Generate Monthly Invoices
         run: |
-          curl -X POST https://yourdomain.com/api/cron/invoices-monthly \
-            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
+          curl -X POST https://YOUR_PROJECT_REF.functions.supabase.co/cron-invoices-monthly \
+            -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" \
+            -H "Content-Type: application/json" \
+            --data '{}'
 */
-

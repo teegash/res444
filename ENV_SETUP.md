@@ -6,7 +6,7 @@ research on perplexity, has the most information
 In premium - comment out the cron jobs code for me for mpesa automatic check payments, we will test on that later when we have premium account
 
 
-Removed the scheduled M-Pesa auto-verification job from vercel.json (we can’t literally comment inside JSON, so the cron entry was removed). Only the monthly invoice cron remains active. When you’re ready to re-enable the auto-check cron on a premium plan, just add the /api/cron/mpesa-auto-verify entry back with the desired schedule.
+Removed Vercel Cron usage. Monthly jobs now run via GitHub Actions calling Supabase Edge Functions (see `CRON_SUPABASE_SETUP.md`).
 
 
 cron scrypt in https://script.google.com/home/projects/13GDtxnaUc5lNhTPh3WCDadd5jK2C4OOxevcBBf-Hrplasxe48OtNV8Dv/edit
@@ -370,4 +370,3 @@ Before deploying to production:
 - Verify `CRON_SECRET` is set and matches in cron service
 - Check cron service can reach your endpoints
 - Verify endpoints are accessible (not behind auth)
-

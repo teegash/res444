@@ -33,11 +33,21 @@ async function assertManager() {
   return { user, orgId: membership.organization_id, admin }
 }
 
-function nextMonthFirst(from: Date = new Date()) {
-  const date = new Date(from)
-  date.setMonth(date.getMonth() + 1, 1)
-  date.setHours(0, 0, 0, 0)
-  return date.toISOString()
+function startOfMonthUtc(from: Date) {
+  return new Date(Date.UTC(from.getUTCFullYear(), from.getUTCMonth(), 1, 0, 0, 0, 0))
+}
+
+function nextMonthFirstUtc(from: Date) {
+  return new Date(Date.UTC(from.getUTCFullYear(), from.getUTCMonth() + 1, 1, 0, 0, 0, 0))
+}
+
+function computeFirstRunUtc(startHint: string | null | undefined) {
+  const now = new Date()
+  const hintDate = startHint ? new Date(startHint) : null
+  const candidate = startOfMonthUtc(hintDate && !Number.isNaN(hintDate.getTime()) ? hintDate : now)
+  // If that month's 1st is already in the past (most common), schedule next month's 1st.
+  if (candidate.getTime() <= now.getTime()) return nextMonthFirstUtc(now)
+  return candidate
 }
 
 export async function GET() {
@@ -85,7 +95,7 @@ export async function POST(request: NextRequest) {
   try {
     const { user, orgId, admin } = await assertManager()
     const body = await request.json().catch(() => ({}))
-    const { property_id, amount, category, notes, start_date } = body || {}
+    const { property_id, amount, category, notes, incurred_at, start_date } = body || {}
 
     if (!property_id) {
       return NextResponse.json({ success: false, error: 'Property is required.' }, { status: 400 })
@@ -97,7 +107,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Category is required.' }, { status: 400 })
     }
 
-    const nextRun = start_date ? new Date(start_date).toISOString() : nextMonthFirst()
+    // Recurring expenses always run on the 1st (00:00 UTC) of the chosen month.
+    // We treat the provided date as the "start month" hint, not the exact run timestamp.
+    const nextRun = computeFirstRunUtc(incurred_at || start_date).toISOString()
 
     const { data, error } = await admin
       .from('recurring_expenses')
@@ -115,18 +127,6 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (error) throw error
-
-    // Also record an expense entry immediately so it appears in listings/exports
-    const incurredAt = start_date ? new Date(start_date).toISOString() : new Date().toISOString()
-    await admin.from('expenses').insert({
-      property_id,
-      organization_id: orgId,
-      amount: Number(amount),
-      category,
-      notes: notes || null,
-      incurred_at: incurredAt,
-      created_by: user.id,
-    })
 
     return NextResponse.json({ success: true, data })
   } catch (error) {

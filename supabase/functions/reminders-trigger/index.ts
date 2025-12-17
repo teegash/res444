@@ -67,7 +67,12 @@ function computeStage(today: Date, periodStart: Date, dueDate: Date): number | n
   return null;
 }
 
-serve(async (_req) => {
+serve(async (req) => {
+  const cronSecret = req.headers.get("x-cron-secret") ?? "";
+  if (cronSecret !== (Deno.env.get("CRON_SECRET") ?? "")) {
+    return new Response("Unauthorized", { status: 401 });
+  }
+
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;

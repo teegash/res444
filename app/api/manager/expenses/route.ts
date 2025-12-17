@@ -36,7 +36,7 @@ async function assertManager() {
 
 export async function GET(request: NextRequest) {
   try {
-    const { user, orgId, admin } = await assertManager()
+    const { orgId, admin } = await assertManager()
     const propertyId = request.nextUrl.searchParams.get('propertyId') || null
 
     const query = admin
@@ -53,7 +53,6 @@ export async function GET(request: NextRequest) {
       `
       )
       .order('incurred_at', { ascending: false })
-      .eq('created_by', user.id)
       .eq('organization_id', orgId)
 
     if (propertyId && propertyId !== 'all') {
@@ -97,6 +96,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Category is required.' }, { status: 400 })
     }
 
+    const normalizeIncurredAt = (value: any) => {
+      if (!value) return new Date().toISOString()
+      const raw = String(value).trim()
+      if (!raw) return new Date().toISOString()
+      if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return `${raw}T00:00:00.000Z`
+      const parsed = new Date(raw)
+      if (!Number.isNaN(parsed.getTime())) return parsed.toISOString()
+      return new Date().toISOString()
+    }
+
     const { data, error } = await admin
       .from('expenses')
       .insert({
@@ -104,7 +113,7 @@ export async function POST(request: NextRequest) {
         organization_id: orgId,
         amount: Number(amount),
         category,
-        incurred_at: incurred_at || new Date().toISOString(),
+        incurred_at: normalizeIncurredAt(incurred_at),
         notes: notes || null,
         created_by: user.id,
       })

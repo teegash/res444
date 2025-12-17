@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { ArrowLeft, Plus, Download, Wallet, CheckCircle2 } from 'lucide-react'
+import { ArrowLeft, Plus, Download, Wallet, CheckCircle2, Pencil, Trash2, RefreshCw } from 'lucide-react'
 import { Sidebar } from '@/components/dashboard/sidebar'
 import { Header } from '@/components/dashboard/header'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -14,6 +14,25 @@ import { Textarea } from '@/components/ui/textarea'
 import { exportRowsAsCSV, exportRowsAsExcel, exportRowsAsPDF } from '@/lib/export/download'
 import { SkeletonLoader, SkeletonTable } from '@/components/ui/skeletons'
 import { useToast } from '@/components/ui/use-toast'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import { Badge } from '@/components/ui/badge'
 
 type Expense = {
   id: string
@@ -26,6 +45,16 @@ type Expense = {
 }
 
 type PropertyOption = { id: string; name: string | null }
+type RecurringExpense = {
+  id: string
+  property_id: string
+  category: string
+  amount: number
+  notes: string | null
+  next_run: string
+  active: boolean
+  apartment_buildings?: { id: string; name: string | null; location: string | null } | null
+}
 
 const categories = ['maintenance', 'utilities', 'taxes', 'staff', 'insurance', 'marketing', 'other']
 
@@ -40,6 +69,11 @@ export default function ExpensesPage() {
   const [savingRecurring, setSavingRecurring] = useState(false)
   const { toast } = useToast()
   const [lastSavedMessage, setLastSavedMessage] = useState<string | null>(null)
+  const [recurring, setRecurring] = useState<RecurringExpense[]>([])
+  const [recurringLoading, setRecurringLoading] = useState(false)
+  const [editingRecurring, setEditingRecurring] = useState<RecurringExpense | null>(null)
+  const [editRecurringSaving, setEditRecurringSaving] = useState(false)
+  const [deleteRecurring, setDeleteRecurring] = useState<RecurringExpense | null>(null)
 
   const [newExpense, setNewExpense] = useState({
     property_id: '',
@@ -96,6 +130,24 @@ export default function ExpensesPage() {
     loadExpenses()
   }, [propertyFilter])
 
+  const loadRecurring = async () => {
+    try {
+      setRecurringLoading(true)
+      const response = await fetch('/api/manager/expenses/recurring', { cache: 'no-store' })
+      const payload = await response.json()
+      if (!response.ok) throw new Error(payload.error || 'Failed to load recurring expenses.')
+      setRecurring(Array.isArray(payload.data) ? payload.data : [])
+    } catch (err) {
+      console.error('[RecurringExpenses] load failed', err)
+    } finally {
+      setRecurringLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    loadRecurring()
+  }, [])
+
   const handleSave = async () => {
     if (!newExpense.property_id || !newExpense.amount || !newExpense.category) return
     try {
@@ -138,6 +190,7 @@ export default function ExpensesPage() {
       setNewExpense({ property_id: '', amount: '', category: '', incurred_at: '', notes: '', recurring: false })
       setLastSavedMessage('Recurring expense scheduled for the 1st of each month.')
       toast({ title: 'Recurring expense created', description: 'Auto-deduction will run on the 1st monthly.' })
+      loadRecurring()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to save recurring expense.')
     } finally {
@@ -145,15 +198,77 @@ export default function ExpensesPage() {
     }
   }
 
+  const handleUpdateRecurring = async () => {
+    if (!editingRecurring) return
+    try {
+      setEditRecurringSaving(true)
+      const response = await fetch(`/api/manager/expenses/recurring/${editingRecurring.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          property_id: editingRecurring.property_id,
+          amount: editingRecurring.amount,
+          category: editingRecurring.category,
+          notes: editingRecurring.notes,
+          active: editingRecurring.active,
+          // treat as start month hint; server enforces 1st of month
+          incurred_at: editingRecurring.next_run,
+        }),
+      })
+      const payload = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(payload.error || 'Failed to update recurring expense.')
+      toast({ title: 'Recurring expense updated' })
+      setEditingRecurring(null)
+      loadRecurring()
+    } catch (err) {
+      toast({
+        title: 'Update failed',
+        description: err instanceof Error ? err.message : 'Unable to update recurring expense.',
+        variant: 'destructive',
+      })
+    } finally {
+      setEditRecurringSaving(false)
+    }
+  }
+
+  const handleDeleteRecurring = async () => {
+    if (!deleteRecurring) return
+    try {
+      const response = await fetch(`/api/manager/expenses/recurring/${deleteRecurring.id}`, {
+        method: 'DELETE',
+      })
+      const payload = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(payload.error || 'Failed to delete recurring expense.')
+      toast({ title: 'Recurring expense deleted' })
+      setDeleteRecurring(null)
+      loadRecurring()
+    } catch (err) {
+      toast({
+        title: 'Delete failed',
+        description: err instanceof Error ? err.message : 'Unable to delete recurring expense.',
+        variant: 'destructive',
+      })
+    }
+  }
+
+  const formatNextRun = (value: string | null | undefined) => {
+    if (!value) return '—'
+    const date = new Date(value)
+    if (Number.isNaN(date.getTime())) return '—'
+    return date.toLocaleString()
+  }
+
   const handleExport = (format: 'pdf' | 'excel' | 'csv') => {
     const filename = `expenses-${propertyFilter}-${new Date().toISOString().slice(0, 10)}`
+    const cleanNotes = (value: string | null | undefined) =>
+      (value || '').replace(/\s*\[recurring:[^\]]+\]\s*/g, ' ').trim()
     const columns = [
       { header: 'Property', accessor: (row: Expense) => row.apartment_buildings?.name || 'Property' },
       { header: 'Category', accessor: (row: Expense) => row.category },
       { header: 'Debit (KES)', accessor: (row: Expense) => `KES ${Number(row.amount || 0).toLocaleString()}` },
       { header: 'Credit (KES)', accessor: () => '' },
       { header: 'Date', accessor: (row: Expense) => (row.incurred_at ? new Date(row.incurred_at).toLocaleDateString() : '') },
-      { header: 'Notes', accessor: (row: Expense) => row.notes || '' },
+      { header: 'Notes', accessor: (row: Expense) => cleanNotes(row.notes) },
     ]
     const total = filteredExpenses.reduce((sum, row) => sum + Number(row.amount || 0), 0)
     const summaryRows = [['Total', '', `KES ${total.toLocaleString()}`, '', '', '']]
@@ -171,6 +286,7 @@ export default function ExpensesPage() {
   }
 
   return (
+    <>
     <div className="flex min-h-screen bg-gray-50">
       <Sidebar />
       <div className="flex-1 flex flex-col">
@@ -259,7 +375,7 @@ export default function ExpensesPage() {
                               ? new Date(expense.incurred_at).toLocaleDateString()
                               : ''}
                           </span>
-                          <span>{expense.notes || ''}</span>
+                          <span>{(expense.notes || '').replace(/\s*\[recurring:[^\]]+\]\s*/g, ' ').trim()}</span>
                         </div>
                       </div>
                     </div>
@@ -366,8 +482,221 @@ export default function ExpensesPage() {
               </Card>
             )}
           </div>
+
+          <Card className="border-0 shadow-lg bg-white">
+            <CardHeader className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div>
+                <CardTitle>Recurring expenses</CardTitle>
+                <CardDescription>
+                  Debited automatically on the 1st of the month (00:00 UTC) and reflected in financial reports.
+                </CardDescription>
+              </div>
+              <Button variant="outline" size="sm" className="gap-2" onClick={loadRecurring} disabled={recurringLoading}>
+                <RefreshCw className={`h-4 w-4 ${recurringLoading ? 'animate-spin' : ''}`} />
+                Refresh
+              </Button>
+            </CardHeader>
+            <CardContent>
+              {recurringLoading ? (
+                <SkeletonTable rows={4} columns={5} />
+              ) : recurring.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No recurring expenses configured yet.</p>
+              ) : (
+                <div className="border rounded-lg overflow-hidden">
+                  <div className="grid grid-cols-12 gap-2 bg-muted/40 px-4 py-2 text-xs font-semibold text-muted-foreground">
+                    <div className="col-span-3">Property</div>
+                    <div className="col-span-2">Category</div>
+                    <div className="col-span-2">Amount</div>
+                    <div className="col-span-3">Next run</div>
+                    <div className="col-span-2 text-right">Actions</div>
+                  </div>
+                  <div className="divide-y">
+                    {recurring.map((r) => (
+                      <div key={r.id} className="grid grid-cols-12 gap-2 px-4 py-3 items-center">
+                        <div className="col-span-3">
+                          <div className="font-medium">
+                            {r.apartment_buildings?.name || 'Property'}
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {r.apartment_buildings?.location || ''}
+                          </div>
+                        </div>
+                        <div className="col-span-2 text-sm capitalize">{r.category}</div>
+                        <div className="col-span-2 text-sm font-semibold text-red-600">
+                          KES {Number(r.amount || 0).toLocaleString()}
+                        </div>
+                        <div className="col-span-3 text-sm">
+                          <div>{formatNextRun(r.next_run)}</div>
+                          <div className="mt-1">
+                            {r.active ? (
+                              <Badge className="bg-emerald-600 text-white">Active</Badge>
+                            ) : (
+                              <Badge variant="secondary">Inactive</Badge>
+                            )}
+                          </div>
+                        </div>
+                        <div className="col-span-2 flex justify-end gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setEditingRecurring(r)}
+                            className="gap-2"
+                          >
+                            <Pencil className="h-4 w-4" />
+                            Edit
+                          </Button>
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => setDeleteRecurring(r)}
+                            className="gap-2"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                            Delete
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </main>
       </div>
     </div>
+
+    <Dialog open={!!editingRecurring} onOpenChange={(open) => (!open ? setEditingRecurring(null) : null)}>
+      <DialogContent className="max-w-xl">
+        <DialogHeader>
+          <DialogTitle>Edit recurring expense</DialogTitle>
+          <DialogDescription>
+            Recurring expenses run on the 1st of the month (00:00 UTC). Editing updates future runs.
+          </DialogDescription>
+        </DialogHeader>
+        {editingRecurring ? (
+          <div className="space-y-3">
+            <div className="space-y-2">
+              <Label>Property</Label>
+              <Select
+                value={editingRecurring.property_id}
+                onValueChange={(value) =>
+                  setEditingRecurring((prev) => (prev ? { ...prev, property_id: value } : prev))
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select property" />
+                </SelectTrigger>
+                <SelectContent>
+                  {properties.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label>Amount (KES)</Label>
+                <Input
+                  type="number"
+                  value={String(editingRecurring.amount ?? '')}
+                  onChange={(e) =>
+                    setEditingRecurring((prev) =>
+                      prev ? { ...prev, amount: Number(e.target.value || 0) } : prev
+                    )
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Category</Label>
+                <Select
+                  value={editingRecurring.category}
+                  onValueChange={(value) =>
+                    setEditingRecurring((prev) => (prev ? { ...prev, category: value } : prev))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {categories.map((cat) => (
+                      <SelectItem key={cat} value={cat}>
+                        {cat}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Start month (optional)</Label>
+              <Input
+                type="month"
+                value={editingRecurring.next_run ? String(editingRecurring.next_run).slice(0, 7) : ''}
+                onChange={(e) => {
+                  const ym = e.target.value // YYYY-MM
+                  if (!ym) return
+                  setEditingRecurring((prev) =>
+                    prev ? { ...prev, next_run: `${ym}-01T00:00:00.000Z` } : prev
+                  )
+                }}
+              />
+              <p className="text-xs text-muted-foreground">
+                Runs at midnight (UTC) on the 1st of the selected month (or the next month if the month is already in progress).
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label>Notes</Label>
+              <Textarea
+                rows={3}
+                value={editingRecurring.notes || ''}
+                onChange={(e) =>
+                  setEditingRecurring((prev) => (prev ? { ...prev, notes: e.target.value } : prev))
+                }
+              />
+            </div>
+            <div className="flex items-center justify-between rounded-lg border bg-muted/20 px-3 py-2">
+              <div>
+                <p className="text-sm font-medium">Active</p>
+                <p className="text-xs text-muted-foreground">Inactive schedules will not be executed.</p>
+              </div>
+              <input
+                type="checkbox"
+                checked={editingRecurring.active}
+                onChange={(e) =>
+                  setEditingRecurring((prev) => (prev ? { ...prev, active: e.target.checked } : prev))
+                }
+              />
+            </div>
+          </div>
+        ) : null}
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setEditingRecurring(null)}>
+            Cancel
+          </Button>
+          <Button onClick={handleUpdateRecurring} disabled={editRecurringSaving}>
+            {editRecurringSaving ? 'Saving…' : 'Save changes'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+
+    <AlertDialog open={!!deleteRecurring} onOpenChange={(open) => (!open ? setDeleteRecurring(null) : null)}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Delete recurring expense?</AlertDialogTitle>
+          <AlertDialogDescription>
+            This stops future monthly debits for this recurring expense. Past expenses already recorded will remain in statements.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction onClick={handleDeleteRecurring}>Delete</AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+    </>
   )
 }
