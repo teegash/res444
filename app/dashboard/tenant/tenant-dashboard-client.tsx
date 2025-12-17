@@ -497,23 +497,30 @@ export default function TenantDashboardClient() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              <div className="flex items-center justify-between">
-                <p className="text-sm text-rose-700/80">Next rent invoice</p>
-                <Badge variant={hasPending ? 'destructive' : 'secondary'}>
-                  {hasPending ? 'Pending' : 'Clear'}
-                </Badge>
-              </div>
-              <div className="text-2xl font-bold text-rose-900">
-                {hasPending ? `${pendingInvoices[0]?.amount?.toLocaleString('en-KE', { maximumFractionDigits: 0 })} KES` : '—'}
-              </div>
-              <div className="text-sm text-rose-800/70">
-                Due:{' '}
-                {hasPending && pendingInvoices[0]?.due_date
-                  ? new Date(pendingInvoices[0]?.due_date || '').toLocaleDateString(undefined, {
-                      month: 'long',
-                      day: 'numeric',
-                    })
-                  : 'No pending invoices'}
+              <div className="grid gap-3">
+                <div className="flex items-center justify-between rounded-xl border border-rose-200/70 bg-white/70 px-3 py-2 shadow-sm">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-rose-700/80">Next rent invoice</p>
+                  <Badge variant={hasPending ? 'destructive' : 'secondary'}>
+                    {hasPending ? 'Pending' : 'Clear'}
+                  </Badge>
+                </div>
+                <div className="rounded-xl border border-rose-200/70 bg-white/70 px-3 py-3 shadow-sm">
+                  <p className="text-[11px] uppercase tracking-wide text-rose-600/80">Amount</p>
+                  <div className="text-2xl font-bold text-rose-900">
+                    {hasPending ? `${pendingInvoices[0]?.amount?.toLocaleString('en-KE', { maximumFractionDigits: 0 })} KES` : '—'}
+                  </div>
+                </div>
+                <div className="rounded-xl border border-rose-200/70 bg-white/70 px-3 py-3 shadow-sm">
+                  <p className="text-[11px] uppercase tracking-wide text-rose-600/80">Due date</p>
+                  <div className="text-sm font-medium text-rose-800/80">
+                    {hasPending && pendingInvoices[0]?.due_date
+                      ? new Date(pendingInvoices[0]?.due_date || '').toLocaleDateString(undefined, {
+                          month: 'long',
+                          day: 'numeric',
+                        })
+                      : 'No pending invoices'}
+                  </div>
+                </div>
               </div>
               <Button asChild className="w-full">
                 <Link href="/dashboard/tenant/payments">View payments</Link>
