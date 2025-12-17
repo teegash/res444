@@ -81,6 +81,13 @@ export async function GET() {
     const now = new Date()
     const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 11, 1))
     const startIso = start.toISOString().split('T')[0]
+    const startPaymentsIso = start.toISOString()
+
+    const monthKeyFromIso = (iso: string) => {
+      const d = new Date(iso)
+      if (Number.isNaN(d.getTime())) return null
+      return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`
+    }
 
     const [
       propertiesRes,
@@ -123,7 +130,8 @@ export async function GET() {
         admin
           .from('payments')
           .select('id, amount_paid, verified, payment_date, mpesa_response_code, mpesa_query_status')
-          .eq('organization_id', orgId),
+          .eq('organization_id', orgId)
+          .gte('payment_date', startPaymentsIso),
         admin
           .from('maintenance_requests')
           .select(
@@ -239,13 +247,14 @@ export async function GET() {
       months.push({ label, key, revenue: 0 })
     }
 
-    invoices.forEach((inv) => {
-      if (!inv.due_date || inv.invoice_type !== 'rent') return
-      const key = inv.due_date.slice(0, 7)
+    // IMPORTANT: "Monthly revenue" should reflect confirmed money received, not invoices issued.
+    // We bucket VERIFIED payments by payment_date month (UTC).
+    payments.forEach((p: PaymentRow) => {
+      if (!p?.verified || !p.payment_date) return
+      const key = monthKeyFromIso(p.payment_date)
+      if (!key) return
       const bucket = months.find((m) => m.key === key)
-      if (bucket) {
-        bucket.revenue += Number(inv.amount || 0)
-      }
+      if (bucket) bucket.revenue += Number(p.amount_paid || 0)
     })
 
     // Expenses by month (align with revenue buckets)
@@ -368,14 +377,14 @@ export async function GET() {
       : []
 
     // Payment status distribution
-    const failedCount = payments.filter(
-      (p) =>
-        !p.verified &&
-        ((p.mpesa_response_code && p.mpesa_response_code !== '0') ||
-          (p.mpesa_query_status && /fail|cancel|timeout|insufficient/i.test(p.mpesa_query_status)))
-    ).length
-    const paidCount = payments.filter((p) => p.verified).length
-    const pendingCount = payments.filter((p) => !p.verified && !failedCount).length
+    const isFailedPayment = (p: PaymentRow) =>
+      !p.verified &&
+      ((p.mpesa_response_code && p.mpesa_response_code !== '0') ||
+        (p.mpesa_query_status && /fail|cancel|timeout|insufficient/i.test(p.mpesa_query_status)))
+
+    const failedCount = payments.filter(isFailedPayment).length
+    const paidCount = payments.filter((p: PaymentRow) => p.verified).length
+    const pendingCount = payments.filter((p: PaymentRow) => !p.verified && !isFailedPayment(p)).length
 
     // Recent maintenance mapped
     const maintenanceItems = Array.isArray(maintenance)
