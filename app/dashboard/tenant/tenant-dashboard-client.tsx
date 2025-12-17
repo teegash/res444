@@ -485,24 +485,28 @@ export default function TenantDashboardClient() {
           </Card>
 
           {/* Quick actions / stats */}
-          <Card className="shadow-sm hover:shadow-md transition-shadow">
+          <Card className="relative overflow-hidden border-rose-200/60 bg-gradient-to-br from-rose-50 via-white to-amber-50 shadow-sm hover:shadow-md transition-shadow">
+            <div
+              aria-hidden
+              className="pointer-events-none absolute -left-16 -bottom-16 h-40 w-40 rounded-full bg-rose-200/40 blur-3xl"
+            />
             <CardHeader className="pb-2">
               <CardTitle className="text-lg flex items-center gap-2">
-                <Calendar className="h-5 w-5 text-purple-600" />
+                <Calendar className="h-5 w-5 text-rose-600" />
                 Next Payment
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="flex items-center justify-between">
-                <p className="text-sm text-gray-600">Next rent invoice</p>
+                <p className="text-sm text-rose-700/80">Next rent invoice</p>
                 <Badge variant={hasPending ? 'destructive' : 'secondary'}>
                   {hasPending ? 'Pending' : 'Clear'}
                 </Badge>
               </div>
-              <div className="text-2xl font-bold text-gray-900">
+              <div className="text-2xl font-bold text-rose-900">
                 {hasPending ? `${pendingInvoices[0]?.amount?.toLocaleString('en-KE', { maximumFractionDigits: 0 })} KES` : '—'}
               </div>
-              <div className="text-sm text-gray-500">
+              <div className="text-sm text-rose-800/70">
                 Due:{' '}
                 {hasPending && pendingInvoices[0]?.due_date
                   ? new Date(pendingInvoices[0]?.due_date || '').toLocaleDateString(undefined, {
@@ -554,10 +558,18 @@ export default function TenantDashboardClient() {
                 </div>
               </div>
               <div className="rounded-2xl border border-emerald-200/60 bg-gradient-to-br from-white/80 via-emerald-50/50 to-cyan-50/60 p-4 shadow-sm">
-                <div className="flex items-center justify-between">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">
-                    Upcoming payments
-                  </p>
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    <div className="relative h-7 w-7">
+                      <div className="absolute inset-0 rounded-full bg-gradient-to-r from-emerald-400 via-cyan-400 to-teal-400 animate-spin" />
+                      <div className="absolute inset-[2px] rounded-full bg-white/90 ring-1 ring-emerald-200/60 flex items-center justify-center">
+                        <Clock className="h-3.5 w-3.5 text-emerald-700" />
+                      </div>
+                    </div>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">
+                      Upcoming payments
+                    </p>
+                  </div>
                   <span
                     className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-semibold ${
                       hasPending
