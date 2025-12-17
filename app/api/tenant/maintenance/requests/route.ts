@@ -78,6 +78,22 @@ export async function GET() {
     }
 
     const adminSupabase = createAdminClient()
+    const { data: profile, error: profileError } = await adminSupabase
+      .from('user_profiles')
+      .select('organization_id')
+      .eq('id', user.id)
+      .maybeSingle()
+
+    if (profileError) {
+      console.error('[TenantMaintenance.GET] profile lookup failed', profileError)
+      return NextResponse.json({ success: false, error: 'Unable to verify organization.' }, { status: 500 })
+    }
+
+    const orgId = (profile as any)?.organization_id as string | undefined
+    if (!orgId) {
+      return NextResponse.json({ success: false, error: 'Organization not found.' }, { status: 403 })
+    }
+
     const { data, error } = await adminSupabase
       .from('maintenance_requests')
       .select(
@@ -107,6 +123,7 @@ export async function GET() {
       `
       )
       .eq('tenant_user_id', user.id)
+      .eq('organization_id', orgId)
       .order('created_at', { ascending: false })
 
     if (error) {
@@ -243,11 +260,28 @@ export async function POST(request: NextRequest) {
     }
 
     const adminSupabase = createAdminClient()
+    const { data: profile, error: profileError } = await adminSupabase
+      .from('user_profiles')
+      .select('organization_id')
+      .eq('id', user.id)
+      .maybeSingle()
+
+    if (profileError) {
+      console.error('[TenantMaintenance.POST] profile lookup failed', profileError)
+      return NextResponse.json({ success: false, error: 'Unable to verify organization.' }, { status: 500 })
+    }
+
+    const orgId = (profile as any)?.organization_id as string | undefined
+    if (!orgId) {
+      return NextResponse.json({ success: false, error: 'Organization not found.' }, { status: 403 })
+    }
+
     const { data: lease, error: leaseError } = await adminSupabase
       .from('leases')
       .select(
         `
         id,
+        organization_id,
         tenant_user_id,
         status,
         unit:apartment_units (
@@ -255,12 +289,14 @@ export async function POST(request: NextRequest) {
           unit_number,
           building:apartment_buildings (
             id,
-            name
+            name,
+            organization_id
           )
         )
       `
       )
       .eq('tenant_user_id', user.id)
+      .eq('organization_id', orgId)
       .in('status', ['active', 'pending'])
       .order('start_date', { ascending: false })
       .limit(1)
@@ -293,6 +329,7 @@ export async function POST(request: NextRequest) {
     const { data: inserted, error: insertError } = await adminSupabase
       .from('maintenance_requests')
       .insert({
+        organization_id: orgId,
         unit_id: lease.unit.id,
         tenant_user_id: user.id,
         title: title.trim(),
@@ -317,11 +354,13 @@ export async function POST(request: NextRequest) {
         'Thank you for submitting your maintenance request. Our property team will reach out shortly.',
       message_type: 'in_app',
       read: false,
+      organization_id: orgId,
     })
 
     const { data: managers } = await adminSupabase
       .from('user_profiles')
       .select('id')
+      .eq('organization_id', orgId)
       .in('role', ['admin', 'manager', 'caretaker'])
 
     const managerIds =
@@ -337,6 +376,7 @@ export async function POST(request: NextRequest) {
         message_text: `New maintenance request: ${title.trim()}`,
         message_type: 'in_app',
         read: false,
+        organization_id: orgId,
       }))
 
       await adminSupabase.from('communications').insert(notificationRows)
