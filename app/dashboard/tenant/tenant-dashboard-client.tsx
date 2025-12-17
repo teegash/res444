@@ -456,26 +456,28 @@ export default function TenantDashboardClient() {
                       : 'border-slate-200/70 bg-white'
 
                   return (
-                    <div
+                    <Link
                       key={activity.id}
-                      className={`flex items-start justify-between gap-3 rounded-xl border p-3 transition ${toneClasses} hover:shadow-sm`}
+                      href={activity.href}
+                      className="block focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-200 focus-visible:ring-offset-2"
                     >
-                      <div className="flex gap-3">
-                        <div className="mt-1">{icon}</div>
-                        <div>
-                          <p className="font-semibold text-gray-900">{activity.title}</p>
-                          <p className="text-xs text-gray-500">{activity.description}</p>
-                          <div className="flex items-center gap-2 text-xs text-gray-500 mt-1">
-                            <span>{activity.dateLabel}</span>
-                            <span>•</span>
-                            <span className="capitalize">{activity.tagLabel}</span>
+                      <div
+                        className={`flex items-start justify-between gap-3 rounded-xl border p-3 transition ${toneClasses} hover:shadow-sm`}
+                      >
+                        <div className="flex gap-3">
+                          <div className="mt-1">{icon}</div>
+                          <div>
+                            <p className="font-semibold text-gray-900">{activity.title}</p>
+                            <p className="text-xs text-gray-500">{activity.description}</p>
+                            <div className="flex items-center gap-2 text-xs text-gray-500 mt-1">
+                              <span>{activity.dateLabel}</span>
+                              <span>•</span>
+                              <span className="capitalize">{activity.tagLabel}</span>
+                            </div>
                           </div>
                         </div>
                       </div>
-                      <Link href={activity.href}>
-                        <Button variant="outline" size="sm">View</Button>
-                      </Link>
-                    </div>
+                    </Link>
                   )
                 })
               )}
@@ -551,11 +553,29 @@ export default function TenantDashboardClient() {
                   />
                 </div>
               </div>
-              <div className="space-y-2">
-                <p className="text-sm text-emerald-800/80">Upcoming payments</p>
-                <p className="text-sm text-emerald-900/80">
+              <div className="rounded-2xl border border-emerald-200/60 bg-gradient-to-br from-white/80 via-emerald-50/50 to-cyan-50/60 p-4 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">
+                    Upcoming payments
+                  </p>
+                  <span
+                    className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-semibold ${
+                      hasPending
+                        ? 'bg-amber-100 text-amber-700'
+                        : 'bg-emerald-100 text-emerald-700'
+                    }`}
+                  >
+                    {hasPending ? 'Pending' : 'All clear'}
+                  </span>
+                </div>
+                <div className="mt-3 text-sm text-emerald-900/80">
                   {hasPending ? 'Pending invoices detected in your account.' : 'No pending invoices right now.'}
-                </p>
+                </div>
+                <div className="mt-3 text-xs text-emerald-800/70">
+                  {hasPending
+                    ? 'Pay early to keep your on-time score high.'
+                    : 'Great work staying ahead on rent.'}
+                </div>
               </div>
             </div>
           </CardContent>
