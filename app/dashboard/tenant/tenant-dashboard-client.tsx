@@ -497,7 +497,7 @@ export default function TenantDashboardClient() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              <div className="grid gap-3">
+              <div className="grid gap-2">
                 <div className="flex items-center justify-between rounded-xl border border-rose-200/70 bg-white/70 px-3 py-2 shadow-sm">
                   <p className="text-xs font-semibold uppercase tracking-wide text-rose-700/80">Next rent invoice</p>
                   <Badge variant={hasPending ? 'destructive' : 'secondary'}>
@@ -522,6 +522,7 @@ export default function TenantDashboardClient() {
                   </div>
                 </div>
               </div>
+              <div className="h-px bg-gradient-to-r from-rose-200/0 via-rose-200/80 to-rose-200/0" aria-hidden />
               <Button asChild className="w-full">
                 <Link href="/dashboard/tenant/payments">View payments</Link>
               </Button>
