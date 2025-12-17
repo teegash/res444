@@ -178,162 +178,180 @@ export default function TenantDashboardClient() {
       }> = maintenancePayload.data || []
       const payments: TenantPaymentActivity[] = paymentsPayload.data || []
 
+      const toMs = (iso: string | null | undefined) => {
+        if (!iso) return 0
+        const d = new Date(iso)
+        if (!Number.isNaN(d.getTime())) return d.getTime()
+        // Handles YYYY-MM-DD (from due_date) reliably as UTC
+        if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) return new Date(`${iso}T00:00:00.000Z`).getTime()
+        return 0
+      }
+
       const verifiedPayments = (payments || []).filter(
         (payment) => (payment.status || '').toLowerCase() === 'verified'
       )
+
       const pendingDeposits = (payments || []).filter(
         (payment) =>
           (payment.status || '').toLowerCase() === 'pending' &&
           (payment.payment_method || '').toLowerCase() === 'bank_transfer'
       )
+      const paymentTimestamp = (p: TenantPaymentActivity) => toMs(p.posted_at || p.created_at)
+      const invoiceTimestamp = (i: NonNullable<TenantInvoiceRecord>) => toMs(i.created_at || i.due_date)
 
-      const paidInvoiceIds = new Set(
-        verifiedPayments.map((payment) => payment.invoice_id).filter((id): id is string => Boolean(id))
+      const normalizeInvoiceType = (value: string | null | undefined) =>
+        (value || 'rent').toLowerCase() === 'water' ? 'water' : 'rent'
+
+      const eligibleInvoices = invoices
+        .filter((i): i is NonNullable<TenantInvoiceRecord> => Boolean(i && i.id))
+        .filter((i) => !i.is_covered && !i.is_prestart)
+
+      const latestInvoiceByType = (type: 'rent' | 'water') =>
+        eligibleInvoices
+          .filter((i) => normalizeInvoiceType(i.invoice_type) === type)
+          .sort((a, b) => invoiceTimestamp(b) - invoiceTimestamp(a))[0] || null
+
+      const latestVerifiedPaymentByType = (type: 'rent' | 'water') =>
+        verifiedPayments
+          .filter((p) => normalizeInvoiceType(p.invoice_type || p.payment_type) === type)
+          .sort((a, b) => paymentTimestamp(b) - paymentTimestamp(a))[0] || null
+
+      const makeInvoiceActivity = (invoice: NonNullable<TenantInvoiceRecord>, type: 'rent' | 'water'): ActivityItem => {
+        const dateSource = invoice.created_at || invoice.due_date
+        const dateLabel = dateSource
+          ? new Date(dateSource).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+          : '—'
+        const dueLabel = invoice.due_date
+          ? new Date(`${invoice.due_date}T00:00:00.000Z`).toLocaleDateString(undefined, { month: 'long', day: 'numeric' })
+          : 'soon'
+        const amountLabel = `KES ${Number(invoice.amount || 0).toLocaleString()}`
+        const statusLabel = invoice.status ? 'paid' : 'unpaid'
+        return {
+          id: `invoice-${invoice.id}`,
+          title: `${type === 'water' ? 'Water bill' : 'Rent'} invoice (${statusLabel})`,
+          description: `${amountLabel} • due ${dueLabel}`,
+          dateLabel,
+          tone: type === 'water' ? 'water' : 'rent',
+          source: 'invoice',
+          tagLabel: type === 'water' ? 'Water Invoice' : 'Rent Invoice',
+          timestamp: invoiceTimestamp(invoice) || Date.now(),
+          href: invoice.id ? `/dashboard/tenant/payment?invoiceId=${invoice.id}` : '/dashboard/tenant/payment',
+        }
+      }
+
+      const makePaymentActivity = (payment: TenantPaymentActivity, type: 'rent' | 'water'): ActivityItem => {
+        const postedAt = payment.posted_at || payment.created_at
+        const dateLabel = postedAt
+          ? new Date(postedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+          : '—'
+        const amountLabel = `KES ${Number(payment.amount_paid || 0).toLocaleString()}`
+        const methodLabel = (payment.payment_method || 'M-Pesa').replace('_', ' ')
+        return {
+          id: `payment-${payment.id}`,
+          title: `${type === 'water' ? 'Water bill' : 'Rent'} payment verified`,
+          description: `${amountLabel} • via ${methodLabel}`,
+          dateLabel,
+          tone: type === 'water' ? 'water' : 'rent',
+          source: 'payment',
+          tagLabel: type === 'water' ? 'Water Payment' : 'Rent Payment',
+          timestamp: paymentTimestamp(payment) || Date.now(),
+          href: '/dashboard/tenant/payments',
+        }
+      }
+
+      const rentInvoice = latestInvoiceByType('rent')
+      const waterInvoice = latestInvoiceByType('water')
+      const rentPayment = latestVerifiedPaymentByType('rent')
+      const waterPayment = latestVerifiedPaymentByType('water')
+
+      const depositItem = (() => {
+        const latest = pendingDeposits
+          .slice()
+          .sort((a, b) => paymentTimestamp(b) - paymentTimestamp(a))[0]
+        if (!latest) return null
+        const postedAt = latest.posted_at || latest.created_at
+        const dateLabel = postedAt
+          ? new Date(postedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+          : '—'
+        const amountLabel = `KES ${Number(latest.amount_paid || 0).toLocaleString()}`
+        return {
+          id: `deposit-${latest.id}`,
+          title: 'Deposit slip submitted',
+          description: `${amountLabel} • awaiting verification`,
+          dateLabel,
+          tone: 'rent' as const,
+          source: 'payment' as const,
+          tagLabel: 'Pending Verification',
+          timestamp: paymentTimestamp(latest) || Date.now(),
+          href: '/dashboard/tenant/payments',
+        }
+      })()
+
+      const rentBest = (() => {
+        if (rentPayment && rentInvoice) {
+          return paymentTimestamp(rentPayment) >= invoiceTimestamp(rentInvoice)
+            ? makePaymentActivity(rentPayment, 'rent')
+            : makeInvoiceActivity(rentInvoice, 'rent')
+        }
+        if (rentPayment) return makePaymentActivity(rentPayment, 'rent')
+        if (rentInvoice) return makeInvoiceActivity(rentInvoice, 'rent')
+        return null
+      })()
+
+      const waterBest = (() => {
+        if (waterPayment && waterInvoice) {
+          return paymentTimestamp(waterPayment) >= invoiceTimestamp(waterInvoice)
+            ? makePaymentActivity(waterPayment, 'water')
+            : makeInvoiceActivity(waterInvoice, 'water')
+        }
+        if (waterPayment) return makePaymentActivity(waterPayment, 'water')
+        if (waterInvoice) return makeInvoiceActivity(waterInvoice, 'water')
+        return null
+      })()
+
+      const openMaintenance = (maintenanceRequests || []).filter(
+        (r) => (r.status || '').toLowerCase() === 'open'
       )
+      const maintenanceSource = openMaintenance.length > 0 ? openMaintenance : maintenanceRequests
+      const maintenanceLimit = openMaintenance.length > 0 ? 3 : 1
 
-      const invoiceItems: ActivityItem[] = invoices
-        .filter(Boolean)
-        .filter((invoice) => {
-          if (!invoice) return false
-          const covered = Boolean(invoice.is_covered)
-          const prestart = Boolean(invoice.is_prestart)
-          const paid = Boolean(invoice.status)
-          return !covered && !prestart && !paid && !paidInvoiceIds.has(invoice.id || '')
-        })
+      const maintenanceItems: ActivityItem[] = (maintenanceSource || [])
         .sort((a, b) => {
-          const aTime = a?.created_at ? new Date(a.created_at).getTime() : 0
-          const bTime = b?.created_at ? new Date(b.created_at).getTime() : 0
+          const aTime = toMs(a.updated_at || a.created_at)
+          const bTime = toMs(b.updated_at || b.created_at)
           return bTime - aTime
         })
-        .slice(0, 4)
-        .map((invoice) => {
-          const isWater = invoice?.invoice_type === 'water'
-          const tone: ActivityItem['tone'] = isWater ? 'water' : 'rent'
-          const title = `${isWater ? 'Water bill' : 'Rent'} invoice pending`
-          const description = `Due ${
-            invoice?.due_date
-              ? new Date(invoice.due_date).toLocaleDateString(undefined, {
-                  month: 'long',
-                  day: 'numeric',
-                })
-              : 'soon'
-          }`
-          const dateSource = invoice?.created_at || invoice?.due_date
-          const dateLabel = dateSource
-            ? new Date(dateSource).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
-            : '—'
-
-          const timestamp = dateSource ? new Date(dateSource).getTime() : Date.now()
-          const invoiceHref = invoice?.id ? `/dashboard/tenant/payment?invoiceId=${invoice.id}` : '/dashboard/tenant/payment'
-          return {
-            id: invoice?.id || crypto.randomUUID(),
-            title,
-            description,
-            dateLabel,
-            tone,
-            source: 'invoice',
-            tagLabel: isWater ? 'Water Bill' : 'Rent Invoice',
-            timestamp,
-            href: invoiceHref,
-          }
-        })
-
-      const depositItems: ActivityItem[] = pendingDeposits
-        .sort((a, b) => {
-          const aTime = a?.posted_at ? new Date(a.posted_at).getTime() : a?.created_at ? new Date(a.created_at).getTime() : 0
-          const bTime = b?.posted_at ? new Date(b.posted_at).getTime() : b?.created_at ? new Date(b.created_at).getTime() : 0
-          return bTime - aTime
-        })
-        .slice(0, 2)
-        .map((payment) => {
-          const postedAt = payment.posted_at || payment.created_at
-          const dateLabel = postedAt
-            ? new Date(postedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
-            : '—'
-          const timestamp = postedAt ? new Date(postedAt).getTime() : Date.now()
-          const amountLabel = `KES ${Number(payment.amount_paid || 0).toLocaleString()}`
-          return {
-            id: `deposit-${payment.id}`,
-            title: 'Rent deposit slip submitted',
-            description: `${amountLabel} • awaiting verification`,
-            dateLabel,
-            tone: 'rent',
-            source: 'payment',
-            tagLabel: 'Pending Verification',
-            timestamp,
-            href: '/dashboard/tenant/payments',
-          }
-        })
-
-      const paymentItems: ActivityItem[] = verifiedPayments
-        .sort((a, b) => {
-          const aTime = a?.posted_at ? new Date(a.posted_at).getTime() : a?.created_at ? new Date(a.created_at).getTime() : 0
-          const bTime = b?.posted_at ? new Date(b.posted_at).getTime() : b?.created_at ? new Date(b.created_at).getTime() : 0
-          return bTime - aTime
-        })
-        .slice(0, 4)
-        .map((payment) => {
-          const type = (payment.invoice_type || payment.payment_type || 'rent').toLowerCase()
-          const isWater = type === 'water'
-          const tone: ActivityItem['tone'] = isWater ? 'water' : 'rent'
-          const postedAt = payment.posted_at || payment.created_at
-          const dateLabel = postedAt
-            ? new Date(postedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
-            : '—'
-          const timestamp = postedAt ? new Date(postedAt).getTime() : Date.now()
-          const amountLabel = `KES ${Number(payment.amount_paid || 0).toLocaleString()}`
-          const methodLabel = (payment.payment_method || 'M-Pesa').replace('_', ' ')
-
-          return {
-            id: `payment-${payment.id}`,
-            title: `${isWater ? 'Water bill' : 'Rent'} payment successful`,
-            description: `${amountLabel} • via ${methodLabel}`,
-            dateLabel,
-            tone,
-            source: 'payment',
-            tagLabel: `${isWater ? 'Water' : 'Rent'} Payment`,
-            timestamp,
-            href: '/dashboard/tenant/payments',
-          }
-        })
-
-      const maintenanceItems: ActivityItem[] = (maintenanceRequests || [])
-        .sort((a, b) => {
-          const aTime = a?.updated_at ? new Date(a.updated_at).getTime() : a?.created_at ? new Date(a.created_at).getTime() : 0
-          const bTime = b?.updated_at ? new Date(b.updated_at).getTime() : b?.created_at ? new Date(b.created_at).getTime() : 0
-          return bTime - aTime
-        })
-        .slice(0, 4)
+        .slice(0, maintenanceLimit)
         .map((request) => {
           const status = (request.status || '').toLowerCase()
-          const tone: ActivityItem['tone'] = 'maintenance'
           const dateSource = request.updated_at || request.created_at
           const dateLabel = dateSource
             ? new Date(dateSource).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
             : '—'
-          const timestamp = dateSource ? new Date(dateSource).getTime() : Date.now()
+          const timestamp = toMs(dateSource) || Date.now()
           const statusLabel = status ? status.replace(/_/g, ' ') : 'Update posted'
+          const isOpen = status === 'open'
 
           return {
             id: request.id,
             title: `Maintenance · ${request.title}`,
-            description: `Status: ${statusLabel}`,
+            description: isOpen ? 'Status: open' : `Latest update: ${statusLabel}`,
             dateLabel,
-            tone,
+            tone: 'maintenance',
             source: 'maintenance',
-            tagLabel: `Maintenance · ${statusLabel}`,
+            tagLabel: isOpen ? 'Maintenance · open' : `Maintenance · ${statusLabel}`,
             timestamp,
             href: '/dashboard/tenant/maintenance',
           }
         })
 
-      const combined = [...depositItems, ...paymentItems, ...invoiceItems, ...maintenanceItems]
+      const combined = [...maintenanceItems, depositItem, rentBest, waterBest]
+        .filter((x): x is ActivityItem => Boolean(x))
         .sort((a, b) => b.timestamp - a.timestamp)
-        .slice(0, 6)
 
       setRecentActivity(combined)
       setTenantPayments(payments)
-      setMaintenanceCount(maintenanceRequests.length)
+      setMaintenanceCount(openMaintenance.length)
     } catch (error) {
       console.warn('[TenantDashboard] Failed to load recent activity', error)
       setTenantPayments([])

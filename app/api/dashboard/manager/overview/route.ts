@@ -16,6 +16,7 @@ type InvoiceRow = {
   amount: number | null
   status: boolean | null
   due_date: string | null
+  period_start?: string | null
   invoice_type: string | null
   leases?: {
     unit_id?: string | null
@@ -30,6 +31,7 @@ type InvoiceRow = {
 
 type PaymentRow = {
   id: string
+  invoice_id?: string | null
   amount_paid: number | null
   verified: boolean | null
   payment_date: string | null
@@ -81,13 +83,6 @@ export async function GET() {
     const now = new Date()
     const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 11, 1))
     const startIso = start.toISOString().split('T')[0]
-    const startPaymentsIso = start.toISOString()
-
-    const monthKeyFromIso = (iso: string) => {
-      const d = new Date(iso)
-      if (Number.isNaN(d.getTime())) return null
-      return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`
-    }
 
     const [
       propertiesRes,
@@ -111,6 +106,7 @@ export async function GET() {
           id,
           amount,
           status,
+          period_start,
           due_date,
           invoice_type,
           leases (
@@ -129,9 +125,8 @@ export async function GET() {
           .gte('due_date', startIso),
         admin
           .from('payments')
-          .select('id, amount_paid, verified, payment_date, mpesa_response_code, mpesa_query_status')
-          .eq('organization_id', orgId)
-          .gte('payment_date', startPaymentsIso),
+          .select('id, invoice_id, amount_paid, verified, payment_date, mpesa_response_code, mpesa_query_status')
+          .eq('organization_id', orgId),
         admin
           .from('maintenance_requests')
           .select(
@@ -247,14 +242,33 @@ export async function GET() {
       months.push({ label, key, revenue: 0 })
     }
 
-    // IMPORTANT: "Monthly revenue" should reflect confirmed money received, not invoices issued.
-    // We bucket VERIFIED payments by payment_date month (UTC).
-    payments.forEach((p: PaymentRow) => {
-      if (!p?.verified || !p.payment_date) return
-      const key = monthKeyFromIso(p.payment_date)
-      if (!key) return
-      const bucket = months.find((m) => m.key === key)
-      if (bucket) bucket.revenue += Number(p.amount_paid || 0)
+    // Monthly Revenue (rent-only) should reflect rent paid FOR that rent month.
+    // To avoid counting multi-month prepayments as a lump-sum, we bucket by invoice.period_start,
+    // and cap each invoice at its invoice amount.
+    const rentInvoiceIds = invoices.map((i) => i.id).filter(Boolean)
+    const invoicePaidMap = new Map<string, number>()
+
+    if (rentInvoiceIds.length > 0) {
+      const rentInvoiceIdSet = new Set(rentInvoiceIds)
+      ;(payments as PaymentRow[]).forEach((p) => {
+        if (!p?.verified) return
+        if (!p.invoice_id) return
+        if (!rentInvoiceIdSet.has(p.invoice_id)) return
+        invoicePaidMap.set(p.invoice_id, (invoicePaidMap.get(p.invoice_id) || 0) + Number(p.amount_paid || 0))
+      })
+    }
+
+    invoices.forEach((inv) => {
+      const invoiceAmount = Number(inv.amount || 0)
+      const paidTotal = invoicePaidMap.get(inv.id) || 0
+      const effectivePaid = invoiceAmount > 0 ? Math.min(paidTotal, invoiceAmount) : paidTotal
+      if (effectivePaid <= 0) return
+
+      const keySource = inv.period_start || inv.due_date
+      if (!keySource) return
+      const monthKey = keySource.slice(0, 7)
+      const bucket = months.find((m) => m.key === monthKey)
+      if (bucket) bucket.revenue += effectivePaid
     })
 
     // Expenses by month (align with revenue buckets)
