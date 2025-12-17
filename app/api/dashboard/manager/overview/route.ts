@@ -88,6 +88,7 @@ export async function GET() {
       invoicesRes,
       paymentsRes,
       maintenanceRes,
+      maintenanceOpenCountRes,
       expensesRes,
       unitsRes,
       arrearsRes,
@@ -145,6 +146,11 @@ export async function GET() {
           .order('updated_at', { ascending: false })
           .limit(10),
         admin
+          .from('maintenance_requests')
+          .select('id', { count: 'exact', head: true })
+          .eq('organization_id', orgId)
+          .eq('status', 'open'),
+        admin
           .from('expenses')
           .select('id, amount, incurred_at, property_id, organization_id')
           .eq('organization_id', orgId)
@@ -189,6 +195,7 @@ export async function GET() {
       invoicesRes.error,
       paymentsRes.error,
       maintenanceRes.error,
+      maintenanceOpenCountRes.error,
       expensesRes.error,
       unitsRes.error,
       arrearsRes.error,
@@ -388,6 +395,8 @@ export async function GET() {
     const totalTenants = tenantsRes.data?.length || 0
     const totalRevenue = months.reduce((sum, m) => sum + m.revenue, 0)
     const totalPaidInvoices = invoices.filter((i) => i.status === true).length
+    const openMaintenanceCount =
+      typeof maintenanceOpenCountRes.count === 'number' ? maintenanceOpenCountRes.count : 0
     const occupancyMap = new Map<string, { total: number; occupied: number }>()
     units.forEach((unit: any) => {
       const bid = unit.building_id || 'unassigned'
@@ -416,7 +425,7 @@ export async function GET() {
         totalTenants,
         monthlyRevenue: currentMonthRevenue,
         revenueDelta,
-        pendingRequests: maintenanceItems.filter((m) => m.status !== 'resolved').length,
+        pendingRequests: openMaintenanceCount,
         paidInvoices: totalPaidInvoices,
         pendingPayments: pendingCount,
       },
