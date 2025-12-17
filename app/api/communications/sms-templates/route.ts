@@ -50,7 +50,22 @@ export async function GET() {
     return NextResponse.json({ error: error.message }, { status: 400 })
   }
 
-  return NextResponse.json({ templates: data ?? [] })
+  const rows = Array.isArray(data) ? data : []
+  const rowMap = new Map(rows.map((row) => [row.template_key, row]))
+  const templates = TEMPLATE_KEYS.map((key) => {
+    const meta = TEMPLATE_METADATA[key]
+    const row = rowMap.get(key)
+    return {
+      key,
+      template_key: key,
+      name: row?.name || meta.name,
+      description: row?.description || meta.description,
+      content: row?.content || meta.defaultContent,
+      placeholders: meta.placeholders,
+    }
+  })
+
+  return NextResponse.json({ templates })
 }
 
 export async function POST(req: NextRequest) {

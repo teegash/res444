@@ -379,6 +379,71 @@ export default function TenantDashboardClient() {
     return 'bg-red-500'
   }, [onTimeRate])
 
+  const performanceTheme = useMemo(() => {
+    if (onTimeRate >= 95) {
+      return {
+        card: 'border-emerald-200/60 bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-50',
+        glow: 'bg-emerald-200/40',
+        icon: 'text-emerald-600',
+        accentText: 'text-emerald-700',
+        subtleText: 'text-emerald-700/80',
+        badgeRing: 'ring-emerald-200/60',
+        panel: 'border-emerald-200/60 bg-gradient-to-br from-white/80 via-emerald-50/50 to-cyan-50/60',
+        panelText: 'text-emerald-900/80',
+        panelMuted: 'text-emerald-800/70',
+        labelText: 'text-emerald-800/80',
+        trackRing: 'ring-emerald-100',
+        progress: 'from-emerald-500 via-teal-500 to-cyan-500',
+      }
+    }
+    if (onTimeRate >= 87) {
+      return {
+        card: 'border-amber-200/70 bg-gradient-to-br from-amber-50 via-yellow-50 to-lime-50',
+        glow: 'bg-amber-200/40',
+        icon: 'text-amber-600',
+        accentText: 'text-amber-700',
+        subtleText: 'text-amber-700/80',
+        badgeRing: 'ring-amber-200/60',
+        panel: 'border-amber-200/60 bg-gradient-to-br from-white/80 via-amber-50/50 to-yellow-50/60',
+        panelText: 'text-amber-900/80',
+        panelMuted: 'text-amber-800/70',
+        labelText: 'text-amber-800/80',
+        trackRing: 'ring-amber-100',
+        progress: 'from-amber-400 via-yellow-400 to-lime-400',
+      }
+    }
+    if (onTimeRate >= 80) {
+      return {
+        card: 'border-orange-200/70 bg-gradient-to-br from-orange-50 via-amber-50 to-yellow-50',
+        glow: 'bg-orange-200/40',
+        icon: 'text-orange-600',
+        accentText: 'text-orange-700',
+        subtleText: 'text-orange-700/80',
+        badgeRing: 'ring-orange-200/60',
+        panel: 'border-orange-200/60 bg-gradient-to-br from-white/80 via-orange-50/50 to-amber-50/60',
+        panelText: 'text-orange-900/80',
+        panelMuted: 'text-orange-800/70',
+        labelText: 'text-orange-800/80',
+        trackRing: 'ring-orange-100',
+        progress: 'from-orange-500 via-amber-500 to-yellow-500',
+      }
+    }
+    return {
+      card: 'border-rose-200/70 bg-gradient-to-br from-rose-50 via-red-50 to-orange-50',
+      glow: 'bg-rose-200/40',
+      icon: 'text-rose-600',
+      accentText: 'text-rose-700',
+      subtleText: 'text-rose-700/80',
+      badgeRing: 'ring-rose-200/60',
+      panel: 'border-rose-200/60 bg-gradient-to-br from-white/80 via-rose-50/50 to-red-50/60',
+      panelText: 'text-rose-900/80',
+      panelMuted: 'text-rose-800/70',
+      labelText: 'text-rose-800/80',
+      trackRing: 'ring-rose-100',
+      progress: 'from-rose-500 via-red-500 to-orange-500',
+    }
+  }, [onTimeRate])
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50/60 via-white to-orange-50/30">
       <div className="max-w-7xl mx-auto p-4 md:p-6 lg:p-8">
@@ -534,38 +599,42 @@ export default function TenantDashboardClient() {
         <TenantQuickActions />
 
         {/* On-time performance */}
-        <Card className="relative overflow-hidden border-emerald-200/60 bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-50 shadow-sm hover:shadow-md transition-shadow">
+        <Card
+          className={`relative overflow-hidden shadow-sm hover:shadow-md transition-shadow ${performanceTheme.card}`}
+        >
           <div
             aria-hidden
-            className="pointer-events-none absolute -right-20 -top-16 h-40 w-40 rounded-full bg-emerald-200/40 blur-3xl"
+            className={`pointer-events-none absolute -right-20 -top-16 h-40 w-40 rounded-full blur-3xl ${performanceTheme.glow}`}
           />
           <CardHeader className="flex flex-row items-center justify-between">
             <div>
               <CardTitle className="text-lg flex items-center gap-2">
-                <TrendingUp className="h-5 w-5 text-emerald-600" />
+                <TrendingUp className={`h-5 w-5 ${performanceTheme.icon}`} />
                 Payment Performance
               </CardTitle>
-              <p className="text-sm text-emerald-700/80">
+              <p className={`text-sm ${performanceTheme.subtleText}`}>
                 {paymentsMade} payments recorded
               </p>
             </div>
-            <div className="flex items-center gap-2 rounded-full bg-white/70 px-3 py-1 text-sm font-semibold text-emerald-700 shadow-sm ring-1 ring-emerald-200/60">
+            <div
+              className={`flex items-center gap-2 rounded-full bg-white/70 px-3 py-1 text-sm font-semibold shadow-sm ring-1 ${performanceTheme.accentText} ${performanceTheme.badgeRing}`}
+            >
               <span className={`h-2.5 w-2.5 rounded-full ${ratingDot}`} aria-hidden />
               {onTimeRate}% on time
             </div>
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              <div className="rounded-2xl border border-emerald-200/60 bg-gradient-to-br from-white/80 via-emerald-50/50 to-cyan-50/60 p-3 shadow-sm">
+              <div className={`rounded-2xl border p-3 shadow-sm ${performanceTheme.panel}`}>
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-2">
                     <div className="relative h-7 w-7">
-                      <div className="absolute inset-0 rounded-full bg-gradient-to-r from-emerald-400 via-cyan-400 to-teal-400 animate-spin" />
-                      <div className="absolute inset-[2px] rounded-full bg-white/90 ring-1 ring-emerald-200/60 flex items-center justify-center">
-                        <Clock className="h-3.5 w-3.5 text-emerald-700" />
+                      <div className={`absolute inset-0 rounded-full bg-gradient-to-r ${performanceTheme.progress} animate-spin`} />
+                      <div className={`absolute inset-[2px] rounded-full bg-white/90 ring-1 flex items-center justify-center ${performanceTheme.badgeRing}`}>
+                        <Clock className={`h-3.5 w-3.5 ${performanceTheme.accentText}`} />
                       </div>
                     </div>
-                    <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">
+                    <p className={`text-xs font-semibold uppercase tracking-wide ${performanceTheme.accentText}`}>
                       Upcoming payments
                     </p>
                   </div>
@@ -579,20 +648,20 @@ export default function TenantDashboardClient() {
                     {hasPending ? 'Pending' : 'All clear'}
                   </span>
                 </div>
-                <div className="mt-2 text-sm text-emerald-900/80">
+                <div className={`mt-2 text-sm ${performanceTheme.panelText}`}>
                   {hasPending ? 'Pending invoices detected in your account.' : 'No pending invoices right now.'}
                 </div>
-                <div className="mt-2 text-xs text-emerald-800/70">
+                <div className={`mt-2 text-xs ${performanceTheme.panelMuted}`}>
                   {hasPending
                     ? 'Pay early to keep your on-time score high.'
                     : 'Great work staying ahead on rent.'}
                 </div>
               </div>
               <div className="space-y-2">
-                <p className="text-sm text-emerald-800/80">On-time payments</p>
-                <div className="w-full bg-white/70 h-2 rounded-full overflow-hidden ring-1 ring-emerald-100">
+                <p className={`text-sm ${performanceTheme.labelText}`}>On-time payments</p>
+                <div className={`w-full bg-white/70 h-2 rounded-full overflow-hidden ring-1 ${performanceTheme.trackRing}`}>
                   <div
-                    className="h-2 rounded-full bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500"
+                    className={`h-2 rounded-full bg-gradient-to-r ${performanceTheme.progress}`}
                     style={{ width: `${Math.min(onTimeRate, 100)}%` }}
                   />
                 </div>

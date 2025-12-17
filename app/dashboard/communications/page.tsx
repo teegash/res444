@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { formatDistanceToNow } from 'date-fns'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
@@ -25,6 +25,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import {
@@ -67,6 +77,28 @@ type InboxItem = {
   unreadCount: number
 }
 
+type ScheduledReminderRow = {
+  key: TemplateKey
+  name: string
+  cadence: string
+  next_scheduled_for: string | null
+  last_sent_at: string | null
+  status: 'active' | 'inactive'
+  pending_count: number
+  last_status?: string | null
+  last_error?: string | null
+}
+
+type SmsTestTarget = {
+  building_id: string
+  building_name: string
+  unit_id: string
+  unit_number: string
+  tenant_user_id: string
+  tenant_name: string
+  tenant_phone: string | null
+}
+
 export default function CommunicationsPage() {
   const router = useRouter()
   const { toast } = useToast()
@@ -84,6 +116,17 @@ export default function CommunicationsPage() {
   const [testPhone, setTestPhone] = useState('')
   const [testValues, setTestValues] = useState<Record<string, string>>({})
   const [sendingTest, setSendingTest] = useState(false)
+  const [confirmSendOpen, setConfirmSendOpen] = useState(false)
+  const [confirmMessage, setConfirmMessage] = useState('')
+  const [confirmPhone, setConfirmPhone] = useState('')
+  const [testTargets, setTestTargets] = useState<SmsTestTarget[]>([])
+  const [targetsLoading, setTargetsLoading] = useState(false)
+  const [selectedBuildingId, setSelectedBuildingId] = useState('')
+  const [selectedUnitId, setSelectedUnitId] = useState('')
+  const [selectedTenantId, setSelectedTenantId] = useState('')
+  const [scheduledReminders, setScheduledReminders] = useState<ScheduledReminderRow[]>([])
+  const [scheduledLoading, setScheduledLoading] = useState(false)
+  const [scheduledError, setScheduledError] = useState<string | null>(null)
   const [properties, setProperties] = useState<PropertySummary[]>([])
   const [selectedProperties, setSelectedProperties] = useState<string[]>([])
   const [propertiesLoading, setPropertiesLoading] = useState(false)
@@ -120,6 +163,41 @@ export default function CommunicationsPage() {
       )
     } finally {
       setTemplatesLoading(false)
+    }
+  }
+
+  const fetchScheduledReminders = async () => {
+    try {
+      setScheduledLoading(true)
+      setScheduledError(null)
+      const response = await fetch('/api/communications/scheduled-reminders', { cache: 'no-store' })
+      const payload = await response.json()
+      if (!response.ok) {
+        throw new Error(payload.error || 'Failed to load scheduled reminders.')
+      }
+      setScheduledReminders(payload.reminders || [])
+    } catch (error) {
+      setScheduledError(
+        error instanceof Error ? error.message : 'Unable to load scheduled reminders right now.'
+      )
+    } finally {
+      setScheduledLoading(false)
+    }
+  }
+
+  const fetchTestTargets = async () => {
+    try {
+      setTargetsLoading(true)
+      const response = await fetch('/api/communications/sms-test-targets', { cache: 'no-store' })
+      const payload = await response.json()
+      if (!response.ok) {
+        throw new Error(payload.error || 'Failed to load tenants.')
+      }
+      setTestTargets(payload.targets || [])
+    } catch (error) {
+      console.error('[Communications] Failed to load SMS test targets', error)
+    } finally {
+      setTargetsLoading(false)
     }
   }
 
@@ -162,6 +240,7 @@ export default function CommunicationsPage() {
       fetchTemplates()
       fetchProperties()
       fetchAnnouncementHistory()
+      fetchScheduledReminders()
     }
     fetchInbox()
   }, [isCaretaker])
@@ -227,10 +306,14 @@ export default function CommunicationsPage() {
     })
     setTestValues(initialValues)
     setTestPhone('')
+    setSelectedBuildingId('')
+    setSelectedUnitId('')
+    setSelectedTenantId('')
+    fetchTestTargets()
   }
 
   const handleSendTest = async () => {
-    if (!testTemplate || !testPhone) {
+    if (!testTemplate || !confirmPhone) {
       toast({
         title: 'Missing information',
         description: 'Enter a phone number to send a test SMS.',
@@ -240,12 +323,12 @@ export default function CommunicationsPage() {
     }
     try {
       setSendingTest(true)
-      const preview = renderTemplateContent(testTemplate.content, testValues)
+      const preview = confirmMessage || renderTemplateContent(testTemplate.content, testValues)
       const response = await fetch('/api/sms/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          phone_number: testPhone,
+          phone_number: confirmPhone,
           message: preview,
         }),
       })
@@ -263,7 +346,24 @@ export default function CommunicationsPage() {
       })
     } finally {
       setSendingTest(false)
+      setConfirmSendOpen(false)
     }
+  }
+
+  const handleTestPreview = () => {
+    if (!testTemplate) return
+    if (!testPhone) {
+      toast({
+        title: 'Missing information',
+        description: 'Enter a phone number to send a test SMS.',
+        variant: 'destructive',
+      })
+      return
+    }
+    const preview = renderTemplateContent(testTemplate.content, testValues)
+    setConfirmMessage(preview)
+    setConfirmPhone(testPhone)
+    setConfirmSendOpen(true)
   }
 
   const togglePropertySelection = (propertyId: string, checked: boolean) => {
@@ -339,7 +439,80 @@ export default function CommunicationsPage() {
     return formatDistanceToNow(date, { addSuffix: true })
   }
 
+  const formatDateTime = (value: string | null) => {
+    if (!value) return '—'
+    const date = new Date(value)
+    if (Number.isNaN(date.getTime())) return '—'
+    return date.toLocaleString()
+  }
+
+  const buildingOptions = useMemo(() => {
+    const map = new Map<string, { id: string; name: string }>()
+    testTargets.forEach((target) => {
+      if (!map.has(target.building_id)) {
+        map.set(target.building_id, { id: target.building_id, name: target.building_name })
+      }
+    })
+    return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name))
+  }, [testTargets])
+
+  const unitOptions = useMemo(() => {
+    if (!selectedBuildingId) return []
+    const map = new Map<string, { id: string; label: string }>()
+    testTargets
+      .filter((target) => target.building_id === selectedBuildingId)
+      .forEach((target) => {
+        if (!map.has(target.unit_id)) {
+          map.set(target.unit_id, { id: target.unit_id, label: target.unit_number })
+        }
+      })
+    return Array.from(map.values()).sort((a, b) => a.label.localeCompare(b.label))
+  }, [testTargets, selectedBuildingId])
+
+  const tenantOptions = useMemo(() => {
+    if (!selectedBuildingId || !selectedUnitId) return []
+    return testTargets
+      .filter(
+        (target) =>
+          target.building_id === selectedBuildingId && target.unit_id === selectedUnitId
+      )
+      .sort((a, b) => a.tenant_name.localeCompare(b.tenant_name))
+  }, [testTargets, selectedBuildingId, selectedUnitId])
+
+  const selectedTarget = useMemo(() => {
+    if (!selectedTenantId) return null
+    return testTargets.find(
+      (target) =>
+        target.tenant_user_id === selectedTenantId &&
+        target.unit_id === selectedUnitId &&
+        target.building_id === selectedBuildingId
+    )
+  }, [testTargets, selectedTenantId, selectedUnitId, selectedBuildingId])
+
+  const applyTargetToTestValues = useCallback((target: SmsTestTarget | null) => {
+    if (!target) return
+    const unitLabel = target.unit_number && target.building_name
+      ? `${target.unit_number} · ${target.building_name}`
+      : target.unit_number || target.building_name || ''
+
+    setTestPhone(target.tenant_phone || '')
+    setTestValues((current) => ({
+      ...current,
+      '{{tenant_name}}': target.tenant_name || current['{{tenant_name}}'] || 'Tenant',
+      '{{unit_label}}': unitLabel || current['{{unit_label}}'] || '',
+      '[TENANT_NAME]': target.tenant_name || current['[TENANT_NAME]'] || 'Tenant',
+      '[UNIT_NUMBER]': target.unit_number || current['[UNIT_NUMBER]'] || '',
+      '[PROPERTY_NAME]': target.building_name || current['[PROPERTY_NAME]'] || '',
+    }))
+  }, [])
+
   const templatesMemo = useMemo(() => smsTemplates, [smsTemplates])
+
+  useEffect(() => {
+    if (selectedTarget) {
+      applyTargetToTestValues(selectedTarget)
+    }
+  }, [selectedTarget, applyTargetToTestValues])
 
   const resetAnnouncementForm = () => {
     setAnnouncementResult(null)
@@ -550,23 +723,51 @@ export default function CommunicationsPage() {
                       <TableRow>
                         <TableHead>Reminder Type</TableHead>
                         <TableHead>Frequency</TableHead>
+                        <TableHead>Next Run</TableHead>
                         <TableHead>Last Sent</TableHead>
                         <TableHead>Status</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      <TableRow>
-                        <TableCell>Rent Payment</TableCell>
-                        <TableCell>Monthly</TableCell>
-                        <TableCell>2024-11-01</TableCell>
-                        <TableCell><Badge className="bg-green-600">Active</Badge></TableCell>
-                      </TableRow>
-                      <TableRow>
-                        <TableCell>Water Bill</TableCell>
-                        <TableCell>Monthly</TableCell>
-                        <TableCell>2024-11-05</TableCell>
-                        <TableCell><Badge className="bg-green-600">Active</Badge></TableCell>
-                      </TableRow>
+                      {scheduledLoading ? (
+                        <TableRow>
+                          <TableCell colSpan={5} className="py-6">
+                            <SkeletonTable rows={3} columns={4} />
+                          </TableCell>
+                        </TableRow>
+                      ) : scheduledError ? (
+                        <TableRow>
+                          <TableCell colSpan={5} className="py-6 text-center text-sm text-muted-foreground">
+                            {scheduledError}
+                          </TableCell>
+                        </TableRow>
+                      ) : scheduledReminders.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={5} className="py-6 text-center text-sm text-muted-foreground">
+                            No scheduled reminders found.
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        scheduledReminders.map((reminder) => (
+                          <TableRow key={reminder.key}>
+                            <TableCell className="font-medium">{reminder.name}</TableCell>
+                            <TableCell>{reminder.cadence}</TableCell>
+                            <TableCell>{formatDateTime(reminder.next_scheduled_for)}</TableCell>
+                            <TableCell>{formatDateTime(reminder.last_sent_at)}</TableCell>
+                            <TableCell>
+                              <Badge
+                                className={
+                                  reminder.status === 'active'
+                                    ? 'bg-emerald-600 text-white'
+                                    : 'bg-muted text-muted-foreground'
+                                }
+                              >
+                                {reminder.status === 'active' ? 'Active' : 'Inactive'}
+                              </Badge>
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      )}
                     </TableBody>
                   </Table>
                 </div>
@@ -776,6 +977,88 @@ export default function CommunicationsPage() {
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
+              <div className="space-y-3">
+                <Label>Choose a tenant (optional)</Label>
+                <p className="text-xs text-muted-foreground">
+                  Selecting a tenant will auto-fill phone and template variables.
+                </p>
+                {targetsLoading ? (
+                  <div className="space-y-2">
+                    <SkeletonLoader height={12} width="60%" />
+                    <SkeletonLoader height={12} width="40%" />
+                  </div>
+                ) : testTargets.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    No active tenants found for this organization.
+                  </p>
+                ) : (
+                  <div className="grid gap-3">
+                    <div>
+                      <Label className="text-xs">Apartment building</Label>
+                      <Select
+                        value={selectedBuildingId}
+                        onValueChange={(value) => {
+                          setSelectedBuildingId(value)
+                          setSelectedUnitId('')
+                          setSelectedTenantId('')
+                          setTestPhone('')
+                        }}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select a building" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {buildingOptions.map((building) => (
+                            <SelectItem key={building.id} value={building.id}>
+                              {building.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label className="text-xs">Unit</Label>
+                      <Select
+                        value={selectedUnitId}
+                        onValueChange={(value) => {
+                          setSelectedUnitId(value)
+                          setSelectedTenantId('')
+                          setTestPhone('')
+                        }}
+                      >
+                        <SelectTrigger disabled={!selectedBuildingId}>
+                          <SelectValue placeholder="Select a unit" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {unitOptions.map((unit) => (
+                            <SelectItem key={unit.id} value={unit.id}>
+                              {unit.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label className="text-xs">Tenant</Label>
+                      <Select
+                        value={selectedTenantId}
+                        onValueChange={(value) => setSelectedTenantId(value)}
+                      >
+                        <SelectTrigger disabled={!selectedUnitId}>
+                          <SelectValue placeholder="Select a tenant" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {tenantOptions.map((tenant) => (
+                            <SelectItem key={tenant.tenant_user_id} value={tenant.tenant_user_id}>
+                              {tenant.tenant_name} · {tenant.unit_number}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                )}
+              </div>
               <div>
                 <Label>Phone number</Label>
                 <Input value={testPhone} onChange={(event) => setTestPhone(event.target.value)} />
@@ -810,12 +1093,39 @@ export default function CommunicationsPage() {
               <Button variant="outline" onClick={() => setTestTemplate(null)}>
                 Cancel
               </Button>
-              <Button onClick={handleSendTest} disabled={sendingTest}>
+              <Button onClick={handleTestPreview} disabled={sendingTest}>
                 {sendingTest ? 'Sending…' : 'Send test SMS'}
               </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        <AlertDialog open={confirmSendOpen} onOpenChange={setConfirmSendOpen}>
+          <AlertDialogContent className="max-w-xl">
+            <AlertDialogHeader>
+              <AlertDialogTitle>Confirm test send</AlertDialogTitle>
+              <AlertDialogDescription>
+                Review the message preview and confirm sending to the selected phone number.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <div className="space-y-3">
+              <div className="rounded-md border bg-muted/40 p-3">
+                <p className="text-xs uppercase text-muted-foreground">Send to</p>
+                <p className="text-sm font-medium">{confirmPhone || '—'}</p>
+              </div>
+              <div className="rounded-md border bg-muted/40 p-3">
+                <p className="text-xs uppercase text-muted-foreground">Message preview</p>
+                <p className="text-sm whitespace-pre-line">{confirmMessage || '—'}</p>
+              </div>
+            </div>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={sendingTest}>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={handleSendTest} disabled={sendingTest}>
+                {sendingTest ? 'Sending…' : 'Send test SMS'}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
         </main>
       </div>
     </div>
