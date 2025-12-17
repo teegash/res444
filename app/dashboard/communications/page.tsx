@@ -969,7 +969,7 @@ export default function CommunicationsPage() {
 
         {/* Test send dialog */}
         <Dialog open={!!testTemplate} onOpenChange={(open) => (!open ? setTestTemplate(null) : null)}>
-          <DialogContent className="max-w-2xl">
+          <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Send test SMS</DialogTitle>
               <DialogDescription>
@@ -1101,7 +1101,7 @@ export default function CommunicationsPage() {
         </Dialog>
 
         <AlertDialog open={confirmSendOpen} onOpenChange={setConfirmSendOpen}>
-          <AlertDialogContent className="max-w-xl">
+          <AlertDialogContent className="max-w-3xl">
             <AlertDialogHeader>
               <AlertDialogTitle>Confirm test send</AlertDialogTitle>
               <AlertDialogDescription>
