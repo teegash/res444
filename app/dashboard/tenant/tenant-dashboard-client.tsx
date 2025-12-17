@@ -445,11 +445,19 @@ export default function TenantDashboardClient() {
                       : tone === 'rent'
                       ? <TrendingUp className="h-4 w-4 text-green-600" />
                       : <Clock className="h-4 w-4 text-slate-500" />
+                  const toneClasses =
+                    tone === 'maintenance'
+                      ? 'border-amber-200/70 bg-amber-50/70'
+                      : tone === 'water'
+                      ? 'border-blue-200/70 bg-blue-50/70'
+                      : tone === 'rent'
+                      ? 'border-emerald-200/70 bg-emerald-50/70'
+                      : 'border-slate-200/70 bg-white'
 
                   return (
                     <div
                       key={activity.id}
-                      className="flex items-start justify-between gap-3 rounded-lg border border-gray-100 p-3 hover:bg-slate-50 transition"
+                      className={`flex items-start justify-between gap-3 rounded-xl border p-3 transition ${toneClasses} hover:shadow-sm`}
                     >
                       <div className="flex gap-3">
                         <div className="mt-1">{icon}</div>
@@ -507,6 +515,9 @@ export default function TenantDashboardClient() {
           </Card>
         </div>
 
+        {/* Quick actions */}
+        <TenantQuickActions />
+
         {/* On-time performance */}
         <Card className="shadow-sm hover:shadow-md transition-shadow">
           <CardHeader className="flex flex-row items-center justify-between">
@@ -544,9 +555,6 @@ export default function TenantDashboardClient() {
             </div>
           </CardContent>
         </Card>
-
-        {/* Quick actions */}
-        <TenantQuickActions />
       </div>
     </div>
   )
