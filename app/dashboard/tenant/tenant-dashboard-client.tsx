@@ -156,11 +156,6 @@ export default function TenantDashboardClient() {
     }
   }, [])
 
-  useEffect(() => {
-    fetchPendingInvoices()
-    fetchRecentActivity()
-  }, [fetchPendingInvoices, fetchRecentActivity])
-
   const fetchRecentActivity = useCallback(async () => {
     try {
       const [invoicesResp, maintenanceResp, paymentsResp] = await Promise.all([
@@ -347,8 +342,9 @@ export default function TenantDashboardClient() {
   }, [])
 
   useEffect(() => {
+    fetchPendingInvoices()
     fetchRecentActivity()
-  }, [fetchRecentActivity])
+  }, [fetchPendingInvoices, fetchRecentActivity])
 
   const formatDate = (value: string | null | undefined) => {
     if (!value) return '—'
