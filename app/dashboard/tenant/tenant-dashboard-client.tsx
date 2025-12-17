@@ -485,10 +485,10 @@ export default function TenantDashboardClient() {
           </Card>
 
           {/* Quick actions / stats */}
-          <Card className="relative overflow-hidden border-rose-200/60 bg-gradient-to-br from-rose-50 via-white to-amber-50 shadow-sm hover:shadow-md transition-shadow">
+          <Card className="relative overflow-hidden border-rose-300/70 bg-gradient-to-br from-rose-100 via-white to-amber-50/80 shadow-sm hover:shadow-md transition-shadow">
             <div
               aria-hidden
-              className="pointer-events-none absolute -left-16 -bottom-16 h-40 w-40 rounded-full bg-rose-200/40 blur-3xl"
+              className="pointer-events-none absolute -left-16 -bottom-16 h-40 w-40 rounded-full bg-rose-300/50 blur-3xl"
             />
             <CardHeader className="pb-2">
               <CardTitle className="text-lg flex items-center gap-2">
@@ -498,19 +498,19 @@ export default function TenantDashboardClient() {
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="grid gap-2">
-                <div className="flex items-center justify-between rounded-xl border border-rose-200/70 bg-white/70 px-3 py-2 shadow-sm">
+                <div className="flex items-center justify-between rounded-xl border border-rose-300/70 bg-white/80 px-3 py-2 shadow-sm">
                   <p className="text-xs font-semibold uppercase tracking-wide text-rose-700/80">Next rent invoice</p>
                   <Badge variant={hasPending ? 'destructive' : 'secondary'}>
                     {hasPending ? 'Pending' : 'Clear'}
                   </Badge>
                 </div>
-                <div className="rounded-xl border border-rose-200/70 bg-white/70 px-3 py-3 shadow-sm">
+                <div className="rounded-xl border border-rose-300/70 bg-white/80 px-3 py-3 shadow-sm">
                   <p className="text-[11px] uppercase tracking-wide text-rose-600/80">Amount</p>
                   <div className="text-2xl font-bold text-rose-900">
                     {hasPending ? `${pendingInvoices[0]?.amount?.toLocaleString('en-KE', { maximumFractionDigits: 0 })} KES` : '—'}
                   </div>
                 </div>
-                <div className="rounded-xl border border-rose-200/70 bg-white/70 px-3 py-3 shadow-sm">
+                <div className="rounded-xl border border-rose-300/70 bg-white/80 px-3 py-3 shadow-sm">
                   <p className="text-[11px] uppercase tracking-wide text-rose-600/80">Due date</p>
                   <div className="text-sm font-medium text-rose-800/80">
                     {hasPending && pendingInvoices[0]?.due_date
@@ -555,17 +555,8 @@ export default function TenantDashboardClient() {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="grid gap-3 md:grid-cols-2">
-              <div className="space-y-2">
-                <p className="text-sm text-emerald-800/80">On-time payments</p>
-                <div className="w-full bg-white/70 h-2 rounded-full overflow-hidden ring-1 ring-emerald-100">
-                  <div
-                    className="h-2 rounded-full bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500"
-                    style={{ width: `${Math.min(onTimeRate, 100)}%` }}
-                  />
-                </div>
-              </div>
-              <div className="rounded-2xl border border-emerald-200/60 bg-gradient-to-br from-white/80 via-emerald-50/50 to-cyan-50/60 p-4 shadow-sm">
+            <div className="space-y-3">
+              <div className="rounded-2xl border border-emerald-200/60 bg-gradient-to-br from-white/80 via-emerald-50/50 to-cyan-50/60 p-3 shadow-sm">
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-2">
                     <div className="relative h-7 w-7">
@@ -588,13 +579,22 @@ export default function TenantDashboardClient() {
                     {hasPending ? 'Pending' : 'All clear'}
                   </span>
                 </div>
-                <div className="mt-3 text-sm text-emerald-900/80">
+                <div className="mt-2 text-sm text-emerald-900/80">
                   {hasPending ? 'Pending invoices detected in your account.' : 'No pending invoices right now.'}
                 </div>
-                <div className="mt-3 text-xs text-emerald-800/70">
+                <div className="mt-2 text-xs text-emerald-800/70">
                   {hasPending
                     ? 'Pay early to keep your on-time score high.'
                     : 'Great work staying ahead on rent.'}
+                </div>
+              </div>
+              <div className="space-y-2">
+                <p className="text-sm text-emerald-800/80">On-time payments</p>
+                <div className="w-full bg-white/70 h-2 rounded-full overflow-hidden ring-1 ring-emerald-100">
+                  <div
+                    className="h-2 rounded-full bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500"
+                    style={{ width: `${Math.min(onTimeRate, 100)}%` }}
+                  />
                 </div>
               </div>
             </div>
