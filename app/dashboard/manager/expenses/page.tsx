@@ -44,6 +44,16 @@ type Expense = {
   apartment_buildings?: { id: string; name: string | null; location: string | null } | null
 }
 
+type EditingExpense = {
+  id: string
+  property_id: string
+  amount: number
+  category: string
+  incurred_at: string | null
+  notes_input: string
+  recurring_marker: string | null
+}
+
 type PropertyOption = { id: string; name: string | null }
 type RecurringExpense = {
   id: string
@@ -74,6 +84,9 @@ export default function ExpensesPage() {
   const [editingRecurring, setEditingRecurring] = useState<RecurringExpense | null>(null)
   const [editRecurringSaving, setEditRecurringSaving] = useState(false)
   const [deleteRecurring, setDeleteRecurring] = useState<RecurringExpense | null>(null)
+  const [editingExpense, setEditingExpense] = useState<EditingExpense | null>(null)
+  const [editExpenseSaving, setEditExpenseSaving] = useState(false)
+  const [deleteExpense, setDeleteExpense] = useState<Expense | null>(null)
 
   const [newExpense, setNewExpense] = useState({
     property_id: '',
@@ -100,6 +113,7 @@ export default function ExpensesPage() {
   const loadExpenses = async () => {
     try {
       setLoading(true)
+      setError(null)
       const response = await fetch(
         `/api/manager/expenses${propertyFilter && propertyFilter !== 'all' ? `?propertyId=${propertyFilter}` : ''}`,
         { cache: 'no-store' }
@@ -152,6 +166,7 @@ export default function ExpensesPage() {
     if (!newExpense.property_id || !newExpense.amount || !newExpense.category) return
     try {
       setSaving(true)
+      setError(null)
       const response = await fetch('/api/manager/expenses', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -160,11 +175,13 @@ export default function ExpensesPage() {
       const payload = await response.json()
       if (!response.ok) throw new Error(payload.error || 'Failed to save expense.')
       setNewExpense({ property_id: '', amount: '', category: '', incurred_at: '', notes: '', recurring: false })
-      loadExpenses()
+      await loadExpenses()
       setLastSavedMessage('Expense added successfully.')
       toast({ title: 'Expense added', description: 'Your expense has been saved and will reflect in statements.' })
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unable to save expense.')
+      const message = err instanceof Error ? err.message : 'Unable to save expense.'
+      setError(message)
+      toast({ title: 'Save failed', description: message, variant: 'destructive' })
     } finally {
       setSaving(false)
     }
@@ -174,6 +191,7 @@ export default function ExpensesPage() {
     if (!newExpense.property_id || !newExpense.amount || !newExpense.category) return
     try {
       setSavingRecurring(true)
+      setError(null)
       const response = await fetch('/api/manager/expenses/recurring', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -190,9 +208,11 @@ export default function ExpensesPage() {
       setNewExpense({ property_id: '', amount: '', category: '', incurred_at: '', notes: '', recurring: false })
       setLastSavedMessage('Recurring expense scheduled for the 1st of each month.')
       toast({ title: 'Recurring expense created', description: 'Auto-deduction will run on the 1st monthly.' })
-      loadRecurring()
+      await loadRecurring()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unable to save recurring expense.')
+      const message = err instanceof Error ? err.message : 'Unable to save recurring expense.'
+      setError(message)
+      toast({ title: 'Save failed', description: message, variant: 'destructive' })
     } finally {
       setSavingRecurring(false)
     }
@@ -258,17 +278,118 @@ export default function ExpensesPage() {
     return date.toLocaleString()
   }
 
+  const recurringMarkerFromNotes = (notes: string | null | undefined) => {
+    const raw = String(notes || '')
+    const match = raw.match(/\[recurring:[^\]]+\]/)
+    return match ? match[0] : null
+  }
+
+  const stripRecurringMarker = (notes: string | null | undefined) =>
+    String(notes || '').replace(/\s*\[recurring:[^\]]+\]\s*/g, ' ').trim()
+
+  const toDateInputValue = (iso: string | null | undefined) => {
+    if (!iso) return ''
+    const d = new Date(iso)
+    if (Number.isNaN(d.getTime())) return ''
+    return d.toISOString().slice(0, 10)
+  }
+
+  const openEditExpense = (expense: Expense) => {
+    setEditingExpense({
+      id: expense.id,
+      property_id: expense.property_id,
+      amount: Number(expense.amount || 0),
+      category: expense.category,
+      incurred_at: expense.incurred_at,
+      notes_input: stripRecurringMarker(expense.notes),
+      recurring_marker: recurringMarkerFromNotes(expense.notes),
+    })
+  }
+
+  const handleUpdateExpense = async () => {
+    if (!editingExpense) return
+    if (!editingExpense.property_id || !editingExpense.category) {
+      toast({
+        title: 'Missing fields',
+        description: 'Property and category are required.',
+        variant: 'destructive',
+      })
+      return
+    }
+    if (!Number.isFinite(Number(editingExpense.amount)) || Number(editingExpense.amount) <= 0) {
+      toast({
+        title: 'Invalid amount',
+        description: 'Amount must be a positive number.',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    try {
+      setEditExpenseSaving(true)
+
+      const combinedNotes = (() => {
+        const clean = String(editingExpense.notes_input || '').trim()
+        if (!editingExpense.recurring_marker) return clean || null
+        return `${clean || 'Recurring expense'} ${editingExpense.recurring_marker}`.trim()
+      })()
+
+      const response = await fetch(`/api/manager/expenses/${editingExpense.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          property_id: editingExpense.property_id,
+          amount: Number(editingExpense.amount || 0),
+          category: editingExpense.category,
+          incurred_at: editingExpense.incurred_at,
+          notes: combinedNotes,
+        }),
+      })
+      const payload = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(payload.error || 'Failed to update expense.')
+
+      toast({ title: 'Expense updated', description: 'Changes saved successfully.' })
+      setLastSavedMessage('Expense updated successfully.')
+      setEditingExpense(null)
+      await loadExpenses()
+    } catch (err) {
+      toast({
+        title: 'Update failed',
+        description: err instanceof Error ? err.message : 'Unable to update expense.',
+        variant: 'destructive',
+      })
+    } finally {
+      setEditExpenseSaving(false)
+    }
+  }
+
+  const handleDeleteExpense = async () => {
+    if (!deleteExpense) return
+    try {
+      const response = await fetch(`/api/manager/expenses/${deleteExpense.id}`, { method: 'DELETE' })
+      const payload = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(payload.error || 'Failed to delete expense.')
+      toast({ title: 'Expense deleted' })
+      setDeleteExpense(null)
+      await loadExpenses()
+    } catch (err) {
+      toast({
+        title: 'Delete failed',
+        description: err instanceof Error ? err.message : 'Unable to delete expense.',
+        variant: 'destructive',
+      })
+    }
+  }
+
   const handleExport = (format: 'pdf' | 'excel' | 'csv') => {
     const filename = `expenses-${propertyFilter}-${new Date().toISOString().slice(0, 10)}`
-    const cleanNotes = (value: string | null | undefined) =>
-      (value || '').replace(/\s*\[recurring:[^\]]+\]\s*/g, ' ').trim()
     const columns = [
       { header: 'Property', accessor: (row: Expense) => row.apartment_buildings?.name || 'Property' },
       { header: 'Category', accessor: (row: Expense) => row.category },
       { header: 'Debit (KES)', accessor: (row: Expense) => `KES ${Number(row.amount || 0).toLocaleString()}` },
       { header: 'Credit (KES)', accessor: () => '' },
       { header: 'Date', accessor: (row: Expense) => (row.incurred_at ? new Date(row.incurred_at).toLocaleDateString() : '') },
-      { header: 'Notes', accessor: (row: Expense) => cleanNotes(row.notes) },
+      { header: 'Notes', accessor: (row: Expense) => stripRecurringMarker(row.notes) },
     ]
     const total = filteredExpenses.reduce((sum, row) => sum + Number(row.amount || 0), 0)
     const summaryRows = [['Total', '', `KES ${total.toLocaleString()}`, '', '', '']]
@@ -344,43 +465,63 @@ export default function ExpensesPage() {
             ) : filteredExpenses.length === 0 ? (
               <p className="text-sm text-muted-foreground">No expenses found.</p>
             ) : (
-                  filteredExpenses.map((expense) => (
-                    <div
-                      key={expense.id}
-                      className="p-4 rounded-lg border bg-gradient-to-r from-slate-50 to-white flex items-start gap-4"
-                    >
-                      <div className="p-2 rounded-full bg-amber-100">
-                        <Wallet className="h-4 w-4 text-amber-700" />
-                      </div>
-                      <div className="flex-1">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="font-semibold">
-                              {expense.apartment_buildings?.name || 'Property'}
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                              {expense.apartment_buildings?.location || ''}
-                            </p>
-                          </div>
-                          <p className="text-sm font-semibold text-red-600">
-                            KES {Number(expense.amount || 0).toLocaleString()}
-                          </p>
-                        </div>
-                        <p className="text-xs uppercase text-muted-foreground mt-1">
-                          {expense.category}
-                        </p>
-                        <div className="flex items-center justify-between text-xs text-muted-foreground mt-1">
-                          <span>
-                            {expense.incurred_at
-                              ? new Date(expense.incurred_at).toLocaleDateString()
-                              : ''}
-                          </span>
-                          <span>{(expense.notes || '').replace(/\s*\[recurring:[^\]]+\]\s*/g, ' ').trim()}</span>
-                        </div>
-                      </div>
-                    </div>
-                  ))
-                )}
+	                  filteredExpenses.map((expense) => (
+	                    <div
+	                      key={expense.id}
+	                      className="p-4 rounded-lg border bg-gradient-to-r from-slate-50 to-white flex items-start gap-4"
+	                    >
+	                      <div className="p-2 rounded-full bg-amber-100">
+	                        <Wallet className="h-4 w-4 text-amber-700" />
+	                      </div>
+	                      <div className="flex-1">
+	                        <div className="flex items-center justify-between">
+	                          <div>
+	                            <p className="font-semibold">
+	                              {expense.apartment_buildings?.name || 'Property'}
+	                            </p>
+	                            <p className="text-xs text-muted-foreground">
+	                              {expense.apartment_buildings?.location || ''}
+	                            </p>
+	                          </div>
+	                          <div className="flex items-center gap-2">
+	                            <p className="text-sm font-semibold text-red-600">
+	                              KES {Number(expense.amount || 0).toLocaleString()}
+	                            </p>
+	                            <Button
+	                              variant="outline"
+	                              size="icon"
+	                              className="h-8 w-8"
+	                              onClick={() => openEditExpense(expense)}
+	                              aria-label="Edit expense"
+	                            >
+	                              <Pencil className="h-4 w-4" />
+	                            </Button>
+	                            <Button
+	                              variant="destructive"
+	                              size="icon"
+	                              className="h-8 w-8"
+	                              onClick={() => setDeleteExpense(expense)}
+	                              aria-label="Delete expense"
+	                            >
+	                              <Trash2 className="h-4 w-4" />
+	                            </Button>
+	                          </div>
+	                        </div>
+	                        <p className="text-xs uppercase text-muted-foreground mt-1">
+	                          {expense.category}
+	                        </p>
+	                        <div className="flex items-center justify-between text-xs text-muted-foreground mt-1">
+	                          <span>
+	                            {expense.incurred_at
+	                              ? new Date(expense.incurred_at).toLocaleDateString()
+	                              : ''}
+	                          </span>
+	                          <span>{stripRecurringMarker(expense.notes)}</span>
+	                        </div>
+	                      </div>
+	                    </div>
+	                  ))
+	                )}
               </CardContent>
             </Card>
 
@@ -683,8 +824,8 @@ export default function ExpensesPage() {
       </DialogContent>
     </Dialog>
 
-    <AlertDialog open={!!deleteRecurring} onOpenChange={(open) => (!open ? setDeleteRecurring(null) : null)}>
-      <AlertDialogContent>
+	    <AlertDialog open={!!deleteRecurring} onOpenChange={(open) => (!open ? setDeleteRecurring(null) : null)}>
+	      <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>Delete recurring expense?</AlertDialogTitle>
           <AlertDialogDescription>
@@ -694,9 +835,126 @@ export default function ExpensesPage() {
         <AlertDialogFooter>
           <AlertDialogCancel>Cancel</AlertDialogCancel>
           <AlertDialogAction onClick={handleDeleteRecurring}>Delete</AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
-    </>
-  )
+	        </AlertDialogFooter>
+	      </AlertDialogContent>
+	    </AlertDialog>
+
+      <Dialog open={!!editingExpense} onOpenChange={(open) => (!open ? setEditingExpense(null) : null)}>
+        <DialogContent className="max-w-xl">
+          <DialogHeader>
+            <DialogTitle>Edit expense</DialogTitle>
+            <DialogDescription>Update the amount, date, category, or notes.</DialogDescription>
+          </DialogHeader>
+          {editingExpense ? (
+            <div className="space-y-3">
+              <div className="space-y-2">
+                <Label>Property</Label>
+                <Select
+                  value={editingExpense.property_id}
+                  onValueChange={(value) =>
+                    setEditingExpense((prev) => (prev ? { ...prev, property_id: value } : prev))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select property" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {properties.map((p) => (
+                      <SelectItem key={p.id} value={p.id}>
+                        {p.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label>Amount (KES)</Label>
+                  <Input
+                    type="number"
+                    value={String(editingExpense.amount ?? '')}
+                    onChange={(e) =>
+                      setEditingExpense((prev) =>
+                        prev ? { ...prev, amount: Number(e.target.value || 0) } : prev
+                      )
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Category</Label>
+                  <Select
+                    value={editingExpense.category}
+                    onValueChange={(value) =>
+                      setEditingExpense((prev) => (prev ? { ...prev, category: value } : prev))
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select category" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {categories.map((cat) => (
+                        <SelectItem key={cat} value={cat}>
+                          {cat}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Date</Label>
+                <Input
+                  type="date"
+                  value={toDateInputValue(editingExpense.incurred_at)}
+                  onChange={(e) =>
+                    setEditingExpense((prev) =>
+                      prev ? { ...prev, incurred_at: e.target.value ? `${e.target.value}T00:00:00.000Z` : null } : prev
+                    )
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Notes</Label>
+                <Textarea
+                  rows={3}
+                  value={editingExpense.notes_input}
+                  onChange={(e) =>
+                    setEditingExpense((prev) => (prev ? { ...prev, notes_input: e.target.value } : prev))
+                  }
+                />
+                {editingExpense.recurring_marker ? (
+                  <p className="text-xs text-muted-foreground">
+                    This was auto-created from a recurring schedule. The schedule link will be preserved.
+                  </p>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditingExpense(null)}>
+              Cancel
+            </Button>
+            <Button onClick={handleUpdateExpense} disabled={editExpenseSaving}>
+              {editExpenseSaving ? 'Saving…' : 'Save changes'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={!!deleteExpense} onOpenChange={(open) => (!open ? setDeleteExpense(null) : null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete expense?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This removes the expense from the ledger and financial statements for your organization.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteExpense}>Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+	    </>
+	  )
 }
