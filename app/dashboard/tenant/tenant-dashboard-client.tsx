@@ -669,6 +669,55 @@ export default function TenantDashboardClient() {
             </div>
           </CardContent>
         </Card>
+        
+        <footer className="pt-6">
+          <div className="rounded-2xl border bg-white/70 p-4 shadow-sm">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-sm font-semibold text-slate-900">Legal & Privacy</p>
+                <p className="text-xs text-muted-foreground">
+                  Review how your data is used, and how reminders/communications work.
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <Link
+                  className="text-sm font-medium text-slate-700 hover:text-slate-900 underline-offset-4 hover:underline"
+                  href="/dashboard/tenant/legal/privacy"
+                >
+                  Privacy Policy
+                </Link>
+                <span className="text-slate-300">•</span>
+                <Link
+                  className="text-sm font-medium text-slate-700 hover:text-slate-900 underline-offset-4 hover:underline"
+                  href="/dashboard/tenant/legal/consent"
+                >
+                  Consent
+                </Link>
+                <span className="text-slate-300">•</span>
+                <Link
+                  className="text-sm font-medium text-slate-700 hover:text-slate-900 underline-offset-4 hover:underline"
+                  href="/dashboard/tenant/legal/terms"
+                >
+                  Terms
+                </Link>
+                <span className="text-slate-300">•</span>
+                <Link
+                  className="text-sm font-medium text-slate-700 hover:text-slate-900 underline-offset-4 hover:underline"
+                  href="/dashboard/tenant/legal/security"
+                >
+                  Security Policy
+                </Link>
+                <span className="text-slate-300">•</span>
+                <Link
+                  className="text-sm font-medium text-slate-700 hover:text-slate-900 underline-offset-4 hover:underline"
+                  href="/dashboard/tenant/legal/cookies"
+                >
+                  Cookie Notice
+                </Link>
+              </div>
+            </div>
+          </div>
+        </footer>
         </div>
       </div>
     </div>
