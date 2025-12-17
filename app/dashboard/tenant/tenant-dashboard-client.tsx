@@ -380,8 +380,9 @@ export default function TenantDashboardClient() {
   }, [onTimeRate])
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-blue-50/30 via-white to-orange-50/20">
-      <div className="max-w-7xl mx-auto p-4 md:p-6 lg:p-8 space-y-6">
+    <div className="min-h-screen bg-gradient-to-b from-slate-50/60 via-white to-orange-50/30">
+      <div className="max-w-7xl mx-auto p-4 md:p-6 lg:p-8">
+        <div className="rounded-3xl bg-white/80 ring-1 ring-slate-200/60 shadow-sm backdrop-blur p-4 md:p-6 lg:p-8 space-y-6">
         {error && (
           <Alert variant="destructive">
             <AlertDescription>{error}</AlertDescription>
@@ -519,42 +520,47 @@ export default function TenantDashboardClient() {
         <TenantQuickActions />
 
         {/* On-time performance */}
-        <Card className="shadow-sm hover:shadow-md transition-shadow">
+        <Card className="relative overflow-hidden border-emerald-200/60 bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-50 shadow-sm hover:shadow-md transition-shadow">
+          <div
+            aria-hidden
+            className="pointer-events-none absolute -right-20 -top-16 h-40 w-40 rounded-full bg-emerald-200/40 blur-3xl"
+          />
           <CardHeader className="flex flex-row items-center justify-between">
             <div>
               <CardTitle className="text-lg flex items-center gap-2">
                 <TrendingUp className="h-5 w-5 text-emerald-600" />
                 Payment Performance
               </CardTitle>
-              <p className="text-sm text-muted-foreground">
+              <p className="text-sm text-emerald-700/80">
                 {paymentsMade} payments recorded
               </p>
             </div>
-            <div className="flex items-center gap-2">
-              <span className={`w-3 h-3 rounded-full ${ratingDot}`} aria-hidden />
-              <span className="text-sm text-gray-700">{onTimeRate}% on time</span>
+            <div className="flex items-center gap-2 rounded-full bg-white/70 px-3 py-1 text-sm font-semibold text-emerald-700 shadow-sm ring-1 ring-emerald-200/60">
+              <span className={`h-2.5 w-2.5 rounded-full ${ratingDot}`} aria-hidden />
+              {onTimeRate}% on time
             </div>
           </CardHeader>
           <CardContent>
             <div className="grid gap-3 md:grid-cols-2">
               <div className="space-y-2">
-                <p className="text-sm text-gray-600">On-time payments</p>
-                <div className="w-full bg-gray-100 h-2 rounded-full overflow-hidden">
+                <p className="text-sm text-emerald-800/80">On-time payments</p>
+                <div className="w-full bg-white/70 h-2 rounded-full overflow-hidden ring-1 ring-emerald-100">
                   <div
-                    className="h-2 rounded-full bg-gradient-to-r from-green-500 to-emerald-600"
+                    className="h-2 rounded-full bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500"
                     style={{ width: `${Math.min(onTimeRate, 100)}%` }}
                   />
                 </div>
               </div>
               <div className="space-y-2">
-                <p className="text-sm text-gray-600">Upcoming payments</p>
-                <p className="text-sm text-gray-700">
+                <p className="text-sm text-emerald-800/80">Upcoming payments</p>
+                <p className="text-sm text-emerald-900/80">
                   {hasPending ? 'Pending invoices detected in your account.' : 'No pending invoices right now.'}
                 </p>
               </div>
             </div>
           </CardContent>
         </Card>
+        </div>
       </div>
     </div>
   )
