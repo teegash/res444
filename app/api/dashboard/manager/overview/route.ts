@@ -65,6 +65,15 @@ type ArrearsRow = {
   oldest_due_date: string | null
 }
 
+type LeasePrepayRow = {
+  id: string
+  tenant_user_id: string | null
+  unit_id: string | null
+  rent_paid_until: string | null
+  next_rent_due_date: string | null
+  status: string | null
+}
+
 export async function GET() {
   const supabase = await createClient()
   const {
@@ -104,6 +113,7 @@ export async function GET() {
       unitsRes,
       arrearsRes,
       prepayRes,
+      leasesForPrepayRes,
     ] =
       await Promise.all([
         admin.from('apartment_buildings').select('id, name').eq('organization_id', orgId),
@@ -185,6 +195,13 @@ export async function GET() {
           // Select * so we don't break if the view column names differ slightly between DB revisions.
           .select('*')
           .eq('organization_id', orgId),
+        // Ground-truth fallback for prepayments: derive from leases pointers.
+        admin
+          .from('leases')
+          .select('id, tenant_user_id, unit_id, rent_paid_until, next_rent_due_date, status')
+          .eq('organization_id', orgId)
+          .eq('status', 'active')
+          .not('rent_paid_until', 'is', null),
       ])
 
     // Expenses: try to include `created_at` if present (to avoid missing rows where `incurred_at` might be null),
@@ -227,6 +244,7 @@ export async function GET() {
       unitsRes.error,
       arrearsRes.error,
       prepayRes.error,
+      leasesForPrepayRes.error,
       (expensesRes as any).error,
     ].filter(Boolean)
     if (fetchErrors.length) {
@@ -308,7 +326,7 @@ export async function GET() {
       }
     }
 
-    const prepayments = prepayRows
+    const prepaymentsFromView = prepayRows
       .map((row: any) => {
         const leaseId = row.lease_id || row.leaseId || null
         const tenantId = row.tenant_user_id || row.tenant_id || null
@@ -340,6 +358,47 @@ export async function GET() {
       })
       .filter((row: any) => row.lease_id && row.is_prepaid)
       .sort((a: any, b: any) => String(b.rent_paid_until || '').localeCompare(String(a.rent_paid_until || '')))
+
+    // If the DB view returns no rows (common when schemas drift), derive prepayments from leases pointers.
+    const leasesForPrepay = Array.isArray(leasesForPrepayRes.data)
+      ? (leasesForPrepayRes.data as LeasePrepayRow[])
+      : []
+
+    const prepaymentsFromLeases = leasesForPrepay
+      .map((lease) => {
+        const rentPaidUntilStr = lease.rent_paid_until || null
+        const rentPaidUntil = rentPaidUntilStr ? toMonthStartUtc(String(rentPaidUntilStr)) : null
+        const prepaidMonths =
+          rentPaidUntil && !Number.isNaN(rentPaidUntil.getTime())
+            ? Math.max(0, monthsBetweenMonthStarts(currentMonthStartUtc, rentPaidUntil))
+            : 0
+
+        if (prepaidMonths <= 0) return null
+
+        const tenantId = lease.tenant_user_id || null
+        const profile = tenantId ? prepayProfilesById.get(String(tenantId)) : undefined
+
+        return {
+          lease_id: lease.id,
+          tenant_id: tenantId,
+          unit_id: lease.unit_id,
+          unit_number: lease.unit_id ? unitNumberById.get(String(lease.unit_id)) || null : null,
+          tenant_name: profile?.full_name || null,
+          tenant_phone: profile?.phone_number || null,
+          rent_paid_until: rentPaidUntilStr,
+          next_rent_due_date: lease.next_rent_due_date || null,
+          prepaid_months: prepaidMonths,
+          is_prepaid: true,
+        }
+      })
+      .filter(Boolean) as any[]
+
+    const prepayments =
+      prepaymentsFromView.length > 0
+        ? prepaymentsFromView
+        : prepaymentsFromLeases.sort((a: any, b: any) =>
+            String(b.rent_paid_until || '').localeCompare(String(a.rent_paid_until || ''))
+          )
 
     // Revenue by month (last 12 months)
     const months: { label: string; key: string; revenue: number }[] = []
