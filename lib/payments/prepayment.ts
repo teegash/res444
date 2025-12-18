@@ -498,6 +498,23 @@ const validateAmount = (
   return expected
 }
 
+const inferMonthsFromAmount = (amountPaid: number, monthlyRent: number): number | null => {
+  if (!Number.isFinite(amountPaid) || amountPaid <= 0) return null
+  if (!Number.isFinite(monthlyRent) || monthlyRent <= 0) return null
+
+  const raw = amountPaid / monthlyRent
+  const rounded = Math.round(raw)
+  if (rounded < 1) return null
+
+  const expected = monthlyRent * rounded
+  const variance = expected * AMOUNT_TOLERANCE
+  if (Math.abs(amountPaid - expected) <= variance) {
+    return rounded
+  }
+
+  return null
+}
+
 const ensureLeaseActive = (lease: LeaseRecord, errors: string[]) => {
   if (!lease) {
     errors.push('Lease not found.')
@@ -650,14 +667,21 @@ export async function processRentPrepayment(
     const monthlyRent = normalizeCurrency(leaseRecord.monthly_rent)
     const amountPaid = input.amountPaid
 
-    // Derive monthsPaid (respect stored value; no hard 3-month cap)
-    const derivedMonths =
+    // Derive monthsPaid (robust): allow correcting an incorrect stored months_paid if amount clearly indicates a different count.
+    const derivedMonthsBase =
       input.monthsPaid && Number.isFinite(input.monthsPaid)
         ? Number(input.monthsPaid)
         : monthlyRent > 0
           ? amountPaid / monthlyRent
           : 1
-    const monthsPaid = clampMonthsPaid(derivedMonths)
+
+    let monthsPaid = clampMonthsPaid(derivedMonthsBase)
+    const inferredMonths = inferMonthsFromAmount(amountPaid, monthlyRent)
+    if (inferredMonths && inferredMonths !== monthsPaid) {
+      warnings.push(`Adjusted months_paid from ${monthsPaid} to ${inferredMonths} based on payment amount and monthly rent.`)
+      monthsPaid = inferredMonths
+    }
+
     if (monthsPaid > 12) {
       warnings.push('Large prepayment detected (over 12 months). Confirm tenant intent.')
     }
@@ -879,6 +903,7 @@ export async function processRentPrepayment(
       .update({
         verified: true,
         verified_at: new Date().toISOString(),
+        months_paid: monthsPaid,
         applied_to_prepayment: true,
         batch_id: rpcBatchId || paymentRecord.batch_id || input.paymentId,
         notes: flaggedNotes,

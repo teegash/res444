@@ -261,6 +261,10 @@ export async function approvePayment(
 
     const invoiceType = invoice.invoice_type || 'rent'
     const monthsPaid = payment.months_paid || 1
+    const amountPaid = parseFloat(payment.amount_paid.toString())
+    const invoiceAmount = invoice.amount ? parseFloat(invoice.amount.toString()) : 0
+    const likelyPrepayment =
+      invoiceType === 'rent' && (monthsPaid > 1 || (Number.isFinite(invoiceAmount) && amountPaid > invoiceAmount * 1.05))
     const paymentMethod =
       payment.payment_method === 'mpesa' ||
       payment.payment_method === 'bank_transfer' ||
@@ -368,7 +372,7 @@ export async function approvePayment(
       // For single-month payments, block double-paying a month already covered.
       // For multi-month prepayments, allow approving even if the linked invoice month is already covered,
       // because allocation starts from the next uncovered month (RPC handles this correctly).
-      if (monthsPaid <= 1 && dueMonth <= paidUntil) {
+      if (!likelyPrepayment && dueMonth <= paidUntil) {
         return {
           success: false,
           error: 'This month is already covered by a previous payment.',
@@ -378,7 +382,7 @@ export async function approvePayment(
 
     // 3. Handle rent multi-month prepayments via RPC (source of truth)
     let primaryInvoiceId = invoice.id
-    if (invoiceType === 'rent' && monthsPaid > 1) {
+    if (invoiceType === 'rent' && likelyPrepayment) {
       // Persist manager note first; RPC will read and preserve it while appending its own prepayment flag.
       if (notesWithManager !== existingNotes) {
         const { error: noteErr } = await admin.from('payments').update({ notes: notesWithManager }).eq('id', paymentId)
@@ -391,13 +395,21 @@ export async function approvePayment(
         paymentId,
         leaseId: invoice.lease_id,
         tenantUserId: payment.tenant_user_id,
-        amountPaid: parseFloat(payment.amount_paid.toString()),
+        amountPaid,
         monthsPaid,
         paymentDate,
         paymentMethod,
       })
 
       if (!prepaymentResult.success) {
+        console.error('[approvePayment] prepayment allocation failed', {
+          paymentId,
+          leaseId: invoice.lease_id,
+          monthsPaid,
+          amountPaid,
+          message: prepaymentResult.message,
+          validationErrors: prepaymentResult.validationErrors,
+        })
         return {
           success: false,
           error:
@@ -464,7 +476,7 @@ export async function approvePayment(
     await sendPaymentVerificationNotification(
       payment.tenant_user_id,
       primaryInvoiceId,
-      parseFloat(payment.amount_paid.toString()),
+      amountPaid,
       'approved'
     )
 
@@ -472,7 +484,7 @@ export async function approvePayment(
     await logNotification({
       senderUserId: verifiedByUserId,
       recipientUserId: payment.tenant_user_id,
-      messageText: `${typeLabel} payment of KES ${Number(payment.amount_paid).toLocaleString()} confirmed.`,
+      messageText: `${typeLabel} payment of KES ${Number(amountPaid).toLocaleString()} confirmed.`,
       relatedEntityType: 'payment',
       relatedEntityId: paymentId,
     })
@@ -483,7 +495,7 @@ export async function approvePayment(
       data: {
         payment_id: paymentId,
         invoice_id: primaryInvoiceId,
-        amount: parseFloat(payment.amount_paid.toString()),
+        amount: amountPaid,
         verified: true,
       },
     }
