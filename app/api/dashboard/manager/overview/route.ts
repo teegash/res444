@@ -340,9 +340,12 @@ export async function GET() {
 
         const rentPaidUntilStr = row.rent_paid_until || row.rentPaidUntil || null
         const rentPaidUntil = rentPaidUntilStr ? toMonthStartUtc(String(rentPaidUntilStr)) : null
+        const nextDueStr = row.next_rent_due_date || row.nextRentDueDate || null
+        const nextDueMonth = nextDueStr ? toMonthStartUtc(String(nextDueStr)) : null
+        const prepaidBaseMonth = nextDueMonth && nextDueMonth > currentMonthStartUtc ? nextDueMonth : currentMonthStartUtc
         const prepaidMonths =
-          rentPaidUntil && rentPaidUntil >= currentMonthStartUtc
-            ? Math.max(0, monthsBetweenMonthStarts(currentMonthStartUtc, rentPaidUntil) + 1)
+          rentPaidUntil && rentPaidUntil >= prepaidBaseMonth
+            ? Math.max(0, monthsBetweenMonthStarts(prepaidBaseMonth, rentPaidUntil) + 1)
             : 0
 
         const isPrepaid = row.is_prepaid === true || row.isPrepaid === true || prepaidMonths > 0
@@ -357,7 +360,7 @@ export async function GET() {
           tenant_name: row.tenant_name || row.tenant_full_name || profile?.full_name || null,
           tenant_phone: row.tenant_phone || row.tenant_phone_number || profile?.phone_number || null,
           rent_paid_until: rentPaidUntilStr,
-          next_rent_due_date: row.next_rent_due_date || row.nextRentDueDate || null,
+          next_rent_due_date: nextDueStr,
           prepaid_months: prepaidMonths,
           is_prepaid: isPrepaid,
         }
@@ -374,9 +377,12 @@ export async function GET() {
       .map((lease) => {
         const rentPaidUntilStr = lease.rent_paid_until || null
         const rentPaidUntil = rentPaidUntilStr ? toMonthStartUtc(String(rentPaidUntilStr)) : null
+        const nextDueStr = lease.next_rent_due_date || null
+        const nextDueMonth = nextDueStr ? toMonthStartUtc(String(nextDueStr)) : null
+        const prepaidBaseMonth = nextDueMonth && nextDueMonth > currentMonthStartUtc ? nextDueMonth : currentMonthStartUtc
         const prepaidMonths =
-          rentPaidUntil && rentPaidUntil >= currentMonthStartUtc
-            ? Math.max(0, monthsBetweenMonthStarts(currentMonthStartUtc, rentPaidUntil) + 1)
+          rentPaidUntil && rentPaidUntil >= prepaidBaseMonth
+            ? Math.max(0, monthsBetweenMonthStarts(prepaidBaseMonth, rentPaidUntil) + 1)
             : 0
 
         if (prepaidMonths <= 0) return null
@@ -392,7 +398,7 @@ export async function GET() {
           tenant_name: profile?.full_name || null,
           tenant_phone: profile?.phone_number || null,
           rent_paid_until: rentPaidUntilStr,
-          next_rent_due_date: lease.next_rent_due_date || null,
+          next_rent_due_date: nextDueStr,
           prepaid_months: prepaidMonths,
           is_prepaid: true,
         }

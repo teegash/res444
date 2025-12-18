@@ -38,14 +38,16 @@ function parseMonthStartUtc(value: string | null): Date | null {
   return new Date(Date.UTC(parsed.getUTCFullYear(), parsed.getUTCMonth(), 1))
 }
 
-function computePrepaidMonths(rentPaidUntil: string | null): number {
+function computePrepaidMonths(rentPaidUntil: string | null, nextRentDueDate: string | null): number {
   const paidUntil = parseMonthStartUtc(rentPaidUntil)
   if (!paidUntil) return 0
 
   const currentMonthStart = monthStartUtc(new Date())
-  if (paidUntil < currentMonthStart) return 0
+  const nextDueMonthStart = parseMonthStartUtc(nextRentDueDate)
+  const baseMonthStart = nextDueMonthStart && nextDueMonthStart > currentMonthStart ? nextDueMonthStart : currentMonthStart
+  if (paidUntil < baseMonthStart) return 0
 
-  return Math.max(0, monthsBetweenMonthStarts(currentMonthStart, paidUntil) + 1)
+  return Math.max(0, monthsBetweenMonthStarts(baseMonthStart, paidUntil) + 1)
 }
 
 export default function PrepaymentsPage() {
@@ -147,7 +149,7 @@ export default function PrepaymentsPage() {
               </thead>
               <tbody>
                 {filtered.map((r) => {
-                  const prepaidMonths = computePrepaidMonths(r.rent_paid_until)
+                  const prepaidMonths = computePrepaidMonths(r.rent_paid_until, r.next_rent_due_date)
                   return (
                     <tr key={r.lease_id} className="border-b last:border-b-0">
                       <td className="py-2 pr-4 font-medium">{r.unit_number ?? '-'}</td>
