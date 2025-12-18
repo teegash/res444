@@ -7,6 +7,7 @@ type LeaseRow = {
   monthly_rent: number;
   status: string | null;
   rent_paid_until: string | null;
+  start_date: string | null;
 };
 
 const ymd = (d: Date) => d.toISOString().slice(0, 10);
@@ -15,8 +16,8 @@ function startOfMonthUtc(d: Date): Date {
   return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1, 0, 0, 0, 0));
 }
 
-function endOfMonthUtc(monthStart: Date): Date {
-  return new Date(Date.UTC(monthStart.getUTCFullYear(), monthStart.getUTCMonth() + 1, 0, 23, 59, 59, 999));
+function addMonthsUtc(d: Date, months: number): Date {
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + months, 1, 0, 0, 0, 0));
 }
 
 function rentDueDateForPeriod(periodStart: Date): string {
@@ -33,6 +34,12 @@ function parseYmd(s: string): Date {
   return new Date(`${s}T00:00:00.000Z`);
 }
 
+function leaseEligiblePeriodStart(leaseStart: Date | null): Date | null {
+  if (!leaseStart || Number.isNaN(leaseStart.getTime())) return null;
+  const startMonth = startOfMonthUtc(leaseStart);
+  return leaseStart.getUTCDate() > 1 ? addMonthsUtc(startMonth, 1) : startMonth;
+}
+
 serve(async (req) => {
   const cronSecret = req.headers.get("x-cron-secret") ?? "";
   if (cronSecret !== (Deno.env.get("CRON_SECRET") ?? "")) {
@@ -46,14 +53,13 @@ serve(async (req) => {
 
     const now = new Date();
     const periodStart = startOfMonthUtc(now);
-    const periodEnd = endOfMonthUtc(periodStart);
     const periodStartYmd = ymd(periodStart);
     const dueDateYmd = rentDueDateForPeriod(periodStart);
     const label = monthLabel(periodStart);
 
     const { data: leases, error } = await admin
       .from("leases")
-      .select("id, organization_id, monthly_rent, status, rent_paid_until")
+      .select("id, organization_id, monthly_rent, status, rent_paid_until, start_date")
       .eq("status", "active");
 
     if (error) throw error;
@@ -69,8 +75,14 @@ serve(async (req) => {
     let skippedPrepaid = 0;
 
     for (const lease of rows) {
-      const rentPaidUntil = lease.rent_paid_until ? parseYmd(lease.rent_paid_until) : null;
-      if (rentPaidUntil && rentPaidUntil.getTime() >= periodEnd.getTime()) {
+      const eligibleStart = lease.start_date ? leaseEligiblePeriodStart(parseYmd(lease.start_date)) : null;
+      if (eligibleStart && periodStart.getTime() < eligibleStart.getTime()) {
+        continue;
+      }
+
+      const rentPaidUntil = lease.rent_paid_until ? startOfMonthUtc(parseYmd(lease.rent_paid_until)) : null;
+      // `rent_paid_until` uses month-start semantics (paid through that rent month)
+      if (rentPaidUntil && rentPaidUntil.getTime() >= periodStart.getTime()) {
         skippedPrepaid += 1;
         continue;
       }
@@ -117,4 +129,3 @@ serve(async (req) => {
     });
   }
 });
-

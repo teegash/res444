@@ -1,7 +1,7 @@
 'use server'
 
 import { createAdminClient } from '@/lib/supabase/admin'
-import { addMonthsUtc, startOfMonthUtc, toIsoDate } from '@/lib/invoices/rentPeriods'
+import { addMonthsUtc, startOfMonthUtc, toIsoDate, rentDueDateForPeriod } from '@/lib/invoices/rentPeriods'
 import { invoiceStatusToBoolean } from '@/lib/invoices/status-utils'
 import { calculatePaidUntil } from '@/lib/payments/leaseHelpers'
 
@@ -15,6 +15,7 @@ const UNPAID_OR_FALSE = 'status.eq.false,status.eq.unpaid,status.eq.overdue,stat
 
 interface LeaseRecord {
   id: string
+  organization_id?: string
   tenant_user_id: string
   monthly_rent: number | string
   status: string
@@ -143,20 +144,22 @@ export async function applyRentPayment(
   const months = payment.months_paid && Number(payment.months_paid) > 0 ? Number(payment.months_paid) : 1
   const baseMonth = startOfMonthUtc(new Date(invoice.due_date))
   const paidUntil = addMonthsUtc(baseMonth, months - 1)
+  const todayIso = toIsoDate(new Date())
 
   // Mark invoice payment metadata (trigger will handle status)
-  await admin
+  const { error: invoiceErr } = await admin
     .from('invoices')
     .update({
-      payment_date: new Date().toISOString(),
+      payment_date: todayIso,
       months_covered: months,
       updated_at: new Date().toISOString(),
     })
     .eq('id', invoice.id)
+  if (invoiceErr) throw invoiceErr
 
   // Sync payment row (if provided) so payment/invoice statuses stay aligned
   if (payment?.id) {
-    await admin
+    const { error: paymentErr } = await admin
       .from('payments')
       .update({
         verified: true,
@@ -164,16 +167,18 @@ export async function applyRentPayment(
         months_paid: months,
       })
       .eq('id', payment.id)
+    if (paymentErr) throw paymentErr
   }
 
   // Advance lease pointers
-  await admin
+  const { error: leaseErr } = await admin
     .from('leases')
     .update({
       rent_paid_until: toIsoDate(paidUntil),
       next_rent_due_date: toIsoDate(addMonthsUtc(paidUntil, 1)),
     })
     .eq('id', lease.id)
+  if (leaseErr) throw leaseErr
 
   return paidUntil
 }
@@ -213,19 +218,32 @@ const buildDueDates = (
 }
 
 const resolveCoverageStart = (lease: LeaseRecord): Date => {
-  const leaseStart = lease.start_date ? startOfMonthUtc(new Date(lease.start_date)) : startOfMonthUtc(todayUtc())
+  const rawLeaseStart = lease.start_date ? new Date(lease.start_date) : null
+  const leaseStartMonth =
+    rawLeaseStart && !Number.isNaN(rawLeaseStart.getTime())
+      ? startOfMonthUtc(rawLeaseStart)
+      : startOfMonthUtc(todayUtc())
+  const leaseEligibleStart =
+    rawLeaseStart && !Number.isNaN(rawLeaseStart.getTime()) && rawLeaseStart.getUTCDate() > 1
+      ? addMonthsUtc(leaseStartMonth, 1)
+      : leaseStartMonth
   const pointer = parseDate(lease.next_rent_due_date)
-  if (pointer) {
-    const start = startOfMonthUtc(pointer)
-    return start < leaseStart ? leaseStart : start
-  }
   const paid = parseDate(lease.rent_paid_until)
-  if (paid) {
-    const next = addMonthsUtc(startOfMonthUtc(paid), 1)
-    return next < leaseStart ? leaseStart : next
+
+  const pointerStart = pointer ? startOfMonthUtc(pointer) : null
+  const paidStart = paid ? startOfMonthUtc(paid) : null
+
+  let start =
+    pointerStart ??
+    (paidStart ? addMonthsUtc(paidStart, 1) : startOfMonthUtc(todayUtc()))
+
+  // If next_rent_due_date lags behind rent_paid_until, always start AFTER the already-paid month.
+  // This is critical to allow tenants to prepay more even when they are already prepaid.
+  if (paidStart && start <= paidStart) {
+    start = addMonthsUtc(paidStart, 1)
   }
-  const current = startOfMonthUtc(todayUtc())
-  return current < leaseStart ? leaseStart : current
+
+  return start < leaseEligibleStart ? leaseEligibleStart : start
 }
 
 const fetchOldestUnpaidInvoice = async (admin: AdminClient, leaseId: string) => {
@@ -643,7 +661,7 @@ export async function processRentPrepayment(
 
     // Compute coverage months starting from the next due/coverage pointer
     const coverageStart = resolveCoverageStart(leaseRecord)
-    const candidateDueDates = buildDueDates(coverageStart, monthsPaid, 1, leaseRecord.end_date)
+    const candidateDueDates = buildDueDates(coverageStart, monthsPaid, 5, leaseRecord.end_date)
     if (!candidateDueDates.length) {
       return {
         success: false,
@@ -748,7 +766,7 @@ export async function autoCreateMissingInvoices(
 
   const query = admin
     .from('leases')
-    .select('id, tenant_user_id, monthly_rent, status, start_date, end_date, next_rent_due_date')
+    .select('id, organization_id, tenant_user_id, monthly_rent, status, start_date, end_date, rent_paid_until, next_rent_due_date')
     .eq('status', 'active')
 
   if (options.leaseIds?.length) {
@@ -773,11 +791,7 @@ export async function autoCreateMissingInvoices(
 
     try {
       const today = startOfMonthUtc(todayUtc())
-      const pointer = lease.next_rent_due_date
-        ? startOfMonthUtc(new Date(lease.next_rent_due_date))
-        : lease.start_date
-          ? startOfMonthUtc(new Date(lease.start_date))
-          : today
+      const pointer = resolveCoverageStart(lease)
 
       const leaseEndCap = lease.end_date ? startOfMonthUtc(new Date(lease.end_date)) : null
       if (leaseEndCap && pointer > leaseEndCap) {
@@ -790,12 +804,16 @@ export async function autoCreateMissingInvoices(
         continue
       }
 
+      const periodStartIso = toIsoDate(pointer)
+      if (!lease.organization_id) {
+        throw new Error('Lease is missing organization_id; cannot create invoice safely.')
+      }
       const { data: existingInvoice } = await admin
         .from('invoices')
         .select('id, status')
         .eq('lease_id', lease.id)
         .eq('invoice_type', 'rent')
-        .eq('due_date', toIsoDate(pointer))
+        .eq('period_start', periodStartIso)
         .maybeSingle()
 
       if (existingInvoice && !options.forceRecreate) {
@@ -808,13 +826,17 @@ export async function autoCreateMissingInvoices(
         .upsert(
           {
             lease_id: lease.id,
+            organization_id: lease.organization_id,
             invoice_type: 'rent',
             amount: monthlyRent,
-            due_date: toIsoDate(pointer),
+            period_start: periodStartIso,
+            due_date: rentDueDateForPeriod(pointer),
             status: false,
+            status_text: 'unpaid',
             months_covered: 1,
+            description: `Monthly rent for ${pointer.toLocaleString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' })}`,
           },
-          { onConflict: 'lease_id,invoice_type,due_date' }
+          { onConflict: 'lease_id,invoice_type,period_start' }
         )
 
       if (insertError) {
@@ -879,7 +901,7 @@ export async function validatePrepaymentData(
     .eq('status', true)
 
   const coverageStart = resolveCoverageStart(leaseRecord)
-  const coversMonths = buildDueDates(coverageStart, monthsPaid, 1, leaseRecord.end_date)
+  const coversMonths = buildDueDates(coverageStart, monthsPaid, 5, leaseRecord.end_date)
 
   if (coversMonths.length < monthsPaid) {
     errors.push('Lease end date prevents covering all requested months.')

@@ -1,12 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { requireAuth } from '@/lib/rbac/routeGuards'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { applyRentPayment } from '@/lib/payments/prepayment'
+import { processRentPrepayment } from '@/lib/payments/prepayment'
 
 export async function GET(
   request: NextRequest,
   { params }: { params: { paymentId: string } }
 ) {
   try {
+    const { userId } = await requireAuth()
     const paymentId = params.paymentId
 
     if (!paymentId) {
@@ -38,6 +41,10 @@ export async function GET(
       return NextResponse.json({ success: false, error: 'Payment not found' }, { status: 404 })
     }
 
+    if (payment.tenant_user_id !== userId) {
+      return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })
+    }
+
     let status: 'pending' | 'success' | 'failed' = 'pending'
     let message = payment.mpesa_query_status || 'Awaiting confirmation from Safaricom.'
 
@@ -66,7 +73,18 @@ export async function GET(
         .eq('id', payment.invoice_id)
         .maybeSingle()
 
-      if (invoice?.lease_id && invoice.status !== true) {
+      if (invoice?.invoice_type === 'rent' && invoice.lease_id) {
+        // Idempotent: processRentPrepayment no-ops if already applied
+        await processRentPrepayment({
+          paymentId: payment.id,
+          leaseId: invoice.lease_id,
+          tenantUserId: payment.tenant_user_id,
+          amountPaid: Number(payment.amount_paid),
+          monthsPaid: payment.months_paid || 1,
+          paymentDate: payment.payment_date ? new Date(payment.payment_date) : new Date(),
+          paymentMethod: 'mpesa',
+        })
+      } else if (invoice?.lease_id && invoice.status !== true) {
         const { data: lease } = await admin.from('leases').select('*').eq('id', invoice.lease_id).maybeSingle()
         if (lease) {
           await applyRentPayment(admin, payment, invoice, lease)

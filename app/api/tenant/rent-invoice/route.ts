@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { startOfMonthUtc, addMonthsUtc, toIsoDate } from '@/lib/invoices/rentPeriods'
+import { startOfMonthUtc, addMonthsUtc, toIsoDate, rentDueDateForPeriod } from '@/lib/invoices/rentPeriods'
 
 // Helper to format description
 const describe = (period: Date) =>
@@ -31,6 +31,7 @@ export async function GET(request: NextRequest) {
       .select(
         `
         id,
+        organization_id,
         monthly_rent,
         rent_paid_until,
         next_rent_due_date,
@@ -38,10 +39,12 @@ export async function GET(request: NextRequest) {
         unit:apartment_units (
           id,
           unit_number,
+          organization_id,
           building:apartment_buildings (
             id,
             name,
-            location
+            location,
+            organization_id
           )
         )
       `
@@ -55,6 +58,23 @@ export async function GET(request: NextRequest) {
     if (leaseError) throw leaseError
     if (!lease) {
       return NextResponse.json({ success: false, error: 'No active lease found for rent payment.' }, { status: 404 })
+    }
+
+    // Some older rows might have a missing lease.organization_id; derive it from the unit/building and heal the row.
+    const derivedOrgId =
+      lease.organization_id ||
+      (lease.unit as any)?.organization_id ||
+      (lease.unit as any)?.building?.organization_id ||
+      null
+    if (!derivedOrgId) {
+      return NextResponse.json(
+        { success: false, error: 'Lease organization is missing. Please contact support.' },
+        { status: 422 }
+      )
+    }
+    if (!lease.organization_id) {
+      await admin.from('leases').update({ organization_id: derivedOrgId }).eq('id', lease.id)
+      ;(lease as any).organization_id = derivedOrgId
     }
 
     const monthlyRent = lease.monthly_rent
@@ -74,17 +94,18 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Clean pre-start invoices
+    // If the lease pointer is before the eligible start month, bump it forward so future allocations/RPCs start correctly.
     if (leaseEligibleStart) {
-      await admin
-        .from('invoices')
-        .update({ status: true })
-        .eq('lease_id', lease.id)
-        .eq('invoice_type', 'rent')
-        .lt('due_date', toIsoDate(leaseEligibleStart))
+      const currentPtr = lease.next_rent_due_date ? startOfMonthUtc(new Date(lease.next_rent_due_date)) : null
+      if (!currentPtr || currentPtr < leaseEligibleStart) {
+        await admin
+          .from('leases')
+          .update({ next_rent_due_date: toIsoDate(leaseEligibleStart) })
+          .eq('id', lease.id)
+      }
     }
 
-    // 1. Determine next due month
+    // 1. Determine next rent period (month identity)
     const pointer = lease.next_rent_due_date ? startOfMonthUtc(new Date(lease.next_rent_due_date)) : today
     let nextDue = pointer
     if (lease.rent_paid_until) {
@@ -99,7 +120,8 @@ export async function GET(request: NextRequest) {
 
     let attempts = 0
     while (attempts < 6) {
-      const dueDateIso = toIsoDate(nextDue)
+      const periodStartIso = toIsoDate(nextDue)
+      const dueDateIso = rentDueDateForPeriod(nextDue)
 
       // 2. Check if invoice exists for this month
       const { data: existing } = await admin
@@ -107,8 +129,10 @@ export async function GET(request: NextRequest) {
         .select(`
           id,
           amount,
+          period_start,
           due_date,
           status,
+          status_text,
           invoice_type,
           description,
           months_covered,
@@ -126,7 +150,7 @@ export async function GET(request: NextRequest) {
         `)
         .eq('lease_id', lease.id)
         .eq('invoice_type', 'rent')
-        .eq('due_date', dueDateIso)
+        .eq('period_start', periodStartIso)
         .maybeSingle()
 
       if (existing) {
@@ -153,14 +177,17 @@ export async function GET(request: NextRequest) {
         .upsert(
           {
             lease_id: lease.id,
+            organization_id: lease.organization_id,
             invoice_type: 'rent',
             amount: monthlyRent,
             due_date: dueDateIso,
+            period_start: periodStartIso,
             months_covered: 1,
             status: false,
+            status_text: 'unpaid',
             description: describe(nextDue),
           },
-          { returning: 'representation', onConflict: 'lease_id,invoice_type,due_date' }
+          { returning: 'representation', onConflict: 'lease_id,invoice_type,period_start' }
         )
         .select()
         .single()
@@ -188,8 +215,10 @@ export async function GET(request: NextRequest) {
         .select(`
           id,
           amount,
+          period_start,
           due_date,
           status,
+          status_text,
           invoice_type,
           description,
           months_covered,

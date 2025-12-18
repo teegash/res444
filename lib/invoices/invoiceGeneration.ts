@@ -1,9 +1,8 @@
 'use server'
 
-import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { invoiceStatusToBoolean } from '@/lib/invoices/status-utils'
-import { startOfMonthUtc, endOfMonthUtc, toIsoDate, rentDueDateForPeriod } from '@/lib/invoices/rentPeriods'
+import { startOfMonthUtc, addMonthsUtc, toIsoDate, rentDueDateForPeriod } from '@/lib/invoices/rentPeriods'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database } from '@/lib/supabase/database.types'
 
@@ -21,6 +20,7 @@ export interface InvoiceData {
 
 export interface LeaseInfo {
   id: string
+  organization_id: string
   unit_id: string
   tenant_user_id: string
   monthly_rent: number
@@ -58,7 +58,11 @@ export interface GenerateMonthlyInvoicesResult {
 type InvoiceSupabaseClient = SupabaseClient<Database>
 
 function getInvoiceClient(client?: InvoiceSupabaseClient): InvoiceSupabaseClient {
-  return client ?? createAdminClient()
+  const resolved = client ?? createAdminClient()
+  if (!resolved) {
+    throw new Error('Supabase admin client unavailable (missing env vars).')
+  }
+  return resolved
 }
 
 /**
@@ -66,11 +70,11 @@ function getInvoiceClient(client?: InvoiceSupabaseClient): InvoiceSupabaseClient
  */
 async function getActiveLeases(): Promise<LeaseInfo[]> {
   try {
-    const supabase = await createClient()
+    const supabase = getInvoiceClient()
 
     const { data: leases, error } = await supabase
       .from('leases')
-      .select('id, unit_id, tenant_user_id, monthly_rent, status, start_date, end_date, rent_paid_until')
+      .select('id, organization_id, unit_id, tenant_user_id, monthly_rent, status, start_date, end_date, rent_paid_until')
       .eq('status', 'active')
 
     if (error) {
@@ -90,7 +94,7 @@ async function getActiveLeases(): Promise<LeaseInfo[]> {
  */
 async function invoiceExistsForMonth(leaseId: string, invoiceType: 'rent' | 'water', periodStart: Date): Promise<boolean> {
   try {
-    const supabase = await createClient()
+    const supabase = getInvoiceClient()
 
     const startIso = toIsoDate(periodStart)
 
@@ -117,7 +121,7 @@ async function getPendingWaterBills(
   currentMonth: string
 ): Promise<WaterBillInfo[]> {
   try {
-    const supabase = await createClient()
+    const supabase = getInvoiceClient()
 
     // Get water bills for current month that are pending
     const monthStart = new Date(currentMonth)
@@ -149,6 +153,7 @@ async function getPendingWaterBills(
  * Create rent invoice
  */
 async function createRentInvoice(
+  organizationId: string,
   leaseId: string,
   periodStart: Date,
   monthlyRent: number,
@@ -156,17 +161,19 @@ async function createRentInvoice(
   description?: string
 ): Promise<string | null> {
   try {
-    const supabase = await createClient()
+    const supabase = getInvoiceClient()
 
     const { data: invoice, error } = await supabase
       .from('invoices')
       .insert({
         lease_id: leaseId,
+        organization_id: organizationId,
         invoice_type: 'rent',
         amount: monthlyRent,
         period_start: toIsoDate(periodStart),
         due_date: dueDate,
         status: false,
+        status_text: 'unpaid',
         months_covered: 1,
         description: description || `Monthly rent invoice`,
       })
@@ -189,22 +196,25 @@ async function createRentInvoice(
  * Create water invoice
  */
 async function createWaterInvoice(
+  organizationId: string,
   leaseId: string,
   amount: number,
   dueDate: string,
   description?: string
 ): Promise<string | null> {
   try {
-    const supabase = await createClient()
+    const supabase = getInvoiceClient()
 
     const { data: invoice, error } = await supabase
       .from('invoices')
       .insert({
         lease_id: leaseId,
+        organization_id: organizationId,
         invoice_type: 'water',
         amount: amount,
         due_date: dueDate,
         status: false,
+        status_text: 'unpaid',
         months_covered: 1,
         description: description || `Water bill invoice`,
       })
@@ -232,7 +242,7 @@ async function markWaterBillAsAdded(
   userId: string
 ): Promise<boolean> {
   try {
-    const supabase = await createClient()
+    const supabase = getInvoiceClient()
 
     const { error } = await supabase
       .from('water_bills')
@@ -264,12 +274,11 @@ export async function generateMonthlyInvoices(
   targetMonth?: string
 ): Promise<GenerateMonthlyInvoicesResult> {
   try {
-    const supabase = await createClient()
+    const supabase = getInvoiceClient()
 
     // Use provided month or current month
     const currentDate = targetMonth ? new Date(targetMonth) : new Date()
     const periodStart = startOfMonthUtc(currentDate)
-    const periodEnd = endOfMonthUtc(periodStart)
     const dueDate = rentDueDateForPeriod(periodStart)
     const periodLabel = periodStart.toLocaleString('en-US', { month: 'long', year: 'numeric' })
 
@@ -304,8 +313,22 @@ export async function generateMonthlyInvoices(
     // Process each lease
     for (const lease of activeLeases) {
       try {
-        const rentPaidUntilDate = lease.rent_paid_until ? new Date(lease.rent_paid_until) : null
-        if (rentPaidUntilDate && rentPaidUntilDate >= periodEnd) {
+        // Lease eligibility: if start_date is not on the 1st, first billable month is next month.
+        const rawStart = lease.start_date ? new Date(lease.start_date) : null
+        const leaseStartMonth =
+          rawStart && !Number.isNaN(rawStart.getTime()) ? startOfMonthUtc(rawStart) : periodStart
+        const leaseEligibleStart =
+          rawStart && !Number.isNaN(rawStart.getTime()) && rawStart.getUTCDate() > 1
+            ? addMonthsUtc(leaseStartMonth, 1)
+            : leaseStartMonth
+
+        if (periodStart < leaseEligibleStart) {
+          continue
+        }
+
+        // Prepaid suppression uses month identity: if rent_paid_until >= period_start, skip creating invoice.
+        const rentPaidUntilMonth = lease.rent_paid_until ? startOfMonthUtc(new Date(lease.rent_paid_until)) : null
+        if (rentPaidUntilMonth && !Number.isNaN(rentPaidUntilMonth.getTime()) && rentPaidUntilMonth >= periodStart) {
           continue
         }
 
@@ -318,6 +341,7 @@ export async function generateMonthlyInvoices(
 
         if (!rentInvoiceExists) {
           const rentInvoiceId = await createRentInvoice(
+            lease.organization_id,
             lease.id,
             periodStart,
             parseFloat(lease.monthly_rent.toString()),

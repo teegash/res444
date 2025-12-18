@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { addMonthsUtc, rentDueDateForPeriod, startOfMonthUtc, toIsoDate } from '@/lib/invoices/rentPeriods'
 
 export interface TenantData {
   full_name: string
@@ -376,6 +377,22 @@ export async function createTenantWithLease(
       }
     }
 
+    // Resolve organization from the unit's building (required by org-scoped schema)
+    const { data: building, error: buildingError } = await supabase
+      .from('apartment_buildings')
+      .select('organization_id')
+      .eq('id', unitInfo.building_id)
+      .single()
+
+    if (buildingError || !building?.organization_id) {
+      return {
+        success: false,
+        error: 'Unable to resolve organization for this building. Please contact support.',
+      }
+    }
+
+    const organizationId = building.organization_id as string
+
     // 4. Check for duplicate email
     const emailExists = await checkEmailExists(request.tenant.email)
     if (emailExists) {
@@ -446,6 +463,8 @@ export async function createTenantWithLease(
         national_id: request.tenant.national_id.trim(),
         date_of_birth: request.tenant.date_of_birth || null,
         address: request.tenant.address || null,
+        organization_id: organizationId,
+        role: 'tenant',
         updated_at: new Date().toISOString(),
       }).eq('id', userId)
 
@@ -458,6 +477,8 @@ export async function createTenantWithLease(
           national_id: request.tenant.national_id.trim(),
           date_of_birth: request.tenant.date_of_birth || null,
           address: request.tenant.address || null,
+          organization_id: organizationId,
+          role: 'tenant',
         })
 
         if (insertError && insertError.code !== '23505') {
@@ -469,6 +490,9 @@ export async function createTenantWithLease(
       // 10. Calculate lease dates
       const startDate = request.lease.start_date
       const endDate = calculateEndDate(startDate)
+      const startDateObj = new Date(startDate)
+      const startMonth = startOfMonthUtc(startDateObj)
+      const firstRentPeriodStart = startDateObj.getUTCDate() > 1 ? addMonthsUtc(startMonth, 1) : startMonth
 
       // 11. Create lease with locked fields
       const { data: leaseData, error: leaseError } = await supabase
@@ -484,6 +508,8 @@ export async function createTenantWithLease(
           rent_auto_populated: true,
           rent_locked_reason: 'Auto-populated from unit specifications',
           lease_auto_generated: true,
+          organization_id: organizationId,
+          next_rent_due_date: toIsoDate(firstRentPeriodStart),
         })
         .select('id')
         .single()
@@ -502,20 +528,29 @@ export async function createTenantWithLease(
         throw new Error(`Failed to update unit status: ${unitUpdateError.message}`)
       }
 
-      // 13. Create first invoice
-      const dueDate = new Date(startDate)
-      dueDate.setDate(dueDate.getDate() + 5)
-      const dueDateStr = dueDate.toISOString().split('T')[0]
+      // 13. Create first rent invoice (period_start = first rent month, due_date = 5th)
+      const firstPeriodIso = toIsoDate(firstRentPeriodStart)
+      const firstDueIso = rentDueDateForPeriod(firstRentPeriodStart)
 
-      const { error: invoiceError } = await supabase.from('invoices').insert({
-        lease_id: leaseData.id,
-        invoice_type: 'rent',
-        amount: monthlyRent,
-        due_date: dueDateStr,
-        status: 'unpaid',
-        months_covered: 1,
-        description: `First month rent for ${unitInfo.unit_number}`,
-      })
+      const { error: invoiceError } = await supabase.from('invoices').upsert(
+        {
+          lease_id: leaseData.id,
+          organization_id: organizationId,
+          invoice_type: 'rent',
+          amount: monthlyRent,
+          period_start: firstPeriodIso,
+          due_date: firstDueIso,
+          status: false,
+          status_text: 'unpaid',
+          months_covered: 1,
+          description: `Rent for ${firstRentPeriodStart.toLocaleString('en-US', {
+            month: 'long',
+            year: 'numeric',
+            timeZone: 'UTC',
+          })}`,
+        },
+        { onConflict: 'lease_id,invoice_type,period_start' }
+      )
 
       let invoiceCreated = true
       if (invoiceError) {
@@ -525,24 +560,15 @@ export async function createTenantWithLease(
       }
 
       // 14. Create organization member record (tenant role)
-      // Get organization from building
-      const { data: building } = await supabase
-        .from('apartment_buildings')
-        .select('organization_id')
-        .eq('id', unitInfo.building_id)
-        .single()
+      const { error: memberError } = await supabase.from('organization_members').insert({
+        user_id: userId,
+        organization_id: organizationId,
+        role: 'tenant',
+      })
 
-      if (building?.organization_id) {
-        const { error: memberError } = await supabase.from('organization_members').insert({
-          user_id: userId,
-          organization_id: building.organization_id,
-          role: 'tenant',
-        })
-
-        if (memberError && memberError.code !== '23505') {
-          // Ignore duplicate errors
-          console.warn('Error creating organization member:', memberError)
-        }
+      if (memberError && memberError.code !== '23505') {
+        // Ignore duplicate errors
+        console.warn('Error creating organization member:', memberError)
       }
 
       // 15. Send invitation email
@@ -638,4 +664,3 @@ export async function createTenantWithLease(
     }
   }
 }
-

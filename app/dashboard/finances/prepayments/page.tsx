@@ -18,6 +18,28 @@ type PrepayRow = {
   is_prepaid: boolean
 }
 
+function monthStartUtc(d: Date) {
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1))
+}
+
+function monthsBetweenMonthStarts(fromMonthStart: Date, toMonthStart: Date) {
+  return (
+    (toMonthStart.getUTCFullYear() - fromMonthStart.getUTCFullYear()) * 12 +
+    (toMonthStart.getUTCMonth() - fromMonthStart.getUTCMonth())
+  )
+}
+
+function computePrepaidMonths(rentPaidUntil: string | null): number {
+  if (!rentPaidUntil) return 0
+  const paidUntil = new Date(`${rentPaidUntil}T00:00:00.000Z`)
+  if (Number.isNaN(paidUntil.getTime())) return 0
+
+  const currentMonthStart = monthStartUtc(new Date())
+  if (paidUntil < currentMonthStart) return 0
+
+  return Math.max(0, monthsBetweenMonthStarts(currentMonthStart, paidUntil) + 1)
+}
+
 export default function PrepaymentsPage() {
   const [rows, setRows] = useState<PrepayRow[]>([])
   const [loading, setLoading] = useState(true)
@@ -110,35 +132,40 @@ export default function PrepaymentsPage() {
                   <th className="py-2 pr-4">Tenant</th>
                   <th className="py-2 pr-4">Phone</th>
                   <th className="py-2 pr-4">Paid Until</th>
+                  <th className="py-2 pr-4">Months Prepaid</th>
                   <th className="py-2 pr-4">Next Due</th>
                   <th className="py-2 pr-4">Prepaid</th>
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((r) => (
-                  <tr key={r.lease_id} className="border-b last:border-b-0">
-                    <td className="py-2 pr-4 font-medium">{r.unit_number ?? '-'}</td>
-                    <td className="py-2 pr-4">{r.tenant_name ?? '-'}</td>
-                    <td className="py-2 pr-4">{r.tenant_phone ?? '-'}</td>
-                    <td className="py-2 pr-4">{r.rent_paid_until ?? '-'}</td>
-                    <td className="py-2 pr-4">{r.next_rent_due_date ?? '-'}</td>
-                    <td className="py-2 pr-4">
-                      {r.is_prepaid ? (
-                        <span className="inline-flex items-center rounded-full px-2 py-1 text-xs font-medium bg-green-100 text-green-800">
-                          Yes
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center rounded-full px-2 py-1 text-xs font-medium bg-gray-100 text-gray-800">
-                          No
-                        </span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
+                {filtered.map((r) => {
+                  const prepaidMonths = computePrepaidMonths(r.rent_paid_until)
+                  return (
+                    <tr key={r.lease_id} className="border-b last:border-b-0">
+                      <td className="py-2 pr-4 font-medium">{r.unit_number ?? '-'}</td>
+                      <td className="py-2 pr-4">{r.tenant_name ?? '-'}</td>
+                      <td className="py-2 pr-4">{r.tenant_phone ?? '-'}</td>
+                      <td className="py-2 pr-4">{r.rent_paid_until ?? '-'}</td>
+                      <td className="py-2 pr-4">{prepaidMonths || '-'}</td>
+                      <td className="py-2 pr-4">{r.next_rent_due_date ?? '-'}</td>
+                      <td className="py-2 pr-4">
+                        {r.is_prepaid ? (
+                          <span className="inline-flex items-center rounded-full px-2 py-1 text-xs font-medium bg-green-100 text-green-800">
+                            Yes
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center rounded-full px-2 py-1 text-xs font-medium bg-gray-100 text-gray-800">
+                            No
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  )
+                })}
 
                 {filtered.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="py-8 text-center text-muted-foreground">
+                    <td colSpan={7} className="py-8 text-center text-muted-foreground">
                       No rows to display.
                     </td>
                   </tr>

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { addMonthsUtc, startOfMonthUtc, toIsoDate } from '@/lib/invoices/rentPeriods'
 
 const MANAGER_ROLES = new Set(['admin', 'manager', 'caretaker'])
 
@@ -53,7 +54,32 @@ async function verifyManagerAccess() {
     }
   }
 
-  return { user }
+  const admin = createAdminClient()
+  if (!admin) {
+    return {
+      error: NextResponse.json(
+        { success: false, error: 'Server misconfigured: Supabase admin client unavailable.' },
+        { status: 500 }
+      ),
+    }
+  }
+
+  const { data: membership, error: membershipError } = await admin
+    .from('organization_members')
+    .select('organization_id')
+    .eq('user_id', user.id)
+    .maybeSingle()
+
+  if (membershipError || !membership?.organization_id) {
+    return {
+      error: NextResponse.json(
+        { success: false, error: 'Organization not found for this user.' },
+        { status: 403 }
+      ),
+    }
+  }
+
+  return { user, organizationId: membership.organization_id }
 }
 
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
@@ -67,11 +93,19 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
   if (auth.error) return auth.error
 
   try {
+    const organizationId = (auth as any).organizationId as string
     const adminSupabase = createAdminClient()
+    if (!adminSupabase) {
+      return NextResponse.json(
+        { success: false, error: 'Server misconfigured: Supabase admin client unavailable.' },
+        { status: 500 }
+      )
+    }
     const { data: tenant, error: tenantError } = await adminSupabase
       .from('user_profiles')
       .select('id, full_name, phone_number, profile_picture_url, address')
       .eq('id', tenantId)
+      .eq('organization_id', organizationId)
       .maybeSingle()
 
     if (tenantError || !tenant) {
@@ -94,14 +128,19 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
         deposit_amount,
         status,
         lease_agreement_url,
+        organization_id,
+        rent_paid_until,
+        next_rent_due_date,
         unit:apartment_units (
           id,
           unit_number,
           unit_price_category,
+          organization_id,
           building:apartment_buildings (
             id,
             name,
-            location
+            location,
+            organization_id
           )
         )
       `
@@ -113,6 +152,10 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
 
     if (leaseError) {
       throw leaseError
+    }
+
+    if (lease?.organization_id && lease.organization_id !== organizationId) {
+      return NextResponse.json({ success: false, error: 'Lease not found.' }, { status: 404 })
     }
 
     const statusSummary = deriveLeaseStatus(lease)
@@ -155,6 +198,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
   if (auth.error) return auth.error
 
   try {
+    const organizationId = (auth as any).organizationId as string
     if (!start_date || !duration_months) {
       return NextResponse.json(
         { success: false, error: 'Start date and lease duration are required.' },
@@ -170,12 +214,38 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
       )
     }
 
+    const startDateObj = new Date(`${start_date}T00:00:00.000Z`)
+    if (Number.isNaN(startDateObj.getTime())) {
+      return NextResponse.json({ success: false, error: 'Invalid start_date.' }, { status: 400 })
+    }
+
     const computedEndDate = addMonthsToDate(start_date, duration)
 
     const adminSupabase = createAdminClient()
+    if (!adminSupabase) {
+      return NextResponse.json(
+        { success: false, error: 'Server misconfigured: Supabase admin client unavailable.' },
+        { status: 500 }
+      )
+    }
+
+    // Ensure tenant belongs to the same org (prevents cross-org leaks with service role).
+    const { data: tenantProfile, error: tenantProfileError } = await adminSupabase
+      .from('user_profiles')
+      .select('id, organization_id')
+      .eq('id', tenantId)
+      .maybeSingle()
+
+    if (tenantProfileError || !tenantProfile) {
+      return NextResponse.json({ success: false, error: 'Tenant profile not found.' }, { status: 404 })
+    }
+    if (tenantProfile.organization_id !== organizationId) {
+      return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })
+    }
+
     const { data: existingLease, error: existingError } = await adminSupabase
       .from('leases')
-      .select('id, unit_id')
+      .select('id, unit_id, rent_paid_until, next_rent_due_date, organization_id')
       .eq('tenant_user_id', tenantId)
       .order('start_date', { ascending: false })
       .limit(1)
@@ -185,14 +255,47 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
       throw existingError
     }
 
+    if (existingLease?.organization_id && existingLease.organization_id !== organizationId) {
+      return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })
+    }
+
+    const resolvedUnitId = unit_id || existingLease?.unit_id || null
+    if (!resolvedUnitId) {
+      return NextResponse.json({ success: false, error: 'unit_id is required.' }, { status: 400 })
+    }
+
+    const { data: unitRow, error: unitError } = await adminSupabase
+      .from('apartment_units')
+      .select('id, organization_id')
+      .eq('id', resolvedUnitId)
+      .maybeSingle()
+
+    if (unitError || !unitRow) {
+      return NextResponse.json({ success: false, error: 'Unit not found.' }, { status: 400 })
+    }
+    if (unitRow.organization_id !== organizationId) {
+      return NextResponse.json({ success: false, error: 'Unit does not belong to this organization.' }, { status: 403 })
+    }
+
+    // First billable month: if start_date is after day 1, bill from next month’s 1st.
+    const startMonth = startOfMonthUtc(startDateObj)
+    const leaseEligibleStart = startDateObj.getUTCDate() > 1 ? addMonthsUtc(startMonth, 1) : startMonth
+
+    const existingPtr = existingLease?.next_rent_due_date
+      ? startOfMonthUtc(new Date(existingLease.next_rent_due_date))
+      : null
+    const nextRentDue = !existingPtr || existingPtr < leaseEligibleStart ? leaseEligibleStart : existingPtr
+
     const leasePayload = {
       tenant_user_id: tenantId,
-      unit_id: unit_id || existingLease?.unit_id || null,
+      unit_id: resolvedUnitId,
       start_date,
       end_date: computedEndDate,
       monthly_rent: monthly_rent ?? null,
       deposit_amount: deposit_amount ?? null,
       status: new Date(start_date) <= new Date() ? 'active' : 'pending',
+      organization_id: organizationId,
+      next_rent_due_date: toIsoDate(nextRentDue),
     }
 
     let updatedLease

@@ -43,6 +43,7 @@ export async function POST(request: NextRequest) {
         invoice_type,
         status,
         due_date,
+        organization_id,
         lease:leases (
           id,
           tenant_user_id,
@@ -82,6 +83,7 @@ export async function POST(request: NextRequest) {
       .from('payments')
       .insert({
         invoice_id,
+        organization_id: invoice.organization_id,
         tenant_user_id: userId,
         amount_paid: amount,
         payment_method: 'card',

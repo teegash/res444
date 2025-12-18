@@ -85,6 +85,12 @@ export async function POST(request: NextRequest) {
     }
 
     const supabase = createAdminClient()
+    if (!supabase) {
+      return NextResponse.json(
+        { success: false, error: 'Server misconfigured: Supabase admin client unavailable.' },
+        { status: 500 }
+      )
+    }
 
     // 5. Verify invoice exists and user has access
     const { data: invoice, error: invoiceError } = await supabase
@@ -96,6 +102,7 @@ export async function POST(request: NextRequest) {
         status,
         lease_id,
         description,
+        organization_id,
         leases (
           tenant_user_id,
           apartment_units (
@@ -192,6 +199,7 @@ export async function POST(request: NextRequest) {
       .from('payments')
       .insert({
         invoice_id: body.invoice_id,
+        organization_id: invoice.organization_id,
         tenant_user_id: userId,
         amount_paid: body.amount,
         payment_method: 'mpesa',

@@ -335,8 +335,8 @@ export async function GET() {
         const rentPaidUntilStr = row.rent_paid_until || row.rentPaidUntil || null
         const rentPaidUntil = rentPaidUntilStr ? toMonthStartUtc(String(rentPaidUntilStr)) : null
         const prepaidMonths =
-          rentPaidUntil && !Number.isNaN(rentPaidUntil.getTime())
-            ? Math.max(0, monthsBetweenMonthStarts(currentMonthStartUtc, rentPaidUntil))
+          rentPaidUntil && !Number.isNaN(rentPaidUntil.getTime()) && rentPaidUntil >= currentMonthStartUtc
+            ? Math.max(0, monthsBetweenMonthStarts(currentMonthStartUtc, rentPaidUntil) + 1)
             : 0
 
         const isPrepaid = row.is_prepaid === true || row.isPrepaid === true || prepaidMonths > 0
@@ -369,8 +369,8 @@ export async function GET() {
         const rentPaidUntilStr = lease.rent_paid_until || null
         const rentPaidUntil = rentPaidUntilStr ? toMonthStartUtc(String(rentPaidUntilStr)) : null
         const prepaidMonths =
-          rentPaidUntil && !Number.isNaN(rentPaidUntil.getTime())
-            ? Math.max(0, monthsBetweenMonthStarts(currentMonthStartUtc, rentPaidUntil))
+          rentPaidUntil && !Number.isNaN(rentPaidUntil.getTime()) && rentPaidUntil >= currentMonthStartUtc
+            ? Math.max(0, monthsBetweenMonthStarts(currentMonthStartUtc, rentPaidUntil) + 1)
             : 0
 
         if (prepaidMonths <= 0) return null

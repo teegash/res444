@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sendTenantCredentialsEmail } from '@/lib/email/sendTenantCredentials'
+import { addMonthsUtc, startOfMonthUtc, toIsoDate } from '@/lib/invoices/rentPeriods'
 
 export async function POST(request: NextRequest) {
   try {
@@ -146,6 +147,9 @@ export async function POST(request: NextRequest) {
       const numericRent = unit.unit_price_category?.replace(/[^0-9.]/g, '') || ''
       const monthlyRent = numericRent ? Number(numericRent) : 0
       const today = new Date().toISOString().split('T')[0]
+      const todayDate = new Date(`${today}T00:00:00.000Z`)
+      const startMonth = startOfMonthUtc(todayDate)
+      const firstRentPeriodStart = todayDate.getUTCDate() > 1 ? addMonthsUtc(startMonth, 1) : startMonth
 
       const { error: leaseError } = await adminSupabase.from('leases').insert({
         unit_id,
@@ -157,6 +161,8 @@ export async function POST(request: NextRequest) {
         lease_agreement_url: null,
         rent_auto_populated: true,
         lease_auto_generated: true,
+        organization_id: organizationId,
+        next_rent_due_date: toIsoDate(firstRentPeriodStart),
       })
 
       if (leaseError) {

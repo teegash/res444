@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { parseCallbackData } from '@/lib/mpesa/daraja'
 import { updateInvoiceStatus } from '@/lib/invoices/invoiceGeneration'
 import { processRentPrepayment } from '@/lib/payments/prepayment'
@@ -37,7 +37,10 @@ export async function POST(request: NextRequest) {
       receiptNumber: parsed.receiptNumber,
     })
 
-    const supabase = await createClient()
+    const supabase = createAdminClient()
+    if (!supabase) {
+      return NextResponse.json({ success: false, error: 'Server misconfigured.' }, { status: 500 })
+    }
 
     // 3. Find payment by checkout request ID
     // Note: Initially checkoutRequestId is stored in mpesa_receipt_number or notes

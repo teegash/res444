@@ -63,6 +63,7 @@ export async function createPaymentWithDepositSlip(
         id,
         amount,
         lease_id,
+        organization_id,
         leases (
           tenant_user_id,
           unit:apartment_units (
@@ -120,6 +121,7 @@ export async function createPaymentWithDepositSlip(
       .from('payments')
       .insert({
         invoice_id: request.invoice_id,
+        organization_id: invoice.organization_id,
         tenant_user_id: userId,
         amount_paid: request.amount,
         payment_method: request.payment_method,
@@ -145,7 +147,7 @@ export async function createPaymentWithDepositSlip(
     }
 
     // 5. Notify organization staff for review
-    const buildingOrgId = (lease?.unit as any)?.building?.organization_id || null
+    const buildingOrgId = invoice.organization_id || (lease?.unit as any)?.building?.organization_id || null
     if (buildingOrgId) {
       const { data: staff } = await admin
         .from('organization_members')
@@ -215,8 +217,14 @@ export async function approvePayment(
         tenant_user_id,
         amount_paid,
         verified,
+        verified_by,
+        verified_at,
         payment_date,
         months_paid,
+        payment_method,
+        applied_to_prepayment,
+        batch_id,
+        notes,
         invoices (
           id,
           amount,
@@ -236,14 +244,6 @@ export async function approvePayment(
       }
     }
 
-    // 2. Check if already verified
-    if (payment.verified) {
-      return {
-        success: false,
-        error: 'Payment is already verified',
-      }
-    }
-
     const invoice = payment.invoices as {
       id: string
       amount: number
@@ -256,6 +256,102 @@ export async function approvePayment(
       return {
         success: false,
         error: 'Invoice not found for this payment',
+      }
+    }
+
+    const invoiceType = invoice.invoice_type || 'rent'
+    const monthsPaid = payment.months_paid || 1
+    const paymentMethod =
+      payment.payment_method === 'mpesa' ||
+      payment.payment_method === 'bank_transfer' ||
+      payment.payment_method === 'cash' ||
+      payment.payment_method === 'cheque'
+        ? payment.payment_method
+        : 'bank_transfer'
+
+    const existingNotes = typeof payment.notes === 'string' ? payment.notes : ''
+    const managerNoteLine = request?.notes ? `[Verified by manager] ${request.notes}` : `[Verified by manager]`
+    const notesWithManager =
+      existingNotes.includes(managerNoteLine) ? existingNotes : `${existingNotes ? `${existingNotes}\n` : ''}${managerNoteLine}`
+
+    const paymentDate =
+      payment.payment_date && !Number.isNaN(new Date(payment.payment_date).getTime())
+        ? new Date(payment.payment_date)
+        : new Date()
+
+    // 2. Already verified => allow safe repair for multi-month rent prepayments (common when earlier code paths skipped RPC)
+    if (payment.verified) {
+      if (invoiceType === 'rent' && monthsPaid > 1 && payment.applied_to_prepayment !== true) {
+        // Ensure the manager note is persisted (without touching verified flags)
+        if (notesWithManager !== existingNotes) {
+          const { error: noteErr } = await admin.from('payments').update({ notes: notesWithManager }).eq('id', paymentId)
+          if (noteErr) {
+            return { success: false, error: `Failed to update payment notes: ${noteErr.message}` }
+          }
+        }
+
+        const prepaymentResult = await processRentPrepayment({
+          paymentId,
+          leaseId: invoice.lease_id,
+          tenantUserId: payment.tenant_user_id,
+          amountPaid: parseFloat(payment.amount_paid.toString()),
+          monthsPaid,
+          paymentDate,
+          paymentMethod,
+        })
+
+        if (!prepaymentResult.success) {
+          return {
+            success: false,
+            error:
+              prepaymentResult.message ||
+              prepaymentResult.validationErrors?.[0] ||
+              'Failed to apply rent prepayment.',
+          }
+        }
+
+        const now = new Date().toISOString()
+        // Stamp verifier (useful for auto-verified payments being repaired manually)
+        await admin
+          .from('payments')
+          .update({
+            verified_by: payment.verified_by || verifiedByUserId,
+            verified_at: payment.verified_at || now,
+          })
+          .eq('id', paymentId)
+
+        const primaryInvoiceId = prepaymentResult.appliedInvoices[0] || invoice.id
+
+        await sendPaymentVerificationNotification(
+          payment.tenant_user_id,
+          primaryInvoiceId,
+          parseFloat(payment.amount_paid.toString()),
+          'approved'
+        )
+
+        await logNotification({
+          senderUserId: verifiedByUserId,
+          recipientUserId: payment.tenant_user_id,
+          messageText: `Rent payment of KES ${Number(payment.amount_paid).toLocaleString()} confirmed.`,
+          relatedEntityType: 'payment',
+          relatedEntityId: paymentId,
+        })
+
+        return {
+          success: true,
+          message: 'Payment was already verified; rent prepayment allocation has now been applied.',
+          data: {
+            payment_id: paymentId,
+            invoice_id: primaryInvoiceId,
+            amount: parseFloat(payment.amount_paid.toString()),
+            verified: true,
+          },
+        }
+      }
+
+      return {
+        success: false,
+        error: 'Payment is already verified',
       }
     }
 
@@ -277,41 +373,88 @@ export async function approvePayment(
       }
     }
 
-    // 3. Update payment as verified
-    const now = new Date().toISOString()
-    const { error: updateError } = await admin
-      .from('payments')
-      .update({
-        verified: true,
-        verified_by: verifiedByUserId,
-        verified_at: now,
-        notes: request?.notes
-          ? `${payment.notes || ''}\n[Verified by manager] ${request.notes}`
-          : `${payment.notes || ''}\n[Verified by manager]`,
-      })
-      .eq('id', paymentId)
-
-    if (updateError) {
-      console.error('Error updating payment:', updateError)
-      return {
-        success: false,
-        error: 'Failed to update payment',
-      }
-    }
-
-    // 4. Update invoice status
-    const monthsPaid = payment.months_paid || 1
-
+    // 3. Handle rent multi-month prepayments via RPC (source of truth)
     let primaryInvoiceId = invoice.id
-    const invoiceType = invoice.invoice_type || 'rent'
+    if (invoiceType === 'rent' && monthsPaid > 1) {
+      // Persist manager note first; RPC will read and preserve it while appending its own prepayment flag.
+      if (notesWithManager !== existingNotes) {
+        const { error: noteErr } = await admin.from('payments').update({ notes: notesWithManager }).eq('id', paymentId)
+        if (noteErr) {
+          return { success: false, error: `Failed to update payment notes: ${noteErr.message}` }
+        }
+      }
 
-    if (invoiceType === 'rent') {
-      // Apply rent coverage directly; trigger will mark invoice status
-      await applyRentPayment(admin, { ...payment, id: paymentId, months_paid: monthsPaid }, invoice, lease || { id: invoice.lease_id })
-      primaryInvoiceId = invoice.id
+      const prepaymentResult = await processRentPrepayment({
+        paymentId,
+        leaseId: invoice.lease_id,
+        tenantUserId: payment.tenant_user_id,
+        amountPaid: parseFloat(payment.amount_paid.toString()),
+        monthsPaid,
+        paymentDate,
+        paymentMethod,
+      })
+
+      if (!prepaymentResult.success) {
+        return {
+          success: false,
+          error:
+            prepaymentResult.message ||
+            prepaymentResult.validationErrors?.[0] ||
+            'Failed to apply rent prepayment.',
+        }
+      }
+
+      const now = new Date().toISOString()
+      const { error: verifierErr } = await admin
+        .from('payments')
+        .update({
+          verified_by: verifiedByUserId,
+          verified_at: now,
+        })
+        .eq('id', paymentId)
+
+      if (verifierErr) {
+        return { success: false, error: `Prepayment applied but failed to set verifier: ${verifierErr.message}` }
+      }
+
+      primaryInvoiceId = prepaymentResult.appliedInvoices[0] || invoice.id
     } else {
-      // For non-rent, just ensure months_covered is stored; trigger handles status from verified payment
-      await admin.from('invoices').update({ months_covered: monthsPaid, payment_date: now }).eq('id', invoice.id)
+      // 3b. Single-month / non-prepayment flow: verify payment first, then update invoice + lease pointers
+      const now = new Date().toISOString()
+      const { error: updateError } = await admin
+        .from('payments')
+        .update({
+          verified: true,
+          verified_by: verifiedByUserId,
+          verified_at: now,
+          notes: notesWithManager,
+        })
+        .eq('id', paymentId)
+
+      if (updateError) {
+        console.error('Error updating payment:', updateError)
+        return {
+          success: false,
+          error: 'Failed to update payment',
+        }
+      }
+
+      if (invoiceType === 'rent') {
+        // Apply rent coverage directly; trigger will mark invoice status
+        await applyRentPayment(
+          admin,
+          { ...payment, id: paymentId, months_paid: monthsPaid },
+          { id: invoice.id, due_date: invoice.due_date || new Date().toISOString().slice(0, 10) },
+          lease || { id: invoice.lease_id }
+        )
+        primaryInvoiceId = invoice.id
+      } else {
+        // For non-rent, just ensure months_covered is stored; trigger handles status from verified payment
+        await admin
+          .from('invoices')
+          .update({ months_covered: monthsPaid, payment_date: new Date().toISOString().slice(0, 10) })
+          .eq('id', invoice.id)
+      }
     }
 
     // 5. Send notification to tenant
