@@ -365,7 +365,10 @@ export async function approvePayment(
     if (lease?.rent_paid_until) {
       const dueMonth = startOfMonthUtc(new Date(invoice.due_date || new Date()))
       const paidUntil = startOfMonthUtc(new Date(lease.rent_paid_until))
-      if (dueMonth <= paidUntil) {
+      // For single-month payments, block double-paying a month already covered.
+      // For multi-month prepayments, allow approving even if the linked invoice month is already covered,
+      // because allocation starts from the next uncovered month (RPC handles this correctly).
+      if (monthsPaid <= 1 && dueMonth <= paidUntil) {
         return {
           success: false,
           error: 'This month is already covered by a previous payment.',
@@ -561,6 +564,7 @@ export async function rejectPayment(
       .from('payments')
       .update({
         notes: `${payment.notes || ''}\n${rejectionNotes}`,
+        mpesa_query_status: 'rejected',
         verified: false,
         verified_by: null,
         verified_at: null,

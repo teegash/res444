@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { useToast } from '@/components/ui/use-toast'
 import {
   Dialog,
   DialogContent,
@@ -44,6 +45,7 @@ export function ConfirmDepositsTab({
   loading,
   onActionComplete,
 }: ConfirmDepositsTabProps) {
+  const { toast } = useToast()
   const [selectedDeposit, setSelectedDeposit] = useState<PaymentRecord | null>(null)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
 
@@ -62,9 +64,18 @@ export function ConfirmDepositsTab({
       if (!res.ok) {
         throw new Error(payload.error || 'Failed to approve deposit.')
       }
+      toast({
+        title: 'Deposit confirmed',
+        description: payload.message || 'Payment verified successfully.',
+      })
       onActionComplete?.()
     } catch (error) {
       console.error('[ConfirmDeposits] approve failed', error)
+      toast({
+        variant: 'destructive',
+        title: 'Failed to confirm deposit',
+        description: error instanceof Error ? error.message : 'Unable to confirm deposit.',
+      })
     } finally {
       setActionLoading(null)
     }
@@ -82,9 +93,18 @@ export function ConfirmDepositsTab({
       if (!res.ok) {
         throw new Error(payload.error || 'Failed to reject deposit.')
       }
+      toast({
+        title: 'Deposit rejected',
+        description: payload.message || 'Payment rejected successfully.',
+      })
       onActionComplete?.()
     } catch (error) {
       console.error('[ConfirmDeposits] reject failed', error)
+      toast({
+        variant: 'destructive',
+        title: 'Failed to reject deposit',
+        description: error instanceof Error ? error.message : 'Unable to reject deposit.',
+      })
     } finally {
       setActionLoading(null)
     }

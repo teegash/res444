@@ -243,16 +243,27 @@ function mapPayment(
 
 function isFailure(payment: ReturnType<typeof mapPayment>) {
   if (payment.verified) return false
-  if (payment.paymentMethod !== 'mpesa') return false
-  const status = (payment.mpesaQueryStatus || '').toLowerCase()
-  const responseCode = payment.mpesaResponseCode || ''
-  if (!status && !responseCode) return false
-  if (['failed', 'error', 'timeout', 'cancelled', 'insufficientfunds'].includes(status)) {
-    return true
+
+  // Bank deposit slips: rejected by staff should move to "Failed" (not remain pending).
+  const notes = (payment.notes || '').toLowerCase()
+  const isRejected = notes.includes('[rejected') || (payment.mpesaQueryStatus || '').toLowerCase().includes('rejected')
+  if (payment.paymentMethod === 'bank_transfer') {
+    return isRejected
   }
-  if (responseCode && responseCode !== '0') {
-    return true
+
+  // M-Pesa: failed statuses / non-zero response code are treated as failures.
+  if (payment.paymentMethod === 'mpesa') {
+    const status = (payment.mpesaQueryStatus || '').toLowerCase()
+    const responseCode = payment.mpesaResponseCode || ''
+    if (!status && !responseCode) return false
+    if (['failed', 'error', 'timeout', 'cancelled', 'insufficientfunds', 'rejected'].includes(status)) {
+      return true
+    }
+    if (responseCode && responseCode !== '0') {
+      return true
+    }
   }
+
   return false
 }
 
@@ -392,12 +403,13 @@ export async function GET() {
     const verified = mapped.filter((payment) => payment.verified)
 
     const rejectedFlag = (notes?: string | null) => (notes || '').toLowerCase().includes('[rejected')
-    const pendingDeposits = pending.filter(
-      (payment) => payment.paymentMethod === 'bank_transfer' && !rejectedFlag(payment.notes)
+
+    const pendingDeposits = mapped.filter(
+      (payment) => payment.paymentMethod === 'bank_transfer' && !payment.verified && !rejectedFlag(payment.notes)
     )
     const confirmedDeposits = verified.filter((payment) => payment.paymentMethod === 'bank_transfer')
-    const rejectedDeposits = pending.filter(
-      (payment) => payment.paymentMethod === 'bank_transfer' && rejectedFlag(payment.notes)
+    const rejectedDeposits = mapped.filter(
+      (payment) => payment.paymentMethod === 'bank_transfer' && !payment.verified && rejectedFlag(payment.notes)
     )
 
     const stats = {
