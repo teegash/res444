@@ -182,9 +182,8 @@ export async function GET() {
           .order('arrears_amount', { ascending: false }),
         admin
           .from('vw_lease_prepayment_status')
-          .select(
-            'lease_id, tenant_user_id, organization_id, unit_id, unit_number, tenant_name, tenant_phone, rent_paid_until, next_rent_due_date, is_prepaid'
-          )
+          // Select * so we don't break if the view column names differ slightly between DB revisions.
+          .select('*')
           .eq('organization_id', orgId),
       ])
 
@@ -284,31 +283,62 @@ export async function GET() {
       (toMonthStart.getUTCFullYear() - fromMonthStart.getUTCFullYear()) * 12 +
       (toMonthStart.getUTCMonth() - fromMonthStart.getUTCMonth())
 
-    const prepayments = (prepayRes.data || [])
+    const prepayRows = Array.isArray(prepayRes.data) ? (prepayRes.data as any[]) : []
+    const prepayTenantIds = Array.from(
+      new Set(prepayRows.map((r) => r?.tenant_user_id || r?.tenant_id).filter(Boolean) as string[])
+    )
+
+    const prepayProfilesById = new Map<string, { full_name: string | null; phone_number: string | null }>()
+    if (prepayTenantIds.length) {
+      const { data: pData, error: pErr } = await admin
+        .from('user_profiles')
+        .select('id, full_name, phone_number')
+        .eq('organization_id', orgId)
+        .in('id', prepayTenantIds)
+
+      if (pErr) {
+        console.error('[DashboardOverview] Failed to load prepayment profiles', pErr)
+      } else {
+        ;(pData || []).forEach((p: any) => {
+          prepayProfilesById.set(String(p.id), {
+            full_name: p.full_name ?? null,
+            phone_number: p.phone_number ?? null,
+          })
+        })
+      }
+    }
+
+    const prepayments = prepayRows
       .map((row: any) => {
-        const rentPaidUntilStr = row.rent_paid_until || null
+        const leaseId = row.lease_id || row.leaseId || null
+        const tenantId = row.tenant_user_id || row.tenant_id || null
+        const unitId = row.unit_id || row.unitId || null
+
+        const rentPaidUntilStr = row.rent_paid_until || row.rentPaidUntil || null
         const rentPaidUntil = rentPaidUntilStr ? toMonthStartUtc(String(rentPaidUntilStr)) : null
         const prepaidMonths =
           rentPaidUntil && !Number.isNaN(rentPaidUntil.getTime())
             ? Math.max(0, monthsBetweenMonthStarts(currentMonthStartUtc, rentPaidUntil))
             : 0
 
-        const isPrepaid = row.is_prepaid === true || prepaidMonths > 0
+        const isPrepaid = row.is_prepaid === true || row.isPrepaid === true || prepaidMonths > 0
+
+        const profile = tenantId ? prepayProfilesById.get(String(tenantId)) : undefined
 
         return {
-          lease_id: row.lease_id,
-          tenant_id: row.tenant_user_id,
-          unit_id: row.unit_id,
-          unit_number: row.unit_number || null,
-          tenant_name: row.tenant_name || null,
-          tenant_phone: row.tenant_phone || null,
+          lease_id: leaseId,
+          tenant_id: tenantId,
+          unit_id: unitId,
+          unit_number: row.unit_number || unitNumberById.get(String(unitId || '')) || null,
+          tenant_name: row.tenant_name || row.tenant_full_name || profile?.full_name || null,
+          tenant_phone: row.tenant_phone || row.tenant_phone_number || profile?.phone_number || null,
           rent_paid_until: rentPaidUntilStr,
-          next_rent_due_date: row.next_rent_due_date || null,
+          next_rent_due_date: row.next_rent_due_date || row.nextRentDueDate || null,
           prepaid_months: prepaidMonths,
           is_prepaid: isPrepaid,
         }
       })
-      .filter((row: any) => row.is_prepaid)
+      .filter((row: any) => row.lease_id && row.is_prepaid)
       .sort((a: any, b: any) => String(b.rent_paid_until || '').localeCompare(String(a.rent_paid_until || '')))
 
     // Revenue by month (last 12 months)
