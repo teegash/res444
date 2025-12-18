@@ -45,6 +45,7 @@ interface PaymentRecord {
   months_paid: number | null
   notes?: string | null
   verified: boolean | null
+  mpesa_receipt_number?: string | null
   batch_id?: string | null
   applied_to_prepayment?: boolean | null
   payment_method?: string | null
@@ -414,7 +415,10 @@ const detectDuplicatePayment = async (
   paymentId: string,
   paymentDate: Date,
   amountPaid: number,
-  errors: string[]
+  currentInvoiceId: string | null,
+  currentReceipt: string | null,
+  errors: string[],
+  warnings: string[]
 ) => {
   const lower = new Date(paymentDate.getTime())
   lower.setUTCHours(lower.getUTCHours() - DUPLICATE_LOOKBACK_HOURS)
@@ -423,7 +427,7 @@ const detectDuplicatePayment = async (
 
   const { data } = await admin
     .from('payments')
-    .select('id, amount_paid, payment_date')
+    .select('id, amount_paid, payment_date, invoice_id, mpesa_receipt_number, verified')
     .eq('tenant_user_id', tenantId)
     .neq('id', paymentId)
     .gte('payment_date', lower.toISOString())
@@ -441,7 +445,28 @@ const detectDuplicatePayment = async (
   })
 
   if (duplicate) {
-    errors.push('A similar payment was logged within the last 24 hours. Review duplicates before proceeding.')
+    const dupInvoiceId = duplicate.invoice_id ? String(duplicate.invoice_id) : null
+    const dupReceipt = duplicate.mpesa_receipt_number ? String(duplicate.mpesa_receipt_number) : null
+    const dupVerified = duplicate.verified === true
+
+    // Hard duplicate: same M-Pesa receipt recorded twice.
+    if (currentReceipt && dupReceipt && currentReceipt === dupReceipt) {
+      errors.push('Duplicate detected: this M-Pesa receipt is already recorded on another payment.')
+      return
+    }
+
+    // Hard duplicate: same invoice paid twice within the lookback window.
+    if (currentInvoiceId && dupInvoiceId && currentInvoiceId === dupInvoiceId) {
+      errors.push('Duplicate detected: a similar payment was logged for the same invoice within the last 24 hours.')
+      return
+    }
+
+    // Otherwise treat as a warning (tenants may legitimately make multiple equal payments on different invoices).
+    warnings.push(
+      dupVerified
+        ? 'A similar verified payment was logged within the last 24 hours. If this is intentional, it will still be processed.'
+        : 'A similar payment was logged within the last 24 hours. If this is a duplicate submission, cancel one before it is verified.'
+    )
   }
 }
 
@@ -582,7 +607,7 @@ export async function processRentPrepayment(
       admin
         .from('payments')
         .select(
-          'id, invoice_id, tenant_user_id, amount_paid, payment_date, months_paid, notes, verified, batch_id, applied_to_prepayment, payment_method'
+          'id, invoice_id, tenant_user_id, amount_paid, payment_date, months_paid, notes, verified, mpesa_receipt_number, batch_id, applied_to_prepayment, payment_method'
         )
         .eq('id', input.paymentId)
         .maybeSingle(),
@@ -639,11 +664,95 @@ export async function processRentPrepayment(
     const paymentDate = input.paymentDate
     const previousPaidPointer = leaseRecord.next_rent_due_date || null
 
+    // Single-month rent payment (not a prepayment): apply directly and do NOT flip applied_to_prepayment.
+    if (monthsPaid <= 1) {
+      if (!paymentRecord.invoice_id) {
+        return {
+          success: false,
+          message: 'Unable to apply rent payment.',
+          validationErrors: ['Payment is missing invoice_id.'],
+          appliedInvoices: [],
+          createdInvoices: [],
+          nextDueDate: null,
+          nextDueAmount: null,
+        }
+      }
+
+      const { data: inv, error: invErr } = await admin
+        .from('invoices')
+        .select('id, due_date, lease_id, invoice_type')
+        .eq('id', paymentRecord.invoice_id)
+        .maybeSingle()
+
+      if (invErr || !inv) {
+        return {
+          success: false,
+          message: 'Unable to apply rent payment.',
+          validationErrors: [invErr?.message || 'Invoice not found for payment.'],
+          appliedInvoices: [],
+          createdInvoices: [],
+          nextDueDate: null,
+          nextDueAmount: null,
+        }
+      }
+
+      if (inv.invoice_type !== 'rent') {
+        return {
+          success: false,
+          message: 'Unable to apply rent payment.',
+          validationErrors: ['Payment is not linked to a rent invoice.'],
+          appliedInvoices: [],
+          createdInvoices: [],
+          nextDueDate: null,
+          nextDueAmount: null,
+        }
+      }
+
+      if (String(inv.lease_id) !== String(leaseRecord.id)) {
+        return {
+          success: false,
+          message: 'Unable to apply rent payment.',
+          validationErrors: ['Payment invoice does not belong to the provided lease.'],
+          appliedInvoices: [],
+          createdInvoices: [],
+          nextDueDate: null,
+          nextDueAmount: null,
+        }
+      }
+
+      await applyRentPayment(admin, { id: input.paymentId, months_paid: 1 }, { id: inv.id, due_date: inv.due_date }, { id: leaseRecord.id })
+      const nextDue = await computeNextDueDateInternal(admin, leaseRecord.id)
+
+      return {
+        success: true,
+        message: warnings.length ? `Processed with warnings: ${warnings.join(' ')}` : 'Rent payment applied.',
+        validationErrors: [],
+        appliedInvoices: [inv.id],
+        createdInvoices: [],
+        nextDueDate: nextDue.nextDueDate,
+        nextDueAmount: nextDue.nextAmount,
+        paidUpToMonth: nextDue.prepaidUntilMonth || null,
+        previouslyPaidUpToMonth: previousPaidPointer,
+        nextRentDueDate: leaseRecord.next_rent_due_date || null,
+        cumulativePrepaidMonths: nextDue.cumulativePrepaidMonths,
+      }
+    }
+
     if (!paymentRecord.payment_date) {
       validationErrors.push('Payment date is missing on the payment record.')
     }
     ensurePaymentRecency(paymentDate, validationErrors)
-    await detectDuplicatePayment(admin, input.tenantUserId, input.paymentId, paymentDate, amountPaid, validationErrors)
+    await detectDuplicatePayment(
+      admin,
+      input.tenantUserId,
+      input.paymentId,
+      paymentDate,
+      amountPaid,
+      paymentRecord.invoice_id || null,
+      paymentRecord.mpesa_receipt_number ? String(paymentRecord.mpesa_receipt_number) : null,
+      validationErrors,
+      warnings
+    )
 
     const expectedAmount = validateAmount(amountPaid, monthsPaid, monthlyRent, validationErrors, warnings)
 
@@ -759,20 +868,33 @@ export async function processRentPrepayment(
       }
     }
 
-    // Update payment metadata and mark as processed/verified
+    // Update payment metadata (do not overwrite DB allocation fields like months_paid/amount_paid)
     const existingNotes = paymentRecord.notes || ''
     const flaggedNotes = existingNotes.includes(PREPAYMENT_FLAG)
       ? existingNotes
       : `${existingNotes ? `${existingNotes} ` : ''}${PREPAYMENT_FLAG}`.trim()
-    await admin
+    const rpcBatchId = (rpcData as any)?.batch_id as string | undefined
+    const { error: payMetaErr } = await admin
       .from('payments')
       .update({
-        months_paid: monthsPaid,
         verified: true,
+        verified_at: new Date().toISOString(),
         applied_to_prepayment: true,
+        batch_id: rpcBatchId || paymentRecord.batch_id || input.paymentId,
         notes: flaggedNotes,
       })
       .eq('id', input.paymentId)
+    if (payMetaErr) {
+      return {
+        success: false,
+        message: 'Rent prepayment was applied but failed to persist payment metadata.',
+        validationErrors: [payMetaErr.message],
+        appliedInvoices: [],
+        createdInvoices: [],
+        nextDueDate: null,
+        nextDueAmount: null,
+      }
+    }
 
     const invoiceIds = (rpcData as any)?.invoice_ids || []
     const createdInvoices = (rpcData as any)?.created_invoice_ids || invoiceIds

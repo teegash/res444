@@ -48,7 +48,7 @@ export async function GET(
     let status: 'pending' | 'success' | 'failed' = 'pending'
     let message = payment.mpesa_query_status || 'Awaiting confirmation from Safaricom.'
 
-    if (payment.verified) {
+    if (payment.verified || payment.mpesa_response_code === '0' || payment.mpesa_auto_verified === true) {
       status = 'success'
       message =
         payment.mpesa_receipt_number
@@ -65,7 +65,7 @@ export async function GET(
       }
     }
 
-    // If M-Pesa says success ensure invoice is applied/verified
+    // If M-Pesa says success ensure invoice is applied/verified (including prepayment allocation)
     if (status === 'success') {
       const { data: invoice } = await admin
         .from('invoices')
