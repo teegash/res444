@@ -29,10 +29,18 @@ function monthsBetweenMonthStarts(fromMonthStart: Date, toMonthStart: Date) {
   )
 }
 
+function parseMonthStartUtc(value: string | null): Date | null {
+  if (!value) return null
+  const raw = String(value).trim()
+  if (!raw) return null
+  const parsed = /^\d{4}-\d{2}-\d{2}$/.test(raw) ? new Date(`${raw}T00:00:00.000Z`) : new Date(raw)
+  if (Number.isNaN(parsed.getTime())) return null
+  return new Date(Date.UTC(parsed.getUTCFullYear(), parsed.getUTCMonth(), 1))
+}
+
 function computePrepaidMonths(rentPaidUntil: string | null): number {
-  if (!rentPaidUntil) return 0
-  const paidUntil = new Date(`${rentPaidUntil}T00:00:00.000Z`)
-  if (Number.isNaN(paidUntil.getTime())) return 0
+  const paidUntil = parseMonthStartUtc(rentPaidUntil)
+  if (!paidUntil) return 0
 
   const currentMonthStart = monthStartUtc(new Date())
   if (paidUntil < currentMonthStart) return 0

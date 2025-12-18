@@ -246,6 +246,72 @@ const resolveCoverageStart = (lease: LeaseRecord): Date => {
   return start < leaseEligibleStart ? leaseEligibleStart : start
 }
 
+const parseMonthStartUtcFromAny = (value?: string | null): Date | null => {
+  if (!value) return null
+  const raw = String(value).trim()
+  if (!raw) return null
+  const parsed = /^\d{4}-\d{2}-\d{2}$/.test(raw) ? new Date(`${raw}T00:00:00.000Z`) : new Date(raw)
+  if (Number.isNaN(parsed.getTime())) return null
+  return new Date(Date.UTC(parsed.getUTCFullYear(), parsed.getUTCMonth(), 1))
+}
+
+const leaseEligibleStartMonthUtc = (leaseStartDate: string): Date => {
+  const raw = new Date(leaseStartDate)
+  const parsed = Number.isNaN(raw.getTime()) ? todayUtc() : raw
+  const startMonth = startOfMonthUtc(parsed)
+  return parsed.getUTCDate() > 1 ? addMonthsUtc(startMonth, 1) : startMonth
+}
+
+async function syncLeasePointersFromPaidRentInvoices(admin: AdminClient, leaseId: string) {
+  const { data: lease, error: leaseErr } = await admin
+    .from('leases')
+    .select('id, start_date, rent_paid_until, next_rent_due_date')
+    .eq('id', leaseId)
+    .maybeSingle()
+
+  if (leaseErr || !lease) {
+    throw new Error(leaseErr?.message || 'Lease not found for pointer sync.')
+  }
+
+  const eligibleStart = leaseEligibleStartMonthUtc(String(lease.start_date))
+  const eligibleIso = toIsoDate(eligibleStart)
+
+  const { data: latestPaid, error: paidErr } = await admin
+    .from('invoices')
+    .select('period_start')
+    .eq('lease_id', leaseId)
+    .eq('invoice_type', 'rent')
+    .or('status_text.eq.paid,status.eq.true')
+    .not('period_start', 'is', null)
+    .gte('period_start', eligibleIso)
+    .order('period_start', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (paidErr) {
+    throw new Error(paidErr.message)
+  }
+
+  const paidPeriod = parseMonthStartUtcFromAny(latestPaid?.period_start ?? null)
+  if (!paidPeriod) return
+
+  const existingPaid = parseMonthStartUtcFromAny((lease as any).rent_paid_until ?? null)
+  const nextDue = addMonthsUtc(paidPeriod, 1)
+
+  // Never move pointers backwards.
+  if (existingPaid && paidPeriod.getTime() <= existingPaid.getTime()) return
+
+  const { error: updErr } = await admin
+    .from('leases')
+    .update({
+      rent_paid_until: toIsoDate(paidPeriod),
+      next_rent_due_date: toIsoDate(nextDue),
+    })
+    .eq('id', leaseId)
+
+  if (updErr) throw new Error(updErr.message)
+}
+
 const fetchOldestUnpaidInvoice = async (admin: AdminClient, leaseId: string) => {
   const { data } = await admin
     .from('invoices')
@@ -710,6 +776,10 @@ export async function processRentPrepayment(
 
     const invoiceIds = (rpcData as any)?.invoice_ids || []
     const createdInvoices = (rpcData as any)?.created_invoice_ids || invoiceIds
+
+    // Ensure lease pointers are correct even if a DB function didn't update them (or older paths skipped it).
+    await syncLeasePointersFromPaidRentInvoices(admin, leaseRecord.id)
+
     const nextDue = await computeNextDueDateInternal(admin, leaseRecord.id)
 
     if (!invoiceIds.length) {

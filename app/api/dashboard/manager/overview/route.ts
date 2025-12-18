@@ -296,7 +296,13 @@ export async function GET() {
       }
     })
     const currentMonthStartUtc = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1))
-    const toMonthStartUtc = (ymd: string) => new Date(`${ymd}T00:00:00.000Z`)
+    const toMonthStartUtc = (value: string) => {
+      const raw = String(value || '').trim()
+      if (!raw) return null
+      const parsed = /^\d{4}-\d{2}-\d{2}$/.test(raw) ? new Date(`${raw}T00:00:00.000Z`) : new Date(raw)
+      if (Number.isNaN(parsed.getTime())) return null
+      return new Date(Date.UTC(parsed.getUTCFullYear(), parsed.getUTCMonth(), 1))
+    }
     const monthsBetweenMonthStarts = (fromMonthStart: Date, toMonthStart: Date) =>
       (toMonthStart.getUTCFullYear() - fromMonthStart.getUTCFullYear()) * 12 +
       (toMonthStart.getUTCMonth() - fromMonthStart.getUTCMonth())
@@ -335,7 +341,7 @@ export async function GET() {
         const rentPaidUntilStr = row.rent_paid_until || row.rentPaidUntil || null
         const rentPaidUntil = rentPaidUntilStr ? toMonthStartUtc(String(rentPaidUntilStr)) : null
         const prepaidMonths =
-          rentPaidUntil && !Number.isNaN(rentPaidUntil.getTime()) && rentPaidUntil >= currentMonthStartUtc
+          rentPaidUntil && rentPaidUntil >= currentMonthStartUtc
             ? Math.max(0, monthsBetweenMonthStarts(currentMonthStartUtc, rentPaidUntil) + 1)
             : 0
 
@@ -369,7 +375,7 @@ export async function GET() {
         const rentPaidUntilStr = lease.rent_paid_until || null
         const rentPaidUntil = rentPaidUntilStr ? toMonthStartUtc(String(rentPaidUntilStr)) : null
         const prepaidMonths =
-          rentPaidUntil && !Number.isNaN(rentPaidUntil.getTime()) && rentPaidUntil >= currentMonthStartUtc
+          rentPaidUntil && rentPaidUntil >= currentMonthStartUtc
             ? Math.max(0, monthsBetweenMonthStarts(currentMonthStartUtc, rentPaidUntil) + 1)
             : 0
 
