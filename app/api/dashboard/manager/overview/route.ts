@@ -188,7 +188,9 @@ export async function GET() {
           .order('arrears_amount', { ascending: false }),
         admin
           .from('vw_lease_prepayment_status')
-          .select('lease_id, tenant_user_id, organization_id, unit_id, rent_paid_until, next_rent_due_date, prepaid_months')
+          .select(
+            'lease_id, tenant_user_id, organization_id, unit_id, unit_number, tenant_name, tenant_phone, rent_paid_until, next_rent_due_date, is_prepaid'
+          )
           .eq('organization_id', orgId),
       ])
 
@@ -224,14 +226,38 @@ export async function GET() {
       open_invoices: Number(row.open_invoices_count || 0),
       oldest_due_date: row.oldest_due_date || null,
     }))
-    const prepayments = (prepayRes.data || []).map((row: any) => ({
-      lease_id: row.lease_id,
-      tenant_id: row.tenant_user_id,
-      unit_id: row.unit_id,
-      rent_paid_until: row.rent_paid_until || null,
-      next_rent_due_date: row.next_rent_due_date || null,
-      prepaid_months: Number(row.prepaid_months || 0),
-    }))
+    const currentMonthStartUtc = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1))
+    const toMonthStartUtc = (ymd: string) => new Date(`${ymd}T00:00:00.000Z`)
+    const monthsBetweenMonthStarts = (fromMonthStart: Date, toMonthStart: Date) =>
+      (toMonthStart.getUTCFullYear() - fromMonthStart.getUTCFullYear()) * 12 +
+      (toMonthStart.getUTCMonth() - fromMonthStart.getUTCMonth())
+
+    const prepayments = (prepayRes.data || [])
+      .map((row: any) => {
+        const rentPaidUntilStr = row.rent_paid_until || null
+        const rentPaidUntil = rentPaidUntilStr ? toMonthStartUtc(String(rentPaidUntilStr)) : null
+        const prepaidMonths =
+          rentPaidUntil && !Number.isNaN(rentPaidUntil.getTime())
+            ? Math.max(0, monthsBetweenMonthStarts(currentMonthStartUtc, rentPaidUntil))
+            : 0
+
+        const isPrepaid = row.is_prepaid === true || prepaidMonths > 0
+
+        return {
+          lease_id: row.lease_id,
+          tenant_id: row.tenant_user_id,
+          unit_id: row.unit_id,
+          unit_number: row.unit_number || null,
+          tenant_name: row.tenant_name || null,
+          tenant_phone: row.tenant_phone || null,
+          rent_paid_until: rentPaidUntilStr,
+          next_rent_due_date: row.next_rent_due_date || null,
+          prepaid_months: prepaidMonths,
+          is_prepaid: isPrepaid,
+        }
+      })
+      .filter((row: any) => row.is_prepaid)
+      .sort((a: any, b: any) => String(b.rent_paid_until || '').localeCompare(String(a.rent_paid_until || '')))
 
     // Revenue by month (last 12 months)
     const months: { label: string; key: string; revenue: number }[] = []

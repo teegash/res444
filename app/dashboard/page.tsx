@@ -187,9 +187,13 @@ function DashboardContent() {
       lease_id: string
       tenant_id: string
       unit_id: string
+      unit_number?: string | null
+      tenant_name?: string | null
+      tenant_phone?: string | null
       rent_paid_until: string | null
       next_rent_due_date: string | null
       prepaid_months: number
+      is_prepaid?: boolean
     }>
   } | null>(null)
   const [overviewError, setOverviewError] = useState<string | null>(null)
@@ -816,7 +820,10 @@ function DashboardContent() {
                       {prepayData.slice(0, 6).map((row) => (
                         <div key={row.lease_id} className="rounded-lg border border-slate-200 p-3 flex items-center justify-between">
                           <div>
-                            <p className="font-semibold text-gray-900">Lease {row.lease_id.slice(0, 6)}...</p>
+                            <p className="font-semibold text-gray-900">
+                              {row.unit_number ? `Unit ${row.unit_number}` : `Lease ${row.lease_id.slice(0, 6)}...`}
+                              {row.tenant_name ? <span className="text-gray-500"> — {row.tenant_name}</span> : null}
+                            </p>
                             <p className="text-xs text-gray-500">
                               Paid until: {row.rent_paid_until || '—'} • Next due: {row.next_rent_due_date || '—'}
                             </p>
