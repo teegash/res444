@@ -70,7 +70,13 @@ export async function POST(request: NextRequest) {
       email,
       password: generatedPassword,
       email_confirm: true,
-      user_metadata: { role: 'tenant' },
+      user_metadata: {
+        role: 'tenant',
+        organization_id: organizationId,
+        full_name,
+        phone: phone_number,
+        phone_number,
+      },
     })
 
     if (createUserError || !createdUser?.user?.id) {

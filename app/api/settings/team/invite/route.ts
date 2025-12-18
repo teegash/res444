@@ -147,7 +147,7 @@ export async function POST(request: NextRequest) {
     // upsert profile
     const { error: profileError } = await admin
       .from('user_profiles')
-      .upsert({ id: userId, full_name, role })
+      .upsert({ id: userId, full_name, role, organization_id: orgId })
     if (profileError) throw profileError
 
     const memberPayload: Record<string, any> = {

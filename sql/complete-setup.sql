@@ -29,13 +29,25 @@ ON public.user_profiles(role);
 
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
+DECLARE
+  v_org_id uuid;
 BEGIN
-  INSERT INTO public.user_profiles (id, full_name, phone_number, role, created_at, updated_at)
+  v_org_id := NULLIF(NEW.raw_user_meta_data->>'organization_id', '')::uuid;
+
+  -- organization_id is NOT NULL on user_profiles in this schema.
+  -- If org id is not provided at signup, do not create the profile here (avoid failing auth user creation).
+  -- The app layer must create the profile once it knows the org.
+  IF v_org_id IS NULL THEN
+    RETURN NEW;
+  END IF;
+
+  INSERT INTO public.user_profiles (id, full_name, phone_number, role, organization_id, created_at, updated_at)
   VALUES (
     NEW.id,
     COALESCE(NEW.raw_user_meta_data->>'full_name', ''),
-    COALESCE(NEW.raw_user_meta_data->>'phone', ''),
+    COALESCE(NEW.raw_user_meta_data->>'phone', NEW.raw_user_meta_data->>'phone_number', ''),
     COALESCE(NEW.raw_user_meta_data->>'role', NULL),
+    v_org_id,
     NOW(),
     NOW()
   )
@@ -44,6 +56,7 @@ BEGIN
     full_name = COALESCE(EXCLUDED.full_name, user_profiles.full_name),
     phone_number = COALESCE(EXCLUDED.phone_number, user_profiles.phone_number),
     role = COALESCE(EXCLUDED.role, user_profiles.role),
+    organization_id = COALESCE(user_profiles.organization_id, EXCLUDED.organization_id),
     updated_at = NOW();
   RETURN NEW;
 END;
@@ -224,4 +237,3 @@ FROM pg_policies
 WHERE schemaname = 'public'
 AND tablename IN ('user_profiles', 'organizations', 'organization_members')
 ORDER BY tablename, policyname;
-
