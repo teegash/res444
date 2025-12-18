@@ -397,12 +397,15 @@ const fetchProcessedInvoiceChain = async (
 }
 
 const ensurePaymentRecency = (paymentDate: Date, errors: string[]) => {
-  const now = todayUtc()
-  if (paymentDate.getTime() > now.getTime()) {
+  // Compare at UTC date-granularity (not timestamp granularity).
+  // A payment created "today" at 23:00 UTC is still not a future payment.
+  const today = todayUtc()
+  const paymentDay = new Date(Date.UTC(paymentDate.getUTCFullYear(), paymentDate.getUTCMonth(), paymentDate.getUTCDate()))
+  if (paymentDay.getTime() > today.getTime()) {
     errors.push('Payment date cannot be in the future.')
   }
 
-  const cutoff = new Date(now.getTime())
+  const cutoff = new Date(today.getTime())
   cutoff.setUTCDate(cutoff.getUTCDate() - MAX_PAST_PAYMENT_DAYS)
   if (paymentDate.getTime() < cutoff.getTime()) {
     errors.push('Payment date is older than 180 days and cannot be processed automatically.')
