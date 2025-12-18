@@ -672,18 +672,22 @@ export default function ExpensesPage() {
               ) : recurring.length === 0 ? (
                 <p className="text-sm text-muted-foreground">No recurring expenses configured yet.</p>
               ) : (
-                <div className="border rounded-lg overflow-hidden">
-                  <div className="grid grid-cols-12 gap-2 bg-muted/40 px-4 py-2 text-xs font-semibold text-muted-foreground">
-                    <div className="col-span-3">Property</div>
-                    <div className="col-span-2">Category</div>
-                    <div className="col-span-2">Amount</div>
-                    <div className="col-span-3">Next run</div>
-                    <div className="col-span-2 text-right">Actions</div>
+                <div className="border rounded-lg overflow-x-auto">
+                  <div className="min-w-[980px] grid grid-cols-[minmax(0,2.4fr)_minmax(0,1.2fr)_minmax(0,2.4fr)_minmax(0,1fr)_minmax(0,1.4fr)_minmax(0,1.6fr)] gap-2 bg-muted/40 px-4 py-2 text-xs font-semibold text-muted-foreground">
+                    <div>Property</div>
+                    <div>Category</div>
+                    <div>Notes</div>
+                    <div>Amount</div>
+                    <div>Next run</div>
+                    <div className="text-right">Actions</div>
                   </div>
                   <div className="divide-y">
                     {recurring.map((r) => (
-                      <div key={r.id} className="grid grid-cols-12 gap-2 px-4 py-3 items-center">
-                        <div className="col-span-3">
+                      <div
+                        key={r.id}
+                        className="min-w-[980px] grid grid-cols-[minmax(0,2.4fr)_minmax(0,1.2fr)_minmax(0,2.4fr)_minmax(0,1fr)_minmax(0,1.4fr)_minmax(0,1.6fr)] gap-2 px-4 py-3 items-center"
+                      >
+                        <div className="min-w-0">
                           <div className="font-medium">
                             {r.apartment_buildings?.name || 'Property'}
                           </div>
@@ -691,11 +695,14 @@ export default function ExpensesPage() {
                             {r.apartment_buildings?.location || ''}
                           </div>
                         </div>
-                        <div className="col-span-2 text-sm capitalize">{r.category}</div>
-                        <div className="col-span-2 text-sm font-semibold text-red-600">
+                        <div className="text-sm capitalize">{r.category}</div>
+                        <div className="min-w-0 text-sm text-muted-foreground truncate" title={r.notes || ''}>
+                          {r.notes || '—'}
+                        </div>
+                        <div className="text-sm font-semibold text-red-600">
                           KES {Number(r.amount || 0).toLocaleString()}
                         </div>
-                        <div className="col-span-3 text-sm">
+                        <div className="text-sm">
                           <div>{formatNextRun(r.next_run)}</div>
                           <div className="mt-1">
                             {r.active ? (
@@ -705,7 +712,7 @@ export default function ExpensesPage() {
                             )}
                           </div>
                         </div>
-                        <div className="col-span-2 flex justify-end gap-2">
+                        <div className="flex justify-end gap-2">
                           <Button
                             variant="outline"
                             size="sm"

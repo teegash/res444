@@ -101,7 +101,6 @@ export async function GET() {
       paymentsRes,
       maintenanceRes,
       maintenanceOpenCountRes,
-      expensesRes,
       unitsRes,
       arrearsRes,
       prepayRes,
@@ -164,11 +163,6 @@ export async function GET() {
           .eq('organization_id', orgId)
           .eq('status', 'open'),
         admin
-          .from('expenses')
-          .select('id, amount, incurred_at, property_id, organization_id')
-          .eq('organization_id', orgId)
-          .gte('incurred_at', startIso),
-        admin
           .from('apartment_units')
           .select(
             `
@@ -194,6 +188,36 @@ export async function GET() {
           .eq('organization_id', orgId),
       ])
 
+    // Expenses: try to include `created_at` if present (to avoid missing rows where `incurred_at` might be null),
+    // but gracefully fall back for older schemas.
+    let expensesRes:
+      | { data: any[] | null; error: any | null }
+      | { data: null; error: any | null } = { data: null, error: null }
+    try {
+      const { data, error } = await admin
+        .from('expenses')
+        .select('id, amount, incurred_at, created_at, property_id, organization_id')
+        .eq('organization_id', orgId)
+        .gte('created_at', startIso)
+      expensesRes = { data: data || [], error }
+      if (error) {
+        // If created_at doesn't exist or the select is invalid, try a safer query below.
+        throw error
+      }
+    } catch (e: any) {
+      const message = String(e?.message || '')
+      if (/created_at/i.test(message) && /does not exist/i.test(message)) {
+        const { data, error } = await admin
+          .from('expenses')
+          .select('id, amount, incurred_at, property_id, organization_id')
+          .eq('organization_id', orgId)
+          .gte('incurred_at', startIso)
+        expensesRes = { data: data || [], error }
+      } else if (!expensesRes.error) {
+        expensesRes = { data: [], error: e }
+      }
+    }
+
     const fetchErrors = [
       propertiesRes.error,
       tenantsRes.error,
@@ -201,10 +225,10 @@ export async function GET() {
       paymentsRes.error,
       maintenanceRes.error,
       maintenanceOpenCountRes.error,
-      expensesRes.error,
       unitsRes.error,
       arrearsRes.error,
       prepayRes.error,
+      (expensesRes as any).error,
     ].filter(Boolean)
     if (fetchErrors.length) {
       // Log but continue with whatever data we have so the dashboard still renders
@@ -214,7 +238,7 @@ export async function GET() {
     const invoices = (invoicesRes.data || []) as InvoiceRow[]
     const payments = (paymentsRes.data || []) as any[]
     const maintenance = (maintenanceRes.data || []) as MaintenanceRow[]
-    const expenses = expensesRes.data || []
+    const expenses = (expensesRes as any).data || []
     const units = unitsRes.data || []
     const arrearsRows = (arrearsRes.data || []) as ArrearsRow[]
     const unitNumberById = new Map<string, string>()
@@ -327,9 +351,12 @@ export async function GET() {
 
     // Expenses by month (align with revenue buckets)
     const expenseMonths = new Map<string, number>()
+    const validMonthKeys = new Set(months.map((m) => m.key))
     expenses.forEach((exp: any) => {
-      if (!exp.incurred_at) return
-      const key = (exp.incurred_at as string).slice(0, 7)
+      const dateValue = exp.incurred_at || exp.created_at || null
+      if (!dateValue) return
+      const key = String(dateValue).slice(0, 7)
+      if (!validMonthKeys.has(key)) return
       expenseMonths.set(key, (expenseMonths.get(key) || 0) + Number(exp.amount || 0))
     })
 
