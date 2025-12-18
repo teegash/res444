@@ -4,6 +4,9 @@ import { createAdminClient } from '@/lib/supabase/admin'
 
 const MANAGER_ROLES = new Set(['admin', 'manager', 'caretaker'])
 
+const isUuid = (value: string) =>
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)
+
 async function assertManager() {
   const supabase = await createClient()
   const {
@@ -53,6 +56,9 @@ export async function PUT(request: NextRequest, ctx: { params: { id: string } })
   try {
     const { orgId, admin } = await assertManager()
     const id = ctx.params.id
+    if (!id || !isUuid(id)) {
+      return NextResponse.json({ success: false, error: 'Invalid recurring expense id.' }, { status: 400 })
+    }
     const body = await request.json().catch(() => ({}))
 
     const { data: existing, error: existingError } = await admin
@@ -115,6 +121,9 @@ export async function DELETE(_request: NextRequest, ctx: { params: { id: string 
   try {
     const { orgId, admin } = await assertManager()
     const id = ctx.params.id
+    if (!id || !isUuid(id)) {
+      return NextResponse.json({ success: false, error: 'Invalid recurring expense id.' }, { status: 400 })
+    }
 
     const { error } = await admin
       .from('recurring_expenses')
@@ -140,4 +149,3 @@ export async function DELETE(_request: NextRequest, ctx: { params: { id: string 
     return NextResponse.json({ success: false, error: 'Failed to delete recurring expense.' }, { status: 500 })
   }
 }
-

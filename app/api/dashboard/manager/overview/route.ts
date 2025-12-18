@@ -55,6 +55,16 @@ type MaintenanceRow = {
   } | null
 }
 
+type ArrearsRow = {
+  lease_id: string | null
+  tenant_user_id: string | null
+  organization_id: string | null
+  unit_id: string | null
+  arrears_amount: number | null
+  open_invoices_count: number | null
+  oldest_due_date: string | null
+}
+
 export async function GET() {
   const supabase = await createClient()
   const {
@@ -164,6 +174,7 @@ export async function GET() {
             `
           id,
           building_id,
+          unit_number,
           unit_price_category,
           leases!left ( status, monthly_rent )
         `
@@ -171,19 +182,8 @@ export async function GET() {
           .eq('organization_id', orgId),
         admin
           .from('vw_lease_arrears')
-          .select(
-            `
-          lease_id,
-          tenant_user_id,
-          organization_id,
-          unit_id,
-          arrears_amount,
-          open_invoices_count,
-          oldest_due_date,
-          apartment_units!left ( unit_number ),
-          user_profiles:tenant_user_id!inner ( full_name, phone_number )
-        `
-          )
+          // NOTE: PostgREST cannot infer FK relationships from views, so avoid embeds here.
+          .select('lease_id, tenant_user_id, organization_id, unit_id, arrears_amount, open_invoices_count, oldest_due_date')
           .eq('organization_id', orgId)
           .order('arrears_amount', { ascending: false }),
         admin
@@ -216,16 +216,44 @@ export async function GET() {
     const maintenance = (maintenanceRes.data || []) as MaintenanceRow[]
     const expenses = expensesRes.data || []
     const units = unitsRes.data || []
-    const arrears = (arrearsRes.data || []).map((row: any) => ({
-      lease_id: row.lease_id,
-      tenant_id: row.tenant_user_id,
-      tenant_name: row.user_profiles?.full_name || 'Tenant',
-      tenant_phone: row.user_profiles?.phone_number || null,
-      unit_number: row.apartment_units?.unit_number || '',
-      arrears_amount: Number(row.arrears_amount || 0),
-      open_invoices: Number(row.open_invoices_count || 0),
-      oldest_due_date: row.oldest_due_date || null,
-    }))
+    const arrearsRows = (arrearsRes.data || []) as ArrearsRow[]
+    const unitNumberById = new Map<string, string>()
+    units.forEach((u: any) => {
+      if (u?.id) unitNumberById.set(String(u.id), String(u.unit_number || ''))
+    })
+
+    const arrearsTenantIds = Array.from(
+      new Set(arrearsRows.map((r) => r.tenant_user_id).filter(Boolean) as string[])
+    )
+    const profilesById = new Map<string, { full_name: string | null; phone_number: string | null }>()
+    if (arrearsTenantIds.length) {
+      const { data: prof, error: profErr } = await admin
+        .from('user_profiles')
+        .select('id, full_name, phone_number')
+        .eq('organization_id', orgId)
+        .in('id', arrearsTenantIds)
+      if (profErr) {
+        console.error('[DashboardOverview] Failed to load arrears profiles', profErr)
+      } else {
+        ;(prof || []).forEach((p: any) => {
+          profilesById.set(String(p.id), { full_name: p.full_name ?? null, phone_number: p.phone_number ?? null })
+        })
+      }
+    }
+
+    const arrears = arrearsRows.map((row) => {
+      const tenantProfile = row.tenant_user_id ? profilesById.get(String(row.tenant_user_id)) : undefined
+      return {
+        lease_id: row.lease_id,
+        tenant_id: row.tenant_user_id,
+        tenant_name: tenantProfile?.full_name || 'Tenant',
+        tenant_phone: tenantProfile?.phone_number || null,
+        unit_number: row.unit_id ? unitNumberById.get(String(row.unit_id)) || '' : '',
+        arrears_amount: Number(row.arrears_amount || 0),
+        open_invoices: Number(row.open_invoices_count || 0),
+        oldest_due_date: row.oldest_due_date || null,
+      }
+    })
     const currentMonthStartUtc = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1))
     const toMonthStartUtc = (ymd: string) => new Date(`${ymd}T00:00:00.000Z`)
     const monthsBetweenMonthStarts = (fromMonthStart: Date, toMonthStart: Date) =>

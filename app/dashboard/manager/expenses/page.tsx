@@ -67,6 +67,8 @@ type RecurringExpense = {
 }
 
 const categories = ['maintenance', 'utilities', 'taxes', 'staff', 'insurance', 'marketing', 'other']
+const isUuid = (value: string) =>
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)
 
 export default function ExpensesPage() {
   const [expenses, setExpenses] = useState<Expense[]>([])
@@ -224,6 +226,10 @@ export default function ExpensesPage() {
 
   const handleUpdateRecurring = async () => {
     if (!editingRecurring) return
+    if (!editingRecurring.id || !isUuid(editingRecurring.id)) {
+      toast({ title: 'Invalid recurring expense id', variant: 'destructive' })
+      return
+    }
     try {
       setEditRecurringSaving(true)
       const response = await fetch(`/api/manager/expenses/recurring/${editingRecurring.id}`, {
@@ -255,10 +261,14 @@ export default function ExpensesPage() {
     }
   }
 
-  const handleDeleteRecurring = async () => {
-    if (!deleteRecurring) return
+  const handleDeleteRecurring = async (recurringId?: string) => {
+    const id = recurringId || deleteRecurring?.id
+    if (!id || !isUuid(id)) {
+      toast({ title: 'Invalid recurring expense id', variant: 'destructive' })
+      return
+    }
     try {
-      const response = await fetch(`/api/manager/expenses/recurring/${deleteRecurring.id}`, {
+      const response = await fetch(`/api/manager/expenses/recurring/${id}`, {
         method: 'DELETE',
       })
       const payload = await response.json().catch(() => ({}))
@@ -300,6 +310,10 @@ export default function ExpensesPage() {
   }
 
   const openEditExpense = (expense: Expense) => {
+    if (!expense?.id || !isUuid(String(expense.id))) {
+      toast({ title: 'Invalid expense id', description: 'Reload the page and try again.', variant: 'destructive' })
+      return
+    }
     setEditingExpense({
       id: expense.id,
       property_id: expense.property_id,
@@ -313,6 +327,10 @@ export default function ExpensesPage() {
 
   const handleUpdateExpense = async () => {
     if (!editingExpense) return
+    if (!editingExpense.id || !isUuid(editingExpense.id)) {
+      toast({ title: 'Invalid expense id', description: 'Reload the page and try again.', variant: 'destructive' })
+      return
+    }
     if (!editingExpense.property_id || !editingExpense.category) {
       toast({
         title: 'Missing fields',
@@ -368,10 +386,14 @@ export default function ExpensesPage() {
     }
   }
 
-  const handleDeleteExpense = async () => {
-    if (!deleteExpense) return
+  const handleDeleteExpense = async (expenseId?: string) => {
+    const id = expenseId || deleteExpense?.id
+    if (!id || !isUuid(id)) {
+      toast({ title: 'Invalid expense id', variant: 'destructive' })
+      return
+    }
     try {
-      const response = await fetch(`/api/manager/expenses/${deleteExpense.id}`, { method: 'DELETE' })
+      const response = await fetch(`/api/manager/expenses/${id}`, { method: 'DELETE' })
       const payload = await response.json().catch(() => ({}))
       if (!response.ok) throw new Error(payload.error || 'Failed to delete expense.')
       toast({ title: 'Expense deleted' })
@@ -841,7 +863,7 @@ export default function ExpensesPage() {
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>Cancel</AlertDialogCancel>
-          <AlertDialogAction onClick={handleDeleteRecurring}>Delete</AlertDialogAction>
+          <AlertDialogAction onClick={() => handleDeleteRecurring(deleteRecurring?.id)}>Delete</AlertDialogAction>
 	        </AlertDialogFooter>
 	      </AlertDialogContent>
 	    </AlertDialog>
@@ -958,7 +980,7 @@ export default function ExpensesPage() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteExpense}>Delete</AlertDialogAction>
+            <AlertDialogAction onClick={() => handleDeleteExpense(deleteExpense?.id)}>Delete</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
