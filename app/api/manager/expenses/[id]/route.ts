@@ -50,7 +50,8 @@ function normalizeIncurredAt(value: any) {
 export async function PUT(request: NextRequest, ctx: { params: { id: string } }) {
   try {
     const { orgId, admin } = await assertManager()
-    const id = ctx.params.id
+    // Next can provide `params` as a Promise in some builds; normalize it.
+    const id = (await Promise.resolve((ctx as any).params))?.id as string | undefined
     if (!id || !isUuid(id)) {
       return NextResponse.json({ success: false, error: 'Invalid expense id.' }, { status: 400 })
     }
@@ -103,7 +104,7 @@ export async function PUT(request: NextRequest, ctx: { params: { id: string } })
 export async function DELETE(_request: NextRequest, ctx: { params: { id: string } }) {
   try {
     const { orgId, admin } = await assertManager()
-    const id = ctx.params.id
+    const id = (await Promise.resolve((ctx as any).params))?.id as string | undefined
     if (!id || !isUuid(id)) {
       return NextResponse.json({ success: false, error: 'Invalid expense id.' }, { status: 400 })
     }
