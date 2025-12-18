@@ -15,20 +15,20 @@ async function assertManager() {
     throw new Error('UNAUTHORIZED')
   }
 
-  const role = (user.user_metadata?.role as string | undefined)?.toLowerCase()
-  if (!role || !MANAGER_ROLES.has(role)) {
-    throw new Error('FORBIDDEN')
-  }
-
   const admin = createAdminClient()
   const { data: membership, error: membershipError } = await admin
     .from('organization_members')
-    .select('organization_id')
+    .select('organization_id, role')
     .eq('user_id', user.id)
     .maybeSingle()
 
   if (membershipError || !membership?.organization_id) {
     throw new Error('ORG_NOT_FOUND')
+  }
+
+  const role = (membership?.role || user.user_metadata?.role || '').toLowerCase()
+  if (!role || !MANAGER_ROLES.has(role)) {
+    throw new Error('FORBIDDEN')
   }
 
   return { user, orgId: membership.organization_id, admin }
@@ -119,4 +119,3 @@ export async function DELETE(_request: NextRequest, ctx: { params: { id: string 
     return NextResponse.json({ success: false, error: 'Failed to delete expense.' }, { status: 500 })
   }
 }
-

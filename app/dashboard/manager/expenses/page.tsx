@@ -110,6 +110,10 @@ export default function ExpensesPage() {
     })
   }, [expenses, propertyFilter, search])
 
+  const filteredOneTimeExpenses = useMemo(() => {
+    return filteredExpenses.filter((exp) => !recurringMarkerFromNotes(exp.notes))
+  }, [filteredExpenses])
+
   const loadExpenses = async () => {
     try {
       setLoading(true)
@@ -278,14 +282,15 @@ export default function ExpensesPage() {
     return date.toLocaleString()
   }
 
-  const recurringMarkerFromNotes = (notes: string | null | undefined) => {
+  function recurringMarkerFromNotes(notes: string | null | undefined) {
     const raw = String(notes || '')
     const match = raw.match(/\[recurring:[^\]]+\]/)
     return match ? match[0] : null
   }
 
-  const stripRecurringMarker = (notes: string | null | undefined) =>
-    String(notes || '').replace(/\s*\[recurring:[^\]]+\]\s*/g, ' ').trim()
+  function stripRecurringMarker(notes: string | null | undefined) {
+    return String(notes || '').replace(/\s*\[recurring:[^\]]+\]\s*/g, ' ').trim()
+  }
 
   const toDateInputValue = (iso: string | null | undefined) => {
     if (!iso) return ''
@@ -391,18 +396,18 @@ export default function ExpensesPage() {
       { header: 'Date', accessor: (row: Expense) => (row.incurred_at ? new Date(row.incurred_at).toLocaleDateString() : '') },
       { header: 'Notes', accessor: (row: Expense) => stripRecurringMarker(row.notes) },
     ]
-    const total = filteredExpenses.reduce((sum, row) => sum + Number(row.amount || 0), 0)
+    const total = filteredOneTimeExpenses.reduce((sum, row) => sum + Number(row.amount || 0), 0)
     const summaryRows = [['Total', '', `KES ${total.toLocaleString()}`, '', '', '']]
     if (format === 'pdf') {
-      exportRowsAsPDF(filename, columns, filteredExpenses, {
+      exportRowsAsPDF(filename, columns, filteredOneTimeExpenses, {
         title: 'Expenses',
         subtitle: `Property: ${propertyFilter}`,
         summaryRows,
       })
     } else if (format === 'excel') {
-      exportRowsAsExcel(filename, columns, filteredExpenses, summaryRows)
+      exportRowsAsExcel(filename, columns, filteredOneTimeExpenses, summaryRows)
     } else {
-      exportRowsAsCSV(filename, columns, filteredExpenses, summaryRows)
+      exportRowsAsCSV(filename, columns, filteredOneTimeExpenses, summaryRows)
     }
   }
 
@@ -452,24 +457,25 @@ export default function ExpensesPage() {
           </div>
 
           <div className="grid lg:grid-cols-3 gap-6">
-            <Card className="lg:col-span-2 border-0 shadow-lg bg-white">
-              <CardHeader>
-            <CardTitle>Expenses</CardTitle>
-            <CardDescription>Recent recorded expenses.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {loading ? (
-              <SkeletonTable rows={6} columns={4} />
-            ) : error ? (
-              <p className="text-sm text-red-600">{error}</p>
-            ) : filteredExpenses.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No expenses found.</p>
-            ) : (
-	                  filteredExpenses.map((expense) => (
-	                    <div
-	                      key={expense.id}
-	                      className="p-4 rounded-lg border bg-gradient-to-r from-slate-50 to-white flex items-start gap-4"
-	                    >
+	            <Card className="lg:col-span-2 border-0 shadow-lg bg-white">
+	              <CardHeader>
+	            <CardTitle>One-time expenses</CardTitle>
+	            <CardDescription>Manual expenses only (recurring schedules are listed below).</CardDescription>
+	          </CardHeader>
+	          <CardContent className="space-y-3">
+	            {loading ? (
+	              <SkeletonTable rows={6} columns={4} />
+	            ) : error ? (
+	              <p className="text-sm text-red-600">{error}</p>
+	            ) : filteredOneTimeExpenses.length === 0 ? (
+	              <p className="text-sm text-muted-foreground">No expenses found.</p>
+	            ) : (
+                  <div className="max-h-[560px] overflow-y-auto pr-2 space-y-3">
+		                  {filteredOneTimeExpenses.map((expense) => (
+		                    <div
+		                      key={expense.id}
+		                      className="p-4 rounded-lg border bg-gradient-to-r from-slate-50 to-white flex items-start gap-4"
+		                    >
 	                      <div className="p-2 rounded-full bg-amber-100">
 	                        <Wallet className="h-4 w-4 text-amber-700" />
 	                      </div>
@@ -518,12 +524,13 @@ export default function ExpensesPage() {
 	                          </span>
 	                          <span>{stripRecurringMarker(expense.notes)}</span>
 	                        </div>
-	                      </div>
-	                    </div>
-	                  ))
-	                )}
-              </CardContent>
-            </Card>
+		                      </div>
+		                    </div>
+		                  ))}
+                  </div>
+                )}
+	              </CardContent>
+	            </Card>
 
             <Card className="border-0 shadow-lg bg-white">
               <CardHeader>
