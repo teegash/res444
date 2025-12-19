@@ -25,6 +25,7 @@ function ResetPasswordForm() {
   const [isInvalidLink, setIsInvalidLink] = useState(false)
   const [accessToken, setAccessToken] = useState<string | null>(null)
   const [refreshToken, setRefreshToken] = useState<string | null>(null)
+  const [hasSession, setHasSession] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -41,6 +42,17 @@ function ResetPasswordForm() {
       return { access_token: at, refresh_token: rt }
     }
 
+    const parseHashTokenHash = () => {
+      if (typeof window === 'undefined') return null
+      const raw = window.location.hash?.startsWith('#') ? window.location.hash.slice(1) : window.location.hash
+      if (!raw) return null
+      const params = new URLSearchParams(raw)
+      const tokenHash = params.get('token_hash')
+      const type = params.get('type')
+      if (!tokenHash || type !== 'recovery') return null
+      return { token_hash: tokenHash }
+    }
+
     const init = async () => {
       setIsInitializing(true)
       const code = searchParams.get('code')
@@ -54,7 +66,9 @@ function ResetPasswordForm() {
 
         if (exchangeError || !data?.session) {
           setIsInvalidLink(true)
-          setError('Invalid or expired reset link. Please request a new password reset.')
+          setError(
+            exchangeError?.message || 'Invalid or expired reset link. Please request a new password reset.'
+          )
           setIsInitializing(false)
           return
         }
@@ -77,6 +91,9 @@ function ResetPasswordForm() {
       const queryAccess = searchParams.get('access_token')
       const queryRefresh = searchParams.get('refresh_token')
       const queryType = searchParams.get('type')
+      const queryTokenHash = searchParams.get('token_hash')
+      const queryToken = searchParams.get('token')
+      const queryEmail = searchParams.get('email')
 
       if (queryAccess && queryRefresh && queryType === 'recovery') {
         if (cancelled) return
@@ -104,9 +121,103 @@ function ResetPasswordForm() {
         return
       }
 
+      // Some Supabase configurations send `token_hash` + `type=recovery` instead of tokens.
+      const tokenHashFromHash = parseHashTokenHash()
+      const tokenHash = queryType === 'recovery' ? queryTokenHash : null
+      const supabase = createClient()
+
+      if (tokenHash) {
+        const { data, error: verifyError } = await supabase.auth.verifyOtp({
+          type: 'recovery',
+          token_hash: tokenHash,
+        })
+
+        if (cancelled) return
+
+        if (verifyError || !data?.session) {
+          setIsInvalidLink(true)
+          setError(verifyError?.message || 'Invalid or expired reset link. Please request a new password reset.')
+          setIsInitializing(false)
+          return
+        }
+
+        setAccessToken(data.session.access_token)
+        setRefreshToken(data.session.refresh_token)
+        setIsInvalidLink(false)
+        setError(null)
+        setIsInitializing(false)
+
+        if (typeof window !== 'undefined') {
+          const url = new URL(window.location.href)
+          url.searchParams.delete('token_hash')
+          url.searchParams.delete('type')
+          window.history.replaceState({}, '', url.pathname + url.search)
+        }
+        return
+      }
+
+      if (tokenHashFromHash) {
+        const { data, error: verifyError } = await supabase.auth.verifyOtp({
+          type: 'recovery',
+          token_hash: tokenHashFromHash.token_hash,
+        })
+
+        if (cancelled) return
+
+        if (verifyError || !data?.session) {
+          setIsInvalidLink(true)
+          setError(verifyError?.message || 'Invalid or expired reset link. Please request a new password reset.')
+          setIsInitializing(false)
+          return
+        }
+
+        setAccessToken(data.session.access_token)
+        setRefreshToken(data.session.refresh_token)
+        setIsInvalidLink(false)
+        setError(null)
+        setIsInitializing(false)
+
+        if (typeof window !== 'undefined') {
+          window.history.replaceState({}, '', window.location.pathname + window.location.search)
+        }
+        return
+      }
+
+      // Legacy format: token + email + type=recovery
+      if (queryType === 'recovery' && queryToken && queryEmail) {
+        const { data, error: verifyError } = await supabase.auth.verifyOtp({
+          type: 'recovery',
+          email: queryEmail,
+          token: queryToken,
+        })
+
+        if (cancelled) return
+
+        if (verifyError || !data?.session) {
+          setIsInvalidLink(true)
+          setError(verifyError?.message || 'Invalid or expired reset link. Please request a new password reset.')
+          setIsInitializing(false)
+          return
+        }
+
+        setAccessToken(data.session.access_token)
+        setRefreshToken(data.session.refresh_token)
+        setIsInvalidLink(false)
+        setError(null)
+        setIsInitializing(false)
+
+        if (typeof window !== 'undefined') {
+          const url = new URL(window.location.href)
+          url.searchParams.delete('token')
+          url.searchParams.delete('email')
+          url.searchParams.delete('type')
+          window.history.replaceState({}, '', url.pathname + url.search)
+        }
+        return
+      }
+
       // Fallback: if the user already has a valid session cookie, allow password change.
       // Otherwise, treat as an invalid/expired link.
-      const supabase = createClient()
       const {
         data: { session },
       } = await supabase.auth.getSession()
@@ -114,12 +225,14 @@ function ResetPasswordForm() {
       if (cancelled) return
 
       if (session) {
+        setHasSession(true)
         setIsInvalidLink(false)
         setError(null)
         setIsInitializing(false)
         return
       }
 
+      setHasSession(false)
       setIsInvalidLink(true)
       setError('Invalid or expired reset link. Please request a new password reset.')
       setIsInitializing(false)
@@ -396,7 +509,7 @@ function ResetPasswordForm() {
           {/* Submit Button */}
           <Button
             type="submit"
-            disabled={isLoading}
+            disabled={isLoading || (!(accessToken && refreshToken) && !hasSession)}
             className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold py-6"
           >
             {isLoading ? (
