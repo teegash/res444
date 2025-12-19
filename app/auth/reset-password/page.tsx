@@ -59,25 +59,35 @@ function ResetPasswordForm() {
 
     const init = async () => {
       setIsInitializing(true)
+      // IMPORTANT:
+      // Supabase clients auto-initialize with `detectSessionInUrl=true` and will exchange `?code=...`
+      // immediately during construction, *before* React effects run. To prevent that, RootLayout
+      // stashes the code in sessionStorage and strips it from the URL before hydration.
+      //
+      // If code still appears (e.g., direct navigation), stash+strip it here too.
       const code = searchParams.get('code')
-      if (code) {
-        // IMPORTANT:
-        // Do NOT exchange `code` on page load. Email clients/link scanners can open this URL
-        // and consume the one-time code, causing the real user to see "expired".
-        // We only exchange the code during form submit.
-        setRecoveryCode(code)
-        setIsInvalidLink(false)
-        setError(null)
-        setIsInitializing(false)
-
-        // Remove the code from the URL bar immediately. This prevents the Supabase client
-        // (which has `detectSessionInUrl=true`) from auto-consuming the code before the user submits.
-        if (typeof window !== 'undefined') {
+      if (code && typeof window !== 'undefined') {
+        try {
+          sessionStorage.setItem('res_reset_code', code)
+          sessionStorage.setItem('res_reset_code_ts', String(Date.now()))
+        } catch {}
+        try {
           const url = new URL(window.location.href)
           url.searchParams.delete('code')
-          window.history.replaceState({}, '', url.pathname + url.search)
+          window.history.replaceState({}, '', url.pathname + url.search + url.hash)
+        } catch {}
+      }
+
+      // Prefer stashed PKCE code (keeps it out of the URL so Supabase can't auto-consume it).
+      if (typeof window !== 'undefined') {
+        const stashed = sessionStorage.getItem('res_reset_code')
+        if (stashed) {
+          setRecoveryCode(stashed)
+          setIsInvalidLink(false)
+          setError(null)
+          setIsInitializing(false)
+          return
         }
-        return
       }
 
       const supabase = createClient()
@@ -247,6 +257,12 @@ function ResetPasswordForm() {
         } else if (recoveryCode) {
           const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(recoveryCode)
           if (exchangeError) throw exchangeError
+          if (typeof window !== 'undefined') {
+            try {
+              sessionStorage.removeItem('res_reset_code')
+              sessionStorage.removeItem('res_reset_code_ts')
+            } catch {}
+          }
         } else if (recoveryTokenHash) {
           const { error: verifyError } = await supabase.auth.verifyOtp({
             type: 'recovery',
