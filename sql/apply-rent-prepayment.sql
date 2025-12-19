@@ -26,8 +26,8 @@
 -- If you previously created apply_rent_prepayment with a different RETURNS type,
 -- Postgres will reject CREATE OR REPLACE with:
 --   "cannot change return type of existing function"
--- In that case, you must DROP the function first (and re-run any dependent triggers after).
-drop function if exists public.apply_rent_prepayment(uuid, uuid, integer, date);
+-- In that case, DROP the function first (and re-run any dependent triggers after).
+-- We intentionally do NOT drop here, because other functions/triggers may depend on it.
 
 create or replace function public.apply_rent_prepayment(
   p_payment_id uuid,
@@ -282,40 +282,43 @@ begin
     );
   end loop;
 
-  -- Update lease pointers:
-  -- - rent_paid_until: end-of-month of the latest PAID rent invoice period_start
-  -- - next_rent_due_date: earliest UNPAID rent invoice period_start, else month after latest paid
-  select max(i.period_start)
-  into v_last_paid
-  from public.invoices i
-  where
-    i.lease_id = p_lease_id
-    and i.invoice_type = 'rent'
-    and i.period_start is not null
-    and i.period_start >= v_eligible_start
-    and coalesce(i.status_text, '') <> 'void'
-    and (coalesce(i.status_text, '') = 'paid' or coalesce(i.status, false) = true);
-
-  if v_last_paid is null then
-    -- Should not happen (we created at least one paid invoice), but fail safe.
-    v_last_paid := v_last_period;
-  end if;
-
-  v_last_paid_until := (date_trunc('month', v_last_paid)::date + interval '1 month' - interval '1 day')::date;
-
-  select min(i.period_start)
+  -- Update lease pointers based on CONTIGUOUS paid coverage:
+  -- - next_rent_due_date: first UNPAID/MISSING month from eligible_start
+  -- - rent_paid_until: last day of the latest CONTIGUOUS paid month before next_rent_due_date
+  --
+  -- This prevents impossible states like: "paid until April" while "next due January" (gap months).
+  with months as (
+    select (v_eligible_start + make_interval(months => gs::int))::date as period_start
+    from generate_series(0, 240) as gs
+  ),
+  paid as (
+    select distinct i.period_start
+    from public.invoices i
+    where
+      i.lease_id = p_lease_id
+      and i.invoice_type = 'rent'
+      and i.period_start is not null
+      and i.period_start >= v_eligible_start
+      and coalesce(i.status_text, '') <> 'void'
+      and (coalesce(i.status_text, '') = 'paid' or coalesce(i.status, false) = true)
+  )
+  select m.period_start
   into v_next_due
-  from public.invoices i
-  where
-    i.lease_id = p_lease_id
-    and i.invoice_type = 'rent'
-    and i.period_start is not null
-    and i.period_start >= v_eligible_start
-    and coalesce(i.status_text, '') <> 'void'
-    and not (coalesce(i.status_text, '') = 'paid' or coalesce(i.status, false) = true);
+  from months m
+  left join paid p on p.period_start = m.period_start
+  where p.period_start is null
+  order by m.period_start asc
+  limit 1;
 
   if v_next_due is null then
-    v_next_due := (date_trunc('month', v_last_paid)::date + interval '1 month')::date;
+    -- Should never happen with generate_series, but keep a safe fallback.
+    v_next_due := (v_eligible_start + interval '241 months')::date;
+  end if;
+
+  if v_next_due = v_eligible_start then
+    v_last_paid_until := null;
+  else
+    v_last_paid_until := (v_next_due - interval '1 day')::date;
   end if;
 
   update public.leases

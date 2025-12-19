@@ -44,6 +44,7 @@ type TenantPaymentRecord = {
   invoice_type: string | null
   payment_type: string | null
   due_date: string | null
+  period_start?: string | null
   property_name: string | null
   unit_label: string | null
 }
@@ -370,8 +371,9 @@ export default function PaymentHistoryPage() {
     return payments.filter((payment) => {
       if (filterMethod !== 'all' && payment.payment_method !== filterMethod) return false
       if (searchMonth) {
-        const label = payment.due_date
-          ? new Date(payment.due_date).toLocaleDateString(undefined, { month: 'long' }).toLowerCase()
+        const monthSource = payment.period_start || payment.due_date || null
+        const label = monthSource
+          ? new Date(monthSource).toLocaleDateString(undefined, { month: 'long' }).toLowerCase()
           : payment.posted_at
             ? new Date(payment.posted_at).toLocaleDateString(undefined, { month: 'long' }).toLowerCase()
             : ''
@@ -786,8 +788,9 @@ export default function PaymentHistoryPage() {
               <p className="text-sm text-muted-foreground">No payments match your filters.</p>
             ) : (
               filteredPayments.map((payment) => {
-                const labelDate = payment.due_date
-                  ? new Date(payment.due_date).toLocaleDateString(undefined, { month: 'long', year: 'numeric' })
+                const monthSource = payment.period_start || payment.due_date || null
+                const labelDate = monthSource
+                  ? new Date(monthSource).toLocaleDateString(undefined, { month: 'long', year: 'numeric' })
                   : payment.posted_at
                     ? new Date(payment.posted_at).toLocaleDateString(undefined, { month: 'long', year: 'numeric' })
                     : 'Payment'

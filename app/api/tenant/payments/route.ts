@@ -42,6 +42,7 @@ export async function GET() {
         invoices (
           invoice_type,
           due_date,
+          period_start,
           leases (
             apartment_units (
               unit_number,
@@ -65,6 +66,7 @@ export async function GET() {
       const invoice = payment.invoices as {
         invoice_type: string | null
         due_date: string | null
+        period_start?: string | null
         leases: {
           apartment_units: {
             unit_number: string | null
@@ -97,9 +99,23 @@ export async function GET() {
         invoice_type: invoice?.invoice_type || null,
         payment_type: invoice?.invoice_type || null,
         due_date: invoice?.due_date || null,
+        period_start: (invoice as any)?.period_start || null,
         property_name: invoice?.leases?.apartment_units?.apartment_buildings?.name || null,
         unit_label: invoice?.leases?.apartment_units?.unit_number || null,
       }
+    })
+
+    // Sort by the month being paid for (invoice.period_start), so "Jan/Feb/Mar" appear consistently
+    // even when the base payment row was created earlier than the allocation rows.
+    mapped.sort((a, b) => {
+      const aKey = a.period_start || a.due_date || a.posted_at || a.created_at || ''
+      const bKey = b.period_start || b.due_date || b.posted_at || b.created_at || ''
+      if (aKey === bKey) {
+        const aCreated = a.created_at || ''
+        const bCreated = b.created_at || ''
+        return String(bCreated).localeCompare(String(aCreated))
+      }
+      return String(bKey).localeCompare(String(aKey))
     })
 
     return NextResponse.json({ success: true, data: mapped })
