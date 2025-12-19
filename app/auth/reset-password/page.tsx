@@ -26,6 +26,9 @@ function ResetPasswordForm() {
   const [accessToken, setAccessToken] = useState<string | null>(null)
   const [refreshToken, setRefreshToken] = useState<string | null>(null)
   const [hasSession, setHasSession] = useState(false)
+  const [recoveryTokenHash, setRecoveryTokenHash] = useState<string | null>(null)
+  const [recoveryToken, setRecoveryToken] = useState<string | null>(null)
+  const [recoveryEmail, setRecoveryEmail] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -121,29 +124,18 @@ function ResetPasswordForm() {
         return
       }
 
-      // Some Supabase configurations send `token_hash` + `type=recovery` instead of tokens.
+      // Some Supabase configurations send `token_hash` + `type=recovery` (or legacy token+email).
+      // Do NOT redeem these tokens on page load (email clients / scanners can invalidate them).
+      // Instead, keep them in state and redeem inside the reset-password API call on submit.
       const tokenHashFromHash = parseHashTokenHash()
       const tokenHash = queryType === 'recovery' ? queryTokenHash : null
       const supabase = createClient()
 
       if (tokenHash) {
-        const { data, error: verifyError } = await supabase.auth.verifyOtp({
-          type: 'recovery',
-          token_hash: tokenHash,
-        })
-
         if (cancelled) return
-
-        if (verifyError || !data?.session) {
-          setIsInvalidLink(true)
-          setError(verifyError?.message || 'Invalid or expired reset link. Please request a new password reset.')
-          setIsInitializing(false)
-          return
-        }
-
-        setAccessToken(data.session.access_token)
-        setRefreshToken(data.session.refresh_token)
+        setRecoveryTokenHash(tokenHash)
         setIsInvalidLink(false)
+        setHasSession(false)
         setError(null)
         setIsInitializing(false)
 
@@ -157,23 +149,10 @@ function ResetPasswordForm() {
       }
 
       if (tokenHashFromHash) {
-        const { data, error: verifyError } = await supabase.auth.verifyOtp({
-          type: 'recovery',
-          token_hash: tokenHashFromHash.token_hash,
-        })
-
         if (cancelled) return
-
-        if (verifyError || !data?.session) {
-          setIsInvalidLink(true)
-          setError(verifyError?.message || 'Invalid or expired reset link. Please request a new password reset.')
-          setIsInitializing(false)
-          return
-        }
-
-        setAccessToken(data.session.access_token)
-        setRefreshToken(data.session.refresh_token)
+        setRecoveryTokenHash(tokenHashFromHash.token_hash)
         setIsInvalidLink(false)
+        setHasSession(false)
         setError(null)
         setIsInitializing(false)
 
@@ -185,24 +164,11 @@ function ResetPasswordForm() {
 
       // Legacy format: token + email + type=recovery
       if (queryType === 'recovery' && queryToken && queryEmail) {
-        const { data, error: verifyError } = await supabase.auth.verifyOtp({
-          type: 'recovery',
-          email: queryEmail,
-          token: queryToken,
-        })
-
         if (cancelled) return
-
-        if (verifyError || !data?.session) {
-          setIsInvalidLink(true)
-          setError(verifyError?.message || 'Invalid or expired reset link. Please request a new password reset.')
-          setIsInitializing(false)
-          return
-        }
-
-        setAccessToken(data.session.access_token)
-        setRefreshToken(data.session.refresh_token)
+        setRecoveryEmail(queryEmail)
+        setRecoveryToken(queryToken)
         setIsInvalidLink(false)
+        setHasSession(false)
         setError(null)
         setIsInitializing(false)
 
@@ -283,10 +249,13 @@ function ResetPasswordForm() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           password,
           access_token: accessToken,
           refresh_token: refreshToken,
+          token_hash: recoveryTokenHash,
+          token: recoveryToken,
+          email: recoveryEmail,
         }),
       })
 
@@ -509,7 +478,10 @@ function ResetPasswordForm() {
           {/* Submit Button */}
           <Button
             type="submit"
-            disabled={isLoading || (!(accessToken && refreshToken) && !hasSession)}
+            disabled={
+              isLoading ||
+              (!(accessToken && refreshToken) && !hasSession && !recoveryTokenHash && !(recoveryToken && recoveryEmail))
+            }
             className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold py-6"
           >
             {isLoading ? (

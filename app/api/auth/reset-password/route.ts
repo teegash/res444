@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { password, access_token, refresh_token } = body
+    const { password, access_token, refresh_token, token_hash, token, email } = body
 
     if (!password) {
       return NextResponse.json(
@@ -71,6 +71,39 @@ export async function POST(request: NextRequest) {
           {
             success: false,
             error: 'Invalid or expired reset token. Please request a new password reset.',
+          },
+          { status: 401 }
+        )
+      }
+    } else if (token_hash) {
+      // Some Supabase deployments send token_hash for recovery. Redeem it here (only on submit).
+      const { data: verified, error: verifyError } = await supabase.auth.verifyOtp({
+        type: 'recovery',
+        token_hash,
+      })
+
+      if (verifyError || !verified?.session) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: verifyError?.message || 'Invalid or expired reset link. Please request a new password reset.',
+          },
+          { status: 401 }
+        )
+      }
+    } else if (token && email) {
+      // Legacy recovery format: token + email
+      const { data: verified, error: verifyError } = await supabase.auth.verifyOtp({
+        type: 'recovery',
+        token,
+        email,
+      })
+
+      if (verifyError || !verified?.session) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: verifyError?.message || 'Invalid or expired reset link. Please request a new password reset.',
           },
           { status: 401 }
         )
