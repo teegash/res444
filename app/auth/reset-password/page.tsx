@@ -69,6 +69,14 @@ function ResetPasswordForm() {
         setIsInvalidLink(false)
         setError(null)
         setIsInitializing(false)
+
+        // Remove the code from the URL bar immediately. This prevents the Supabase client
+        // (which has `detectSessionInUrl=true`) from auto-consuming the code before the user submits.
+        if (typeof window !== 'undefined') {
+          const url = new URL(window.location.href)
+          url.searchParams.delete('code')
+          window.history.replaceState({}, '', url.pathname + url.search)
+        }
         return
       }
 
@@ -119,6 +127,12 @@ function ResetPasswordForm() {
         setHasSession(false)
         setError(null)
         setIsInitializing(false)
+        if (typeof window !== 'undefined') {
+          const url = new URL(window.location.href)
+          url.searchParams.delete('token_hash')
+          url.searchParams.delete('type')
+          window.history.replaceState({}, '', url.pathname + url.search)
+        }
         return
       }
 
@@ -129,6 +143,9 @@ function ResetPasswordForm() {
         setHasSession(false)
         setError(null)
         setIsInitializing(false)
+        if (typeof window !== 'undefined') {
+          window.history.replaceState({}, '', window.location.pathname + window.location.search)
+        }
         return
       }
 
@@ -141,6 +158,13 @@ function ResetPasswordForm() {
         setHasSession(false)
         setError(null)
         setIsInitializing(false)
+        if (typeof window !== 'undefined') {
+          const url = new URL(window.location.href)
+          url.searchParams.delete('token')
+          url.searchParams.delete('email')
+          url.searchParams.delete('type')
+          window.history.replaceState({}, '', url.pathname + url.search)
+        }
         return
       }
 
@@ -209,7 +233,11 @@ function ResetPasswordForm() {
       const supabase = createClient()
 
       // Ensure we have a valid auth session for password update.
-      if (!hasSession) {
+      const {
+        data: { session: existingSession },
+      } = await supabase.auth.getSession()
+
+      if (!existingSession) {
         if (accessToken && refreshToken) {
           const { error: setSessionError } = await supabase.auth.setSession({
             access_token: accessToken,
