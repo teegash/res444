@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -18,6 +18,7 @@ import {
 } from '@/components/ui/select'
 import { useToast } from '@/components/ui/use-toast'
 import { useTheme } from 'next-themes'
+import { createClient } from '@/lib/supabase/client'
 
 type TeamMember = {
   id: string
@@ -31,6 +32,7 @@ type TeamMember = {
 
 export default function SettingsPage() {
   const router = useRouter()
+  const supabase = useMemo(() => createClient(), [])
   const [activeTab, setActiveTab] = useState('account')
   const [fullName, setFullName] = useState('')
   const [phone, setPhone] = useState('')
@@ -175,16 +177,23 @@ export default function SettingsPage() {
   const handlePasswordReset = async () => {
     try {
       setResettingPassword(true)
-      const res = await fetch('/api/settings/password/reset', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email }),
+      const normalizedEmail = email.trim().toLowerCase()
+      if (!normalizedEmail) throw new Error('Missing email.')
+
+      const configuredSiteUrl = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, '')
+      const siteUrl = configuredSiteUrl || (typeof window !== 'undefined' ? window.location.origin : '')
+
+      // IMPORTANT:
+      // When using `{{ .ConfirmationURL }}` with PKCE, the browser must store the code_verifier
+      // when requesting the reset email. That means we must call resetPasswordForEmail in the browser.
+      const { error } = await supabase.auth.resetPasswordForEmail(normalizedEmail, {
+        redirectTo: `${siteUrl}/auth/reset-password`,
       })
-      const json = await res.json()
-      if (!res.ok || !json.success) {
-        throw new Error(json.error || 'Failed to send reset email.')
-      }
-      toast({ title: 'Reset email sent', description: 'Check your inbox for reset instructions.' })
+
+      // Always show success to avoid email enumeration; log failures for debugging.
+      if (error) console.error('[Settings.PasswordReset] resetPasswordForEmail failed', error)
+
+      toast({ title: 'Reset email sent', description: 'If an account exists, check your inbox for reset instructions.' })
     } catch (err) {
       toast({
         title: 'Reset failed',

@@ -26,6 +26,7 @@ function ResetPasswordForm() {
   const [accessToken, setAccessToken] = useState<string | null>(null)
   const [refreshToken, setRefreshToken] = useState<string | null>(null)
   const [hasSession, setHasSession] = useState(false)
+  const [recoveryCode, setRecoveryCode] = useState<string | null>(null)
   const [recoveryTokenHash, setRecoveryTokenHash] = useState<string | null>(null)
   const [recoveryToken, setRecoveryToken] = useState<string | null>(null)
   const [recoveryEmail, setRecoveryEmail] = useState<string | null>(null)
@@ -58,42 +59,20 @@ function ResetPasswordForm() {
 
     const init = async () => {
       setIsInitializing(true)
-      const supabase = createClient()
       const code = searchParams.get('code')
       if (code) {
-        // PKCE recovery links can arrive with `?code=...`.
-        // Exchange the code on the client (where the PKCE verifier is stored).
-        const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
-
-        if (cancelled) return
-
-        if (exchangeError) {
-          setHasSession(false)
-          setIsInvalidLink(true)
-          setError('Invalid or expired reset link. Please request a new password reset.')
-          setIsInitializing(false)
-          return
-        }
-
-        const {
-          data: { session },
-        } = await supabase.auth.getSession()
-
-        setHasSession(!!session)
-        if (session?.access_token) setAccessToken(session.access_token)
-        if (session?.refresh_token) setRefreshToken(session.refresh_token)
+        // IMPORTANT:
+        // Do NOT exchange `code` on page load. Email clients/link scanners can open this URL
+        // and consume the one-time code, causing the real user to see "expired".
+        // We only exchange the code during form submit.
+        setRecoveryCode(code)
         setIsInvalidLink(false)
         setError(null)
         setIsInitializing(false)
-
-        if (typeof window !== 'undefined') {
-          const url = new URL(window.location.href)
-          url.searchParams.delete('code')
-          window.history.replaceState({}, '', url.pathname + url.search)
-        }
         return
       }
 
+      const supabase = createClient()
       const queryAccess = searchParams.get('access_token')
       const queryRefresh = searchParams.get('refresh_token')
       const queryType = searchParams.get('type')
@@ -140,13 +119,6 @@ function ResetPasswordForm() {
         setHasSession(false)
         setError(null)
         setIsInitializing(false)
-
-        if (typeof window !== 'undefined') {
-          const url = new URL(window.location.href)
-          url.searchParams.delete('token_hash')
-          url.searchParams.delete('type')
-          window.history.replaceState({}, '', url.pathname + url.search)
-        }
         return
       }
 
@@ -157,10 +129,6 @@ function ResetPasswordForm() {
         setHasSession(false)
         setError(null)
         setIsInitializing(false)
-
-        if (typeof window !== 'undefined') {
-          window.history.replaceState({}, '', window.location.pathname + window.location.search)
-        }
         return
       }
 
@@ -173,14 +141,6 @@ function ResetPasswordForm() {
         setHasSession(false)
         setError(null)
         setIsInitializing(false)
-
-        if (typeof window !== 'undefined') {
-          const url = new URL(window.location.href)
-          url.searchParams.delete('token')
-          url.searchParams.delete('email')
-          url.searchParams.delete('type')
-          window.history.replaceState({}, '', url.pathname + url.search)
-        }
         return
       }
 
@@ -246,34 +206,63 @@ function ResetPasswordForm() {
     setIsLoading(true)
 
     try {
-      const response = await fetch('/api/auth/reset-password', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          password,
-          access_token: accessToken,
-          refresh_token: refreshToken,
-          token_hash: recoveryTokenHash,
-          token: recoveryToken,
-          email: recoveryEmail,
-        }),
-      })
+      const supabase = createClient()
 
-      const result = await response.json()
-
-      if (result.success) {
-        setSuccess('Password reset successfully!')
-        setTimeout(() => {
-          router.push('/auth/login')
-        }, 2000)
-      } else {
-        setError(result.error || 'Failed to reset password')
-        setIsLoading(false)
+      // Ensure we have a valid auth session for password update.
+      if (!hasSession) {
+        if (accessToken && refreshToken) {
+          const { error: setSessionError } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken,
+          })
+          if (setSessionError) throw setSessionError
+        } else if (recoveryCode) {
+          const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(recoveryCode)
+          if (exchangeError) throw exchangeError
+        } else if (recoveryTokenHash) {
+          const { error: verifyError } = await supabase.auth.verifyOtp({
+            type: 'recovery',
+            token_hash: recoveryTokenHash,
+          })
+          if (verifyError) throw verifyError
+        } else if (recoveryToken && recoveryEmail) {
+          const { error: verifyError } = await supabase.auth.verifyOtp({
+            type: 'recovery',
+            token: recoveryToken,
+            email: recoveryEmail,
+          })
+          if (verifyError) throw verifyError
+        }
       }
+
+      const { error: updateError } = await supabase.auth.updateUser({ password })
+
+      if (updateError) throw updateError
+
+      setSuccess('Password reset successfully!')
+      setTimeout(async () => {
+        try {
+          await supabase.auth.signOut()
+        } finally {
+          router.push('/auth/login')
+        }
+      }, 1500)
     } catch (err) {
-      setError('An unexpected error occurred')
+      const msg =
+        err && typeof err === 'object' && 'message' in err && typeof (err as any).message === 'string'
+          ? String((err as any).message)
+          : 'An unexpected error occurred'
+
+      // Helpful guidance for the most common failure modes.
+      if (/code verifier|code_verifier/i.test(msg)) {
+        setError(
+          'This reset link must be opened in the same browser where you requested it. Please request a new reset link from this browser and try again.'
+        )
+      } else if (/otp_expired|expired|invalid/i.test(msg)) {
+        setError('Invalid or expired reset link. Please request a new password reset.')
+      } else {
+        setError(msg)
+      }
       setIsLoading(false)
     }
   }
@@ -482,7 +471,11 @@ function ResetPasswordForm() {
             type="submit"
             disabled={
               isLoading ||
-              (!(accessToken && refreshToken) && !hasSession && !recoveryTokenHash && !(recoveryToken && recoveryEmail))
+              (!(accessToken && refreshToken) &&
+                !hasSession &&
+                !recoveryCode &&
+                !recoveryTokenHash &&
+                !(recoveryToken && recoveryEmail))
             }
             className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold py-6"
           >

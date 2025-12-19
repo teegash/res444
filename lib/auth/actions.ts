@@ -159,33 +159,6 @@ export async function getUser() {
   }
 }
 
-export async function resetPassword(email: string) {
-  try {
-    const supabase = await createClient()
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/reset-password`,
-    })
-
-    if (error) {
-      return {
-        success: false,
-        error: error.message,
-      }
-    }
-
-    return {
-      success: true,
-      message: 'Password reset email sent. Please check your inbox.',
-    }
-  } catch (error) {
-    const authError = error as AuthError
-    return {
-      success: false,
-      error: authError.message || 'An unexpected error occurred',
-    }
-  }
-}
-
 export async function updatePassword(newPassword: string) {
   try {
     const supabase = await createClient()
@@ -212,4 +185,3 @@ export async function updatePassword(newPassword: string) {
     }
   }
 }
-
