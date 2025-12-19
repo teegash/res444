@@ -18,6 +18,7 @@ function ResetPasswordForm() {
   const [confirmPassword, setConfirmPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
+  const [isInitializing, setIsInitializing] = useState(true)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
@@ -41,9 +42,35 @@ function ResetPasswordForm() {
     }
 
     const init = async () => {
+      setIsInitializing(true)
       const code = searchParams.get('code')
       if (code) {
-        router.replace(`/auth/callback?code=${encodeURIComponent(code)}&next=/auth/reset-password`)
+        // Some Supabase projects use PKCE and return a `code` to exchange for a session.
+        // Do the exchange here (without redirecting away) so the user can fill the form uninterrupted.
+        const supabase = createClient()
+        const { data, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
+
+        if (cancelled) return
+
+        if (exchangeError || !data?.session) {
+          setIsInvalidLink(true)
+          setError('Invalid or expired reset link. Please request a new password reset.')
+          setIsInitializing(false)
+          return
+        }
+
+        setAccessToken(data.session.access_token)
+        setRefreshToken(data.session.refresh_token)
+        setIsInvalidLink(false)
+        setError(null)
+        setIsInitializing(false)
+
+        // Remove the code from the URL bar without navigating (prevents re-exchange on refresh).
+        if (typeof window !== 'undefined') {
+          const url = new URL(window.location.href)
+          url.searchParams.delete('code')
+          window.history.replaceState({}, '', url.pathname + url.search)
+        }
         return
       }
 
@@ -57,6 +84,7 @@ function ResetPasswordForm() {
         setRefreshToken(queryRefresh)
         setIsInvalidLink(false)
         setError(null)
+        setIsInitializing(false)
         return
       }
 
@@ -67,6 +95,7 @@ function ResetPasswordForm() {
         setRefreshToken(hashTokens.refresh_token)
         setIsInvalidLink(false)
         setError(null)
+        setIsInitializing(false)
 
         // Remove tokens from the URL bar (they were in the hash).
         if (typeof window !== 'undefined') {
@@ -87,11 +116,13 @@ function ResetPasswordForm() {
       if (session) {
         setIsInvalidLink(false)
         setError(null)
+        setIsInitializing(false)
         return
       }
 
       setIsInvalidLink(true)
       setError('Invalid or expired reset link. Please request a new password reset.')
+      setIsInitializing(false)
     }
 
     init()
@@ -202,6 +233,22 @@ function ResetPasswordForm() {
                 <ArrowLeft className="w-4 h-4 mr-2" />
                 Go Back to Login
               </Button>
+            </div>
+          </div>
+        </Card>
+      </main>
+    )
+  }
+
+  if (isInitializing) {
+    return (
+      <main className="min-h-screen bg-background flex items-center justify-center p-4">
+        <Card className="w-full max-w-md p-8 border border-border shadow-lg">
+          <div className="flex flex-col items-center justify-center gap-4 text-center">
+            <Loader2 className="w-8 h-8 animate-spin text-primary" />
+            <div className="space-y-1">
+              <div className="text-lg font-semibold text-foreground">Preparing password reset…</div>
+              <div className="text-sm text-muted-foreground">Please wait a moment.</div>
             </div>
           </div>
         </Card>
@@ -349,7 +396,7 @@ function ResetPasswordForm() {
           {/* Submit Button */}
           <Button
             type="submit"
-            disabled={isLoading || !searchParams.get('access_token')}
+            disabled={isLoading}
             className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold py-6"
           >
             {isLoading ? (
