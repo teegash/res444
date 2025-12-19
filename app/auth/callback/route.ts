@@ -16,6 +16,10 @@ export async function GET(request: NextRequest) {
   }
 
   // Return the user to an error page with instructions
-  return NextResponse.redirect(new URL('/auth/login?error=Could not authenticate', request.url))
+  const loginUrl = new URL('/auth/login', request.url)
+  loginUrl.searchParams.set('error', 'Could not authenticate')
+  if (next.startsWith('/auth/reset-password')) {
+    loginUrl.searchParams.set('flow', 'recovery')
+  }
+  return NextResponse.redirect(loginUrl)
 }
-

@@ -24,6 +24,7 @@ function LoginForm() {
   )
   
   const [error, setError] = useState<string | null>(null)
+  const [showRecoveryHelp, setShowRecoveryHelp] = useState(false)
   const [showTenantMessage, setShowTenantMessage] = useState(false)
   const [formData, setFormData] = useState({
     email: '',
@@ -34,6 +35,8 @@ function LoginForm() {
   const registered = searchParams.get('registered') === 'true'
   const registeredEmail = searchParams.get('email')
   const inviteEmail = searchParams.get('email')
+  const urlError = searchParams.get('error')
+  const flow = searchParams.get('flow')
 
   // Update account type when tab parameter changes
   useEffect(() => {
@@ -56,9 +59,44 @@ function LoginForm() {
     }
   }, [user, authLoading, router, redirectTo])
 
+  useEffect(() => {
+    if (!urlError) return
+
+    const normalized = urlError.toLowerCase()
+    if (flow === 'recovery' || normalized.includes('authenticate')) {
+      setError('Your password reset link is invalid or has expired. Please request a new reset link.')
+      setShowRecoveryHelp(true)
+      return
+    }
+
+    setError(urlError)
+  }, [urlError, flow])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const raw = window.location.hash?.startsWith('#') ? window.location.hash.slice(1) : window.location.hash
+    if (!raw) return
+
+    const params = new URLSearchParams(raw)
+    const errorCode = params.get('error_code') || params.get('error') || ''
+    const errorDescription = params.get('error_description') || ''
+
+    if (errorCode === 'otp_expired') {
+      setError('Your password reset link has expired. Please request a new reset link.')
+      setShowRecoveryHelp(true)
+    } else if (errorDescription) {
+      setError(errorDescription)
+      if (errorCode.includes('otp') || errorCode.includes('access_denied')) setShowRecoveryHelp(true)
+    }
+
+    // Clear hash so refresh/back doesn't keep re-triggering the same error state.
+    window.history.replaceState({}, '', window.location.pathname + window.location.search)
+  }, [])
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
+    setShowRecoveryHelp(false)
     setIsLoading(true)
 
     try {
@@ -222,9 +260,18 @@ function LoginForm() {
           )}
 
           {error && (
-            <Alert variant="destructive" className="mb-4">
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
+            <div className="mb-4 space-y-2">
+              <Alert variant="destructive">
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+              {showRecoveryHelp && (
+                <div className="text-sm">
+                  <Link href="/auth/forgot-password" className="text-blue-600 font-semibold hover:text-blue-700 underline">
+                    Request a new password reset link
+                  </Link>
+                </div>
+              )}
+            </div>
           )}
 
           {/* Tenant Signup Message */}
