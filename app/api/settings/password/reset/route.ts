@@ -12,7 +12,7 @@ export async function POST(request: NextRequest) {
     const supabase = await createClient()
     const configuredSiteUrl = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, '')
     const siteUrl = configuredSiteUrl || request.nextUrl.origin
-    const redirectTo = `${siteUrl}/auth/callback?next=/dashboard/settings`
+    const redirectTo = `${siteUrl}/auth/reset-password`
 
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo,

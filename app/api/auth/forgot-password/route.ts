@@ -24,8 +24,8 @@ export async function POST(request: NextRequest) {
     const siteUrl = configuredSiteUrl || request.nextUrl.origin
 
     await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase(), {
-      // Use the auth callback for PKCE exchange, then land on the reset form.
-      redirectTo: `${siteUrl}/auth/callback?next=/auth/reset-password`,
+      // Land directly on the reset form. A robust setup uses `token_hash` links in the Supabase email template.
+      redirectTo: `${siteUrl}/auth/reset-password`,
     })
 
     // Always return success to prevent email enumeration

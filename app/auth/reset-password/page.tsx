@@ -58,20 +58,40 @@ function ResetPasswordForm() {
 
     const init = async () => {
       setIsInitializing(true)
+      const supabase = createClient()
       const code = searchParams.get('code')
       if (code) {
-        // In PKCE mode, exchanging the code relies on the stored code_verifier cookie.
-        // Hand off to the server callback to perform the exchange and then redirect back here.
+        // PKCE recovery links can arrive with `?code=...`.
+        // Exchange the code on the client (where the PKCE verifier is stored).
+        const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
+
+        if (cancelled) return
+
+        if (exchangeError) {
+          setHasSession(false)
+          setIsInvalidLink(true)
+          setError('Invalid or expired reset link. Please request a new password reset.')
+          setIsInitializing(false)
+          return
+        }
+
+        const {
+          data: { session },
+        } = await supabase.auth.getSession()
+
+        setHasSession(!!session)
+        if (session?.access_token) setAccessToken(session.access_token)
+        if (session?.refresh_token) setRefreshToken(session.refresh_token)
+        setIsInvalidLink(false)
+        setError(null)
+        setIsInitializing(false)
+
         if (typeof window !== 'undefined') {
           const url = new URL(window.location.href)
           url.searchParams.delete('code')
-          const callback = new URL('/auth/callback', url.origin)
-          callback.searchParams.set('code', code)
-          callback.searchParams.set('next', '/auth/reset-password')
-          callback.searchParams.set('returnTo', url.pathname + url.search)
-          window.location.replace(callback.toString())
-          return
+          window.history.replaceState({}, '', url.pathname + url.search)
         }
+        return
       }
 
       const queryAccess = searchParams.get('access_token')
@@ -112,7 +132,6 @@ function ResetPasswordForm() {
       // Instead, keep them in state and redeem inside the reset-password API call on submit.
       const tokenHashFromHash = parseHashTokenHash()
       const tokenHash = queryType === 'recovery' ? queryTokenHash : null
-      const supabase = createClient()
 
       if (tokenHash) {
         if (cancelled) return

@@ -91,6 +91,12 @@ export async function POST(request: NextRequest) {
           { status: 401 }
         )
       }
+
+      // Ensure the session is active for subsequent auth calls in this request.
+      await supabase.auth.setSession({
+        access_token: verified.session.access_token,
+        refresh_token: verified.session.refresh_token,
+      })
     } else if (token && email) {
       // Legacy recovery format: token + email
       const { data: verified, error: verifyError } = await supabase.auth.verifyOtp({
@@ -108,6 +114,12 @@ export async function POST(request: NextRequest) {
           { status: 401 }
         )
       }
+
+      // Ensure the session is active for subsequent auth calls in this request.
+      await supabase.auth.setSession({
+        access_token: verified.session.access_token,
+        refresh_token: verified.session.refresh_token,
+      })
     } else {
       // Some deployments use a code->session exchange (PKCE) and rely on session cookies.
       const {
