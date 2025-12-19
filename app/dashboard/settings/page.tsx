@@ -180,8 +180,7 @@ export default function SettingsPage() {
       const normalizedEmail = email.trim().toLowerCase()
       if (!normalizedEmail) throw new Error('Missing email.')
 
-      const configuredSiteUrl = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, '')
-      const siteUrl = configuredSiteUrl || (typeof window !== 'undefined' ? window.location.origin : '')
+      const siteUrl = typeof window !== 'undefined' ? window.location.origin : ''
 
       // IMPORTANT:
       // When using `{{ .ConfirmationURL }}` with PKCE, the browser must store the code_verifier

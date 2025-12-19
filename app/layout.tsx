@@ -31,8 +31,12 @@ export default function RootLayout({
               if (u.pathname === '/auth/reset-password' && u.searchParams.has('code')) {
                 var code = u.searchParams.get('code');
                 if (code) {
-                  sessionStorage.setItem('res_reset_code', code);
-                  sessionStorage.setItem('res_reset_code_ts', String(Date.now()));
+                  // Keep an in-memory fallback in case sessionStorage is blocked.
+                  window.__res_reset_code = code;
+                  try {
+                    sessionStorage.setItem('res_reset_code', code);
+                    sessionStorage.setItem('res_reset_code_ts', String(Date.now()));
+                  } catch (_) {}
                 }
                 u.searchParams.delete('code');
                 window.history.replaceState({}, '', u.pathname + (u.search ? u.search : '') + u.hash);

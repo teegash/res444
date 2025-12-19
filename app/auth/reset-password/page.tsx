@@ -81,12 +81,92 @@ function ResetPasswordForm() {
       // Prefer stashed PKCE code (keeps it out of the URL so Supabase can't auto-consume it).
       if (typeof window !== 'undefined') {
         const stashed = sessionStorage.getItem('res_reset_code')
+        const globalCode =
+          (window as any).__res_reset_code && typeof (window as any).__res_reset_code === 'string'
+            ? String((window as any).__res_reset_code)
+            : null
+        const codeToExchange = stashed || globalCode
         if (stashed) {
-          setRecoveryCode(stashed)
-          setIsInvalidLink(false)
-          setError(null)
-          setIsInitializing(false)
-          return
+          try {
+            const supabase = createClient()
+            const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(stashed)
+            if (exchangeError) throw exchangeError
+            if (cancelled) return
+
+            setHasSession(true)
+            setRecoveryCode(null)
+            setIsInvalidLink(false)
+            setError(null)
+            setIsInitializing(false)
+
+            try {
+              sessionStorage.removeItem('res_reset_code')
+              sessionStorage.removeItem('res_reset_code_ts')
+            } catch {}
+            try {
+              delete (window as any).__res_reset_code
+            } catch {}
+            return
+          } catch (e) {
+            if (cancelled) return
+            const msg =
+              e && typeof e === 'object' && 'message' in e && typeof (e as any).message === 'string'
+                ? String((e as any).message)
+                : 'Invalid or expired reset link. Please request a new password reset.'
+
+            if (/code verifier|code_verifier/i.test(msg)) {
+              setError(
+                'This reset link must be opened in the same browser and on the same domain where you requested it (no Vercel preview domain, no in-app browser). Please request a new reset link from this browser and try again.'
+              )
+            } else if (/otp_expired|expired|invalid/i.test(msg)) {
+              setError('Invalid or expired reset link. Please request a new password reset.')
+            } else {
+              setError(msg)
+            }
+            setHasSession(false)
+            setIsInvalidLink(true)
+            setIsInitializing(false)
+            return
+          }
+        }
+        if (codeToExchange && !stashed) {
+          try {
+            const supabase = createClient()
+            const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(codeToExchange)
+            if (exchangeError) throw exchangeError
+            if (cancelled) return
+
+            setHasSession(true)
+            setRecoveryCode(null)
+            setIsInvalidLink(false)
+            setError(null)
+            setIsInitializing(false)
+
+            try {
+              delete (window as any).__res_reset_code
+            } catch {}
+            return
+          } catch (e) {
+            if (cancelled) return
+            const msg =
+              e && typeof e === 'object' && 'message' in e && typeof (e as any).message === 'string'
+                ? String((e as any).message)
+                : 'Invalid or expired reset link. Please request a new password reset.'
+
+            if (/code verifier|code_verifier/i.test(msg)) {
+              setError(
+                'This reset link must be opened in the same browser and on the same domain where you requested it (no Vercel preview domain, no in-app browser). Please request a new reset link from this browser and try again.'
+              )
+            } else if (/otp_expired|expired|invalid/i.test(msg)) {
+              setError('Invalid or expired reset link. Please request a new password reset.')
+            } else {
+              setError(msg)
+            }
+            setHasSession(false)
+            setIsInvalidLink(true)
+            setIsInitializing(false)
+            return
+          }
         }
       }
 
@@ -254,15 +334,6 @@ function ResetPasswordForm() {
             refresh_token: refreshToken,
           })
           if (setSessionError) throw setSessionError
-        } else if (recoveryCode) {
-          const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(recoveryCode)
-          if (exchangeError) throw exchangeError
-          if (typeof window !== 'undefined') {
-            try {
-              sessionStorage.removeItem('res_reset_code')
-              sessionStorage.removeItem('res_reset_code_ts')
-            } catch {}
-          }
         } else if (recoveryTokenHash) {
           const { error: verifyError } = await supabase.auth.verifyOtp({
             type: 'recovery',
@@ -300,7 +371,7 @@ function ResetPasswordForm() {
       // Helpful guidance for the most common failure modes.
       if (/code verifier|code_verifier/i.test(msg)) {
         setError(
-          'This reset link must be opened in the same browser where you requested it. Please request a new reset link from this browser and try again.'
+          'This reset link must be opened in the same browser and on the same domain where you requested it (no Vercel preview domain, no in-app browser). Please request a new reset link from this browser and try again.'
         )
       } else if (/otp_expired|expired|invalid/i.test(msg)) {
         setError('Invalid or expired reset link. Please request a new password reset.')

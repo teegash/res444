@@ -27,20 +27,18 @@ export default function ForgotPasswordPage() {
 
     try {
       const normalizedEmail = email.trim().toLowerCase()
-      const configuredSiteUrl = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, '')
-      const siteUrl = configuredSiteUrl || (typeof window !== 'undefined' ? window.location.origin : '')
+      const siteUrl = typeof window !== 'undefined' ? window.location.origin : ''
 
       // IMPORTANT:
       // When using `{{ .ConfirmationURL }}` with PKCE, the browser must store the code_verifier
-      // when requesting the reset. That means this must run in the browser (not server route).
+      // when requesting the reset. That means this must run in the browser (not server route),
+      // AND the redirect domain must match the current origin (otherwise the verifier cookie won't exist).
       const { error: resetError } = await supabase.auth.resetPasswordForEmail(normalizedEmail, {
         redirectTo: `${siteUrl}/auth/reset-password`,
       })
 
       // Always show success (avoid email enumeration). Log errors for debugging.
-      if (resetError) {
-        console.error('[ForgotPassword] resetPasswordForEmail failed', resetError)
-      }
+      if (resetError) console.error('[ForgotPassword] resetPasswordForEmail failed', resetError)
 
       setSuccess('If an account exists with this email, a password reset link has been sent. Please check your inbox.')
     } catch (err) {
