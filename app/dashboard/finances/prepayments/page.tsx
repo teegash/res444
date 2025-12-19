@@ -39,15 +39,20 @@ function parseMonthStartUtc(value: string | null): Date | null {
 }
 
 function computePrepaidMonths(rentPaidUntil: string | null, nextRentDueDate: string | null): number {
-  const paidUntil = parseMonthStartUtc(rentPaidUntil)
-  if (!paidUntil) return 0
-
   const currentMonthStart = monthStartUtc(new Date())
   const nextDueMonthStart = parseMonthStartUtc(nextRentDueDate)
-  const baseMonthStart = nextDueMonthStart && nextDueMonthStart > currentMonthStart ? nextDueMonthStart : currentMonthStart
-  if (paidUntil < baseMonthStart) return 0
 
-  return Math.max(0, monthsBetweenMonthStarts(baseMonthStart, paidUntil) + 1)
+  // Preferred: next_rent_due_date tells us the first uncovered month.
+  // Months prepaid (as shown in dashboard) = number of whole months covered starting from the current month.
+  if (nextDueMonthStart && nextDueMonthStart > currentMonthStart) {
+    return Math.max(0, monthsBetweenMonthStarts(currentMonthStart, nextDueMonthStart))
+  }
+
+  // Fallback: derive from rent_paid_until (inclusive).
+  const paidUntil = parseMonthStartUtc(rentPaidUntil)
+  if (!paidUntil) return 0
+  if (paidUntil < currentMonthStart) return 0
+  return Math.max(0, monthsBetweenMonthStarts(currentMonthStart, paidUntil) + 1)
 }
 
 export default function PrepaymentsPage() {

@@ -13,8 +13,11 @@ const parseRent = (value?: string | number | null) => {
 
 type InvoiceRow = {
   id: string
+  lease_id?: string | null
   amount: number | null
   status: boolean | null
+  status_text?: string | null
+  total_paid?: number | null
   due_date: string | null
   period_start?: string | null
   invoice_type: string | null
@@ -123,8 +126,11 @@ export async function GET() {
           .select(
             `
           id,
+          lease_id,
           amount,
           status,
+          status_text,
+          total_paid,
           period_start,
           due_date,
           invoice_type,
@@ -253,7 +259,7 @@ export async function GET() {
     }
 
     const invoices = (invoicesRes.data || []) as InvoiceRow[]
-    const payments = (paymentsRes.data || []) as any[]
+    const payments = (paymentsRes.data || []) as PaymentRow[]
     const maintenance = (maintenanceRes.data || []) as MaintenanceRow[]
     const expenses = (expensesRes as any).data || []
     const units = unitsRes.data || []
@@ -307,6 +313,73 @@ export async function GET() {
       (toMonthStart.getUTCFullYear() - fromMonthStart.getUTCFullYear()) * 12 +
       (toMonthStart.getUTCMonth() - fromMonthStart.getUTCMonth())
 
+    // Build a paid-total map for the rent invoices we already fetched. This lets us compute
+    // months-prepaid reliably even when lease pointers drift.
+    const rentInvoiceIds = invoices.map((i) => i.id).filter(Boolean)
+    const invoicePaidMap = new Map<string, number>()
+    if (rentInvoiceIds.length) {
+      const rentInvoiceIdSet = new Set(rentInvoiceIds)
+      payments.forEach((p) => {
+        if (!p?.verified) return
+        if (!p.invoice_id) return
+        if (!rentInvoiceIdSet.has(p.invoice_id)) return
+        invoicePaidMap.set(p.invoice_id, (invoicePaidMap.get(p.invoice_id) || 0) + Number(p.amount_paid || 0))
+      })
+    }
+
+    const ymd = (d: Date) => d.toISOString().slice(0, 10)
+    const addMonthsUtc = (monthStart: Date, months: number) =>
+      new Date(Date.UTC(monthStart.getUTCFullYear(), monthStart.getUTCMonth() + months, 1))
+
+    const paidRentMonthsByLease = new Map<string, Set<string>>()
+    invoices.forEach((inv) => {
+      const leaseId = inv.lease_id ? String(inv.lease_id) : null
+      if (!leaseId) return
+
+      const amount = Number(inv.amount || 0)
+      if (!Number.isFinite(amount) || amount <= 0) return
+
+      const paidTotal = invoicePaidMap.get(inv.id) || 0
+      const isPaid =
+        inv.status === true ||
+        inv.status_text === 'paid' ||
+        paidTotal >= amount * 0.999 ||
+        Number(inv.total_paid || 0) >= amount * 0.999
+
+      if (!isPaid) return
+
+      const periodSource = inv.period_start || inv.due_date
+      if (!periodSource) return
+      const periodMonthStart = toMonthStartUtc(String(periodSource))
+      if (!periodMonthStart) return
+
+      const key = ymd(periodMonthStart)
+      const set = paidRentMonthsByLease.get(leaseId) || new Set<string>()
+      set.add(key)
+      paidRentMonthsByLease.set(leaseId, set)
+    })
+
+    const countConsecutivePaidMonths = (leaseId: string): number => {
+      const set = paidRentMonthsByLease.get(leaseId)
+      if (!set || set.size === 0) return 0
+
+      const currentKey = ymd(currentMonthStartUtc)
+      const paidKeys = Array.from(set).filter((k) => k >= currentKey).sort()
+      if (paidKeys.length === 0) return 0
+
+      const startKey = paidKeys[0]
+      const startMonth = toMonthStartUtc(startKey)
+      if (!startMonth) return 0
+
+      let count = 0
+      for (let i = 0; i < 36; i += 1) {
+        const expected = ymd(addMonthsUtc(startMonth, i))
+        if (!set.has(expected)) break
+        count += 1
+      }
+      return count
+    }
+
     const prepayRows = Array.isArray(prepayRes.data) ? (prepayRes.data as any[]) : []
     const prepayTenantIds = Array.from(
       new Set(prepayRows.map((r) => r?.tenant_user_id || r?.tenant_id).filter(Boolean) as string[])
@@ -342,13 +415,16 @@ export async function GET() {
         const rentPaidUntil = rentPaidUntilStr ? toMonthStartUtc(String(rentPaidUntilStr)) : null
         const nextDueStr = row.next_rent_due_date || row.nextRentDueDate || null
         const nextDueMonth = nextDueStr ? toMonthStartUtc(String(nextDueStr)) : null
-        const prepaidBaseMonth = nextDueMonth && nextDueMonth > currentMonthStartUtc ? nextDueMonth : currentMonthStartUtc
-        const prepaidMonths =
-          rentPaidUntil && rentPaidUntil >= prepaidBaseMonth
-            ? Math.max(0, monthsBetweenMonthStarts(prepaidBaseMonth, rentPaidUntil) + 1)
-            : 0
+        const prepaidMonthsFromPointers =
+          nextDueMonth && nextDueMonth > currentMonthStartUtc
+            ? Math.max(0, monthsBetweenMonthStarts(currentMonthStartUtc, nextDueMonth))
+            : rentPaidUntil && rentPaidUntil >= currentMonthStartUtc
+              ? Math.max(0, monthsBetweenMonthStarts(currentMonthStartUtc, rentPaidUntil) + 1)
+              : 0
 
-        const isPrepaid = row.is_prepaid === true || row.isPrepaid === true || prepaidMonths > 0
+        const prepaidMonthsFromInvoices = leaseId ? countConsecutivePaidMonths(String(leaseId)) : 0
+        const prepaidMonths = Math.max(prepaidMonthsFromPointers, prepaidMonthsFromInvoices)
+        const isPrepaid = prepaidMonths > 0 || row.is_prepaid === true || row.isPrepaid === true
 
         const profile = tenantId ? prepayProfilesById.get(String(tenantId)) : undefined
 
@@ -365,7 +441,7 @@ export async function GET() {
           is_prepaid: isPrepaid,
         }
       })
-      .filter((row: any) => row.lease_id && row.is_prepaid)
+      .filter((row: any) => row.lease_id && row.prepaid_months > 0)
       .sort((a: any, b: any) => String(b.rent_paid_until || '').localeCompare(String(a.rent_paid_until || '')))
 
     // If the DB view returns no rows (common when schemas drift), derive prepayments from leases pointers.
@@ -379,12 +455,15 @@ export async function GET() {
         const rentPaidUntil = rentPaidUntilStr ? toMonthStartUtc(String(rentPaidUntilStr)) : null
         const nextDueStr = lease.next_rent_due_date || null
         const nextDueMonth = nextDueStr ? toMonthStartUtc(String(nextDueStr)) : null
-        const prepaidBaseMonth = nextDueMonth && nextDueMonth > currentMonthStartUtc ? nextDueMonth : currentMonthStartUtc
-        const prepaidMonths =
-          rentPaidUntil && rentPaidUntil >= prepaidBaseMonth
-            ? Math.max(0, monthsBetweenMonthStarts(prepaidBaseMonth, rentPaidUntil) + 1)
-            : 0
+        const prepaidMonthsFromPointers =
+          nextDueMonth && nextDueMonth > currentMonthStartUtc
+            ? Math.max(0, monthsBetweenMonthStarts(currentMonthStartUtc, nextDueMonth))
+            : rentPaidUntil && rentPaidUntil >= currentMonthStartUtc
+              ? Math.max(0, monthsBetweenMonthStarts(currentMonthStartUtc, rentPaidUntil) + 1)
+              : 0
 
+        const prepaidMonthsFromInvoices = countConsecutivePaidMonths(String(lease.id))
+        const prepaidMonths = Math.max(prepaidMonthsFromPointers, prepaidMonthsFromInvoices)
         if (prepaidMonths <= 0) return null
 
         const tenantId = lease.tenant_user_id || null
@@ -424,19 +503,6 @@ export async function GET() {
     // Monthly Revenue (rent-only) should reflect rent paid FOR that rent month.
     // To avoid counting multi-month prepayments as a lump-sum, we bucket by invoice.period_start,
     // and cap each invoice at its invoice amount.
-    const rentInvoiceIds = invoices.map((i) => i.id).filter(Boolean)
-    const invoicePaidMap = new Map<string, number>()
-
-    if (rentInvoiceIds.length > 0) {
-      const rentInvoiceIdSet = new Set(rentInvoiceIds)
-      ;(payments as PaymentRow[]).forEach((p) => {
-        if (!p?.verified) return
-        if (!p.invoice_id) return
-        if (!rentInvoiceIdSet.has(p.invoice_id)) return
-        invoicePaidMap.set(p.invoice_id, (invoicePaidMap.get(p.invoice_id) || 0) + Number(p.amount_paid || 0))
-      })
-    }
-
     invoices.forEach((inv) => {
       const invoiceAmount = Number(inv.amount || 0)
       const paidTotal = invoicePaidMap.get(inv.id) || 0
