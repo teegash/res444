@@ -60,35 +60,18 @@ function ResetPasswordForm() {
       setIsInitializing(true)
       const code = searchParams.get('code')
       if (code) {
-        // Some Supabase projects use PKCE and return a `code` to exchange for a session.
-        // Do the exchange here (without redirecting away) so the user can fill the form uninterrupted.
-        const supabase = createClient()
-        const { data, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
-
-        if (cancelled) return
-
-        if (exchangeError || !data?.session) {
-          setIsInvalidLink(true)
-          setError(
-            exchangeError?.message || 'Invalid or expired reset link. Please request a new password reset.'
-          )
-          setIsInitializing(false)
-          return
-        }
-
-        setAccessToken(data.session.access_token)
-        setRefreshToken(data.session.refresh_token)
-        setIsInvalidLink(false)
-        setError(null)
-        setIsInitializing(false)
-
-        // Remove the code from the URL bar without navigating (prevents re-exchange on refresh).
+        // In PKCE mode, exchanging the code relies on the stored code_verifier cookie.
+        // Hand off to the server callback to perform the exchange and then redirect back here.
         if (typeof window !== 'undefined') {
           const url = new URL(window.location.href)
           url.searchParams.delete('code')
-          window.history.replaceState({}, '', url.pathname + url.search)
+          const callback = new URL('/auth/callback', url.origin)
+          callback.searchParams.set('code', code)
+          callback.searchParams.set('next', '/auth/reset-password')
+          callback.searchParams.set('returnTo', url.pathname + url.search)
+          window.location.replace(callback.toString())
+          return
         }
-        return
       }
 
       const queryAccess = searchParams.get('access_token')

@@ -23,8 +23,9 @@ export async function POST(request: NextRequest) {
     const configuredSiteUrl = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, '')
     const siteUrl = configuredSiteUrl || request.nextUrl.origin
 
-    const { error } = await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase(), {
-      redirectTo: `${siteUrl}/auth/reset-password`,
+    await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase(), {
+      // Use the auth callback for PKCE exchange, then land on the reset form.
+      redirectTo: `${siteUrl}/auth/callback?next=/auth/reset-password`,
     })
 
     // Always return success to prevent email enumeration
