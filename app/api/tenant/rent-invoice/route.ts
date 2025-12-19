@@ -105,17 +105,45 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // 1. Determine next rent period (month identity)
-    const pointer = lease.next_rent_due_date ? startOfMonthUtc(new Date(lease.next_rent_due_date)) : today
-    let nextDue = pointer
-    if (lease.rent_paid_until) {
-      const paidUntil = startOfMonthUtc(new Date(lease.rent_paid_until))
-      if (paidUntil >= nextDue) {
-        nextDue = addMonthsUtc(paidUntil, 1)
-      }
+    // 1) Determine next rent period (month identity)
+    // Use invoice truth, but also handle "missing month" gaps: next due is the FIRST unpaid/missing month
+    // from the eligible start (so we don't skip January and jump to February).
+    const eligibleStart = leaseEligibleStart ?? today
+    const eligibleStartIso = toIsoDate(eligibleStart)
+
+    const { data: rentInvoices, error: rentInvoicesErr } = await admin
+      .from('invoices')
+      .select('period_start, amount, status, status_text, total_paid')
+      .eq('lease_id', lease.id)
+      .eq('invoice_type', 'rent')
+      .not('period_start', 'is', null)
+      .gte('period_start', eligibleStartIso)
+      .order('period_start', { ascending: true })
+      .limit(240)
+
+    if (rentInvoicesErr) throw rentInvoicesErr
+
+    const paidMonthKeys = new Set<string>()
+    for (const inv of rentInvoices ?? []) {
+      if (!inv?.period_start) continue
+      if (inv.status_text === 'void') continue
+      const amount = Number(inv.amount || 0)
+      const totalPaid = Number(inv.total_paid || 0)
+      const isPaid = inv.status === true || inv.status_text === 'paid' || (amount > 0 && totalPaid >= amount * 0.999)
+      if (isPaid) paidMonthKeys.add(String(inv.period_start))
     }
-    if (leaseEligibleStart && nextDue < leaseEligibleStart) {
-      nextDue = leaseEligibleStart
+
+    let nextDue = startOfMonthUtc(new Date(`${eligibleStartIso}T00:00:00.000Z`))
+    for (let i = 0; i < 240; i += 1) {
+      const key = toIsoDate(nextDue)
+      if (!paidMonthKeys.has(key)) break
+      nextDue = addMonthsUtc(nextDue, 1)
+    }
+
+    // Heal pointer drift if needed (prevents "Pay rent for May" when it should be April).
+    const existingPtr = lease.next_rent_due_date ? startOfMonthUtc(new Date(lease.next_rent_due_date)) : null
+    if (!existingPtr || existingPtr.getTime() !== nextDue.getTime()) {
+      await admin.from('leases').update({ next_rent_due_date: toIsoDate(nextDue) }).eq('id', lease.id)
     }
 
     let attempts = 0

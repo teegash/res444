@@ -11,7 +11,7 @@ const UNPAID_STATUSES = new Set(['unpaid', 'overdue', 'partially_paid'])
 const AMOUNT_TOLERANCE = 0.05
 const DUPLICATE_LOOKBACK_HOURS = 24
 const MAX_PAST_PAYMENT_DAYS = 180
-const UNPAID_OR_FALSE = 'status.eq.false,status.eq.unpaid,status.eq.overdue,status.eq.partially_paid'
+const UNPAID_OR_FALSE = 'status.eq.false,status_text.eq.unpaid,status_text.eq.overdue,status_text.eq.partially_paid'
 
 interface LeaseRecord {
   id: string
@@ -144,7 +144,8 @@ export async function applyRentPayment(
 ) {
   const months = payment.months_paid && Number(payment.months_paid) > 0 ? Number(payment.months_paid) : 1
   const baseMonth = startOfMonthUtc(new Date(invoice.due_date))
-  const paidUntil = addMonthsUtc(baseMonth, months - 1)
+  const paidUntilMonthStart = addMonthsUtc(baseMonth, months - 1)
+  const paidUntil = new Date(Date.UTC(paidUntilMonthStart.getUTCFullYear(), paidUntilMonthStart.getUTCMonth() + 1, 0))
   const todayIso = toIsoDate(new Date())
 
   // Mark invoice payment metadata (trigger will handle status)
@@ -172,11 +173,12 @@ export async function applyRentPayment(
   }
 
   // Advance lease pointers
+  const nextDue = addMonthsUtc(paidUntilMonthStart, 1)
   const { error: leaseErr } = await admin
     .from('leases')
     .update({
       rent_paid_until: toIsoDate(paidUntil),
-      next_rent_due_date: toIsoDate(addMonthsUtc(paidUntil, 1)),
+      next_rent_due_date: toIsoDate(nextDue),
     })
     .eq('id', lease.id)
   if (leaseErr) throw leaseErr
@@ -293,23 +295,45 @@ async function syncLeasePointersFromPaidRentInvoices(admin: AdminClient, leaseId
     throw new Error(paidErr.message)
   }
 
-  const paidPeriod = parseMonthStartUtcFromAny(latestPaid?.period_start ?? null)
-  if (!paidPeriod) return
+  const paidPeriodStart = parseMonthStartUtcFromAny(latestPaid?.period_start ?? null)
+  if (!paidPeriodStart) return
 
-  const existingPaid = parseMonthStartUtcFromAny((lease as any).rent_paid_until ?? null)
-  const nextDue = addMonthsUtc(paidPeriod, 1)
+  const paidUntil = new Date(Date.UTC(paidPeriodStart.getUTCFullYear(), paidPeriodStart.getUTCMonth() + 1, 0))
 
-  // Never move pointers backwards.
-  if (existingPaid && paidPeriod.getTime() <= existingPaid.getTime()) return
+  const { data: oldestUnpaid, error: unpaidErr } = await admin
+    .from('invoices')
+    .select('period_start')
+    .eq('lease_id', leaseId)
+    .eq('invoice_type', 'rent')
+    .not('period_start', 'is', null)
+    .gte('period_start', eligibleIso)
+    .or(UNPAID_OR_FALSE)
+    .order('period_start', { ascending: true })
+    .limit(1)
+    .maybeSingle()
 
-  const { error: updErr } = await admin
-    .from('leases')
-    .update({
-      rent_paid_until: toIsoDate(paidPeriod),
-      next_rent_due_date: toIsoDate(nextDue),
-    })
-    .eq('id', leaseId)
+  if (unpaidErr) {
+    throw new Error(unpaidErr.message)
+  }
 
+  const desiredNextDue = parseMonthStartUtcFromAny(oldestUnpaid?.period_start ?? null) ?? addMonthsUtc(paidPeriodStart, 1)
+
+  const existingPaidUntil = parseDate((lease as any).rent_paid_until ?? null)
+  const existingPaidMonthStart = existingPaidUntil ? startOfMonthUtc(existingPaidUntil) : null
+  const existingNextDue = parseMonthStartUtcFromAny((lease as any).next_rent_due_date ?? null)
+
+  const desiredPaidMonthStart = startOfMonthUtc(paidUntil)
+  const shouldAdvancePaid =
+    !existingPaidMonthStart || desiredPaidMonthStart.getTime() > existingPaidMonthStart.getTime()
+  const shouldUpdateNextDue = !existingNextDue || existingNextDue.getTime() !== desiredNextDue.getTime()
+
+  if (!shouldAdvancePaid && !shouldUpdateNextDue) return
+
+  const patch: Record<string, string> = {}
+  if (shouldAdvancePaid) patch.rent_paid_until = toIsoDate(paidUntil)
+  if (shouldUpdateNextDue) patch.next_rent_due_date = toIsoDate(desiredNextDue)
+
+  const { error: updErr } = await admin.from('leases').update(patch).eq('id', leaseId)
   if (updErr) throw new Error(updErr.message)
 }
 

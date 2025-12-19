@@ -2,71 +2,6 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 
-type AdminClient = ReturnType<typeof createAdminClient>
-
-async function reconcileTenantPaymentCoverage(admin: AdminClient, tenantId: string) {
-  const { data } = await admin
-    .from('payments')
-    .select(
-      `
-      id,
-      months_paid,
-      payment_date,
-      created_at,
-      invoices (
-        due_date
-      )
-    `
-    )
-    .eq('tenant_user_id', tenantId)
-    .eq('verified', true)
-    .gt('months_paid', 0)
-
-  if (!data || data.length === 0) {
-    return
-  }
-
-  const updates: Array<{ id: string; months_paid: number }> = []
-  const today = new Date()
-  const currentMonthStart = new Date(today.getFullYear(), today.getMonth(), 1)
-
-  for (const payment of data) {
-    const originalMonths = Number(payment.months_paid || 0)
-    if (originalMonths <= 0) continue
-
-    const dueDateRaw =
-      (payment.invoices as { due_date: string | null } | null)?.due_date ||
-      payment.payment_date ||
-      payment.created_at
-    if (!dueDateRaw) continue
-
-    const coverageStart = new Date(dueDateRaw)
-    if (Number.isNaN(coverageStart.getTime())) continue
-
-    const coverageMonthStart = new Date(coverageStart.getFullYear(), coverageStart.getMonth(), 1)
-    let monthsElapsed =
-      (currentMonthStart.getFullYear() - coverageMonthStart.getFullYear()) * 12 +
-      (currentMonthStart.getMonth() - coverageMonthStart.getMonth())
-
-    if (monthsElapsed < 0) {
-      monthsElapsed = 0
-    }
-
-    const remaining = Math.max(0, originalMonths - monthsElapsed)
-    if (remaining !== originalMonths) {
-      updates.push({ id: payment.id, months_paid: remaining })
-    }
-  }
-
-  if (updates.length > 0) {
-    await Promise.all(
-      updates.map((update) =>
-        admin.from('payments').update({ months_paid: update.months_paid }).eq('id', update.id)
-      )
-    )
-  }
-}
-
 export async function GET() {
   try {
     const supabase = await createClient()
@@ -87,7 +22,6 @@ export async function GET() {
       )
     }
 
-    await reconcileTenantPaymentCoverage(admin, user.id)
     const { data, error } = await admin
       .from('payments')
       .select(

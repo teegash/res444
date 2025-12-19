@@ -74,3 +74,42 @@ where lease_id = '<LEASE_ID>'::uuid
   and invoice_type = 'rent'
 order by period_start asc;
 ```
+
+
+
+
+
+when i register as a new admin with new organization, i am getting this error - 2025-12-19 19:35:12.815 [info] Registration API called at: 2025-12-19T19:35:12.813Z
+2025-12-19 19:35:12.815 [info] Parsing request body...
+2025-12-19 19:35:12.822 [info] Request body parsed. Email: wangechibetty551@gmail.com Role: admin
+2025-12-19 19:35:12.822 [info] Registration API - Registering user with role: admin
+2025-12-19 19:35:12.823 [info] Calling registerUser with input: {
+  email: 'wangechibetty551@gmail.com',
+  role: 'admin',
+  hasOrganization: true
+}
+2025-12-19 19:35:12.824 [info] Skipping email check - Supabase will validate during signUp
+2025-12-19 19:35:12.824 [info] Creating Supabase admin client for auth...
+2025-12-19 19:35:12.827 [info] Supabase admin client created
+2025-12-19 19:35:12.827 [info] Creating user with role: admin for email: wangechibetty551@gmail.com
+2025-12-19 19:35:12.827 [info] Calling supabase.auth.signUp...
+2025-12-19 19:35:12.827 [info] Environment check - SITE_URL: https://res1212-xd8e.vercel.app
+2025-12-19 19:35:12.827 [info] Starting signUp operation...
+2025-12-19 19:35:12.837 [info] Waiting for signUp to complete (timeout: 8s - Supabase limit)...
+2025-12-19 19:35:14.492 [info] SignUp completed in 1662ms
+2025-12-19 19:35:14.492 [info] Sign up result:
+2025-12-19 19:35:14.492 [info] - User created: true
+2025-12-19 19:35:14.492 [info] - Has error: false
+2025-12-19 19:35:14.492 [info] - User ID: d9d6aad1-a3c3-4465-9ded-d03907a070e2
+2025-12-19 19:35:14.492 [info] - Error message: undefined
+2025-12-19 19:35:14.492 [info] User created. Role in metadata: admin
+2025-12-19 19:35:14.866 [warning] Failed to create organization member: user_profiles.organization_id must be set before organization_members row is created for user d9d6aad1-a3c3-4465-9ded-d03907a070e2
+2025-12-19 19:35:14.866 [info] registerUser result: {
+  success: false,
+  error: 'user_profiles.organization_id must be set before organization_members row is created for user d9d6aad1-a3c3-4465-9ded-d03907a070e2',
+  data: undefined
+}
+2025-12-19 19:35:14.866 [error] Registration failed: user_profiles.organization_id must be set before organization_members row is created for user d9d6aad1-a3c3-4465-9ded-d03907a070e2 Status: 400
+2025-12-19 19:35:14.868 [info] Registration API request completed at: 2025-12-19T19:35:14.868Z
+
+fix it for me, remember this is sign up for admin, it creates a new organization and organization member of the new organization upon creation, be keen doing this.
