@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { getUserRole } from '@/lib/rbac/userRole'
 
 export async function PUT(request: NextRequest) {
   try {
@@ -11,6 +12,14 @@ export async function PUT(request: NextRequest) {
 
     if (authError || !user) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const role = await getUserRole(user.id)
+    if (role?.role === 'tenant') {
+      return NextResponse.json(
+        { success: false, error: 'Tenants can only change passwords via password reset.' },
+        { status: 403 }
+      )
     }
 
     const body = await request.json().catch(() => ({}))

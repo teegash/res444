@@ -2,6 +2,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { PendingVerificationTab } from '@/components/dashboard/payment-tabs/pending-verification-tab'
 import { VerifiedPaymentsTab } from '@/components/dashboard/payment-tabs/verified-payments-tab'
@@ -32,11 +33,32 @@ interface PaymentTabsProps {
   propertyId?: string | null
 }
 
+const ALLOWED_TABS = ['pending', 'deposits', 'verified', 'failed', 'status'] as const
+type AllowedTab = (typeof ALLOWED_TABS)[number]
+const ALLOWED_TAB_SET = new Set<string>(ALLOWED_TABS)
+
+function normalizeTab(raw: string | null | undefined): AllowedTab {
+  const value = String(raw || '').toLowerCase()
+  return ALLOWED_TAB_SET.has(value) ? (value as AllowedTab) : 'pending'
+}
+
 export function PaymentTabs({ refreshKey, onIntegrationUpdate, propertyId }: PaymentTabsProps) {
+  const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
+
+  const [activeTab, setActiveTab] = useState<AllowedTab>(() => normalizeTab(searchParams.get('tab')))
   const [data, setData] = useState<PaymentsDashboardData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const autoSyncingRef = useRef(false)
+
+  useEffect(() => {
+    const nextTab = normalizeTab(searchParams.get('tab'))
+    if (nextTab !== activeTab) {
+      setActiveTab(nextTab)
+    }
+  }, [activeTab, searchParams])
 
   const fetchData = useCallback(async () => {
     try {
@@ -150,7 +172,24 @@ export function PaymentTabs({ refreshKey, onIntegrationUpdate, propertyId }: Pay
   }
 
   return (
-    <Tabs defaultValue="pending" className="w-full">
+    <Tabs
+      value={activeTab}
+      onValueChange={(next) => {
+        const nextTab = normalizeTab(next)
+        setActiveTab(nextTab)
+
+        const params = new URLSearchParams(searchParams.toString())
+        if (nextTab === 'pending') {
+          params.delete('tab')
+        } else {
+          params.set('tab', nextTab)
+        }
+
+        const queryString = params.toString()
+        router.replace(queryString ? `${pathname}?${queryString}` : pathname, { scroll: false })
+      }}
+      className="w-full"
+    >
       <TabsList className="grid w-full max-w-2xl grid-cols-5">
         <TabsTrigger value="pending">Pending</TabsTrigger>
         <TabsTrigger value="deposits">Deposits</TabsTrigger>

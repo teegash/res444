@@ -1,14 +1,14 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { usePathname } from 'next/navigation'
 import { BottomNav, NavItem } from './bottom-nav'
-import { MoreMenu } from './more-menu'
-import { Home, Wallet, Wrench, MessageSquare, FileText, Settings } from 'lucide-react'
+import { Home, Wallet, Wrench, MessageSquare, LogOut } from 'lucide-react'
+import { useAuth } from '@/lib/auth/context'
 
 export function TenantMobileNav() {
   const pathname = usePathname()
-  const [moreOpen, setMoreOpen] = useState(false)
+  const { signOut } = useAuth()
 
   const items: NavItem[] = useMemo(
     () => [
@@ -16,15 +16,10 @@ export function TenantMobileNav() {
       { key: 'payments', label: 'Pay', icon: Wallet, href: '/dashboard/tenant/payments' },
       { key: 'maintenance', label: 'Fix', icon: Wrench, href: '/dashboard/tenant/maintenance' },
       { key: 'messages', label: 'Messages', icon: MessageSquare, href: '/dashboard/tenant/messages' },
-      { key: 'more', label: 'More', icon: Settings, onClick: () => setMoreOpen(true) },
+      { key: 'logout', label: 'Logout', icon: LogOut, onClick: () => signOut() },
     ],
-    []
+    [signOut]
   )
-
-  const moreItems: NavItem[] = [
-    { key: 'lease', label: 'Lease', icon: FileText, href: '/dashboard/tenant/lease' },
-    { key: 'profile', label: 'Profile', icon: Settings, href: '/dashboard/tenant/settings' },
-  ]
 
   const activeKey = useMemo(() => {
     if (!pathname) return 'home'
@@ -40,11 +35,7 @@ export function TenantMobileNav() {
         items={items}
         activeKey={activeKey}
         ariaLabel="Tenant navigation"
-        onSelect={(key) => {
-          if (key === 'more') setMoreOpen(true)
-        }}
       />
-      <MoreMenu items={moreItems} open={moreOpen} onOpenChange={setMoreOpen} trigger={<span />} />
     </div>
   )
 }

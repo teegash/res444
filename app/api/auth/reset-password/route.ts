@@ -4,23 +4,13 @@ import { createClient } from '@/lib/supabase/server'
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { password, access_token } = body
+    const { password, access_token, refresh_token } = body
 
     if (!password) {
       return NextResponse.json(
         {
           success: false,
           error: 'Password is required',
-        },
-        { status: 400 }
-      )
-    }
-
-    if (!access_token) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Invalid reset token. Please use the link from your email.',
         },
         { status: 400 }
       )
@@ -59,21 +49,48 @@ export async function POST(request: NextRequest) {
 
     const supabase = await createClient()
 
-    // Set the session using the access token from the email link
-    // This authenticates the user for the password reset
-    const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
-      access_token: access_token,
-      refresh_token: '', // Refresh token not available from email link
-    })
+    if (access_token) {
+      if (!refresh_token) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: 'Invalid reset token. Please use the link from your email.',
+          },
+          { status: 400 }
+        )
+      }
 
-    if (sessionError || !sessionData.session) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Invalid or expired reset token. Please request a new password reset.',
-        },
-        { status: 401 }
-      )
+      // Set the session using tokens from the email link (implicit recovery flow).
+      const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
+        access_token,
+        refresh_token,
+      })
+
+      if (sessionError || !sessionData.session) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: 'Invalid or expired reset token. Please request a new password reset.',
+          },
+          { status: 401 }
+        )
+      }
+    } else {
+      // Some deployments use a code->session exchange (PKCE) and rely on session cookies.
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser()
+
+      if (userError || !user) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: 'Invalid or expired reset link. Please request a new password reset.',
+          },
+          { status: 401 }
+        )
+      }
     }
 
     // Update the password now that we have a valid session
@@ -114,4 +131,3 @@ export async function POST(request: NextRequest) {
     )
   }
 }
-

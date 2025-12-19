@@ -147,11 +147,11 @@ export function Header() {
         setNotifications((current) => current.filter((item) => item.id !== notification.id))
       }
       setNotificationsOpen(false)
-      if (
-        notification.related_entity_type === 'maintenance_request' &&
-        notification.related_entity_id
-      ) {
+      const type = (notification.related_entity_type || '').toLowerCase()
+      if (type === 'maintenance_request' && notification.related_entity_id) {
         router.push(`/dashboard/maintenance?requestId=${notification.related_entity_id}`)
+      } else if (type === 'payment') {
+        router.push('/dashboard/payments?tab=deposits')
       } else {
         router.push(
           `/dashboard/tenants/${notification.sender_user_id}/messages?tenantId=${notification.sender_user_id}`

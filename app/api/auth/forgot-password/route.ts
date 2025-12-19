@@ -20,8 +20,9 @@ export async function POST(request: NextRequest) {
 
     // We don't reveal if email exists or not for security reasons
     // Always return success message even if email doesn't exist
-    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
-    
+    const configuredSiteUrl = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, '')
+    const siteUrl = configuredSiteUrl || request.nextUrl.origin
+
     const { error } = await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase(), {
       redirectTo: `${siteUrl}/auth/reset-password`,
     })
@@ -49,4 +50,3 @@ export async function POST(request: NextRequest) {
     )
   }
 }
-

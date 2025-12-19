@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { getUserRole } from '@/lib/rbac/userRole'
 
 export async function GET() {
   try {
@@ -43,6 +44,14 @@ export async function PUT(request: NextRequest) {
 
     if (authError || !user) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const role = await getUserRole(user.id)
+    if (role?.role === 'tenant') {
+      return NextResponse.json(
+        { success: false, error: 'Tenants cannot edit profile details.' },
+        { status: 403 }
+      )
     }
 
     const body = await request.json().catch(() => ({}))

@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card } from '@/components/ui/card'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { createClient } from '@/lib/supabase/client'
 
 function ResetPasswordForm() {
   const router = useRouter()
@@ -21,17 +22,84 @@ function ResetPasswordForm() {
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const [isInvalidLink, setIsInvalidLink] = useState(false)
+  const [accessToken, setAccessToken] = useState<string | null>(null)
+  const [refreshToken, setRefreshToken] = useState<string | null>(null)
 
   useEffect(() => {
-    // Check if we have the required token from Supabase
-    const accessToken = searchParams.get('access_token')
-    const type = searchParams.get('type')
-    
-    if (!accessToken || type !== 'recovery') {
+    let cancelled = false
+
+    const parseHashTokens = () => {
+      if (typeof window === 'undefined') return null
+      const raw = window.location.hash?.startsWith('#') ? window.location.hash.slice(1) : window.location.hash
+      if (!raw) return null
+      const params = new URLSearchParams(raw)
+      const at = params.get('access_token')
+      const rt = params.get('refresh_token')
+      const type = params.get('type')
+      if (!at || !rt || type !== 'recovery') return null
+      return { access_token: at, refresh_token: rt }
+    }
+
+    const init = async () => {
+      const code = searchParams.get('code')
+      if (code) {
+        router.replace(`/auth/callback?code=${encodeURIComponent(code)}&next=/auth/reset-password`)
+        return
+      }
+
+      const queryAccess = searchParams.get('access_token')
+      const queryRefresh = searchParams.get('refresh_token')
+      const queryType = searchParams.get('type')
+
+      if (queryAccess && queryRefresh && queryType === 'recovery') {
+        if (cancelled) return
+        setAccessToken(queryAccess)
+        setRefreshToken(queryRefresh)
+        setIsInvalidLink(false)
+        setError(null)
+        return
+      }
+
+      const hashTokens = parseHashTokens()
+      if (hashTokens) {
+        if (cancelled) return
+        setAccessToken(hashTokens.access_token)
+        setRefreshToken(hashTokens.refresh_token)
+        setIsInvalidLink(false)
+        setError(null)
+
+        // Remove tokens from the URL bar (they were in the hash).
+        if (typeof window !== 'undefined') {
+          window.history.replaceState({}, '', window.location.pathname + window.location.search)
+        }
+        return
+      }
+
+      // Fallback: if the user already has a valid session cookie, allow password change.
+      // Otherwise, treat as an invalid/expired link.
+      const supabase = createClient()
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
+
+      if (cancelled) return
+
+      if (session) {
+        setIsInvalidLink(false)
+        setError(null)
+        return
+      }
+
       setIsInvalidLink(true)
       setError('Invalid or expired reset link. Please request a new password reset.')
     }
-  }, [searchParams])
+
+    init()
+
+    return () => {
+      cancelled = true
+    }
+  }, [router, searchParams])
 
   const validatePassword = (pwd: string) => {
     if (pwd.length < 8) {
@@ -73,7 +141,8 @@ function ResetPasswordForm() {
         },
         body: JSON.stringify({ 
           password,
-          access_token: searchParams.get('access_token'),
+          access_token: accessToken,
+          refresh_token: refreshToken,
         }),
       })
 

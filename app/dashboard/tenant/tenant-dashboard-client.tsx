@@ -471,7 +471,7 @@ export default function TenantDashboardClient() {
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         )}
-        <TenantHeader summary={summary} onProfileUpdated={fetchSummary} loading={loading} />
+        <TenantHeader summary={summary} loading={loading} />
         <TenantInfoCards summary={summary} loading={loading} />
 
         <Card className="shadow-sm">

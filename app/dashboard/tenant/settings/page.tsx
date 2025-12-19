@@ -1,199 +1,51 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
-import { useToast } from '@/components/ui/use-toast'
 import Link from 'next/link'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { LockKeyhole, LogOut } from 'lucide-react'
+import { useAuth } from '@/lib/auth/context'
 
 export default function TenantSettingsPage() {
-  const { toast } = useToast()
-  const [fullName, setFullName] = useState('')
-  const [phone, setPhone] = useState('')
-  const [email, setEmail] = useState('')
-  const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
-  const [profileSaved, setProfileSaved] = useState(false)
-  const [newPassword, setNewPassword] = useState('')
-  const [confirmPassword, setConfirmPassword] = useState('')
-  const [passwordSaving, setPasswordSaving] = useState(false)
-  const [passwordSaved, setPasswordSaved] = useState(false)
-
-  useEffect(() => {
-    const loadProfile = async () => {
-      try {
-        setLoading(true)
-        const res = await fetch('/api/settings/profile', { cache: 'no-store' })
-        const json = await res.json()
-        if (!res.ok || !json.success) throw new Error(json.error || 'Failed to load profile.')
-        setFullName(json.data?.full_name || '')
-        setPhone(json.data?.phone_number || '')
-        setEmail(json.data?.email || '')
-      } catch (err) {
-        toast({
-          title: 'Unable to load profile',
-          description: err instanceof Error ? err.message : 'Unexpected error',
-          variant: 'destructive',
-        })
-      } finally {
-        setLoading(false)
-      }
-    }
-    loadProfile()
-  }, [toast])
-
-  const handleSave = async () => {
-    try {
-      setSaving(true)
-      const res = await fetch('/api/settings/profile', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ full_name: fullName, phone_number: phone }),
-      })
-      const json = await res.json()
-      if (!res.ok || !json.success) throw new Error(json.error || 'Failed to update profile.')
-      setProfileSaved(true)
-      toast({ title: 'Profile updated', description: 'Your details have been saved.' })
-    } catch (err) {
-      toast({
-        title: 'Save failed',
-        description: err instanceof Error ? err.message : 'Unexpected error',
-        variant: 'destructive',
-      })
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const handlePasswordChange = async () => {
-    if (!newPassword || newPassword !== confirmPassword) {
-      toast({ title: 'Passwords must match', variant: 'destructive' })
-      return
-    }
-    if (newPassword.length < 8) {
-      toast({ title: 'Weak password', description: 'Use at least 8 characters.', variant: 'destructive' })
-      return
-    }
-    try {
-      setPasswordSaving(true)
-      const res = await fetch('/api/settings/password', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ newPassword }),
-      })
-      const json = await res.json()
-      if (!res.ok || !json.success) throw new Error(json.error || 'Failed to change password.')
-      setNewPassword('')
-      setConfirmPassword('')
-      setPasswordSaved(true)
-      toast({ title: 'Password updated' })
-    } catch (err) {
-      toast({
-        title: 'Password change failed',
-        description: err instanceof Error ? err.message : 'Unexpected error',
-        variant: 'destructive',
-      })
-    } finally {
-      setPasswordSaving(false)
-    }
-  }
+  const { signOut } = useAuth()
 
   return (
     <div className="p-6 max-w-3xl mx-auto space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold">Profile Settings</h1>
+      <div className="flex items-center justify-between gap-4 flex-wrap">
+        <div>
+          <h1 className="text-3xl font-bold">Account</h1>
+          <p className="text-sm text-muted-foreground">Security controls for your tenant portal.</p>
+        </div>
         <Link href="/dashboard/tenant" className="text-sm text-blue-600 hover:underline">
           Back to dashboard
         </Link>
       </div>
 
-      <Card>
+      <Card className="border-slate-200/70 bg-white/80">
         <CardHeader>
-          <CardTitle>Your Details</CardTitle>
+          <CardTitle className="flex items-center gap-2">
+            <LockKeyhole className="h-5 w-5 text-slate-700" />
+            Password Reset
+          </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          {profileSaved ? (
-            <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-emerald-800">
-              Your profile has been updated successfully.
-            </div>
-          ) : (
-            <>
-              <div className="grid gap-2">
-                <Label htmlFor="fullName">Full Name</Label>
-                <Input
-                  id="fullName"
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  disabled={loading || saving}
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="email">Email</Label>
-                <Input id="email" value={email} disabled />
-                <p className="text-xs text-muted-foreground">Email cannot be changed from the tenant portal.</p>
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="phone">Phone Number</Label>
-                <Input
-                  id="phone"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  disabled={loading || saving}
-                />
-              </div>
-              <div className="flex justify-end">
-                <Button onClick={handleSave} disabled={saving || loading}>
-                  {saving ? 'Saving…' : 'Update Profile'}
-                </Button>
-              </div>
-            </>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Change Password</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {passwordSaved ? (
-            <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-emerald-800">
-              Your password has been updated successfully.
-            </div>
-          ) : (
-            <>
-              <div className="grid gap-2">
-                <Label htmlFor="newPassword">New Password</Label>
-                <Input
-                  id="newPassword"
-                  type="password"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  disabled={passwordSaving}
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="confirmPassword">Confirm Password</Label>
-                <Input
-                  id="confirmPassword"
-                  type="password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  disabled={passwordSaving}
-                />
-              </div>
-              <div className="flex justify-end">
-                <Button onClick={handlePasswordChange} disabled={passwordSaving}>
-                  {passwordSaving ? 'Updating…' : 'Update Password'}
-                </Button>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Password must be at least 8 characters. Use a unique password for your security.
-              </p>
-            </>
-          )}
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
+            For your security, tenant profile details can’t be edited in the portal. To change your password, request
+            a password reset link.
+          </div>
+          <div className="flex flex-col sm:flex-row gap-2 sm:justify-end">
+            <Button asChild className="sm:w-auto">
+              <Link href="/auth/forgot-password">Request password reset</Link>
+            </Button>
+            <Button
+              variant="outline"
+              className="sm:w-auto border-slate-200 bg-white"
+              onClick={() => signOut()}
+            >
+              <LogOut className="h-4 w-4 mr-2" />
+              Logout
+            </Button>
+          </div>
         </CardContent>
       </Card>
     </div>
