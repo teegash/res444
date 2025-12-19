@@ -633,31 +633,72 @@ export async function registerUser(input: RegisterInput): Promise<RegisterResult
         logo_url: input.organization.logo_url ?? null,
       }
 
-      const { data: organization, error: orgError } = await supabase
+      // Pre-check to avoid creating an org we later can't update due to unique constraint.
+      const { data: existingOrg, error: existingOrgError } = await supabase
         .from('organizations')
-        .insert(orgPayload)
-        .select()
-        .single()
+        .select('id')
+        .eq('registration_number', orgPayload.registration_number)
+        .maybeSingle()
 
-      if (orgError || !organization) {
-        if (orgError?.code === '23505') {
-          return { success: false, error: 'An organization with this registration number already exists' }
-        }
-        return { success: false, error: orgError?.message || 'Failed to create organization' }
+      if (existingOrgError) {
+        return { success: false, error: existingOrgError.message || 'Failed to validate organization' }
+      }
+      if (existingOrg?.id) {
+        return { success: false, error: 'An organization with this registration number already exists' }
       }
 
+      // Create org + profile + membership in ONE atomic DB call to avoid race conditions:
+      // user_profiles.organization_id is guaranteed to be set before organization_members is created.
+      const { data: orgId, error: rpcError } = await supabase.rpc('create_org_and_attach_admin', {
+        p_user_id: userId,
+        p_org_name: orgPayload.name,
+        p_org_email: orgPayload.email,
+        p_org_phone: orgPayload.phone ?? null,
+        p_org_location: orgPayload.location ?? null,
+      })
+
+      if (rpcError || !orgId) {
+        // Optional cleanup: avoid leaving orphan auth users when org attach fails.
+        try {
+          await supabase.auth.admin.deleteUser(userId)
+        } catch (cleanupError: any) {
+          console.warn('Failed to cleanup auth user after org attach failure:', cleanupError?.message)
+        }
+        return { success: false, error: rpcError?.message || 'Failed to create organization' }
+      }
+
+      organizationId = String(orgId)
       organizationCreated = true
-      organizationId = organization.id
-
-      const memberResult = await createOrganizationMember(userId, 'admin', organizationId, true)
-      if (!memberResult.success) {
-        return {
-          success: false,
-          error: memberResult.error || 'Failed to add owner to organization',
-        }
-      }
       organizationMemberCreated = true
 
+      // Persist additional org fields not handled by the RPC (registration_number, logo_url).
+      const { error: orgUpdateError } = await supabase
+        .from('organizations')
+        .update({
+          registration_number: orgPayload.registration_number,
+          logo_url: orgPayload.logo_url,
+        })
+        .eq('id', organizationId)
+
+      if (orgUpdateError) {
+        return { success: false, error: orgUpdateError.message || 'Failed to update organization details' }
+      }
+
+      // Ensure profile is fully populated (RPC only guarantees org + role before membership).
+      const profileResult = await createUserProfile(
+        userId,
+        input.full_name,
+        input.phone,
+        input.role,
+        input.national_id,
+        input.address,
+        input.date_of_birth
+      )
+      if (!profileResult.success) {
+        console.warn('Profile update failed after org attach:', profileResult.error)
+      }
+
+      // Store organization_id in auth metadata for convenience (optional).
       try {
         await supabase.auth.admin.updateUserById(userId, {
           user_metadata: {
