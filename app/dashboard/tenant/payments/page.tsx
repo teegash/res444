@@ -1025,11 +1025,6 @@ export default function PaymentHistoryPage() {
               return (
                 <div className="space-y-6">
                   <div className="flex flex-wrap items-center justify-end gap-2">
-                    <Link href={`/dashboard/tenant/receipts/${receiptDetails.payment.id}`}>
-                      <Button variant="outline" size="sm">
-                        Open receipt page
-                      </Button>
-                    </Link>
                     <Button
                       variant="default"
                       size="sm"
