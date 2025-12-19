@@ -1,7 +1,7 @@
 'use server'
 
 import { createAdminClient } from '@/lib/supabase/admin'
-import { addMonthsUtc, startOfMonthUtc, toIsoDate, rentDueDateForPeriod } from '@/lib/invoices/rentPeriods'
+import { addMonthsUtc, startOfMonthUtc, endOfMonthUtc, toIsoDate, rentDueDateForPeriod } from '@/lib/invoices/rentPeriods'
 import { invoiceStatusToBoolean } from '@/lib/invoices/status-utils'
 import { calculatePaidUntil } from '@/lib/payments/leaseHelpers'
 
@@ -144,7 +144,9 @@ export async function applyRentPayment(
 ) {
   const months = payment.months_paid && Number(payment.months_paid) > 0 ? Number(payment.months_paid) : 1
   const baseMonth = startOfMonthUtc(new Date(invoice.due_date))
-  const paidUntil = addMonthsUtc(baseMonth, months - 1)
+  const lastCoveredMonthStart = addMonthsUtc(baseMonth, months - 1)
+  const paidThrough = endOfMonthUtc(lastCoveredMonthStart)
+  const nextDueMonthStart = addMonthsUtc(baseMonth, months)
   const todayIso = toIsoDate(new Date())
 
   // Mark invoice payment metadata (trigger will handle status)
@@ -175,13 +177,13 @@ export async function applyRentPayment(
   const { error: leaseErr } = await admin
     .from('leases')
     .update({
-      rent_paid_until: toIsoDate(paidUntil),
-      next_rent_due_date: toIsoDate(addMonthsUtc(paidUntil, 1)),
+      rent_paid_until: toIsoDate(paidThrough),
+      next_rent_due_date: toIsoDate(nextDueMonthStart),
     })
     .eq('id', lease.id)
   if (leaseErr) throw leaseErr
 
-  return paidUntil
+  return paidThrough
 }
 
 const normalizeCurrency = (value: number | string | null | undefined): number => {
@@ -298,6 +300,7 @@ async function syncLeasePointersFromPaidRentInvoices(admin: AdminClient, leaseId
 
   const existingPaid = parseMonthStartUtcFromAny((lease as any).rent_paid_until ?? null)
   const nextDue = addMonthsUtc(paidPeriod, 1)
+  const paidThrough = endOfMonthUtc(paidPeriod)
 
   // Never move pointers backwards.
   if (existingPaid && paidPeriod.getTime() <= existingPaid.getTime()) return
@@ -305,7 +308,7 @@ async function syncLeasePointersFromPaidRentInvoices(admin: AdminClient, leaseId
   const { error: updErr } = await admin
     .from('leases')
     .update({
-      rent_paid_until: toIsoDate(paidPeriod),
+      rent_paid_until: toIsoDate(paidThrough),
       next_rent_due_date: toIsoDate(nextDue),
     })
     .eq('id', leaseId)

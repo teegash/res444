@@ -53,9 +53,10 @@ declare
   v_method text;
 
   v_eligible_start date;
-  v_pointer_start date;
   v_start date;
   v_last_paid date;
+  v_next_unpaid date;
+  v_paid_through date;
 
   v_batch_id uuid;
   v_first_invoice_id uuid;
@@ -154,31 +155,56 @@ begin
     v_eligible_start := (v_eligible_start + interval '1 month')::date;
   end if;
 
-  -- Compute pointer start (use the later of next_rent_due_date month start and (rent_paid_until + 1 month)).
-  v_pointer_start := date_trunc('month', coalesce(v_lease.next_rent_due_date, v_eligible_start))::date;
-  if v_lease.rent_paid_until is not null then
-    v_pointer_start := greatest(
-      v_pointer_start,
-      (date_trunc('month', v_lease.rent_paid_until)::date + interval '1 month')::date
-    );
+  -- Determine allocation start month as the FIRST unpaid/missing month from eligible_start.
+  -- This prevents gaps like "missing January receipt" (Feb/Mar/Apr only).
+  with months as (
+    select (v_eligible_start + make_interval(months => gs::int))::date as period_start
+    from generate_series(0, 240) as gs
+  ),
+  paid as (
+    select distinct i.period_start
+    from public.invoices i
+    where
+      i.lease_id = p_lease_id
+      and i.invoice_type = 'rent'
+      and i.period_start is not null
+      and i.period_start >= v_eligible_start
+      and coalesce(i.status_text, '') <> 'void'
+      and (
+        coalesce(i.status_text, '') = 'paid'
+        or coalesce(i.status, false) = true
+        or coalesce(i.total_paid, 0) >= (i.amount - 0.05)
+      )
+  )
+  select m.period_start
+  into v_start
+  from months m
+  left join paid p on p.period_start = m.period_start
+  where p.period_start is null
+  order by m.period_start asc
+  limit 1;
+
+  if v_start is null then
+    -- If everything in the window is paid, start at month after latest paid.
+    select max(i.period_start)
+    into v_last_paid
+    from public.invoices i
+    where
+      i.lease_id = p_lease_id
+      and i.invoice_type = 'rent'
+      and i.period_start is not null
+      and i.period_start >= v_eligible_start
+      and coalesce(i.status_text, '') <> 'void'
+      and (
+        coalesce(i.status_text, '') = 'paid'
+        or coalesce(i.status, false) = true
+        or coalesce(i.total_paid, 0) >= (i.amount - 0.05)
+      );
+
+    v_start := coalesce((v_last_paid + interval '1 month')::date, v_eligible_start);
   end if;
 
-  -- Extra safety: if invoices already show later paid months, start after the latest paid month.
-  select max(i.period_start)
-  into v_last_paid
-  from public.invoices i
-  where
-    i.lease_id = p_lease_id
-    and i.invoice_type = 'rent'
-    and coalesce(i.status_text, '') = 'paid'
-    and i.period_start is not null
-    and i.period_start >= v_eligible_start;
-
-  if v_last_paid is not null then
-    v_pointer_start := greatest(v_pointer_start, (v_last_paid + interval '1 month')::date);
-  end if;
-
-  v_start := greatest(v_eligible_start, v_pointer_start);
+  v_start := greatest(v_eligible_start, date_trunc('month', v_start)::date);
   v_batch_id := coalesce(v_payment.batch_id, v_payment.id);
 
   -- Create/upsert invoices for each covered month (paid).
@@ -275,19 +301,72 @@ begin
     );
   end loop;
 
-  -- Update lease pointers to the last paid month.
+  -- Update lease pointers based on CONTIGUOUS paid coverage (prevents "paid_until ahead of next_due").
+  with paid as (
+    select distinct i.period_start
+    from public.invoices i
+    where
+      i.lease_id = p_lease_id
+      and i.invoice_type = 'rent'
+      and i.period_start is not null
+      and i.period_start >= v_eligible_start
+      and coalesce(i.status_text, '') <> 'void'
+      and (
+        coalesce(i.status_text, '') = 'paid'
+        or coalesce(i.status, false) = true
+        or coalesce(i.total_paid, 0) >= (i.amount - 0.05)
+      )
+  ),
+  months as (
+    select (v_eligible_start + make_interval(months => gs::int))::date as period_start
+    from generate_series(0, 240) as gs
+  )
+  select m.period_start
+  into v_next_unpaid
+  from months m
+  left join paid p on p.period_start = m.period_start
+  where p.period_start is null
+  order by m.period_start asc
+  limit 1;
+
+  if v_next_unpaid is null then
+    select max(i.period_start)
+    into v_last_paid
+    from public.invoices i
+    where
+      i.lease_id = p_lease_id
+      and i.invoice_type = 'rent'
+      and i.period_start is not null
+      and i.period_start >= v_eligible_start
+      and coalesce(i.status_text, '') <> 'void'
+      and (
+        coalesce(i.status_text, '') = 'paid'
+        or coalesce(i.status, false) = true
+        or coalesce(i.total_paid, 0) >= (i.amount - 0.05)
+      );
+
+    v_paid_through := (date_trunc('month', coalesce(v_last_paid, v_last_period))::date + interval '1 month' - interval '1 day')::date;
+    v_next_unpaid := (date_trunc('month', coalesce(v_last_paid, v_last_period))::date + interval '1 month')::date;
+  else
+    if v_next_unpaid = v_eligible_start then
+      v_paid_through := null;
+    else
+      v_paid_through := ((v_next_unpaid - interval '1 month')::date + interval '1 month' - interval '1 day')::date;
+    end if;
+  end if;
+
   update public.leases
   set
-    rent_paid_until = v_last_period,
-    next_rent_due_date = (v_last_period + interval '1 month')::date
+    rent_paid_until = v_paid_through,
+    next_rent_due_date = v_next_unpaid
   where id = p_lease_id;
 
   return jsonb_build_object(
     'batch_id', v_batch_id,
     'invoice_ids', to_jsonb(v_invoice_ids),
     'created_invoice_ids', to_jsonb(v_created_invoice_ids),
-    'rent_paid_until', to_char(v_last_period, 'YYYY-MM-DD'),
-    'next_rent_due_date', to_char((v_last_period + interval '1 month')::date, 'YYYY-MM-DD')
+    'rent_paid_until', case when v_paid_through is null then null else to_char(v_paid_through, 'YYYY-MM-DD') end,
+    'next_rent_due_date', to_char(v_next_unpaid, 'YYYY-MM-DD')
   );
 end;
 $$;
