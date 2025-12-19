@@ -15,14 +15,6 @@ function parseCurrency(value?: string | null, fallback?: number | null) {
   return null
 }
 
-const ymd = (d: Date) => d.toISOString().slice(0, 10)
-const startOfMonthUtc = (d: Date) => new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1))
-const addMonthsUtc = (monthStart: Date, months: number) =>
-  new Date(Date.UTC(monthStart.getUTCFullYear(), monthStart.getUTCMonth() + months, 1))
-const monthsBetweenMonthStarts = (fromMonthStart: Date, toMonthStart: Date) =>
-  (toMonthStart.getUTCFullYear() - fromMonthStart.getUTCFullYear()) * 12 +
-  (toMonthStart.getUTCMonth() - fromMonthStart.getUTCMonth())
-
 export async function GET() {
   try {
     const supabase = await createClient()
@@ -89,75 +81,34 @@ export async function GET() {
         ? `${lease.unit.unit_number} • ${lease.unit.building.name}`
         : lease?.unit?.unit_number || null
 
-    // Compute paid-through + prepaid months using invoice truth and contiguous coverage.
-    // Definitions:
-    // - next_rent_due_date: first UNPAID/MISSING rent month (month-start key)
-    // - rent_paid_until: last day of the latest CONTIGUOUS paid month before next_rent_due_date
-    // - prepaid_months: number of fully paid FUTURE months starting next month (decrements over time)
-    let computedRentPaidUntil: string | null = null
-    let computedNextRentDue: string | null = null
+    // Compute prepaid counts and paid-through
     let prepaidMonths = 0
+    let paidUpToDate: string | null = null
 
     if (lease?.id) {
-      const now = new Date()
-      const currentMonthStart = startOfMonthUtc(now)
-      const nextMonthStart = addMonthsUtc(currentMonthStart, 1)
-
-      let eligibleStart = currentMonthStart
-      if (lease.start_date) {
-        const leaseStart = new Date(lease.start_date)
-        if (!Number.isNaN(leaseStart.getTime())) {
-          const leaseStartMonth = startOfMonthUtc(leaseStart)
-          eligibleStart = leaseStart.getUTCDate() > 1 ? addMonthsUtc(leaseStartMonth, 1) : leaseStartMonth
-        }
-      }
-
-      const eligibleStartIso = ymd(eligibleStart)
-
-      const { data: invoices, error: invErr } = await adminSupabase
+      const { count } = await adminSupabase
         .from('invoices')
-        .select('period_start, amount, status, status_text, total_paid')
+        .select('id', { count: 'exact', head: true })
         .eq('lease_id', lease.id)
         .eq('invoice_type', 'rent')
-        .not('period_start', 'is', null)
-        .gte('period_start', eligibleStartIso)
-        .order('period_start', { ascending: true })
-        .limit(240)
+        .or('status.eq.true,status.eq.paid')
 
-      if (invErr) throw invErr
-
-      const paidMonthKeys = new Set<string>()
-      for (const inv of invoices ?? []) {
-        if (!inv?.period_start) continue
-        if (inv.status_text === 'void') continue
-        const amount = Number(inv.amount || 0)
-        const totalPaid = Number(inv.total_paid || 0)
-        const isPaid =
-          inv.status === true || inv.status_text === 'paid' || (amount > 0 && totalPaid >= amount * 0.999)
-        if (isPaid) paidMonthKeys.add(String(inv.period_start))
+      if (typeof count === 'number') {
+        prepaidMonths = count
       }
 
-      let cursor = startOfMonthUtc(new Date(`${eligibleStartIso}T00:00:00.000Z`))
-      for (let i = 0; i < 240; i += 1) {
-        const key = ymd(cursor)
-        if (!paidMonthKeys.has(key)) break
-        cursor = addMonthsUtc(cursor, 1)
+      const { data: latestPaid } = await adminSupabase
+        .from('invoices')
+        .select('due_date')
+        .eq('lease_id', lease.id)
+        .eq('invoice_type', 'rent')
+        .or('status.eq.true,status.eq.paid')
+        .order('due_date', { ascending: false })
+        .limit(1)
+
+      if (latestPaid?.length && latestPaid[0]?.due_date) {
+        paidUpToDate = latestPaid[0].due_date
       }
-
-      computedNextRentDue = ymd(cursor)
-
-      if (computedNextRentDue !== eligibleStartIso) {
-        // Day 0 of next due month == last day of previous month.
-        const paidUntil = new Date(Date.UTC(cursor.getUTCFullYear(), cursor.getUTCMonth(), 0))
-        computedRentPaidUntil = ymd(paidUntil)
-      }
-
-      const nextDueMonthStart = startOfMonthUtc(new Date(`${computedNextRentDue}T00:00:00.000Z`))
-      const prepaidStart = nextMonthStart > eligibleStart ? nextMonthStart : eligibleStart
-      prepaidMonths =
-        nextDueMonthStart > prepaidStart
-          ? Math.max(0, monthsBetweenMonthStarts(prepaidStart, nextDueMonthStart))
-          : 0
     }
 
     const payload = {
@@ -174,10 +125,10 @@ export async function GET() {
             property_name: lease.unit?.building?.name || null,
             property_location: lease.unit?.building?.location || null,
             unit_price_text: lease.unit?.unit_price_category || null,
-            rent_paid_until: computedRentPaidUntil ?? lease.rent_paid_until ?? null,
-            next_rent_due_date: computedNextRentDue ?? lease.next_rent_due_date ?? null,
+            rent_paid_until: lease.rent_paid_until || null,
+            next_rent_due_date: lease.next_rent_due_date || null,
             prepaid_months: prepaidMonths,
-            paid_up_to_date: computedRentPaidUntil ?? lease.rent_paid_until ?? null,
+            paid_up_to_date: paidUpToDate,
           }
         : null,
     }

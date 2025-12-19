@@ -74,7 +74,6 @@ type LeasePrepayRow = {
   unit_id: string | null
   rent_paid_until: string | null
   next_rent_due_date: string | null
-  start_date?: string | null
   status: string | null
 }
 
@@ -205,7 +204,7 @@ export async function GET() {
         // Ground-truth fallback for prepayments: derive from leases pointers.
         admin
           .from('leases')
-          .select('id, tenant_user_id, unit_id, rent_paid_until, next_rent_due_date, start_date, status')
+          .select('id, tenant_user_id, unit_id, rent_paid_until, next_rent_due_date, status')
           .eq('organization_id', orgId)
           .eq('status', 'active'),
       ])
@@ -330,21 +329,13 @@ export async function GET() {
     const ymd = (d: Date) => d.toISOString().slice(0, 10)
     const addMonthsUtc = (monthStart: Date, months: number) =>
       new Date(Date.UTC(monthStart.getUTCFullYear(), monthStart.getUTCMonth() + months, 1))
-    const dayBeforeIsoFromMonthStartKey = (monthStartKey: string): string | null => {
-      const raw = String(monthStartKey || '').trim()
-      if (!raw) return null
-      const parsed = /^\d{4}-\d{2}-\d{2}$/.test(raw) ? new Date(`${raw}T00:00:00.000Z`) : new Date(raw)
-      if (Number.isNaN(parsed.getTime())) return null
-      const dayBefore = new Date(Date.UTC(parsed.getUTCFullYear(), parsed.getUTCMonth(), parsed.getUTCDate() - 1))
-      return ymd(dayBefore)
-    }
     const nextMonthStartUtc = addMonthsUtc(currentMonthStartUtc, 1)
+    const nextMonthKey = ymd(nextMonthStartUtc)
 
     const paidRentMonthsByLease = new Map<string, Set<string>>()
     invoices.forEach((inv) => {
       const leaseId = inv.lease_id ? String(inv.lease_id) : null
       if (!leaseId) return
-      if (inv.status_text === 'void') return
 
       const amount = Number(inv.amount || 0)
       if (!Number.isFinite(amount) || amount <= 0) return
@@ -368,6 +359,16 @@ export async function GET() {
       set.add(key)
       paidRentMonthsByLease.set(leaseId, set)
     })
+
+    // "Prepaid months" (dashboard) means future paid rent months, starting NEXT month.
+    // Example: today is Dec, and Jan+Feb invoices are already paid => prepaid_months = 2.
+    // When we reach Jan, it becomes 1 (Feb). When we reach Feb, it becomes 0.
+    const countFuturePaidMonths = (leaseId: string): number => {
+      const set = paidRentMonthsByLease.get(leaseId)
+      if (!set || set.size === 0) return 0
+
+      return Array.from(set).filter((k) => k >= nextMonthKey).length
+    }
 
     const prepayRows = Array.isArray(prepayRes.data) ? (prepayRes.data as any[]) : []
     const prepayTenantIds = Array.from(
@@ -394,78 +395,25 @@ export async function GET() {
       }
     }
 
-    const leasesForPrepay = Array.isArray(leasesForPrepayRes.data)
-      ? (leasesForPrepayRes.data as LeasePrepayRow[])
-      : []
-
-    const leaseStartById = new Map<string, string | null>()
-    leasesForPrepay.forEach((l) => {
-      leaseStartById.set(String(l.id), (l as any).start_date ?? null)
-    })
-
-    const eligibleStartKeyForLease = (leaseId: string): string => {
-      const raw = leaseStartById.get(leaseId)
-      if (!raw) return ymd(currentMonthStartUtc)
-      const parsed = /^\d{4}-\d{2}-\d{2}$/.test(String(raw)) ? new Date(`${raw}T00:00:00.000Z`) : new Date(String(raw))
-      if (Number.isNaN(parsed.getTime())) return ymd(currentMonthStartUtc)
-      const monthStart = new Date(Date.UTC(parsed.getUTCFullYear(), parsed.getUTCMonth(), 1))
-      const eligible = parsed.getUTCDate() > 1 ? addMonthsUtc(monthStart, 1) : monthStart
-      return ymd(eligible)
-    }
-
-    const addMonthsKey = (monthStartKey: string, months: number): string => {
-      const d = new Date(`${monthStartKey}T00:00:00.000Z`)
-      const out = addMonthsUtc(d, months)
-      return ymd(out)
-    }
-
-    const firstUnpaidOrMissingMonthKey = (leaseId: string): string => {
-      const eligibleStartKey = eligibleStartKeyForLease(leaseId)
-      const paidSet = paidRentMonthsByLease.get(leaseId) || new Set<string>()
-
-      let cursor = eligibleStartKey
-      for (let i = 0; i < 240; i += 1) {
-        if (!paidSet.has(cursor)) return cursor
-        cursor = addMonthsKey(cursor, 1)
-      }
-      // If we somehow marked 240 consecutive months as paid, the next due is the next month after the last checked.
-      return cursor
-    }
-
-    const computeInvoiceTruthCoverage = (leaseId: string) => {
-      const eligibleStartKey = eligibleStartKeyForLease(leaseId)
-      const eligibleMonthStart = toMonthStartUtc(eligibleStartKey)
-      const paidSet = paidRentMonthsByLease.get(leaseId)
-      if (!paidSet || paidSet.size === 0) return null
-
-      const nextDueKey = firstUnpaidOrMissingMonthKey(leaseId)
-      const nextDueMonth = toMonthStartUtc(nextDueKey)
-      const prepaidStart =
-        eligibleMonthStart && eligibleMonthStart > nextMonthStartUtc ? eligibleMonthStart : nextMonthStartUtc
-      const prepaidMonths =
-        nextDueMonth && nextDueMonth > prepaidStart ? Math.max(0, monthsBetweenMonthStarts(prepaidStart, nextDueMonth)) : 0
-      const rentPaidUntil = nextDueKey !== eligibleStartKey ? dayBeforeIsoFromMonthStartKey(nextDueKey) : null
-
-      return { nextDueKey, rentPaidUntil, prepaidMonths }
-    }
-
     const prepaymentsFromView = prepayRows
       .map((row: any) => {
         const leaseId = row.lease_id || row.leaseId || null
         const tenantId = row.tenant_user_id || row.tenant_id || null
         const unitId = row.unit_id || row.unitId || null
 
+        const rentPaidUntilStr = row.rent_paid_until || row.rentPaidUntil || null
+        const rentPaidUntil = rentPaidUntilStr ? toMonthStartUtc(String(rentPaidUntilStr)) : null
         const nextDueStr = row.next_rent_due_date || row.nextRentDueDate || null
         const nextDueMonth = nextDueStr ? toMonthStartUtc(String(nextDueStr)) : null
-        const eligibleStartKey = leaseId ? eligibleStartKeyForLease(String(leaseId)) : null
-        const eligibleMonthStart = eligibleStartKey ? toMonthStartUtc(eligibleStartKey) : null
-        const prepaidStart =
-          eligibleMonthStart && eligibleMonthStart > nextMonthStartUtc ? eligibleMonthStart : nextMonthStartUtc
         const prepaidMonthsFromPointers =
-          nextDueMonth && nextDueMonth > prepaidStart ? Math.max(0, monthsBetweenMonthStarts(prepaidStart, nextDueMonth)) : 0
+          nextDueMonth && nextDueMonth > nextMonthStartUtc
+            ? Math.max(0, monthsBetweenMonthStarts(nextMonthStartUtc, nextDueMonth))
+            : rentPaidUntil && rentPaidUntil >= nextMonthStartUtc
+              ? Math.max(0, monthsBetweenMonthStarts(nextMonthStartUtc, rentPaidUntil) + 1)
+              : 0
 
-        const invoiceCoverage = leaseId ? computeInvoiceTruthCoverage(String(leaseId)) : null
-        const prepaidMonths = invoiceCoverage ? invoiceCoverage.prepaidMonths : prepaidMonthsFromPointers
+        const prepaidMonthsFromInvoices = leaseId ? countFuturePaidMonths(String(leaseId)) : 0
+        const prepaidMonths = Math.max(prepaidMonthsFromPointers, prepaidMonthsFromInvoices)
         const isPrepaid = prepaidMonths > 0
 
         const profile = tenantId ? prepayProfilesById.get(String(tenantId)) : undefined
@@ -477,8 +425,9 @@ export async function GET() {
           unit_number: row.unit_number || unitNumberById.get(String(unitId || '')) || null,
           tenant_name: row.tenant_name || row.tenant_full_name || profile?.full_name || null,
           tenant_phone: row.tenant_phone || row.tenant_phone_number || profile?.phone_number || null,
-          rent_paid_until: invoiceCoverage?.rentPaidUntil || row.rent_paid_until || row.rentPaidUntil || null,
-          next_rent_due_date: invoiceCoverage?.nextDueKey || nextDueStr || null,
+          rent_paid_until:
+            rentPaidUntilStr || (leaseId ? Array.from(paidRentMonthsByLease.get(String(leaseId)) || []).sort().at(-1) || null : null),
+          next_rent_due_date: nextDueStr,
           prepaid_months: prepaidMonths,
           is_prepaid: isPrepaid,
         }
@@ -486,20 +435,26 @@ export async function GET() {
       .filter((row: any) => row.lease_id && row.prepaid_months > 0)
       .sort((a: any, b: any) => String(b.rent_paid_until || '').localeCompare(String(a.rent_paid_until || '')))
 
-    // If the DB view returns no rows (common when schemas drift), derive prepayments from leases pointers + invoice truth.
+    // If the DB view returns no rows (common when schemas drift), derive prepayments from leases pointers.
+    const leasesForPrepay = Array.isArray(leasesForPrepayRes.data)
+      ? (leasesForPrepayRes.data as LeasePrepayRow[])
+      : []
+
     const prepaymentsFromLeases = leasesForPrepay
       .map((lease) => {
+        const rentPaidUntilStr = lease.rent_paid_until || null
+        const rentPaidUntil = rentPaidUntilStr ? toMonthStartUtc(String(rentPaidUntilStr)) : null
         const nextDueStr = lease.next_rent_due_date || null
         const nextDueMonth = nextDueStr ? toMonthStartUtc(String(nextDueStr)) : null
-        const eligibleStartKey = eligibleStartKeyForLease(String(lease.id))
-        const eligibleMonthStart = toMonthStartUtc(eligibleStartKey)
-        const prepaidStart =
-          eligibleMonthStart && eligibleMonthStart > nextMonthStartUtc ? eligibleMonthStart : nextMonthStartUtc
         const prepaidMonthsFromPointers =
-          nextDueMonth && nextDueMonth > prepaidStart ? Math.max(0, monthsBetweenMonthStarts(prepaidStart, nextDueMonth)) : 0
+          nextDueMonth && nextDueMonth > nextMonthStartUtc
+            ? Math.max(0, monthsBetweenMonthStarts(nextMonthStartUtc, nextDueMonth))
+            : rentPaidUntil && rentPaidUntil >= nextMonthStartUtc
+              ? Math.max(0, monthsBetweenMonthStarts(nextMonthStartUtc, rentPaidUntil) + 1)
+              : 0
 
-        const invoiceCoverage = computeInvoiceTruthCoverage(String(lease.id))
-        const prepaidMonths = invoiceCoverage ? invoiceCoverage.prepaidMonths : prepaidMonthsFromPointers
+        const prepaidMonthsFromInvoices = countFuturePaidMonths(String(lease.id))
+        const prepaidMonths = Math.max(prepaidMonthsFromPointers, prepaidMonthsFromInvoices)
         if (prepaidMonths <= 0) return null
 
         const tenantId = lease.tenant_user_id || null
@@ -512,8 +467,9 @@ export async function GET() {
           unit_number: lease.unit_id ? unitNumberById.get(String(lease.unit_id)) || null : null,
           tenant_name: profile?.full_name || null,
           tenant_phone: profile?.phone_number || null,
-          rent_paid_until: invoiceCoverage?.rentPaidUntil || lease.rent_paid_until || null,
-          next_rent_due_date: invoiceCoverage?.nextDueKey || nextDueStr || null,
+          rent_paid_until:
+            rentPaidUntilStr || Array.from(paidRentMonthsByLease.get(String(lease.id)) || []).sort().at(-1) || null,
+          next_rent_due_date: nextDueStr,
           prepaid_months: prepaidMonths,
           is_prepaid: true,
         }

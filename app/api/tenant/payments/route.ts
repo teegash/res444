@@ -2,6 +2,71 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 
+type AdminClient = ReturnType<typeof createAdminClient>
+
+async function reconcileTenantPaymentCoverage(admin: AdminClient, tenantId: string) {
+  const { data } = await admin
+    .from('payments')
+    .select(
+      `
+      id,
+      months_paid,
+      payment_date,
+      created_at,
+      invoices (
+        due_date
+      )
+    `
+    )
+    .eq('tenant_user_id', tenantId)
+    .eq('verified', true)
+    .gt('months_paid', 0)
+
+  if (!data || data.length === 0) {
+    return
+  }
+
+  const updates: Array<{ id: string; months_paid: number }> = []
+  const today = new Date()
+  const currentMonthStart = new Date(today.getFullYear(), today.getMonth(), 1)
+
+  for (const payment of data) {
+    const originalMonths = Number(payment.months_paid || 0)
+    if (originalMonths <= 0) continue
+
+    const dueDateRaw =
+      (payment.invoices as { due_date: string | null } | null)?.due_date ||
+      payment.payment_date ||
+      payment.created_at
+    if (!dueDateRaw) continue
+
+    const coverageStart = new Date(dueDateRaw)
+    if (Number.isNaN(coverageStart.getTime())) continue
+
+    const coverageMonthStart = new Date(coverageStart.getFullYear(), coverageStart.getMonth(), 1)
+    let monthsElapsed =
+      (currentMonthStart.getFullYear() - coverageMonthStart.getFullYear()) * 12 +
+      (currentMonthStart.getMonth() - coverageMonthStart.getMonth())
+
+    if (monthsElapsed < 0) {
+      monthsElapsed = 0
+    }
+
+    const remaining = Math.max(0, originalMonths - monthsElapsed)
+    if (remaining !== originalMonths) {
+      updates.push({ id: payment.id, months_paid: remaining })
+    }
+  }
+
+  if (updates.length > 0) {
+    await Promise.all(
+      updates.map((update) =>
+        admin.from('payments').update({ months_paid: update.months_paid }).eq('id', update.id)
+      )
+    )
+  }
+}
+
 export async function GET() {
   try {
     const supabase = await createClient()
@@ -22,6 +87,7 @@ export async function GET() {
       )
     }
 
+    await reconcileTenantPaymentCoverage(admin, user.id)
     const { data, error } = await admin
       .from('payments')
       .select(
@@ -42,7 +108,6 @@ export async function GET() {
         invoices (
           invoice_type,
           due_date,
-          period_start,
           leases (
             apartment_units (
               unit_number,
@@ -66,7 +131,6 @@ export async function GET() {
       const invoice = payment.invoices as {
         invoice_type: string | null
         due_date: string | null
-        period_start?: string | null
         leases: {
           apartment_units: {
             unit_number: string | null
@@ -99,23 +163,9 @@ export async function GET() {
         invoice_type: invoice?.invoice_type || null,
         payment_type: invoice?.invoice_type || null,
         due_date: invoice?.due_date || null,
-        period_start: (invoice as any)?.period_start || null,
         property_name: invoice?.leases?.apartment_units?.apartment_buildings?.name || null,
         unit_label: invoice?.leases?.apartment_units?.unit_number || null,
       }
-    })
-
-    // Sort by the month being paid for (invoice.period_start), so "Jan/Feb/Mar" appear consistently
-    // even when the base payment row was created earlier than the allocation rows.
-    mapped.sort((a, b) => {
-      const aKey = a.period_start || a.due_date || a.posted_at || a.created_at || ''
-      const bKey = b.period_start || b.due_date || b.posted_at || b.created_at || ''
-      if (aKey === bKey) {
-        const aCreated = a.created_at || ''
-        const bCreated = b.created_at || ''
-        return String(bCreated).localeCompare(String(aCreated))
-      }
-      return String(bKey).localeCompare(String(aKey))
     })
 
     return NextResponse.json({ success: true, data: mapped })
