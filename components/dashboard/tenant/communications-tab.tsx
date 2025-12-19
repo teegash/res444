@@ -43,13 +43,10 @@ export function CommunicationsTab() {
         throw new Error(payload.error || 'Failed to load messages.')
       }
       const payload = await response.json()
-      const filteredMessages = (payload.data || []).filter(
-        (msg: CommunicationMessage) => msg.related_entity_type !== 'payment'
-      )
       initialRender.current = true
-      setMessages(filteredMessages)
+      setMessages(payload.data || [])
 
-      const unreadForTenant = filteredMessages
+      const unreadForTenant = (payload.data || [])
         .filter((msg: CommunicationMessage) => !msg.read && msg.recipient_user_id === user.id)
         .map((msg: CommunicationMessage) => msg.id)
 
@@ -97,7 +94,6 @@ export function CommunicationsTab() {
         },
         (payload) => {
           const record = payload.new as CommunicationMessage
-          if (record.related_entity_type === 'payment') return
           setMessages((existing) => [...existing, record])
         }
       )

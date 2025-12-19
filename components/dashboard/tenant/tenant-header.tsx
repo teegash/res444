@@ -204,22 +204,10 @@ export function TenantHeader({ summary, loading, onProfileUpdated }: TenantHeade
         setUnreadCount((prev) => Math.max(0, prev - 1))
       }
       setSheetOpen(false)
-      const invoiceId =
-        notification.related_entity_id &&
-        notification.related_entity_id !== 'null' &&
-        notification.related_entity_id !== 'undefined'
-          ? notification.related_entity_id
-          : null
       if (notification.related_entity_type === 'payment') {
-        if (!invoiceId) {
-          toast({
-            title: 'Invoice unavailable',
-            description: 'This notification is no longer linked to an invoice.',
-            variant: 'destructive',
-          })
-          return
-        }
-        router.push(`/dashboard/tenant/invoices/${encodeURIComponent(invoiceId)}?invoiceId=${encodeURIComponent(invoiceId)}`)
+        // Payment-related notifications should take the tenant to payment history (incl. deposit slip outcomes).
+        // We intentionally do not force an invoice detail route because many notifications are payment-centric.
+        router.push('/dashboard/tenant/payments')
       } else {
         router.push('/dashboard/tenant/messages')
       }

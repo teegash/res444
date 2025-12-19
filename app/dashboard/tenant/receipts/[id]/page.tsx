@@ -5,6 +5,7 @@ import { ArrowLeft, Download, Loader2, Printer, Share2 } from 'lucide-react'
 import Link from 'next/link'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { downloadReceiptPdf } from '@/lib/payments/receiptPdf'
 
 type ReceiptPayload = {
   payment: {
@@ -148,7 +149,7 @@ export default function TenantReceiptPage({ params }: { params: { id: string } }
               <Share2 className="h-4 w-4 mr-2" />
               Share
             </Button>
-            <Button size="sm" onClick={() => window.print()}>
+            <Button size="sm" onClick={() => downloadReceiptPdf(receipt)}>
               <Download className="h-4 w-4 mr-2" />
               Download PDF
             </Button>

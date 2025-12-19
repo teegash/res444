@@ -132,7 +132,9 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
     const { data: messages, error: messagesError } = await adminSupabase
       .from('communications')
-      .select('id, sender_user_id, recipient_user_id, message_text, read, created_at')
+      .select(
+        'id, sender_user_id, recipient_user_id, message_text, message_type, related_entity_type, related_entity_id, read, created_at'
+      )
       .or(
         `and(sender_user_id.in.(${staffList}),recipient_user_id.eq.${tenantId}),and(sender_user_id.eq.${tenantId},recipient_user_id.in.(${staffList}))`
       )
@@ -146,11 +148,14 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     const seenTenantMessages = new Set<string>()
     const dedupedMessages = (messages || []).filter((msg) => {
       if (msg.sender_user_id !== tenantId) return true
+      const createdAtMs = msg.created_at ? Date.parse(msg.created_at) : 0
+      const timeBucket = Number.isFinite(createdAtMs) ? Math.floor(createdAtMs / 10_000) : 0
       const key = [
         msg.message_text || '',
+        msg.message_type || '',
         msg.related_entity_type || '',
         msg.related_entity_id || '',
-        msg.created_at || '',
+        timeBucket.toString(),
       ].join('|')
       if (seenTenantMessages.has(key)) return false
       seenTenantMessages.add(key)

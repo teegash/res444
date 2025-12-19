@@ -27,6 +27,7 @@ import {
   exportRowsAsPDF,
   ExportColumn,
 } from '@/lib/export/download'
+import { downloadReceiptPdf } from '@/lib/payments/receiptPdf'
 
 type TenantPaymentRecord = {
   id: string
@@ -1023,6 +1024,21 @@ export default function PaymentHistoryPage() {
               const accentText = isSuccess ? 'text-emerald-700' : 'text-red-700'
               return (
                 <div className="space-y-6">
+                  <div className="flex flex-wrap items-center justify-end gap-2">
+                    <Link href={`/dashboard/tenant/receipts/${receiptDetails.payment.id}`}>
+                      <Button variant="outline" size="sm">
+                        Open receipt page
+                      </Button>
+                    </Link>
+                    <Button
+                      variant="default"
+                      size="sm"
+                      onClick={() => downloadReceiptPdf(receiptDetails)}
+                    >
+                      <Download className="h-4 w-4 mr-2" />
+                      Download PDF
+                    </Button>
+                  </div>
                   <div className={`p-4 rounded-lg ${accentBg} ${accentText}`}>
                     <p className="text-sm uppercase tracking-wide font-semibold">
                       {isSuccess ? 'Payment Successful' : 'Payment Failed'}

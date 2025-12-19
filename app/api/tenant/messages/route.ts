@@ -52,14 +52,21 @@ export async function GET() {
 
     const seenTenantSends = new Set<string>()
     const payload = (data || [])
-      .filter((message) => message.related_entity_type !== 'payment')
+      // Show payment-related messages only if they were sent TO the tenant (e.g., payment confirmations).
+      // This avoids echoing the staff notification fan-out messages back into the tenant chat.
+      .filter((message) => {
+        if (message.related_entity_type !== 'payment') return true
+        return message.recipient_user_id === user.id
+      })
       .filter((message) => {
         if (message.sender_user_id !== user.id) return true
+        const createdAtMs = message.created_at ? Date.parse(message.created_at) : 0
+        const timeBucket = Number.isFinite(createdAtMs) ? Math.floor(createdAtMs / 10_000) : 0
         const key = [
           message.message_text || '',
           message.related_entity_type || '',
           message.related_entity_id || '',
-          message.created_at || '',
+          timeBucket.toString(),
         ].join('|')
         if (seenTenantSends.has(key)) return false
         seenTenantSends.add(key)
