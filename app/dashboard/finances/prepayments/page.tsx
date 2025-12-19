@@ -22,6 +22,10 @@ function monthStartUtc(d: Date) {
   return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1))
 }
 
+function addMonthsUtc(monthStart: Date, months: number) {
+  return new Date(Date.UTC(monthStart.getUTCFullYear(), monthStart.getUTCMonth() + months, 1))
+}
+
 function monthsBetweenMonthStarts(fromMonthStart: Date, toMonthStart: Date) {
   return (
     (toMonthStart.getUTCFullYear() - fromMonthStart.getUTCFullYear()) * 12 +
@@ -40,19 +44,20 @@ function parseMonthStartUtc(value: string | null): Date | null {
 
 function computePrepaidMonths(rentPaidUntil: string | null, nextRentDueDate: string | null): number {
   const currentMonthStart = monthStartUtc(new Date())
+  const nextMonthStart = addMonthsUtc(currentMonthStart, 1)
   const nextDueMonthStart = parseMonthStartUtc(nextRentDueDate)
 
-  // Preferred: next_rent_due_date tells us the first uncovered month.
-  // Months prepaid (as shown in dashboard) = number of whole months covered starting from the current month.
-  if (nextDueMonthStart && nextDueMonthStart > currentMonthStart) {
-    return Math.max(0, monthsBetweenMonthStarts(currentMonthStart, nextDueMonthStart))
+  // "Prepaid months" here means FUTURE paid months starting next month (not including current month).
+  // Example: current month is Dec, next_rent_due_date is Mar 1 => Jan+Feb are prepaid => 2 months.
+  if (nextDueMonthStart && nextDueMonthStart > nextMonthStart) {
+    return Math.max(0, monthsBetweenMonthStarts(nextMonthStart, nextDueMonthStart))
   }
 
-  // Fallback: derive from rent_paid_until (inclusive).
+  // Fallback: derive from rent_paid_until (inclusive) but still anchored at next month.
   const paidUntil = parseMonthStartUtc(rentPaidUntil)
   if (!paidUntil) return 0
-  if (paidUntil < currentMonthStart) return 0
-  return Math.max(0, monthsBetweenMonthStarts(currentMonthStart, paidUntil) + 1)
+  if (paidUntil < nextMonthStart) return 0
+  return Math.max(0, monthsBetweenMonthStarts(nextMonthStart, paidUntil) + 1)
 }
 
 export default function PrepaymentsPage() {
@@ -86,7 +91,7 @@ export default function PrepaymentsPage() {
   const filtered = useMemo(() => {
     const query = q.trim().toLowerCase()
     return rows
-      .filter((r) => (prepaidOnly ? r.is_prepaid === true : true))
+      .filter((r) => (prepaidOnly ? computePrepaidMonths(r.rent_paid_until, r.next_rent_due_date) > 0 : true))
       .filter((r) => {
         if (!query) return true
         const unit = (r.unit_number ?? '').toLowerCase()
