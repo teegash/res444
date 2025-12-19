@@ -275,7 +275,7 @@ export default function PaymentHistoryPage() {
     setReceiptError(null)
     setReceiptDetails(null)
 
-    if (!paymentId) {
+    if (!paymentId || paymentId === 'undefined' || paymentId === 'null') {
       setReceiptLoading(false)
       setReceiptError('Receipt is unavailable for this payment.')
       return

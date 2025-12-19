@@ -3,6 +3,9 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getCoverageRangeLabel } from '@/lib/payments/leaseHelpers'
 
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+
 function resolvePaymentId(request: NextRequest, params?: { paymentId?: string }) {
   if (params?.paymentId) {
     return params.paymentId
@@ -19,8 +22,11 @@ export async function GET(
 ) {
   try {
     const paymentId = resolvePaymentId(request, params)
-    if (!paymentId) {
+    if (!paymentId || paymentId === 'undefined' || paymentId === 'null') {
       return NextResponse.json({ success: false, error: 'Payment ID is required.' }, { status: 400 })
+    }
+    if (!UUID_RE.test(paymentId)) {
+      return NextResponse.json({ success: false, error: 'Invalid payment ID.' }, { status: 400 })
     }
 
     const supabase = await createClient()

@@ -48,6 +48,12 @@ export default function TenantReceiptPage({ params }: { params: { id: string } }
   useEffect(() => {
     const fetchReceipt = async () => {
       try {
+        if (!params?.id || params.id === 'undefined' || params.id === 'null') {
+          setError('Receipt is unavailable for this payment.')
+          setReceipt(null)
+          setLoading(false)
+          return
+        }
         setLoading(true)
         const response = await fetch(`/api/tenant/receipts/${params.id}`, { cache: 'no-store' })
         const payload = await response.json().catch(() => ({}))
