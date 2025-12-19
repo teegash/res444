@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, Mail, Loader2, CheckCircle2 } from 'lucide-react'
@@ -9,9 +9,11 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card } from '@/components/ui/card'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { createClient } from '@/lib/supabase/client'
 
 export default function ForgotPasswordPage() {
   const router = useRouter()
+  const supabase = useMemo(() => createClient(), [])
   const [email, setEmail] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -24,23 +26,27 @@ export default function ForgotPasswordPage() {
     setIsLoading(true)
 
     try {
-      const response = await fetch('/api/auth/forgot-password', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email }),
+      const normalizedEmail = email.trim().toLowerCase()
+      const configuredSiteUrl = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, '')
+      const siteUrl = configuredSiteUrl || (typeof window !== 'undefined' ? window.location.origin : '')
+
+      // IMPORTANT:
+      // When using `{{ .ConfirmationURL }}` with PKCE, the browser must store the code_verifier
+      // when requesting the reset. That means this must run in the browser (not server route).
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(normalizedEmail, {
+        redirectTo: `${siteUrl}/auth/reset-password`,
       })
 
-      const result = await response.json()
-
-      if (result.success) {
-        setSuccess(result.message || 'Password reset email sent. Please check your inbox.')
-      } else {
-        setError(result.error || 'Failed to send password reset email')
+      // Always show success (avoid email enumeration). Log errors for debugging.
+      if (resetError) {
+        console.error('[ForgotPassword] resetPasswordForEmail failed', resetError)
       }
+
+      setSuccess('If an account exists with this email, a password reset link has been sent. Please check your inbox.')
     } catch (err) {
-      setError('An unexpected error occurred')
+      console.error('[ForgotPassword] Unexpected error', err)
+      // Still show success to prevent email enumeration
+      setSuccess('If an account exists with this email, a password reset link has been sent. Please check your inbox.')
     } finally {
       setIsLoading(false)
     }
@@ -135,4 +141,3 @@ export default function ForgotPasswordPage() {
     </div>
   )
 }
-
