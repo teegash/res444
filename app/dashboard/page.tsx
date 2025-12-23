@@ -430,8 +430,8 @@ function DashboardContent() {
                   </h1>
                 </div>
                 <p className="text-gray-600">
-                  {organization?.location 
-                    ? `Here's what's happening at ${organization.location} today.`
+                  {organization?.name
+                    ? `Here's what's happening in ${organization.name} today.`
                     : "Here's what's happening with your premium properties today."}
                 </p>
                 {organization && (
