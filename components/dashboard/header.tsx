@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { useRouter } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { Search, Bell, LogOut, User, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -64,6 +64,21 @@ export function Header() {
   const [notifications, setNotifications] = useState<NotificationItem[]>([])
   const unreadCount = notifications.filter((n) => !n.read).length
   const router = useRouter()
+  const pathname = usePathname()
+
+  const effectiveRole = useMemo(() => {
+    return (
+      userRole ||
+      ((user?.user_metadata as any)?.role as string | undefined) ||
+      ((user as any)?.role as string | undefined) ||
+      ''
+    )
+  }, [userRole, user])
+
+  const isTenantView = useMemo(() => {
+    const roleRaw = String(effectiveRole).trim().toLowerCase()
+    return roleRaw === 'tenant' || (pathname ? pathname.startsWith('/dashboard/tenant') : false)
+  }, [effectiveRole, pathname])
 
   // Fetch user's first name from profile
   useEffect(() => {
@@ -320,48 +335,53 @@ export function Header() {
             </SheetContent>
           </Sheet>
 
-          {/* Profile Dropdown */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                className="gap-2 pl-2 pr-1 min-h-[46px] text-gray-900 hover:text-gray-900 hover:bg-gray-100 dark:text-gray-100 dark:hover:text-gray-100 dark:hover:bg-gray-800"
-              >
-                <div className="w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center border border-gray-200 dark:border-gray-700">
-                  <User className="w-4 h-4 text-gray-600 dark:text-gray-400" />
-                </div>
-                <div className="text-left hidden sm:block">
-                  <p className="text-sm font-medium">
-                    {userFirstName || user?.email?.split('@')[0] || 'User'}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {formatRoleLabel(
-                      userRole ||
-                        (user?.user_metadata as any)?.role ||
-                        (user as any)?.role
-                    )}
-                  </p>
-                </div>
-              </Button>
-            </DropdownMenuTrigger>
+          {isTenantView ? (
+            <Button
+              onClick={handleLogout}
+              className="ml-1 rounded-full bg-gradient-to-r from-red-600 to-rose-500 text-white shadow-sm shadow-red-500/30 border border-white/15 hover:from-red-700 hover:to-rose-600 hover:shadow-md hover:shadow-red-500/35 active:scale-[0.98] transition-all focus-visible:ring-2 focus-visible:ring-red-500/40"
+            >
+              <LogOut className="w-4 h-4" />
+              <span className="hidden sm:inline">Logout</span>
+            </Button>
+          ) : (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  className="gap-2 pl-2 pr-1 min-h-[46px] text-gray-900 hover:text-gray-900 hover:bg-gray-100 dark:text-gray-100 dark:hover:text-gray-100 dark:hover:bg-gray-800"
+                >
+                  <div className="w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center border border-gray-200 dark:border-gray-700">
+                    <User className="w-4 h-4 text-gray-600 dark:text-gray-400" />
+                  </div>
+                  <div className="text-left hidden sm:block">
+                    <p className="text-sm font-medium">
+                      {userFirstName || user?.email?.split('@')[0] || 'User'}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {formatRoleLabel(effectiveRole)}
+                    </p>
+                  </div>
+                </Button>
+              </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
-              <DropdownMenuItem onClick={() => router.push('/dashboard/settings')}>
-                Profile Settings
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => router.push('/dashboard/help')}>
-                Help & Support
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => router.push('/dashboard/status')}>
-                System Status
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={handleLogout} className="text-destructive">
-                <LogOut className="w-4 h-4 mr-2" />
-                Logout
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+                <DropdownMenuItem onClick={() => router.push('/dashboard/settings')}>
+                  Profile Settings
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => router.push('/dashboard/help')}>
+                  Help & Support
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => router.push('/dashboard/status')}>
+                  System Status
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handleLogout} className="text-destructive">
+                  <LogOut className="w-4 h-4 mr-2" />
+                  Logout
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
         </div>
       </div>
     </header>
