@@ -1,13 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireAuth } from '@/lib/rbac/routeGuards'
 import { initiateSTKPush, DarajaConfig } from '@/lib/mpesa/daraja'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { updateInvoiceStatus } from '@/lib/invoices/invoiceGeneration'
+import { createClient } from '@/lib/supabase/server'
 
 export async function POST(request: NextRequest) {
   try {
     // 1. Authenticate user
-    const { userId } = await requireAuth()
+    const supabaseServer = await createClient()
+    const {
+      data: { user },
+      error: authError,
+    } = await supabaseServer.auth.getUser()
+
+    if (authError || !user) {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
+    }
+    const userId = user.id
 
     // 2. Parse request body
     let body: {

@@ -89,7 +89,21 @@ export async function GET() {
       return NextResponse.json({ success: false, error: 'Unable to verify organization.' }, { status: 500 })
     }
 
-    const orgId = (profile as any)?.organization_id as string | undefined
+    let orgId = (profile as any)?.organization_id as string | undefined
+    if (!orgId) {
+      const { data: membership, error: membershipError } = await adminSupabase
+        .from('organization_members')
+        .select('organization_id')
+        .eq('user_id', user.id)
+        .maybeSingle()
+
+      if (membershipError) {
+        console.error('[TenantMaintenance.GET] membership lookup failed', membershipError)
+        return NextResponse.json({ success: false, error: 'Unable to verify organization.' }, { status: 500 })
+      }
+
+      orgId = membership?.organization_id || undefined
+    }
     if (!orgId) {
       return NextResponse.json({ success: false, error: 'Organization not found.' }, { status: 403 })
     }
