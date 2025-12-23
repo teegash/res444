@@ -10,7 +10,25 @@ import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Switch } from '@/components/ui/switch'
-import { Loader2, ArrowLeft, Save, Building2, MapPin } from 'lucide-react'
+import {
+  Loader2,
+  ArrowLeft,
+  Save,
+  Building2,
+  MapPin,
+  Trash2,
+} from 'lucide-react'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog'
 
 interface PropertyFormState {
   name: string
@@ -61,6 +79,7 @@ export default function EditPropertyPage() {
   const [form, setForm] = useState<PropertyFormState>(defaultForm)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const [stats, setStats] = useState<{ recordedUnits: number; occupiedUnits: number } | null>(null)
@@ -189,6 +208,38 @@ export default function EditPropertyPage() {
   }
 
   const canSave = form.name.trim().length > 0 && form.location.trim().length > 0
+  const canDelete = !!propertyId && !loading && !saving && !deleting
+
+  const handleDelete = async () => {
+    if (!propertyId) {
+      setError('Missing property identifier.')
+      return
+    }
+
+    setDeleting(true)
+    setError(null)
+    setSuccess(null)
+
+    try {
+      const response = await fetch(`/api/properties/${propertyId}?buildingId=${encodeURIComponent(propertyId)}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      })
+      const result = await response.json().catch(() => ({}))
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || 'Failed to delete property.')
+      }
+
+      setSuccess('Property deleted successfully.')
+      router.push('/dashboard/properties')
+    } catch (err) {
+      console.error('[EditPropertyPage] Delete failed', err)
+      setError(err instanceof Error ? err.message : 'Failed to delete property. Please try again.')
+    } finally {
+      setDeleting(false)
+    }
+  }
 
   return (
     <div className="flex min-h-screen bg-gray-50">
@@ -214,6 +265,48 @@ export default function EditPropertyPage() {
                   <Button variant="outline" onClick={() => router.push(`/dashboard/properties/${propertyId}`)}>
                     View summary
                   </Button>
+                )}
+                {propertyId && (
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button variant="destructive" disabled={!canDelete} className="gap-2">
+                        {deleting ? (
+                          <>
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            Deleting...
+                          </>
+                        ) : (
+                          <>
+                            <Trash2 className="w-4 h-4" />
+                            Delete
+                          </>
+                        )}
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Delete this property?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          This will permanently delete the property and all related data (units, leases, rent & water invoices,
+                          payments, maintenance requests, expenses, and tenant accounts linked only to this property). This action
+                          cannot be undone.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                          onClick={(e) => {
+                            e.preventDefault()
+                            handleDelete()
+                          }}
+                          className="bg-destructive text-white hover:bg-destructive/90"
+                          disabled={!canDelete}
+                        >
+                          Confirm delete
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
                 )}
               </div>
             </div>

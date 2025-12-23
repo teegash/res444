@@ -19,9 +19,17 @@ async function authorize(buildingId: string) {
   }
 
   const adminSupabase = createAdminClient()
+  if (!adminSupabase) {
+    return {
+      error: NextResponse.json(
+        { success: false, error: 'Server configuration error (missing admin client).' },
+        { status: 500 }
+      ),
+    }
+  }
   const { data: membership } = await adminSupabase
     .from('organization_members')
-    .select('organization_id')
+    .select('organization_id, role')
     .eq('user_id', user.id)
     .limit(1)
     .maybeSingle()
@@ -53,7 +61,7 @@ async function authorize(buildingId: string) {
     }
   }
 
-  return { adminSupabase, building }
+  return { adminSupabase, building, membership }
 }
 
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
@@ -166,4 +174,123 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
   }
 
   return NextResponse.json({ success: true })
+}
+
+export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
+  const url = new URL(request.url)
+  const queryId = url.searchParams.get('buildingId')
+  const buildingId = sanitizeBuildingId(params.id) || sanitizeBuildingId(queryId)
+  if (!buildingId) {
+    return NextResponse.json({ success: false, error: 'Building ID is required.' }, { status: 400 })
+  }
+
+  const authContext = await authorize(buildingId)
+  if ('error' in authContext && authContext.error) return authContext.error
+
+  const { adminSupabase, building, membership } = authContext
+
+  const role = String(membership?.role || '').toLowerCase()
+  if (role !== 'admin' && role !== 'manager') {
+    return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })
+  }
+
+  try {
+    const { data: units, error: unitErr } = await adminSupabase
+      .from('apartment_units')
+      .select('id')
+      .eq('building_id', building.id)
+      .eq('organization_id', building.organization_id)
+
+    if (unitErr) throw unitErr
+
+    const unitIds = (units || []).map((u) => u.id).filter(Boolean) as string[]
+
+    const tenantIds = new Set<string>()
+    if (unitIds.length) {
+      const { data: leases, error: leasesErr } = await adminSupabase
+        .from('leases')
+        .select('tenant_user_id')
+        .in('unit_id', unitIds)
+        .eq('organization_id', building.organization_id)
+
+      if (leasesErr) throw leasesErr
+      for (const lease of leases || []) {
+        if (lease?.tenant_user_id) tenantIds.add(String(lease.tenant_user_id))
+      }
+
+      // Pre-delete water bills to avoid FK blocks when invoices are cascaded.
+      const { error: waterErr } = await adminSupabase
+        .from('water_bills')
+        .delete()
+        .in('unit_id', unitIds)
+        .eq('organization_id', building.organization_id)
+      if (waterErr) throw waterErr
+    }
+
+    // Delete the building (cascades: units -> leases -> invoices -> payments/audit, plus expenses/maintenance/etc.)
+    const { error: delBuildingErr } = await adminSupabase
+      .from('apartment_buildings')
+      .delete()
+      .eq('id', building.id)
+      .eq('organization_id', building.organization_id)
+
+    if (delBuildingErr) throw delBuildingErr
+
+    // Cleanup tenant auth users that no longer have leases after the building deletion.
+    let deletedTenants = 0
+    const skippedTenants: string[] = []
+
+    for (const tenantId of tenantIds) {
+      const { data: profile, error: profileErr } = await adminSupabase
+        .from('user_profiles')
+        .select('role')
+        .eq('id', tenantId)
+        .maybeSingle()
+      if (profileErr) {
+        console.warn('[DELETE /api/properties/[id]] tenant profile lookup failed', profileErr)
+        skippedTenants.push(tenantId)
+        continue
+      }
+
+      if (String(profile?.role || '').toLowerCase() !== 'tenant') {
+        skippedTenants.push(tenantId)
+        continue
+      }
+
+      const { data: remainingLease } = await adminSupabase
+        .from('leases')
+        .select('id')
+        .eq('tenant_user_id', tenantId)
+        .limit(1)
+        .maybeSingle()
+
+      if (remainingLease?.id) {
+        skippedTenants.push(tenantId)
+        continue
+      }
+
+      const { error: authDelErr } = await adminSupabase.auth.admin.deleteUser(tenantId)
+      if (authDelErr && authDelErr.status !== 404) {
+        console.warn('[DELETE /api/properties/[id]] auth delete failed', tenantId, authDelErr)
+        skippedTenants.push(tenantId)
+        continue
+      }
+      deletedTenants += 1
+    }
+
+    return NextResponse.json({
+      success: true,
+      data: {
+        building_id: building.id,
+        deleted_tenants: deletedTenants,
+        skipped_tenants: skippedTenants.length,
+      },
+    })
+  } catch (error) {
+    console.error('[DELETE /api/properties/[id]] Failed', error)
+    return NextResponse.json(
+      { success: false, error: error instanceof Error ? error.message : 'Failed to delete property.' },
+      { status: 500 }
+    )
+  }
 }
