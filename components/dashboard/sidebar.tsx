@@ -185,15 +185,15 @@ function Sidebar() {
           <div className="flex items-center gap-3 w-full">
             {/* Logo Container - Always show, size fixed at 40x40px */}
             <div className="flex items-center justify-center w-10 h-10 rounded-lg flex-shrink-0 overflow-hidden bg-gradient-to-br from-[#4682B4] to-[#5a9fd4] border border-gray-200 shadow-sm">
-              {organization?.logo_url ? (
-                <img
-                  src={organization.logo_url}
-                  alt={organization.name || 'Organization logo'}
-                  className="w-full h-full object-cover"
-                  onError={(e) => {
-                    console.error('[Sidebar] Logo image failed to load:', organization.logo_url)
-                    // Fallback to first letters on error
-                    const parent = e.currentTarget.parentElement
+	              {organization?.logo_url ? (
+	                <img
+	                  src={organization.logo_url}
+	                  alt={organization.name || 'Organization logo'}
+	                  className="w-full h-full object-contain bg-white/95"
+	                  onError={(e) => {
+	                    console.error('[Sidebar] Logo image failed to load:', organization.logo_url)
+	                    // Fallback to first letters on error
+	                    const parent = e.currentTarget.parentElement
                     if (parent && organization?.name) {
                       const initials = organization.name
                         .split(' ')
