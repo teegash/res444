@@ -458,78 +458,106 @@ function DashboardContent() {
 
             {/* Metrics Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              <Card>
-                <CardContent className="pt-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-gray-600 mb-1">Total Properties</p>
-                      <p className="text-3xl font-bold">{overview?.summary?.totalProperties ?? '—'}</p>
-                      <p className="text-sm text-green-600 mt-1">Portfolio snapshot</p>
+              <Link
+                href="/dashboard/properties"
+                className="block rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4682B4]/40"
+                aria-label="View properties"
+              >
+                <Card className="cursor-pointer transition-shadow hover:shadow-md">
+                  <CardContent className="pt-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm text-gray-600 mb-1">Total Properties</p>
+                        <p className="text-3xl font-bold">{overview?.summary?.totalProperties ?? '—'}</p>
+                        <p className="text-sm text-green-600 mt-1">Portfolio snapshot</p>
+                      </div>
+                      <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
+                        <Building2 className="w-6 h-6 text-[#4682B4]" />
+                      </div>
                     </div>
-                    <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
-                      <Building2 className="w-6 h-6 text-[#4682B4]" />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+                  </CardContent>
+                </Card>
+              </Link>
 
-              <Card>
-                <CardContent className="pt-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-gray-600 mb-1">Active Tenants</p>
-                      <p className="text-3xl font-bold">{overview?.summary?.totalTenants ?? '—'}</p>
-                      <p className="text-sm text-green-600 mt-1">Live occupants</p>
+              <Link
+                href="/dashboard/tenants"
+                className="block rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4682B4]/40"
+                aria-label="View tenants"
+              >
+                <Card className="cursor-pointer transition-shadow hover:shadow-md">
+                  <CardContent className="pt-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm text-gray-600 mb-1">Active Tenants</p>
+                        <p className="text-3xl font-bold">{overview?.summary?.totalTenants ?? '—'}</p>
+                        <p className="text-sm text-green-600 mt-1">Live occupants</p>
+                      </div>
+                      <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
+                        <Users className="w-6 h-6 text-green-600" />
+                      </div>
                     </div>
-                    <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
-                      <Users className="w-6 h-6 text-green-600" />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+                  </CardContent>
+                </Card>
+              </Link>
 
-              <Card>
-                <CardContent className="pt-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-gray-600 mb-1">Monthly Revenue</p>
-                      <p className="text-3xl font-bold">
-                        {overview?.summary ? formatCurrency(overview.summary.monthlyRevenue || 0, 'KES') : '—'}
-                      </p>
-                      {overview?.summary?.revenueDelta !== null ? (
-                        <p
-                          className={`text-sm mt-1 flex items-center gap-1 ${
-                            (overview?.summary?.revenueDelta || 0) >= 0 ? 'text-green-600' : 'text-red-600'
-                          }`}
-                        >
-                          {(overview?.summary?.revenueDelta || 0) >= 0 ? <ArrowUpRight className="h-4 w-4" /> : <ArrowDownRight className="h-4 w-4" />}
-                          {Math.abs(overview?.summary?.revenueDelta || 0).toFixed(1)}% vs last month
+              <Link
+                href="/dashboard/manager/reports"
+                className="block rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4682B4]/40"
+                aria-label="View reports"
+              >
+                <Card className="cursor-pointer transition-shadow hover:shadow-md">
+                  <CardContent className="pt-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm text-gray-600 mb-1">Monthly Revenue</p>
+                        <p className="text-3xl font-bold">
+                          {overview?.summary ? formatCurrency(overview.summary.monthlyRevenue || 0, 'KES') : '—'}
                         </p>
-                      ) : (
-                        <p className="text-sm text-gray-500 mt-1">Trend pending</p>
-                      )}
+                        {overview?.summary?.revenueDelta !== null ? (
+                          <p
+                            className={`text-sm mt-1 flex items-center gap-1 ${
+                              (overview?.summary?.revenueDelta || 0) >= 0 ? 'text-green-600' : 'text-red-600'
+                            }`}
+                          >
+                            {(overview?.summary?.revenueDelta || 0) >= 0 ? (
+                              <ArrowUpRight className="h-4 w-4" />
+                            ) : (
+                              <ArrowDownRight className="h-4 w-4" />
+                            )}
+                            {Math.abs(overview?.summary?.revenueDelta || 0).toFixed(1)}% vs last month
+                          </p>
+                        ) : (
+                          <p className="text-sm text-gray-500 mt-1">Trend pending</p>
+                        )}
+                      </div>
+                      <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center">
+                        <DollarSign className="w-6 h-6 text-orange-600" />
+                      </div>
                     </div>
-                    <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center">
-                      <DollarSign className="w-6 h-6 text-orange-600" />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+                  </CardContent>
+                </Card>
+              </Link>
 
-              <Card>
-                <CardContent className="pt-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-gray-600 mb-1">Pending Requests</p>
-                      <p className="text-3xl font-bold">{overview?.summary?.pendingRequests ?? '—'}</p>
-                      <p className="text-sm text-gray-500 mt-1">Open maintenance</p>
+              <Link
+                href="/dashboard/maintenance"
+                className="block rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4682B4]/40"
+                aria-label="View maintenance requests"
+              >
+                <Card className="cursor-pointer transition-shadow hover:shadow-md">
+                  <CardContent className="pt-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm text-gray-600 mb-1">Pending Requests</p>
+                        <p className="text-3xl font-bold">{overview?.summary?.pendingRequests ?? '—'}</p>
+                        <p className="text-sm text-gray-500 mt-1">Open maintenance</p>
+                      </div>
+                      <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
+                        <Wrench className="w-6 h-6 text-red-600" />
+                      </div>
                     </div>
-                    <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
-                      <Wrench className="w-6 h-6 text-red-600" />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+                  </CardContent>
+                </Card>
+              </Link>
             </div>
 
             {/* Charts Row */}
