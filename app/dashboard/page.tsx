@@ -822,14 +822,14 @@ function DashboardContent() {
               </Card>
             </div>
 
-            {/* Arrears and Prepayment */}
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-              <Card>
-                <CardHeader className="flex flex-col gap-2">
-                  <CardTitle>Arrears</CardTitle>
-                  <CardDescription>Outstanding rent by tenant/unit</CardDescription>
-                  <div className="flex flex-wrap gap-3 text-sm text-gray-700">
-                    <span className="px-3 py-1 rounded-full bg-red-50 text-red-700 border border-red-100">
+	            {/* Arrears and Prepayment */}
+	            <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+	              <Card className="border border-red-100/80 bg-gradient-to-br from-red-50/40 to-white">
+	                <CardHeader className="flex flex-col gap-2">
+	                  <CardTitle>Arrears</CardTitle>
+	                  <CardDescription>Outstanding rent by tenant/unit</CardDescription>
+	                  <div className="flex flex-wrap gap-3 text-sm text-gray-700">
+	                    <span className="px-3 py-1 rounded-full bg-red-50 text-red-700 border border-red-100">
                       Critical (&gt;30d): {arrearsComputed.critical.length}
                     </span>
                     <span className="px-3 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-100">
@@ -843,21 +843,21 @@ function DashboardContent() {
                 <CardContent className="space-y-3">
                   {arrearsComputed.positives.length === 0 ? (
                     <p className="text-sm text-gray-500">No arrears recorded.</p>
-                  ) : (
-                    <div className="space-y-2">
-                      {arrearsComputed.positives.slice(0, 6).map((row) => (
-                        <div
-                          key={row.lease_id}
-                          className={`flex flex-col sm:flex-row sm:items-center justify-between gap-2 rounded-lg border p-3 ${
-                            arrearsComputed.critical.find((c) => c.lease_id === row.lease_id)
-                              ? 'border-red-200 bg-red-50/40'
-                              : 'border-slate-200 bg-white'
-                          }`}
-                        >
-                          <div className="space-y-1">
-                            <p className="font-semibold text-gray-900">
-                              {row.unit_number || 'Unit'} &mdash; {row.tenant_name}
-                            </p>
+	                  ) : (
+	                    <div className="space-y-2">
+	                      {arrearsComputed.positives.slice(0, 6).map((row) => (
+	                        <div
+	                          key={row.lease_id}
+	                          className={`flex flex-col sm:flex-row sm:items-center justify-between gap-2 rounded-lg border p-3 ${
+	                            arrearsComputed.critical.find((c) => c.lease_id === row.lease_id)
+	                              ? 'border-red-200 bg-red-50/50'
+	                              : 'border-slate-200 bg-white hover:bg-red-50/20'
+	                          }`}
+	                        >
+	                          <div className="space-y-1">
+	                            <p className="font-semibold text-gray-900">
+	                              {row.unit_number || 'Unit'} &mdash; {row.tenant_name}
+	                            </p>
                             <p className="text-xs text-gray-500">
                               Open invoices: {row.open_invoices} • Oldest due:{' '}
                               {row.oldest_due_date ? new Date(row.oldest_due_date).toLocaleDateString() : '—'}
@@ -872,34 +872,41 @@ function DashboardContent() {
                         </div>
                       ))}
                     </div>
-                  )}
-                </CardContent>
-              </Card>
+	                  )}
+	                </CardContent>
+	              </Card>
 
-              <Card>
-                <CardHeader>
-                  <CardTitle>Prepayments</CardTitle>
-                  <CardDescription>Paid-until pointers and upcoming rent</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-3">
+	              <Card className="border border-emerald-100/80 bg-gradient-to-br from-emerald-50/40 to-white">
+	                <CardHeader>
+	                  <CardTitle>Prepayments</CardTitle>
+	                  <CardDescription>Paid-until pointers and upcoming rent</CardDescription>
+	                </CardHeader>
+	                <CardContent className="space-y-3">
                   {prepayData.length === 0 ? (
                     <p className="text-sm text-gray-500">No prepayment records yet.</p>
-                  ) : (
-                    <div className="space-y-2">
-                      {prepayData.slice(0, 6).map((row) => (
-                        <div key={row.lease_id} className="rounded-lg border border-slate-200 p-3 flex items-center justify-between">
-                          <div>
-                            <p className="font-semibold text-gray-900">
-                              {row.unit_number ? `Unit ${row.unit_number}` : `Lease ${row.lease_id.slice(0, 6)}...`}
-                              {row.tenant_name ? <span className="text-gray-500"> — {row.tenant_name}</span> : null}
-                            </p>
-                            <p className="text-xs text-gray-500">
-                              Paid until: {row.rent_paid_until || '—'} • Next due: {row.next_rent_due_date || '—'}
-                            </p>
-                          </div>
-                          <span className="text-xs px-2 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100">
-                            {row.prepaid_months || 0} mo prepaid
-                          </span>
+	                  ) : (
+	                    <div className="space-y-2">
+	                      {prepayData.slice(0, 6).map((row) => (
+	                        <div
+	                          key={row.lease_id}
+	                          className="rounded-lg border border-emerald-100 bg-white/80 p-3 flex items-center justify-between hover:bg-emerald-50/30 transition-colors"
+	                        >
+	                          <div>
+	                            <p className="font-semibold text-gray-900">
+	                              {row.unit_number ? `Unit ${row.unit_number}` : `Lease ${row.lease_id.slice(0, 6)}...`}
+	                              {row.tenant_name ? <span className="text-gray-500"> — {row.tenant_name}</span> : null}
+	                            </p>
+	                            <p className="text-xs text-gray-500">
+	                              Paid until:{' '}
+	                              <span className="font-medium text-emerald-700">{row.rent_paid_until || '—'}</span>
+	                              <span className="text-gray-400"> • </span>
+	                              Next due:{' '}
+	                              <span className="font-medium text-emerald-700">{row.next_rent_due_date || '—'}</span>
+	                            </p>
+	                          </div>
+	                          <span className="text-xs px-2 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100">
+	                            {row.prepaid_months || 0} mo prepaid
+	                          </span>
                         </div>
                       ))}
                     </div>
@@ -908,32 +915,32 @@ function DashboardContent() {
               </Card>
             </div>
 
-            {/* Bottom Row: Maintenance left, quick links right */}
-            <div className="grid grid-cols-1 lg:grid-cols-[1fr_1.2fr] gap-6">
-              <Card>
-                <CardHeader>
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center">
-                      <Wrench className="w-5 h-5 text-red-600" />
-                    </div>
-                    <div>
-                  <CardTitle className="text-lg">Recent Maintenance</CardTitle>
-                  <CardDescription>Latest reported issues</CardDescription>
-                </div>
+	            {/* Bottom Row: Maintenance left, quick links right */}
+	            <div className="grid grid-cols-1 lg:grid-cols-[1fr_1.2fr] gap-6">
+	              <Card className="border border-orange-100/80 bg-gradient-to-br from-orange-50/40 to-white">
+	                <CardHeader>
+	                  <div className="flex items-center gap-3">
+	                    <div className="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center">
+	                      <Wrench className="w-5 h-5 text-orange-600" />
+	                    </div>
+	                    <div>
+	                  <CardTitle className="text-lg">Recent Maintenance</CardTitle>
+	                  <CardDescription>Latest reported issues</CardDescription>
+	                </div>
               </div>
             </CardHeader>
             <CardContent className="space-y-3">
-              {Array.isArray(overview?.maintenance) && overview.maintenance.length ? (
-                overview.maintenance.slice(0, 3).map((item) => (
-                  <Link
-                    key={item.id}
-                    href="/dashboard/maintenance"
-                    className="block rounded-lg border border-gray-100 p-3 bg-white hover:shadow-sm transition-shadow"
-                  >
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <p className="font-semibold text-gray-900">{item.title}</p>
-                        <p className="text-sm text-gray-600">
+	              {Array.isArray(overview?.maintenance) && overview.maintenance.length ? (
+	                overview.maintenance.slice(0, 3).map((item) => (
+	                  <Link
+	                    key={item.id}
+	                    href="/dashboard/maintenance"
+	                    className="block rounded-lg border border-orange-100 p-3 bg-white/80 hover:bg-orange-50/30 hover:shadow-sm transition-all"
+	                  >
+	                    <div className="flex items-start justify-between">
+	                      <div>
+	                        <p className="font-semibold text-gray-900">{item.title}</p>
+	                        <p className="text-sm text-gray-600">
                           {item.property} • {item.unit}
                         </p>
                         <p className="text-xs text-gray-500">
