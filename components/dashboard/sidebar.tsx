@@ -1,12 +1,15 @@
 'use client'
 
-import Link from 'next/link'
-import { useState, useEffect, useMemo } from 'react'
-import { usePathname, useRouter } from 'next/navigation'
-import { Button } from '@/components/ui/button'
-import { LayoutDashboard, Building2, Users, CreditCard, Droplet, Wrench, MessageSquare, Bell, BarChart3, FileText, Settings, LogOut, Lock, Unlock, Receipt } from 'lucide-react'
-import { cn } from '@/lib/utils'
-import { useAuth } from '@/lib/auth/context'
+	import Link from 'next/link'
+	import { useState, useEffect, useMemo } from 'react'
+	import { usePathname, useRouter } from 'next/navigation'
+	import { Button } from '@/components/ui/button'
+	import { LayoutDashboard, Building2, Users, CreditCard, Droplet, Wrench, MessageSquare, Bell, BarChart3, FileText, Settings, LogOut, Lock, Unlock, Receipt, Camera, Loader2 } from 'lucide-react'
+	import { cn } from '@/lib/utils'
+	import { useAuth } from '@/lib/auth/context'
+	import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+	import { useToast } from '@/components/ui/use-toast'
+	import { createClient as createSupabaseClient } from '@/lib/supabase/client'
 
 const menuItems = [
   { icon: LayoutDashboard, label: 'Dashboard', href: '/dashboard' },
@@ -22,23 +25,30 @@ const menuItems = [
   { icon: FileText, label: 'Statements', href: '/dashboard/manager/statements' },
 ]
 
-function Sidebar() {
-  const [isExpanded, setIsExpanded] = useState(false)
-  const [isLocked, setIsLocked] = useState(false)
-  const pathname = usePathname()
-  const router = useRouter()
-  const { user } = useAuth()
-  const role = (user?.user_metadata as any)?.role || (user as any)?.role || null
-  const isCaretaker = role === 'caretaker'
-  const [organization, setOrganization] = useState<{
-    name: string
-    logo_url: string | null
-  } | null>(null)
+	function Sidebar() {
+	  const [isExpanded, setIsExpanded] = useState(false)
+	  const [isLocked, setIsLocked] = useState(false)
+	  const pathname = usePathname()
+	  const router = useRouter()
+	  const { user } = useAuth()
+	  const { toast } = useToast()
+	  const role = (user?.user_metadata as any)?.role || (user as any)?.role || null
+	  const isCaretaker = role === 'caretaker'
+	  const canEditOrgLogo = role === 'admin' || role === 'manager'
+	  const [organization, setOrganization] = useState<{
+	    name: string
+	    logo_url: string | null
+	  } | null>(null)
+	  const [logoLoadFailed, setLogoLoadFailed] = useState(false)
+	  const [isLogoDialogOpen, setIsLogoDialogOpen] = useState(false)
+	  const [logoFile, setLogoFile] = useState<File | null>(null)
+	  const [logoPreviewUrl, setLogoPreviewUrl] = useState<string | null>(null)
+	  const [isUploadingLogo, setIsUploadingLogo] = useState(false)
 
-  // Fetch organization data
-  useEffect(() => {
-    let isMounted = true
-    let retryTimeout: NodeJS.Timeout | null = null
+	  // Fetch organization data
+	  useEffect(() => {
+	    let isMounted = true
+	    let retryTimeout: NodeJS.Timeout | null = null
 
     const fetchOrganization = async () => {
       if (!user) {
@@ -118,11 +128,25 @@ function Sidebar() {
       isMounted = false
       if (retryTimeout) clearTimeout(retryTimeout)
     }
-  }, [user])
+	  }, [user])
 
-  const visibleMenuItems = useMemo(() => {
-    if (!isCaretaker) return menuItems
-    const allowed = new Set([
+	  useEffect(() => {
+	    setLogoLoadFailed(false)
+	  }, [organization?.logo_url])
+
+	  useEffect(() => {
+	    if (!logoFile) {
+	      setLogoPreviewUrl(null)
+	      return
+	    }
+	    const url = URL.createObjectURL(logoFile)
+	    setLogoPreviewUrl(url)
+	    return () => URL.revokeObjectURL(url)
+	  }, [logoFile])
+
+	  const visibleMenuItems = useMemo(() => {
+	    if (!isCaretaker) return menuItems
+	    const allowed = new Set([
       '/dashboard',
       '/dashboard/tenants',
       '/dashboard/payments',
@@ -134,10 +158,10 @@ function Sidebar() {
   }, [isCaretaker])
 
   // Get display name - truncate if too long
-  const displayName = useMemo(() => {
-    if (!organization?.name) {
-      return null
-    }
+	  const displayName = useMemo(() => {
+	    if (!organization?.name) {
+	      return null
+	    }
 
     const name = organization.name.trim()
     if (name.length > 18) {
@@ -145,14 +169,97 @@ function Sidebar() {
       return firstWord.length > 18 ? firstWord.substring(0, 18) : firstWord
     }
 
-    return name
-  }, [organization?.name])
+	    return name
+	  }, [organization?.name])
 
-  const { signOut } = useAuth()
+	  const orgInitials = useMemo(() => {
+	    const name = organization?.name?.trim()
+	    if (!name) return 'RK'
+	    return name
+	      .split(/\s+/)
+	      .map((word) => word.charAt(0))
+	      .join('')
+	      .substring(0, 2)
+	      .toUpperCase()
+	  }, [organization?.name])
 
-  const handleLogout = async () => {
-    await signOut()
-  }
+	  const { signOut } = useAuth()
+
+	  const handleLogout = async () => {
+	    await signOut()
+	  }
+
+	  const handleOpenLogoDialog = () => {
+	    if (!canEditOrgLogo) return
+	    setLogoFile(null)
+	    setIsLogoDialogOpen(true)
+	  }
+
+	  const handleUploadLogo = async () => {
+	    if (!logoFile) {
+	      toast({ title: 'Select a logo', description: 'Choose an image to upload.', variant: 'destructive' })
+	      return
+	    }
+
+	    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp']
+	    if (!allowedTypes.includes(logoFile.type)) {
+	      toast({
+	        title: 'Invalid file type',
+	        description: 'Only JPEG, PNG, and WebP images are allowed.',
+	        variant: 'destructive',
+	      })
+	      return
+	    }
+
+	    const maxSize = 5 * 1024 * 1024
+	    if (logoFile.size > maxSize) {
+	      toast({ title: 'File too large', description: 'Max size is 5MB.', variant: 'destructive' })
+	      return
+	    }
+
+	    try {
+	      setIsUploadingLogo(true)
+	      const supabase = createSupabaseClient()
+	      const timestamp = Date.now()
+	      const ext = logoFile.name.split('.').pop() || 'png'
+	      const filePath = `organizations/${timestamp}-${Math.random().toString(36).substring(7)}.${ext}`
+	      const bucketName = 'profile-pictures'
+
+	      const { error: uploadErr } = await supabase.storage.from(bucketName).upload(filePath, logoFile, {
+	        contentType: logoFile.type,
+	        cacheControl: '3600',
+	        upsert: false,
+	      })
+	      if (uploadErr) throw uploadErr
+
+	      const { data: urlData } = supabase.storage.from(bucketName).getPublicUrl(filePath)
+	      const publicUrl = urlData?.publicUrl
+	      if (!publicUrl) throw new Error('Failed to get public URL for uploaded logo')
+
+	      const res = await fetch('/api/organizations/logo', {
+	        method: 'PUT',
+	        headers: { 'Content-Type': 'application/json' },
+	        body: JSON.stringify({ logo_url: publicUrl }),
+	      })
+	      const json = await res.json().catch(() => ({}))
+	      if (!res.ok || !json?.success) {
+	        throw new Error(json?.error || 'Failed to update organization logo')
+	      }
+
+	      setOrganization((prev) => (prev ? { ...prev, logo_url: publicUrl } : prev))
+	      setLogoLoadFailed(false)
+	      setIsLogoDialogOpen(false)
+	      toast({ title: 'Logo updated', description: 'Your organization logo was updated successfully.' })
+	    } catch (e) {
+	      toast({
+	        title: 'Upload failed',
+	        description: e instanceof Error ? e.message : 'Could not upload logo.',
+	        variant: 'destructive',
+	      })
+	    } finally {
+	      setIsUploadingLogo(false)
+	    }
+	  }
 
   const handleLockToggle = () => {
     setIsLocked(!isLocked)
@@ -180,65 +287,110 @@ function Sidebar() {
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
       >
-        {/* Organization Logo and Name */}
-        <div className="p-6 border-b border-gray-200 min-h-[88px] flex items-center">
-          <div className="flex items-center gap-3 w-full">
-            {/* Logo Container - Always show, size fixed at 40x40px */}
-            <div className="flex items-center justify-center w-10 h-10 rounded-lg flex-shrink-0 overflow-hidden bg-gradient-to-br from-[#4682B4] to-[#5a9fd4] border border-gray-200 shadow-sm">
-	              {organization?.logo_url ? (
+	        {/* Organization Logo and Name */}
+	        <div className="p-6 border-b border-gray-200 min-h-[88px] flex items-center">
+	          <div className="flex items-center gap-3 w-full">
+	            {/* Logo Container - Always show, size fixed at 40x40px */}
+	            <button
+	              type="button"
+	              onClick={handleOpenLogoDialog}
+	              disabled={!canEditOrgLogo}
+	              className={cn(
+	                'relative group flex items-center justify-center w-10 h-10 rounded-lg flex-shrink-0 overflow-hidden bg-gradient-to-br from-[#4682B4] to-[#5a9fd4] border border-gray-200 shadow-sm',
+	                canEditOrgLogo ? 'cursor-pointer' : 'cursor-default'
+	              )}
+	              aria-label={canEditOrgLogo ? 'Change organization logo' : 'Organization logo'}
+	            >
+	              {organization?.logo_url && !logoLoadFailed ? (
 	                <img
 	                  src={organization.logo_url}
 	                  alt={organization.name || 'Organization logo'}
 	                  className="w-full h-full object-contain bg-white/95"
-	                  onError={(e) => {
-	                    console.error('[Sidebar] Logo image failed to load:', organization.logo_url)
-	                    // Fallback to first letters on error
-	                    const parent = e.currentTarget.parentElement
-                    if (parent && organization?.name) {
-                      const initials = organization.name
-                        .split(' ')
-                        .map(word => word.charAt(0))
-                        .join('')
-                        .substring(0, 2)
-                        .toUpperCase()
-                      parent.className = "flex items-center justify-center w-10 h-10 rounded-lg flex-shrink-0 bg-gradient-to-br from-[#4682B4] to-[#5a9fd4] border border-gray-200 shadow-sm"
-                      parent.innerHTML = `<span class="text-white font-bold text-sm">${initials}</span>`
-                    }
-                  }}
-                  onLoad={() => {
-                    console.log('[Sidebar] ✓ Logo image loaded successfully')
-                  }}
-                />
-              ) : organization?.name ? (
-                // Show first letters of organization name if no logo
-                <span className="text-white font-bold text-sm">
-                  {organization.name
-                    .split(' ')
-                    .map(word => word.charAt(0))
-                    .join('')
-                    .substring(0, 2)
-                    .toUpperCase()}
-                </span>
-              ) : (
-                // Fallback to RES logo while loading
-                <span className="text-white font-bold text-lg">RK</span>
-              )}
-            </div>
+	                  onError={() => setLogoLoadFailed(true)}
+	                />
+	              ) : (
+	                <span className="text-white font-bold text-sm">{orgInitials}</span>
+	              )}
+
+	              {canEditOrgLogo ? (
+	                <span className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity bg-black/35 flex items-center justify-center">
+	                  <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-white/95 text-gray-900 shadow-sm">
+	                    <Camera className="w-4 h-4" />
+	                  </span>
+	                </span>
+	              ) : null}
+	            </button>
             
             {/* Organization Name - Only show when expanded */}
-            {isExpanded && (
-              <div className="overflow-hidden flex-1 min-w-0 max-w-[200px]">
-                <h1 
+	            {isExpanded && (
+	              <div className="overflow-hidden flex-1 min-w-0 max-w-[200px]">
+	                <h1 
                   className="text-lg font-bold text-[#4682B4] whitespace-nowrap truncate"
                   title={organization?.name || 'RES'}
                 >
                   {displayName || (organization?.name || 'RES')}
                 </h1>
                 <p className="text-xs text-gray-600 whitespace-nowrap">Manager Portal</p>
-              </div>
-            )}
-          </div>
-        </div>
+	              </div>
+	            )}
+	          </div>
+	        </div>
+
+	        <Dialog open={isLogoDialogOpen} onOpenChange={setIsLogoDialogOpen}>
+	          <DialogContent className="sm:max-w-md">
+	            <DialogHeader>
+	              <DialogTitle>Change organization logo</DialogTitle>
+	              <DialogDescription>Upload a JPG, PNG, or WebP image (max 5MB).</DialogDescription>
+	            </DialogHeader>
+
+	            <div className="space-y-4">
+	              <div className="flex items-center gap-4">
+	                <div className="w-16 h-16 rounded-xl overflow-hidden border bg-white flex items-center justify-center">
+	                  {logoPreviewUrl ? (
+	                    <img src={logoPreviewUrl} alt="New logo preview" className="w-full h-full object-contain" />
+	                  ) : organization?.logo_url && !logoLoadFailed ? (
+	                    <img src={organization.logo_url} alt="Current logo" className="w-full h-full object-contain" />
+	                  ) : (
+	                    <span className="text-sm font-semibold text-gray-700">{orgInitials}</span>
+	                  )}
+	                </div>
+	                <div className="flex-1">
+	                  <input
+	                    type="file"
+	                    accept="image/png,image/jpeg,image/webp"
+	                    onChange={(e) => setLogoFile(e.target.files?.[0] ?? null)}
+	                    disabled={isUploadingLogo}
+	                    className="block w-full text-sm file:mr-3 file:rounded-lg file:border file:border-gray-200 file:bg-white file:px-3 file:py-2 file:text-sm file:font-medium file:text-gray-700 hover:file:bg-gray-50"
+	                  />
+	                  <p className="mt-2 text-xs text-gray-500">
+	                    Tip: Use a square logo (e.g. 512×512) for best results.
+	                  </p>
+	                </div>
+	              </div>
+	            </div>
+
+	            <DialogFooter>
+	              <Button
+	                type="button"
+	                variant="outline"
+	                onClick={() => setIsLogoDialogOpen(false)}
+	                disabled={isUploadingLogo}
+	              >
+	                Cancel
+	              </Button>
+	              <Button type="button" onClick={handleUploadLogo} disabled={isUploadingLogo}>
+	                {isUploadingLogo ? (
+	                  <>
+	                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+	                    Uploading…
+	                  </>
+	                ) : (
+	                  'Save logo'
+	                )}
+	              </Button>
+	            </DialogFooter>
+	          </DialogContent>
+	        </Dialog>
 
         {/* Menu Items */}
         <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
