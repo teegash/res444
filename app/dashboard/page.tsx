@@ -36,6 +36,7 @@ function DashboardContent() {
   const setupParam = searchParams.get('setup')
   const [showSetupModal, setShowSetupModal] = useState(setupParam === '1')
   const { user } = useAuth()
+  const [userFullName, setUserFullName] = useState<string | null>(null)
   const [organization, setOrganization] = useState<{
     id: string
     name: string
@@ -47,6 +48,35 @@ function DashboardContent() {
     user_role: string
   } | null>(null)
   const [loadingOrg, setLoadingOrg] = useState(true)
+
+  useEffect(() => {
+    let cancelled = false
+
+    const fetchUserProfile = async () => {
+      if (!user?.id) return
+
+      try {
+        const response = await fetch(`/api/user/profile?userId=${user.id}`, {
+          credentials: 'include',
+          cache: 'no-store',
+        })
+
+        if (!response.ok) return
+
+        const result = await response.json()
+        if (!cancelled && result?.success && result?.data?.full_name) {
+          setUserFullName(result.data.full_name)
+        }
+      } catch (error) {
+        console.error('[Dashboard] Failed to fetch user profile:', error)
+      }
+    }
+
+    fetchUserProfile()
+    return () => {
+      cancelled = true
+    }
+  }, [user?.id])
 
   // Fetch organization data
   useEffect(() => {
@@ -324,6 +354,11 @@ function DashboardContent() {
   }
 
   if (role === 'caretaker') {
+    const greetingName =
+      userFullName ||
+      ((user?.user_metadata as any)?.full_name as string | undefined) ||
+      user?.email?.split('@')[0] ||
+      'there'
     const quickActions = [
       { label: 'Water Bills', href: '/dashboard/water-bills', icon: Droplet, color: 'bg-blue-50 text-blue-700' },
       { label: 'Tenants', href: '/dashboard/tenants', icon: Users, color: 'bg-emerald-50 text-emerald-700' },
@@ -340,7 +375,7 @@ function DashboardContent() {
             <div className="max-w-6xl mx-auto space-y-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <h1 className="text-3xl font-bold text-gray-900">Caretaker Dashboard</h1>
+                  <h1 className="text-3xl font-bold text-gray-900">Welcome back, {greetingName}</h1>
                   <p className="text-gray-600">Focus on your property tasks with quick actions.</p>
                 </div>
               </div>
@@ -372,6 +407,12 @@ function DashboardContent() {
     )
   }
 
+  const greetingName =
+    userFullName ||
+    ((user?.user_metadata as any)?.full_name as string | undefined) ||
+    user?.email?.split('@')[0] ||
+    'there'
+
   return (
     <div className="flex min-h-screen bg-gray-50">
       <Sidebar />
@@ -385,7 +426,7 @@ function DashboardContent() {
                   <div className="flex items-center gap-3 mb-2">
                     <Crown className="w-8 h-8 text-[#4682B4]" />
                     <h1 className="text-3xl font-bold text-gray-900">
-                      Welcome back, Manager
+                      Welcome back, {greetingName}
                   </h1>
                 </div>
                 <p className="text-gray-600">

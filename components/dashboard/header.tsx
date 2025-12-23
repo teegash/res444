@@ -45,10 +45,21 @@ function formatRelative(dateString: string) {
   return `${days} day${days > 1 ? 's' : ''} ago`
 }
 
+function formatRoleLabel(role: unknown): string {
+  const raw = String(role ?? '').trim().toLowerCase()
+  if (!raw) return 'User'
+  if (raw === 'admin') return 'Admin'
+  if (raw === 'manager') return 'Manager'
+  if (raw === 'caretaker') return 'Caretaker'
+  if (raw === 'tenant') return 'Tenant'
+  return raw.charAt(0).toUpperCase() + raw.slice(1)
+}
+
 export function Header() {
   const { user, signOut } = useAuth()
   const supabase = useMemo(() => createClient(), [])
   const [userFirstName, setUserFirstName] = useState<string | null>(null)
+  const [userRole, setUserRole] = useState<string | null>(null)
   const [notificationsOpen, setNotificationsOpen] = useState(false)
   const [notifications, setNotifications] = useState<NotificationItem[]>([])
   const unreadCount = notifications.filter((n) => !n.read).length
@@ -70,6 +81,11 @@ export function Header() {
             // Extract first name from full_name
             const firstName = result.data.full_name.split(' ')[0]
             setUserFirstName(firstName)
+          }
+          if (result.success && result.data?.role) {
+            setUserRole(result.data.role)
+          } else if (result.success && result.data?.role === null) {
+            setUserRole(null)
           }
         }
       } catch (error) {
@@ -319,7 +335,11 @@ export function Header() {
                     {userFirstName || user?.email?.split('@')[0] || 'User'}
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    Manager
+                    {formatRoleLabel(
+                      userRole ||
+                        (user?.user_metadata as any)?.role ||
+                        (user as any)?.role
+                    )}
                   </p>
                 </div>
               </Button>
