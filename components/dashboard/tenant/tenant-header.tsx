@@ -311,12 +311,11 @@ export function TenantHeader({ summary, loading }: TenantHeaderProps) {
             <Button
               type="button"
               onClick={handleLogout}
-              variant="ghost"
               size="icon"
-              className="rounded-xl border border-slate-200/70 bg-white/60 shadow-sm hover:bg-white hover:shadow transition"
+              className="rounded-full bg-gradient-to-r from-red-600 to-rose-500 text-white shadow-sm shadow-red-500/30 border border-white/15 hover:from-red-700 hover:to-rose-600 hover:shadow-md hover:shadow-red-500/35 active:scale-[0.98] transition-all focus-visible:ring-2 focus-visible:ring-red-500/40"
               aria-label="Logout"
             >
-              <LogOut className="w-5 h-5 text-slate-700" />
+              <LogOut className="w-5 h-5" />
             </Button>
           </div>
         </div>
