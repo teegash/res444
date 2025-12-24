@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 type StatementTransaction = {
   id: string
@@ -84,6 +84,11 @@ export function StatementLedgerGrid(props: {
   onViewChange?: (view: LedgerView) => void
 }) {
   const [filter, setFilter] = useState<LedgerQuickFilter>(props.initialFilter || 'all')
+  const onViewChangeRef = useRef<typeof props.onViewChange>(props.onViewChange)
+
+  useEffect(() => {
+    onViewChangeRef.current = props.onViewChange
+  }, [props.onViewChange])
 
   const baseRows = useMemo(() => sortByPostedAtAsc(props.transactions || []), [props.transactions])
   const summary = useMemo(() => computeSummary(baseRows), [baseRows])
@@ -103,8 +108,8 @@ export function StatementLedgerGrid(props: {
   }, [baseRows, filter])
 
   useEffect(() => {
-    props.onViewChange?.({ filter, rows, summary })
-  }, [filter, rows, summary, props])
+    onViewChangeRef.current?.({ filter, rows, summary })
+  }, [filter, rows, summary])
 
   const pillBase =
     'px-3 py-1.5 rounded-full text-sm border transition-colors whitespace-nowrap'
@@ -223,4 +228,3 @@ export function StatementLedgerGrid(props: {
     </div>
   )
 }
-
