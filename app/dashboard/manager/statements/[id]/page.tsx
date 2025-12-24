@@ -20,6 +20,7 @@ import {
   exportRowsAsPDF,
   ExportColumn,
 } from '@/lib/export/download'
+import { OrganizationBrand } from '@/components/statements/OrganizationBrand'
 
 type StatementTransaction = {
   id: string
@@ -81,6 +82,7 @@ function formatDate(value: string | null | undefined) {
 
 export default function TenantStatementPage({ params }: { params: { id?: string } }) {
   const [statement, setStatement] = useState<StatementPayload | null>(null)
+  const [organization, setOrganization] = useState<{ name: string; logo_url: string | null } | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [exporting, setExporting] = useState(false)
@@ -141,6 +143,27 @@ export default function TenantStatementPage({ params }: { params: { id?: string 
       }
     }
   }, [tenantId, router])
+
+  useEffect(() => {
+    const loadOrg = async () => {
+      try {
+        const response = await fetch('/api/organizations/current', {
+          cache: 'no-store',
+          credentials: 'include',
+        })
+        const payload = await response.json().catch(() => ({}))
+        if (response.ok && payload?.success && payload?.data?.name) {
+          setOrganization({
+            name: payload.data.name,
+            logo_url: payload.data.logo_url || null,
+          })
+        }
+      } catch {
+        // non-blocking
+      }
+    }
+    loadOrg()
+  }, [])
 
   const periodLabel = useMemo(() => {
     if (!statement?.period) return 'Latest activity'
@@ -278,15 +301,7 @@ export default function TenantStatementPage({ params }: { params: { id?: string 
       <div className="bg-white rounded-lg shadow-sm">
         <div className="p-8 md:p-12">
           <div className="flex items-start justify-between mb-8 pb-6 border-b">
-            <div className="flex items-center gap-3">
-              <div className="p-3 bg-green-100 rounded-lg">
-                <span className="text-2xl">🏢</span>
-              </div>
-              <div>
-                <h2 className="text-2xl font-bold text-green-600">RES</h2>
-                <p className="text-sm text-muted-foreground">Property Management</p>
-              </div>
-            </div>
+            <OrganizationBrand name={organization?.name || 'RES'} logoUrl={organization?.logo_url || null} />
             <div className="text-right">
               <h3 className="text-xl font-bold">ACCOUNT STATEMENT</h3>
               <p className="text-sm text-muted-foreground">
