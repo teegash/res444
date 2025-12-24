@@ -1,4 +1,8 @@
 import jsPDF from 'jspdf'
+import type { LetterheadMeta } from '@/lib/exports/letterhead'
+import { fetchCurrentOrganizationBrand } from '@/lib/exports/letterhead'
+import { loadImageAsDataUrl } from '@/lib/exports/image'
+import { drawLetterhead, getLetterheadHeight } from '@/lib/exports/pdf'
 
 type KeyValueRow = { label: string; value: string }
 
@@ -14,18 +18,23 @@ export interface LeasePdfOptions {
   summary: KeyValueRow[]
   sections: LeasePdfSection[]
   notes?: string[]
+  letterhead?: Partial<LetterheadMeta>
 }
 
-const PRIMARY = [37, 99, 235]
 const DARK = '#0f172a'
 const MUTED = '#475569'
 const PAGE_MARGIN = 48
 
-const ensureSpace = (doc: jsPDF, cursorY: number, heightNeeded: number) => {
+const ensureSpace = (
+  doc: jsPDF,
+  cursorY: number,
+  heightNeeded: number,
+  onNewPage: () => number
+) => {
   const pageHeight = doc.internal.pageSize.getHeight()
   if (cursorY + heightNeeded > pageHeight - PAGE_MARGIN) {
     doc.addPage()
-    return PAGE_MARGIN
+    return onNewPage()
   }
   return cursorY
 }
@@ -40,30 +49,48 @@ const writeRow = (doc: jsPDF, label: string, value: string, x: number, y: number
   return y + 18 + (wrapped.length > 1 ? 12 * (wrapped.length - 1) : 0)
 }
 
-export function exportLeasePdf(options: LeasePdfOptions) {
+export async function exportLeasePdf(options: LeasePdfOptions) {
+  const org = await fetchCurrentOrganizationBrand()
+  const generatedAtISO = options.letterhead?.generatedAtISO || new Date().toISOString()
+
+  const meta: LetterheadMeta = {
+    organizationName: options.letterhead?.organizationName || org?.name || 'RES',
+    organizationLocation: options.letterhead?.organizationLocation || (org?.location ?? undefined),
+    organizationPhone: options.letterhead?.organizationPhone || (org?.phone ?? undefined),
+    organizationLogoUrl:
+      options.letterhead?.organizationLogoUrl !== undefined
+        ? options.letterhead.organizationLogoUrl
+        : org?.logo_url ?? null,
+    tenantName: options.letterhead?.tenantName,
+    tenantPhone: options.letterhead?.tenantPhone,
+    propertyName: options.letterhead?.propertyName,
+    unitNumber: options.letterhead?.unitNumber,
+    documentTitle: options.letterhead?.documentTitle || options.headerTitle || 'Lease Document',
+    generatedAtISO,
+  }
+
+  const subtitle = options.headerSubtitle
+  const logo = meta.organizationLogoUrl ? await loadImageAsDataUrl(meta.organizationLogoUrl) : null
+
   const doc = new jsPDF({ unit: 'pt', format: 'a4' })
   const pageWidth = doc.internal.pageSize.getWidth()
 
-  // Header
-  const headerHeight = 120
-  doc.setFillColor(...PRIMARY)
-  doc.rect(0, 0, pageWidth, headerHeight, 'F')
-
-  doc.setTextColor('#ffffff')
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(24)
-  doc.text(options.headerTitle, PAGE_MARGIN, 60)
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(11)
-  if (options.headerSubtitle) {
-    doc.text(options.headerSubtitle, PAGE_MARGIN, 80)
+  const headerHeight = getLetterheadHeight(meta, subtitle)
+  const drawHeader = () => {
+    drawLetterhead(doc, { meta, subtitle, headerHeight, logo })
+    return headerHeight + 18
   }
-  doc.text(`Generated on ${new Date().toLocaleString()}`, pageWidth - PAGE_MARGIN, 80, { align: 'right' })
+  const newPageCursor = () => {
+    drawHeader()
+    return headerHeight + 18
+  }
+
+  let cursorY = drawHeader()
 
   // Summary card
   const summaryRows = Math.max(1, Math.ceil(options.summary.length / 2))
   const summaryHeight = Math.max(120, summaryRows * 60)
-  const summaryTop = headerHeight - 10
+  const summaryTop = cursorY
   const summaryWidth = pageWidth - PAGE_MARGIN * 2
 
   doc.setFillColor(255, 255, 255)
@@ -90,10 +117,10 @@ export function exportLeasePdf(options: LeasePdfOptions) {
     doc.setFont('helvetica', 'normal')
   })
 
-  let cursorY = summaryTop + summaryHeight + 24
+  cursorY = summaryTop + summaryHeight + 24
 
   options.sections.forEach((section) => {
-    cursorY = ensureSpace(doc, cursorY, 60)
+    cursorY = ensureSpace(doc, cursorY, 60, newPageCursor)
     doc.setFontSize(15)
     doc.setTextColor(DARK)
     doc.setFont('helvetica', 'bold')
@@ -106,7 +133,7 @@ export function exportLeasePdf(options: LeasePdfOptions) {
     doc.setFont('helvetica', 'normal')
 
     section.rows.forEach((row) => {
-      cursorY = ensureSpace(doc, cursorY, 32)
+      cursorY = ensureSpace(doc, cursorY, 32, newPageCursor)
       cursorY = writeRow(doc, row.label, row.value, PAGE_MARGIN, cursorY, pageWidth - PAGE_MARGIN * 2 - 140)
     })
 
@@ -114,7 +141,7 @@ export function exportLeasePdf(options: LeasePdfOptions) {
   })
 
   if (options.notes?.length) {
-    cursorY = ensureSpace(doc, cursorY, 80)
+    cursorY = ensureSpace(doc, cursorY, 80, newPageCursor)
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(14)
     doc.setTextColor(DARK)
@@ -123,7 +150,7 @@ export function exportLeasePdf(options: LeasePdfOptions) {
     doc.setFontSize(11)
     cursorY += 18
     options.notes.forEach((note) => {
-      cursorY = ensureSpace(doc, cursorY, 40)
+      cursorY = ensureSpace(doc, cursorY, 40, newPageCursor)
       const text = doc.splitTextToSize(`• ${note}`, pageWidth - PAGE_MARGIN * 2)
       doc.text(text, PAGE_MARGIN, cursorY)
       cursorY += text.length * 14 + 4
@@ -133,7 +160,7 @@ export function exportLeasePdf(options: LeasePdfOptions) {
   doc.setFontSize(10)
   doc.setTextColor(MUTED)
   doc.text(
-    'RES • Confidential tenant document',
+    `${meta.organizationName || 'RES'} • Confidential document`,
     PAGE_MARGIN,
     doc.internal.pageSize.getHeight() - 24
   )

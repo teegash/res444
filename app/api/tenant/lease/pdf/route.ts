@@ -3,6 +3,34 @@ import PDFDocument from 'pdfkit'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 
+async function fetchImageBuffer(url: string) {
+  try {
+    const res = await fetch(url, { cache: 'force-cache' })
+    if (!res.ok) return null
+    const contentType = res.headers.get('content-type') || ''
+    if (!contentType.startsWith('image/')) return null
+    const buf = Buffer.from(await res.arrayBuffer())
+    return { buf, contentType }
+  } catch {
+    return null
+  }
+}
+
+async function coerceImageToPdfkitBuffer(image: { buf: Buffer; contentType: string }) {
+  const type = image.contentType.toLowerCase()
+  if (type.includes('png') || type.includes('jpeg') || type.includes('jpg')) return image.buf
+  if (type.includes('webp')) {
+    try {
+      const mod = await import('sharp')
+      const sharp = (mod as any).default || mod
+      return await sharp(image.buf).png().toBuffer()
+    } catch {
+      return null
+    }
+  }
+  return null
+}
+
 function formatDate(value?: string | null) {
   if (!value) return '—'
   const parsed = new Date(value)
@@ -28,11 +56,29 @@ export async function GET() {
     }
 
     const adminSupabase = createAdminClient()
-    const [{ data: profile }, { data: lease, error: leaseError }] = await Promise.all([
+    const [{ data: membership }, { data: profile }] = await Promise.all([
+      adminSupabase
+        .from('organization_members')
+        .select('organization_id')
+        .eq('user_id', user.id)
+        .maybeSingle(),
       adminSupabase
         .from('user_profiles')
-        .select('id, full_name, phone_number, address')
+        .select('id, full_name, phone_number, address, organization_id')
         .eq('id', user.id)
+        .maybeSingle(),
+    ])
+
+    const orgId = membership?.organization_id || (profile as any)?.organization_id || null
+    if (!orgId) {
+      return NextResponse.json({ success: false, error: 'Organization not found.' }, { status: 403 })
+    }
+
+    const [{ data: organization }, { data: lease, error: leaseError }] = await Promise.all([
+      adminSupabase
+        .from('organizations')
+        .select('id, name, logo_url, location, phone_number')
+        .eq('id', orgId)
         .maybeSingle(),
       adminSupabase
         .from('leases')
@@ -66,6 +112,7 @@ export async function GET() {
         `
         )
         .eq('tenant_user_id', user.id)
+        .eq('organization_id', orgId)
         .in('status', ['active', 'pending'])
         .order('start_date', { ascending: false })
         .limit(1)
@@ -88,11 +135,58 @@ export async function GET() {
     doc.on('data', (chunk) => chunks.push(chunk))
 
     const title = 'Residential Lease Summary'
-    doc
-      .fontSize(18)
-      .fillColor('#1F2937')
-      .text(title, { align: 'center' })
-      .moveDown()
+    const orgName = organization?.name || 'RES'
+    const logoUrl = organization?.logo_url || null
+
+    const drawHeader = async (withLogo: boolean) => {
+      const pageWidth = doc.page.width
+
+      doc.save()
+      doc.rect(0, 0, pageWidth, 70).fill('#2563EB')
+      doc.roundedRect(50, 18, 34, 34, 6).fill('#FFFFFF')
+      doc.roundedRect(50, 18, 34, 34, 6).stroke('#E2E8F0')
+
+      if (withLogo && logoUrl) {
+        const img = await fetchImageBuffer(logoUrl)
+        if (img?.buf) {
+          const usable = await coerceImageToPdfkitBuffer(img)
+          if (usable) {
+            try {
+              doc.image(usable, 51, 19, { width: 32, height: 32 })
+            } catch {
+              // ignore
+            }
+          }
+        }
+      }
+
+      doc
+        .fillColor('#FFFFFF')
+        .fontSize(16)
+        .font('Helvetica-Bold')
+        .text(orgName, 94, 40, { width: pageWidth - 160, ellipsis: true })
+
+      doc.restore()
+
+      doc
+        .moveDown(2.6)
+        .fontSize(16)
+        .fillColor('#111827')
+        .font('Helvetica-Bold')
+        .text(title, { align: 'left' })
+        .moveDown(0.25)
+        .fontSize(10)
+        .fillColor('#6B7280')
+        .font('Helvetica')
+        .text(`Generated: ${new Date().toLocaleString()}`)
+        .moveDown(0.8)
+    }
+
+    await drawHeader(true)
+    doc.on('pageAdded', () => {
+      // Best-effort header for next pages (logo may be skipped).
+      void drawHeader(false)
+    })
 
     doc
       .fontSize(12)

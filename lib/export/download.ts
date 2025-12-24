@@ -127,7 +127,7 @@ export async function exportRowsAsExcel<T>(
   const headers = columns.map((col) => col.header)
   const rows = data.map((row) => columns.map((col) => normalizeValue(col.accessor(row)) as any))
 
-  exportExcelWithLetterhead({
+  await exportExcelWithLetterhead({
     filenameBase,
     sheetName: 'Report',
     meta,

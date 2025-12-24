@@ -164,7 +164,7 @@ export default function LeasePage() {
     }
   }, [lease?.end_date])
 
-  const generatePdf = useCallback(() => {
+  const generatePdf = useCallback(async () => {
     if (!lease) {
       toast({
         title: 'Lease unavailable',
@@ -221,13 +221,19 @@ export default function LeasePage() {
       'Contact your property manager if any term appears inaccurate.',
     ]
 
-    exportLeasePdf({
+    await exportLeasePdf({
       fileName: 'lease-agreement.pdf',
       headerTitle: 'Tenant Lease Agreement',
       headerSubtitle: 'Certified tenant portal copy',
       summary,
       sections,
       notes,
+      letterhead: {
+        tenantName: 'Tenant',
+        propertyName: propertyName || undefined,
+        unitNumber: unitLabel || undefined,
+        documentTitle: 'Tenant Lease Agreement',
+      },
     })
   }, [
     lease,
@@ -246,7 +252,7 @@ export default function LeasePage() {
   const handleDownload = async () => {
     setDownloading(true)
     try {
-      generatePdf()
+      await generatePdf()
     } finally {
       setDownloading(false)
     }

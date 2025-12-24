@@ -330,13 +330,20 @@ export default function TenantLeaseManagementPage() {
       'Ensure prepaid rent schedules align with payment receipts before issuing new invoices.',
     ]
 
-    exportLeasePdf({
+    void exportLeasePdf({
       fileName: `tenant-lease-${tenant.id}.pdf`,
       headerTitle: 'Manager Lease Summary',
       headerSubtitle: tenant.full_name || 'Tenant record',
       summary,
       sections,
       notes,
+      letterhead: {
+        tenantName: tenant.full_name || undefined,
+        tenantPhone: tenant.phone_number || undefined,
+        propertyName: buildingLabel || undefined,
+        unitNumber: lease.unit?.unit_number || undefined,
+        documentTitle: 'Manager Lease Summary',
+      },
     })
   }
 

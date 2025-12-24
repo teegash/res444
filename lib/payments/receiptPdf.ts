@@ -2,6 +2,10 @@
 
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
+import { fetchCurrentOrganizationBrand } from '@/lib/exports/letterhead'
+import { loadImageAsDataUrl } from '@/lib/exports/image'
+import type { LetterheadMeta } from '@/lib/exports/letterhead'
+import { drawLetterhead, getLetterheadHeight } from '@/lib/exports/pdf'
 
 type ReceiptPdfPayload = {
   payment: {
@@ -32,7 +36,6 @@ type ReceiptPdfPayload = {
 }
 
 const PAGE_MARGIN = 48
-const BRAND_PRIMARY_RGB: [number, number, number] = [16, 185, 129] // emerald-500
 
 function safeDateLabel(iso: string | null | undefined) {
   if (!iso) return ''
@@ -46,36 +49,31 @@ function safeMoney(value: number) {
   return `KES ${amount.toLocaleString('en-KE', { maximumFractionDigits: 0 })}`
 }
 
-export function downloadReceiptPdf(receipt: ReceiptPdfPayload) {
+export async function downloadReceiptPdf(receipt: ReceiptPdfPayload) {
+  const org = await fetchCurrentOrganizationBrand()
+  const meta: LetterheadMeta = {
+    organizationName: org?.name || 'RES',
+    organizationLocation: org?.location ?? undefined,
+    organizationPhone: org?.phone ?? undefined,
+    organizationLogoUrl: org?.logo_url ?? null,
+    tenantName: receipt.tenant.name || undefined,
+    tenantPhone: receipt.tenant.phone_number || undefined,
+    propertyName: receipt.property?.property_name || undefined,
+    unitNumber: receipt.property?.unit_number || undefined,
+    documentTitle: 'Payment Receipt',
+    generatedAtISO: new Date().toISOString(),
+  }
+  const logo = meta.organizationLogoUrl ? await loadImageAsDataUrl(meta.organizationLogoUrl) : null
+  const headerHeight = getLetterheadHeight(meta, undefined)
+
   const doc = new jsPDF({ unit: 'pt', format: 'a4' })
   const pageWidth = doc.internal.pageSize.getWidth()
 
-  doc.setFillColor(...BRAND_PRIMARY_RGB)
-  doc.rect(0, 0, pageWidth, 92, 'F')
+  const drawHeader = () => {
+    drawLetterhead(doc, { meta, headerHeight, logo })
+  }
 
-  doc.setTextColor('#ffffff')
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(18)
-  doc.text('Payment Receipt', PAGE_MARGIN, 48)
-
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(11)
-  doc.text('RES Property Management', PAGE_MARGIN, 70)
-
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(11)
-  doc.text(`#${receipt.payment.id.slice(0, 8).toUpperCase()}`, pageWidth - PAGE_MARGIN, 48, {
-    align: 'right',
-  })
-
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(10)
-  doc.text(
-    `Generated • ${new Date().toLocaleString()}`,
-    pageWidth - PAGE_MARGIN,
-    70,
-    { align: 'right' }
-  )
+  drawHeader()
 
   const status = (receipt.payment.status || '').toLowerCase()
   const statusLabel =
@@ -84,11 +82,11 @@ export function downloadReceiptPdf(receipt: ReceiptPdfPayload) {
   doc.setTextColor('#0f172a')
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(14)
-  doc.text(safeMoney(receipt.payment.amount), PAGE_MARGIN, 128)
+  doc.text(safeMoney(receipt.payment.amount), PAGE_MARGIN, headerHeight + 34)
 
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(10)
-  doc.text(`Status: ${statusLabel}`, PAGE_MARGIN, 148)
+  doc.text(`Status: ${statusLabel}`, PAGE_MARGIN, headerHeight + 52)
 
   const reference =
     receipt.payment.mpesa_receipt_number ||
@@ -110,8 +108,12 @@ export function downloadReceiptPdf(receipt: ReceiptPdfPayload) {
     .filter(Boolean)
     .join(' • ')
 
+  const didDrawPage = () => {
+    drawHeader()
+  }
+
   autoTable(doc, {
-    startY: 170,
+    startY: headerHeight + 74,
     margin: { left: PAGE_MARGIN, right: PAGE_MARGIN },
     theme: 'grid',
     head: [['Field', 'Value']],
@@ -131,7 +133,7 @@ export function downloadReceiptPdf(receipt: ReceiptPdfPayload) {
       lineColor: [226, 232, 240],
     },
     headStyles: {
-      fillColor: BRAND_PRIMARY_RGB,
+      fillColor: [37, 99, 235],
       textColor: [255, 255, 255],
       fontStyle: 'bold',
     },
@@ -139,6 +141,7 @@ export function downloadReceiptPdf(receipt: ReceiptPdfPayload) {
       0: { cellWidth: 140, fontStyle: 'bold' },
       1: { cellWidth: 'auto' },
     },
+    didDrawPage,
   })
 
   const description =
@@ -165,6 +168,7 @@ export function downloadReceiptPdf(receipt: ReceiptPdfPayload) {
       0: { cellWidth: 'auto' },
       1: { cellWidth: 120, halign: 'right' },
     },
+    didDrawPage,
   })
 
   doc.setFont('helvetica', 'italic')
@@ -179,4 +183,3 @@ export function downloadReceiptPdf(receipt: ReceiptPdfPayload) {
 
   doc.save(`receipt-${receipt.payment.id.slice(0, 8).toLowerCase()}.pdf`)
 }
-

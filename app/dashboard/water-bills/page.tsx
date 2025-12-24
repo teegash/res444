@@ -17,6 +17,10 @@ import { useAuth } from '@/lib/auth/context'
 import jsPDF from 'jspdf'
 import { SkeletonLoader, SkeletonTable } from '@/components/ui/skeletons'
 import { Badge } from '@/components/ui/badge'
+import type { LetterheadMeta } from '@/lib/exports/letterhead'
+import { fetchCurrentOrganizationBrand } from '@/lib/exports/letterhead'
+import { loadImageAsDataUrl } from '@/lib/exports/image'
+import { drawLetterhead, getLetterheadHeight } from '@/lib/exports/pdf'
 
 interface TenantSummary {
   id: string
@@ -273,19 +277,37 @@ export default function WaterBillsPage() {
 
     try {
       setDownloading(true)
+      const org = await fetchCurrentOrganizationBrand()
+      const generatedAtISO = new Date().toISOString()
+      const meta: LetterheadMeta = {
+        organizationName: org?.name || 'RES',
+        organizationLocation: org?.location ?? undefined,
+        organizationPhone: org?.phone ?? undefined,
+        organizationLogoUrl: org?.logo_url ?? null,
+        tenantName: selectedUnitData.tenant?.name || undefined,
+        tenantPhone: selectedUnitData.tenant?.phone || undefined,
+        propertyName: selectedPropertyData?.name || undefined,
+        unitNumber: selectedUnitData.unit_number || undefined,
+        documentTitle: 'Water Consumption Invoice',
+        generatedAtISO,
+      }
+      const logo = meta.organizationLogoUrl ? await loadImageAsDataUrl(meta.organizationLogoUrl) : null
+
       const doc = new jsPDF({ unit: 'pt', format: 'a4' })
       const pageWidth = doc.internal.pageSize.getWidth()
 
-      const headerHeight = 110
-      doc.setFillColor(37, 99, 235)
-      doc.rect(0, 0, pageWidth, headerHeight, 'F')
-
-      doc.setTextColor('#ffffff')
-      doc.setFontSize(24)
-      doc.text('Water Consumption Invoice', 48, 60)
-      doc.setFontSize(11)
-      doc.text(`Invoice Date: ${new Date().toLocaleDateString()}`, 48, 82)
-      doc.text(`Due Date: ${computeDueDate()}`, 48, 98)
+      const subtitle = `Invoice Date: ${new Date().toLocaleDateString()} • Due Date: ${computeDueDate()}`
+      const headerHeight = getLetterheadHeight(meta, subtitle)
+      const drawHeader = () => {
+        drawLetterhead(doc, { meta, subtitle, headerHeight, logo })
+        return headerHeight + 18
+      }
+      const newPageCursor = () => {
+        doc.addPage()
+        drawHeader()
+        return headerHeight + 18
+      }
+      let cursorY = drawHeader()
 
       const summaryRows = [
         { label: 'Property', value: selectedPropertyData?.name || '—' },
@@ -295,14 +317,14 @@ export default function WaterBillsPage() {
       ]
 
       doc.setFillColor(255, 255, 255)
-      doc.roundedRect(40, headerHeight + 10, pageWidth - 80, 120, 12, 12, 'F')
+      doc.roundedRect(40, cursorY, pageWidth - 80, 120, 12, 12, 'F')
       doc.setDrawColor(226, 232, 240)
-      doc.roundedRect(40, headerHeight + 10, pageWidth - 80, 120, 12, 12, 'S')
+      doc.roundedRect(40, cursorY, pageWidth - 80, 120, 12, 12, 'S')
       doc.setFontSize(12)
       doc.setTextColor('#0f172a')
       summaryRows.forEach((item, index) => {
         const x = 60 + (index % 2) * ((pageWidth - 120) / 2)
-        const y = headerHeight + 38 + Math.floor(index / 2) * 28
+        const y = cursorY + 28 + Math.floor(index / 2) * 28
         doc.setTextColor('#94a3b8')
         doc.text(item.label, x, y)
         doc.setTextColor('#0f172a')
@@ -311,7 +333,7 @@ export default function WaterBillsPage() {
         doc.setFont('helvetica', 'normal')
       })
 
-      let cursorY = headerHeight + 160
+      cursorY = cursorY + 150
       const addSection = (title: string, rows: Array<{ label: string; value: string }>) => {
         doc.setFont('helvetica', 'bold')
         doc.setFontSize(14)
@@ -324,10 +346,7 @@ export default function WaterBillsPage() {
         doc.setFont('helvetica', 'normal')
         doc.setFontSize(11)
         rows.forEach((row) => {
-          if (cursorY > doc.internal.pageSize.getHeight() - 80) {
-            doc.addPage()
-            cursorY = 60
-          }
+          if (cursorY > doc.internal.pageSize.getHeight() - 80) cursorY = newPageCursor()
           doc.setTextColor('#94a3b8')
           doc.text(row.label, 48, cursorY)
           doc.setTextColor('#0f172a')
@@ -353,7 +372,7 @@ export default function WaterBillsPage() {
       doc.setFontSize(10)
       doc.setTextColor('#94a3b8')
       doc.text(
-        'Thank you for staying current with your utilities • RES Utility Desk',
+        `Thank you for staying current with your utilities • ${meta.organizationName || 'RES'}`,
         48,
         doc.internal.pageSize.getHeight() - 30
       )

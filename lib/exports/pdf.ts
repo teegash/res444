@@ -45,7 +45,7 @@ function computeHeaderHeight(meta: LetterheadMeta, subtitle?: string) {
   return base + (lineCount + extraSubtitle) * 12
 }
 
-function drawLetterhead(
+export function drawLetterhead(
   doc: jsPDF,
   opts: { meta: LetterheadMeta; subtitle?: string; headerHeight: number; logo?: LoadedImageData | null }
 ) {
@@ -63,16 +63,16 @@ function drawLetterhead(
   // Logo container
   doc.setFillColor(255, 255, 255)
   doc.roundedRect(logoX, logoY, logoSize, logoSize, 6, 6, 'F')
-  doc.setDrawColor(...BORDER_RGB)
-  doc.roundedRect(logoX, logoY, logoSize, logoSize, 6, 6, 'S')
-
   if (logo?.dataUrl) {
     try {
-      doc.addImage(logo.dataUrl, logo.format, logoX + 3, logoY + 3, logoSize - 6, logoSize - 6)
+      // Stretch to fill (requested), keep inside the box.
+      doc.addImage(logo.dataUrl, logo.format, logoX + 1, logoY + 1, logoSize - 2, logoSize - 2)
     } catch {
       // non-blocking
     }
   }
+  doc.setDrawColor(...BORDER_RGB)
+  doc.roundedRect(logoX, logoY, logoSize, logoSize, 6, 6, 'S')
 
   // Org name
   const orgX = logoX + logoSize + 12
@@ -128,6 +128,10 @@ function drawLetterhead(
   // Divider line
   doc.setDrawColor(...BORDER_RGB)
   doc.line(PAGE_MARGIN_X, headerHeight - 12, pageWidth - PAGE_MARGIN_X, headerHeight - 12)
+}
+
+export function getLetterheadHeight(meta: LetterheadMeta, subtitle?: string) {
+  return computeHeaderHeight(meta, subtitle)
 }
 
 function drawFooter(doc: jsPDF, footerNote?: string) {
