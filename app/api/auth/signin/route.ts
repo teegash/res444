@@ -49,7 +49,7 @@ async function fetchUserRoleFromProfiles(userId: string) {
           Prefer: 'return=representation',
         },
       },
-      1000,
+      2500,
       'Role lookup'
     )
 
@@ -85,7 +85,7 @@ async function hasOrganizationMembership(userId: string) {
           'Content-Type': 'application/json',
         },
       },
-      1000,
+      2500,
       'Organization membership lookup'
     )
 
@@ -161,8 +161,10 @@ export async function POST(request: NextRequest) {
       password,
     })
 
+    // Allow extra time for cold starts / slower networks while still staying Vercel-safe.
+    const SIGN_IN_TIMEOUT_MS = 9000
     const timeoutPromise = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error('Sign in timed out after 4500ms')), 4500)
+      setTimeout(() => reject(new Error(`Sign in timed out after ${SIGN_IN_TIMEOUT_MS}ms`)), SIGN_IN_TIMEOUT_MS)
     )
 
     let signInResult: Awaited<ReturnType<typeof supabase.auth.signInWithPassword>>
