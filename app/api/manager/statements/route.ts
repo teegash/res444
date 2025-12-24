@@ -1,142 +1,114 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
-import { getCoverageRangeLabel } from '@/lib/payments/leaseHelpers'
-import { getPeriodRange } from '../reports/utils'
+import { createAdminClient } from '@/lib/supabase/admin'
+
+export const dynamic = 'force-dynamic'
+
+const MANAGER_ROLES = ['admin', 'manager', 'caretaker'] as const
+
+type AdminClient = NonNullable<ReturnType<typeof createAdminClient>>
+type ManagerContextResult = { admin: AdminClient; orgId: string } | { error: NextResponse }
+
+async function getManagerContext(): Promise<ManagerContextResult> {
+  const supabase = await createClient()
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser()
+
+  if (authError || !user) {
+    return { error: NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 }) }
+  }
+
+  const admin = createAdminClient()
+  if (!admin) {
+    return {
+      error: NextResponse.json(
+        { success: false, error: 'Server misconfigured: Supabase admin client unavailable.' },
+        { status: 500 }
+      ),
+    }
+  }
+
+  const { data: membership, error: membershipError } = await admin
+    .from('organization_members')
+    .select('organization_id, role')
+    .eq('user_id', user.id)
+    .maybeSingle()
+
+  if (membershipError) {
+    return { error: NextResponse.json({ success: false, error: 'Unable to load organization.' }, { status: 500 }) }
+  }
+
+  const { data: profile, error: profileError } = await admin
+    .from('user_profiles')
+    .select('organization_id, role')
+    .eq('id', user.id)
+    .maybeSingle()
+
+  if (profileError) {
+    return { error: NextResponse.json({ success: false, error: 'Unable to load profile.' }, { status: 500 }) }
+  }
+
+  const orgId = membership?.organization_id || profile?.organization_id
+  if (!orgId) {
+    return { error: NextResponse.json({ success: false, error: 'Organization not found.' }, { status: 403 }) }
+  }
+
+  const role = (membership?.role || profile?.role || '') as (typeof MANAGER_ROLES)[number] | ''
+  if (!role || !MANAGER_ROLES.includes(role)) {
+    return { error: NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 }) }
+  }
+
+  return { admin, orgId }
+}
 
 export async function GET(request: NextRequest) {
   try {
-    const period = request.nextUrl.searchParams.get('period') || 'all'
-    const propertyId = request.nextUrl.searchParams.get('propertyId') || null
-    const search = (request.nextUrl.searchParams.get('q') || '').toLowerCase()
-    const { startDate } = getPeriodRange(period)
-
-    const supabase = await createClient()
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser()
-
-    if (authError || !user) {
-      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
+    const ctx = await getManagerContext()
+    if ('error' in ctx) {
+      return ctx.error
     }
 
-    const admin = createAdminClient()
-    const { data: membership, error: membershipError } = await admin
-      .from('organization_members')
-      .select('organization_id')
-      .eq('user_id', user.id)
-      .maybeSingle()
+    const { admin, orgId } = ctx
 
-    if (membershipError || !membership?.organization_id) {
-      return NextResponse.json({ success: false, error: 'Organization not found.' }, { status: 403 })
-    }
+    const buildingId =
+      request.nextUrl.searchParams.get('buildingId') || request.nextUrl.searchParams.get('building_id')
+    const rawQ = request.nextUrl.searchParams.get('q')?.trim() || ''
 
-    const orgId = membership.organization_id
-
-    const paymentsQuery = admin
-      .from('payments')
-      .select(
-        `
-        id,
-        amount_paid,
-        payment_date,
-        payment_method,
-        mpesa_receipt_number,
-        tenant_user_id,
-        months_paid,
-        invoice:invoices!payments_invoice_org_fk (
-          id,
-          due_date,
-          lease_id,
-          lease:leases!invoices_lease_org_fk (
-            tenant_user_id,
-            unit:apartment_units (
-              unit_number,
-              building:apartment_buildings!apartment_units_building_org_fk (
-                id,
-                name,
-                location
-              )
-            )
-          )
-        )
-      `
-      )
+    let query = admin
+      .from('vw_manager_statement_summary')
+      .select('*')
       .eq('organization_id', orgId)
-      .order('payment_date', { ascending: false })
 
-    if (startDate) {
-      paymentsQuery.gte('payment_date', startDate)
+    if (buildingId) {
+      query = query.eq('building_id', buildingId)
     }
 
-    const { data, error } = await paymentsQuery
-    if (error) {
-      throw error
-    }
-
-    const tenantIds = Array.from(
-      new Set(
-        (data || [])
-          .map((row) => row.tenant_user_id)
-          .filter((id): id is string => Boolean(id))
+    if (rawQ) {
+      const q = rawQ.replace(/[,]/g, ' ')
+      query = query.or(
+        `tenant_name.ilike.%${q}%,building_name.ilike.%${q}%,unit_number.ilike.%${q}%`
       )
-    )
-
-    let profileMap = new Map<string, string>()
-    if (tenantIds.length > 0) {
-      const { data: profiles, error: profileError } = await admin
-        .from('user_profiles')
-        .select('id, full_name')
-        .eq('organization_id', orgId)
-        .in('id', tenantIds)
-      if (profileError) throw profileError
-      profileMap = new Map((profiles || []).map((p) => [p.id, p.full_name || 'Tenant']))
     }
 
-    const rows = (data || [])
-      .map((row) => {
-        const building = row.invoice?.lease?.unit?.building
-        const unitNumber = row.invoice?.lease?.unit?.unit_number || ''
-        const tenantName =
-          profileMap.get(row.tenant_user_id || '') ||
-          row.invoice?.lease?.tenant_user_id ||
-          row.tenant_user_id ||
-          'Tenant'
-        const unitLabel = unitNumber && building?.name ? `${unitNumber} • ${building.name}` : unitNumber || ''
-        const coverageLabel = getCoverageRangeLabel(
-          (row.invoice as any)?.due_date || row.payment_date,
-          row.months_paid || 1
-        )
-        return {
-          id: row.id,
-          tenantId: row.tenant_user_id,
-          tenantName,
-          propertyId: building?.id || null,
-          propertyName: building?.name || 'Property',
-          propertyLocation: building?.location || null,
-          unitLabel,
-          amount: Number(row.amount_paid || 0),
-          paymentDate: row.payment_date,
-          method: row.payment_method || 'payment',
-          receipt: row.mpesa_receipt_number || null,
-          coverage_label: coverageLabel || null,
-        }
-      })
-      .filter((row) => {
-        if (propertyId && propertyId !== 'all' && row.propertyId !== propertyId) return false
-        if (search) {
-          const haystack = `${row.tenantName} ${row.propertyName} ${row.unitLabel}`.toLowerCase()
-          return haystack.includes(search)
-        }
-        return true
-      })
+    query = query
+      .order('current_balance', { ascending: false })
+      .order('oldest_due_date', { ascending: true })
+      .limit(500)
 
-    return NextResponse.json({ success: true, data: rows })
+    const { data, error } = await query
+    if (error) {
+      console.error('[ManagerStatementsList] Failed to load summary view', error)
+      return NextResponse.json({ success: false, error: error.message }, { status: 500 })
+    }
+
+    const rows = data ?? []
+    return NextResponse.json({ success: true, rows, data: rows })
   } catch (error) {
-    console.error('[ManagerStatements] Failed to load statements', error)
+    console.error('[ManagerStatementsList] Failed to load statements summary', error)
     return NextResponse.json(
-      { success: false, error: 'Failed to load statements.' },
+      { success: false, error: error instanceof Error ? error.message : 'Failed to load statements.' },
       { status: 500 }
     )
   }

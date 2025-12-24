@@ -2,7 +2,7 @@ import { StatementsAtGlanceGrid } from "@/components/manager/StatementsAtGlanceG
 import Sidebar from "@/components/dashboard/sidebar"
 import { Header } from "@/components/dashboard/header"
 
-export default function StatementsPage() {
+export default function ManagerStatementsPage() {
   return (
     <div className="min-h-screen bg-slate-50 flex">
       <Sidebar />

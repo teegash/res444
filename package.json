@@ -42,6 +42,8 @@
     "@supabase/supabase-js": "^2.81.1",
     "@vercel/analytics": "latest",
     "africastalking": "^0.7.7",
+    "ag-grid-community": "^35.0.0",
+    "ag-grid-react": "^35.0.0",
     "autoprefixer": "^10.4.20",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",

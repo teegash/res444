@@ -88,6 +88,7 @@ export default function TenantStatementPage({ params }: { params: { id?: string 
   const router = useRouter()
   const pathname = usePathname()
   const queryTenantId = searchParams.get('tenantId')?.trim() || ''
+  const leaseId = searchParams.get('leaseId')?.trim() || ''
   const pathTenantId = useMemo(() => {
     if (!pathname) return ''
     const segments = pathname.split('/').filter(Boolean)
@@ -113,8 +114,9 @@ export default function TenantStatementPage({ params }: { params: { id?: string 
       try {
         setLoading(true)
         const encodedTenantId = encodeURIComponent(tenantId)
+        const encodedLeaseId = leaseId ? `&leaseId=${encodeURIComponent(leaseId)}` : ''
         const response = await fetch(
-          `/api/manager/statements/${encodedTenantId}?tenantId=${encodedTenantId}`,
+          `/api/manager/statements/${encodedTenantId}?tenantId=${encodedTenantId}${encodedLeaseId}`,
           { cache: 'no-store' }
         )
         const payload = await response.json().catch(() => ({}))
