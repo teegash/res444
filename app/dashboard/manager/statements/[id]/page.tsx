@@ -287,7 +287,9 @@ export default function TenantStatementPage({ params }: { params: { id?: string 
             </div>
             <div className="text-right">
               <h3 className="text-xl font-bold">ACCOUNT STATEMENT</h3>
-              <p className="text-sm text-muted-foreground">#{statement.tenant.id.slice(0, 8).toUpperCase()}</p>
+              <p className="text-sm text-muted-foreground">
+                #{(statement?.tenant?.id || tenantId).slice(0, 8).toUpperCase()}
+              </p>
             </div>
           </div>
 
@@ -295,7 +297,7 @@ export default function TenantStatementPage({ params }: { params: { id?: string 
             <div>
               <p className="text-sm text-muted-foreground mb-1">Tenant</p>
               <p className="font-semibold text-lg">{tenantName}</p>
-              {statement.tenant.phone_number && (
+              {statement?.tenant?.phone_number && (
                 <p className="text-sm text-muted-foreground">{statement.tenant.phone_number}</p>
               )}
             </div>
