@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ArrowLeft, Download, FileText } from 'lucide-react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -82,37 +83,6 @@ type PendingInvoice = {
   amount: number
 }
 
-type StatementDetails = {
-  periodLabel: string
-  periodStart: string
-  periodEnd: string
-  property: {
-    property_name: string | null
-    property_location: string | null
-    unit_number: string | null
-  } | null
-  summary: {
-    openingBalance: number
-    totalCharges: number
-    totalPayments: number
-    closingBalance: number
-  }
-  transactions: Array<{
-    id: string
-    type: 'charge' | 'payment'
-    description: string
-    reference: string | null
-    amount: number
-    posted_at: string | null
-    balance_after: number
-    coverage_label?: string | null
-  }>
-  coverage?: {
-    rent_paid_until: string | null
-    coverage_label: string | null
-  }
-}
-
 type ReceiptDetails = {
   payment: {
     id: string
@@ -147,6 +117,7 @@ type ReceiptDetails = {
 }
 
 export default function PaymentHistoryPage() {
+  const router = useRouter()
   const [payments, setPayments] = useState<TenantPaymentRecord[]>([])
   const [invoices, setInvoices] = useState<TenantInvoiceRecord[]>([])
   const [loading, setLoading] = useState(true)
@@ -156,10 +127,6 @@ export default function PaymentHistoryPage() {
   const [upcomingInvoice, setUpcomingInvoice] = useState<(PendingInvoice & { status?: string; isCovered?: boolean }) | null>(null)
   const [tenantSummary, setTenantSummary] = useState<TenantSummaryPayload | null>(null)
   const [exporting, setExporting] = useState(false)
-  const [statementModalOpen, setStatementModalOpen] = useState(false)
-  const [statementDetails, setStatementDetails] = useState<StatementDetails | null>(null)
-  const [statementLoading, setStatementLoading] = useState(false)
-  const [statementError, setStatementError] = useState<string | null>(null)
   const [receiptModalOpen, setReceiptModalOpen] = useState(false)
   const [receiptDetails, setReceiptDetails] = useState<ReceiptDetails | null>(null)
   const [receiptLoading, setReceiptLoading] = useState(false)
@@ -238,36 +205,11 @@ export default function PaymentHistoryPage() {
     fetchPayments()
   }, [fetchPayments])
 
-  const handleOpenStatement = async (monthKey?: string | null) => {
-    setStatementModalOpen(true)
-    setStatementError(null)
-    setStatementDetails(null)
-
-    if (!monthKey) {
-      setStatementLoading(false)
-      setStatementError('Statement is unavailable for this invoice.')
-      return
-    }
-
-    setStatementLoading(true)
-    try {
-      const response = await fetch(`/api/tenant/statements/month/${monthKey}`, { cache: 'no-store' })
-      const payload = await response.json().catch(() => ({}))
-      if (!response.ok) {
-        throw new Error(payload.error || 'Unable to load statement.')
-      }
-      setStatementDetails(payload.data)
-    } catch (error) {
-      setStatementError(error instanceof Error ? error.message : 'Failed to load statement.')
-    } finally {
-      setStatementLoading(false)
-    }
-  }
-
-  const handleCloseStatement = () => {
-    setStatementModalOpen(false)
-    setStatementDetails(null)
-    setStatementError(null)
+  const handleOpenStatement = () => {
+    const leaseId = tenantSummary?.lease?.id || ''
+    const qs = new URLSearchParams()
+    if (leaseId) qs.set('leaseId', leaseId)
+    router.push(`/dashboard/tenant/statement${qs.toString() ? `?${qs.toString()}` : ''}`)
   }
 
   const handleOpenReceipt = async (paymentId?: string | null) => {
@@ -401,42 +343,6 @@ export default function PaymentHistoryPage() {
     return `${startLabel} – ${endLabel}`
   }, [])
 
-  type MonthlyStatement = {
-    monthKey: string
-    periodLabel: string
-    dateLabel: string
-    amount: number
-  }
-
-  const statementSummaries: MonthlyStatement[] = useMemo(() => {
-    const summaries: MonthlyStatement[] = []
-
-    const paymentsByMonth = payments.reduce((acc, payment) => {
-      if (!payment.verified || !payment.posted_at) return acc
-      const date = new Date(payment.posted_at)
-      if (Number.isNaN(date.getTime())) return acc
-      const key = `${date.getUTCFullYear()}-${date.getUTCMonth()}`
-      const bucket = acc.get(key) || { amount: 0, date }
-      bucket.amount += payment.amount_paid
-      bucket.date = date
-      acc.set(key, bucket)
-      return acc
-    }, new Map<string, { amount: number; date: Date }>())
-
-    const sortedKeys = Array.from(paymentsByMonth.keys()).sort((a, b) => (a > b ? -1 : 1))
-    sortedKeys.slice(0, 6).forEach((key) => {
-      const { amount, date } = paymentsByMonth.get(key)!
-      summaries.push({
-        monthKey: key,
-        periodLabel: date.toLocaleDateString(undefined, { month: 'long', year: 'numeric' }),
-        dateLabel: date.toLocaleDateString(),
-        amount,
-      })
-    })
-
-    return summaries
-  }, [payments])
-
   const tenantName = tenantSummary?.profile?.full_name || 'Tenant'
   const propertyLabel = tenantSummary?.lease?.unit_label
     ? `${tenantSummary.lease.unit_label}`
@@ -549,43 +455,6 @@ export default function PaymentHistoryPage() {
       }
     } finally {
       setTimeout(() => setExporting(false), 300)
-    }
-  }
-
-  const handleStatementExport = (format: 'pdf' | 'excel') => {
-    if (!statementDetails) return
-    const columns: ExportColumn<{
-      date: string
-      description: string
-      reference: string
-      debit: string
-      credit: string
-      balance: string
-    }>[] = [
-      { header: 'Date', accessor: (row) => row.date },
-      { header: 'Description', accessor: (row) => row.description },
-      { header: 'Reference', accessor: (row) => row.reference },
-      { header: 'Debit', accessor: (row) => row.debit },
-      { header: 'Credit', accessor: (row) => row.credit },
-      { header: 'Balance', accessor: (row) => row.balance },
-    ]
-    const rows = statementDetails.transactions.map((txn) => ({
-      date: txn.posted_at ? new Date(txn.posted_at).toLocaleDateString() : '—',
-      description: txn.description,
-      reference: txn.reference || '—',
-      debit: txn.amount > 0 ? `KES ${Math.abs(txn.amount).toLocaleString()}` : '',
-      credit: txn.amount < 0 ? `KES ${Math.abs(txn.amount).toLocaleString()}` : '',
-      balance: `KES ${txn.balance_after.toLocaleString()}`,
-    }))
-    const fileBase = `statement-${statementDetails.periodLabel.replace(/\s+/g, '-')}`
-    if (format === 'pdf') {
-      exportRowsAsPDF(fileBase, columns, rows, {
-        title: 'Account Statement',
-        subtitle: statementDetails.periodLabel,
-        footerNote: `Generated on ${new Date().toLocaleString()}`,
-      })
-    } else {
-      exportRowsAsExcel(fileBase, columns, rows)
     }
   }
 
@@ -709,37 +578,23 @@ export default function PaymentHistoryPage() {
             <CardDescription>Your recent statements</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            {statementSummaries.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No statements generated yet.</p>
-            ) : (
-              statementSummaries.map((statement) => (
-                <div
-                  key={statement.monthKey}
-                  className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-100 transition-colors"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-blue-100 rounded">
-                      <FileText className="h-5 w-5 text-blue-600" />
-                    </div>
-                    <div>
-                      <p className="font-medium">Statement: {statement.periodLabel}</p>
-                      <p className="text-sm text-muted-foreground">
-                        Verified payments for {statement.dateLabel}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <p className="font-semibold text-green-600">
-                      KES {statement.amount.toLocaleString()}
-                    </p>
-                    <Button variant="outline" size="sm" onClick={() => handleOpenStatement(statement.monthKey)}>
-                      <FileText className="h-4 w-4 mr-2" />
-                      View Statement
-                    </Button>
-                  </div>
+            <div className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-100 transition-colors">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-blue-100 rounded">
+                  <FileText className="h-5 w-5 text-blue-600" />
                 </div>
-              ))
-            )}
+                <div>
+                  <p className="font-medium">Full account statement</p>
+                  <p className="text-sm text-muted-foreground">
+                    Charges, payments, and running balance (matches the manager view).
+                  </p>
+                </div>
+              </div>
+              <Button variant="outline" size="sm" onClick={handleOpenStatement}>
+                <FileText className="h-4 w-4 mr-2" />
+                View Statement
+              </Button>
+            </div>
           </CardContent>
         </Card>
 
@@ -851,161 +706,6 @@ export default function PaymentHistoryPage() {
           </CardContent>
         </Card>
       </div>
-
-      <Dialog open={statementModalOpen} onOpenChange={(open) => (!open ? handleCloseStatement() : null)}>
-        <DialogContent className="w-[94vw] max-w-[1400px] lg:max-w-[1200px] border border-slate-100 shadow-2xl p-0">
-          <div className="flex flex-col max-h-[70vh]">
-            <DialogHeader className="flex flex-col gap-3 p-6 border-b sticky top-0 bg-white z-10">
-              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                <div>
-                  <DialogTitle>Account Statement</DialogTitle>
-                  <DialogDescription>Detailed breakdown of the selected invoice.</DialogDescription>
-                  {statementDetails?.coverage?.coverage_label ? (
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Rent covered through {statementDetails.coverage.coverage_label}
-                    </p>
-                  ) : null}
-                </div>
-                {statementDetails && (
-                  <div className="flex gap-2">
-                    <Button variant="outline" size="sm" onClick={() => handleStatementExport('pdf')}>
-                      <Download className="h-4 w-4 mr-2" />
-                      PDF
-                    </Button>
-                    <Button variant="outline" size="sm" onClick={() => handleStatementExport('excel')}>
-                      Excel
-                    </Button>
-                  </div>
-                )}
-              </div>
-            </DialogHeader>
-            <div className="flex-1 overflow-y-auto px-6 py-6 space-y-6">
-              {statementLoading ? (
-                <div className="py-10 text-center text-muted-foreground">Loading statement…</div>
-              ) : statementError ? (
-                <div className="py-6 text-center text-sm text-red-600">{statementError}</div>
-              ) : statementDetails ? (
-                <>
-                  <div className="grid md:grid-cols-2 gap-4 text-sm">
-                    <div>
-                      <p className="text-muted-foreground mb-1">Statement Period</p>
-                      <p className="font-semibold">{statementDetails.periodLabel}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {new Date(statementDetails.periodStart).toLocaleDateString()} –{' '}
-                        {new Date(statementDetails.periodEnd).toLocaleDateString()}
-                      </p>
-                    </div>
-                <div className="text-right">
-                  <p className="text-muted-foreground mb-1">Closing Balance</p>
-                  <p
-                    className={
-                      statementDetails.summary.closingBalance < 0
-                        ? 'font-semibold text-green-700'
-                        : 'font-semibold text-red-600'
-                    }
-                  >
-                    KES {Math.abs(statementDetails.summary.closingBalance).toLocaleString()}
-                  </p>
-                </div>
-                    <div>
-                      <p className="text-muted-foreground mb-1">Property</p>
-                      <p className="font-semibold">
-                        {statementDetails.property?.property_name || 'My Unit'}
-                        {statementDetails.property?.unit_number ? ` • ${statementDetails.property.unit_number}` : ''}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="grid md:grid-cols-4 gap-4">
-                    <div className="rounded-lg border p-4 bg-slate-50">
-                      <p className="text-xs text-muted-foreground">Opening Balance</p>
-                      <p className="text-lg font-bold">
-                        KES {statementDetails.summary.openingBalance.toLocaleString()}
-                      </p>
-                    </div>
-                    <div className="rounded-lg border p-4 bg-slate-50">
-                      <p className="text-xs text-muted-foreground">Charges</p>
-                      <p className="text-lg font-bold text-slate-900">
-                        KES {statementDetails.summary.totalCharges.toLocaleString()}
-                      </p>
-                    </div>
-                    <div className="rounded-lg border p-4 bg-slate-50">
-                      <p className="text-xs text-muted-foreground">Payments</p>
-                      <p className="text-lg font-bold text-blue-600">
-                        KES {statementDetails.summary.totalPayments.toLocaleString()}
-                      </p>
-                    </div>
-                    <div className="rounded-lg border p-4 bg-slate-50">
-                    <p className="text-xs text-muted-foreground">Closing Balance</p>
-                    <p
-                      className={`text-lg font-bold ${
-                        statementDetails.summary.closingBalance < 0
-                          ? 'text-green-600'
-                          : 'text-red-600'
-                      }`}
-                    >
-                      KES {Math.abs(statementDetails.summary.closingBalance).toLocaleString()}
-                    </p>
-                    </div>
-                  </div>
-
-                  <div className="border rounded-lg overflow-hidden bg-white">
-                    <div className="max-h-[55vh] overflow-y-auto">
-                      <table className="w-full text-sm">
-                        <thead className="bg-slate-50">
-                          <tr>
-                            <th className="text-left p-3 font-semibold">Date</th>
-                            <th className="text-left p-3 font-semibold">Description</th>
-                        <th className="text-left p-3 font-semibold">Reference</th>
-                        <th className="text-right p-3 font-semibold">Debit</th>
-                        <th className="text-right p-3 font-semibold">Credit</th>
-                        <th className="text-right p-3 font-semibold">Balance</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {statementDetails.transactions.map((txn) => {
-                        const isCredit = txn.amount < 0
-                        const formattedAmount = `KES ${Math.abs(txn.amount).toLocaleString()}`
-                        const balanceRaw = txn.balance_after ?? 0
-                        const balanceFormatted = `KES ${Math.abs(balanceRaw).toLocaleString()}`
-                        const balanceClass =
-                          balanceRaw < 0 ? 'text-green-600' : 'text-red-600'
-                        return (
-                          <tr key={txn.id} className="border-b last:border-0">
-                            <td className="p-3">
-                              {txn.posted_at ? new Date(txn.posted_at).toLocaleDateString() : '—'}
-                            </td>
-                            <td className="p-3 capitalize">
-                              <p>{txn.description}</p>
-                              {txn.coverage_label ? (
-                                <p className="text-xs text-muted-foreground mt-1">
-                                  Coverage: {txn.coverage_label}
-                                </p>
-                              ) : null}
-                            </td>
-                            <td className="p-3">{txn.reference || '—'}</td>
-                            <td className="p-3 text-right text-slate-900">
-                              {isCredit ? '—' : formattedAmount}
-                            </td>
-                            <td className="p-3 text-right text-green-600">
-                              {isCredit ? formattedAmount : '—'}
-                            </td>
-                            <td className={`p-3 text-right font-semibold ${balanceClass}`}>
-                              {balanceFormatted}
-                            </td>
-                          </tr>
-                        )
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-                </>
-              ) : null}
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
 
       <Dialog open={receiptModalOpen} onOpenChange={(open) => (!open ? handleCloseReceipt() : null)}>
         <DialogContent className="max-w-xl">

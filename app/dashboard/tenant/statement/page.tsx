@@ -1,0 +1,365 @@
+'use client'
+
+import { useEffect, useMemo, useState } from 'react'
+import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
+import { ArrowLeft, Download, Loader2, Printer, Share2 } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent } from '@/components/ui/card'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { exportRowsAsCSV, exportRowsAsExcel, exportRowsAsPDF, ExportColumn } from '@/lib/export/download'
+
+type StatementTransaction = {
+  id: string
+  kind: 'charge' | 'payment'
+  payment_type: string
+  payment_method: string | null
+  status: string
+  posted_at: string | null
+  description: string
+  reference: string | null
+  amount: number
+  balance_after?: number
+  coverage_label?: string | null
+}
+
+type StatementPayload = {
+  tenant: {
+    id: string
+    name: string
+    phone_number: string | null
+    email: string | null
+    profile_picture_url: string | null
+  }
+  lease: {
+    id: string
+    status: string | null
+    start_date: string | null
+    end_date: string | null
+    monthly_rent: number | null
+    rent_paid_until: string | null
+    property_name: string | null
+    property_location: string | null
+    unit_number: string | null
+  } | null
+  period: { start: string | null; end: string | null }
+  summary: {
+    openingBalance: number
+    closingBalance: number
+    totalCharges: number
+    totalPayments: number
+  }
+  transactions: StatementTransaction[]
+}
+
+function formatCurrency(value: number | null | undefined) {
+  if (typeof value !== 'number' || Number.isNaN(value)) return 'KES 0'
+  return `KES ${value.toLocaleString()}`
+}
+
+function formatDate(value: string | null | undefined) {
+  if (!value) return '—'
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) return '—'
+  return parsed.toLocaleDateString()
+}
+
+export default function TenantAccountStatementPage() {
+  const searchParams = useSearchParams()
+  const leaseId = searchParams.get('leaseId')?.trim() || ''
+  const [statement, setStatement] = useState<StatementPayload | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [exporting, setExporting] = useState(false)
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        setLoading(true)
+        const qs = new URLSearchParams()
+        if (leaseId) qs.set('leaseId', leaseId)
+        const res = await fetch(`/api/tenant/statement${qs.toString() ? `?${qs.toString()}` : ''}`, {
+          cache: 'no-store',
+          credentials: 'include',
+        })
+        const payload = await res.json().catch(() => ({}))
+        if (!res.ok) {
+          throw new Error(payload.error || 'Failed to load statement.')
+        }
+        setStatement(payload.data || null)
+        setError(null)
+      } catch (e) {
+        setStatement(null)
+        setError(e instanceof Error ? e.message : 'Failed to load statement.')
+      } finally {
+        setLoading(false)
+      }
+    }
+    load()
+  }, [leaseId])
+
+  const tenantName = statement?.tenant?.name || 'Tenant'
+  const transactions = statement?.transactions || []
+  const closingBalance = statement?.summary?.closingBalance ?? 0
+  const openingBalance = statement?.summary?.openingBalance ?? 0
+  const statementDate = statement?.period?.end ? formatDate(statement.period.end) : formatDate(new Date().toISOString())
+  const propertyLabel = statement?.lease
+    ? `${statement.lease.property_name || 'Property'}${statement.lease.unit_number ? ` - ${statement.lease.unit_number}` : ''}`
+    : 'Property not assigned'
+
+  const periodLabel = useMemo(() => {
+    const start = statement?.period?.start || null
+    const end = statement?.period?.end || null
+    if (start && end) {
+      const startDate = new Date(start).toLocaleDateString(undefined, { month: 'long', year: 'numeric' })
+      const endDate = new Date(end).toLocaleDateString(undefined, { month: 'long', year: 'numeric' })
+      return `${startDate} - ${endDate}`
+    }
+    if (end) {
+      return new Date(end).toLocaleDateString(undefined, { month: 'long', year: 'numeric' })
+    }
+    return 'Latest activity'
+  }, [statement?.period?.start, statement?.period?.end])
+
+  const exportColumns: ExportColumn<StatementTransaction>[] = [
+    { header: 'Date', accessor: (txn) => formatDate(txn.posted_at) },
+    { header: 'Type', accessor: (txn) => txn.kind },
+    { header: 'Description', accessor: (txn) => txn.description },
+    { header: 'Reference', accessor: (txn) => txn.reference || '—' },
+    { header: 'Debit', accessor: (txn) => (txn.amount > 0 ? formatCurrency(txn.amount) : ''), align: 'right' },
+    { header: 'Credit', accessor: (txn) => (txn.amount < 0 ? formatCurrency(Math.abs(txn.amount)) : ''), align: 'right' },
+    { header: 'Balance', accessor: (txn) => formatCurrency(txn.balance_after ?? 0), align: 'right' },
+  ]
+
+  const handleExport = (format: 'pdf' | 'csv' | 'excel') => {
+    if (!statement) return
+    setExporting(true)
+    const fileBase = `account-statement-${tenantName.replace(/\s+/g, '-').toLowerCase()}`
+    const subtitle = `${tenantName} • ${propertyLabel} • ${periodLabel}`
+    try {
+      if (format === 'pdf') {
+        exportRowsAsPDF(fileBase, exportColumns, transactions, {
+          title: 'Account Statement',
+          subtitle,
+          footerNote: `Generated on ${new Date().toLocaleString()}`,
+        })
+      } else if (format === 'excel') {
+        exportRowsAsExcel(fileBase, exportColumns, transactions)
+      } else {
+        exportRowsAsCSV(fileBase, exportColumns, transactions)
+      }
+    } finally {
+      setTimeout(() => setExporting(false), 300)
+    }
+  }
+
+  const handleShare = async () => {
+    const sharePayload = {
+      title: 'Account Statement',
+      text: `Statement for ${tenantName}`,
+      url: window.location.href,
+    }
+    if (navigator.share) {
+      await navigator.share(sharePayload)
+    } else {
+      await navigator.clipboard.writeText(sharePayload.url)
+      alert('Statement link copied to clipboard.')
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center text-muted-foreground">
+        <div className="flex items-center gap-2">
+          <Loader2 className="h-5 w-5 animate-spin" />
+          Loading statement…
+        </div>
+      </div>
+    )
+  }
+
+  if (error || !statement) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Card className="max-w-md">
+          <CardContent className="p-6 space-y-3 text-center">
+            <p className="text-sm text-red-600">{error || 'Statement data unavailable.'}</p>
+            <Button variant="outline" onClick={() => window.location.reload()}>
+              Retry
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  return (
+    <div className="min-h-screen bg-slate-50">
+      <div className="max-w-5xl mx-auto p-4 md:p-6 space-y-6">
+        <div className="flex items-center justify-between flex-wrap gap-4">
+          <div className="flex items-center gap-4">
+            <Link href="/dashboard/tenant/payments">
+              <Button variant="ghost" size="sm">
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                Back
+              </Button>
+            </Link>
+            <h1 className="text-xl font-bold">Account Statement</h1>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={() => window.print()}>
+              <Printer className="h-4 w-4 mr-2" />
+              Print
+            </Button>
+            <Button variant="outline" size="sm" onClick={handleShare}>
+              <Share2 className="h-4 w-4 mr-2" />
+              Share
+            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button size="sm" className="gap-2" disabled={exporting}>
+                  <Download className="h-4 w-4" />
+                  {exporting ? 'Exporting…' : 'Export'}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => handleExport('pdf')}>Export PDF</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleExport('excel')}>Export Excel</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleExport('csv')}>Export CSV</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-lg shadow-sm">
+          <div className="p-8 md:p-12">
+            <div className="flex items-start justify-between mb-8 pb-6 border-b">
+              <div className="flex items-center gap-3">
+                <div className="p-3 bg-green-100 rounded-lg">
+                  <span className="text-2xl">🏢</span>
+                </div>
+                <div>
+                  <h2 className="text-2xl font-bold text-green-600">RES</h2>
+                  <p className="text-sm text-muted-foreground">Property Management</p>
+                </div>
+              </div>
+              <div className="text-right">
+                <h3 className="text-xl font-bold">ACCOUNT STATEMENT</h3>
+                <p className="text-sm text-muted-foreground">
+                  #{(statement?.tenant?.id || '').slice(0, 8).toUpperCase()}
+                </p>
+              </div>
+            </div>
+
+            <div className="grid md:grid-cols-2 gap-8 mb-8">
+              <div>
+                <p className="text-sm text-muted-foreground mb-1">Tenant</p>
+                <p className="font-semibold text-lg">{tenantName}</p>
+                {statement.tenant.phone_number ? (
+                  <p className="text-sm text-muted-foreground">{statement.tenant.phone_number}</p>
+                ) : null}
+              </div>
+              <div className="text-right">
+                <p className="text-sm text-muted-foreground mb-1">Statement Date</p>
+                <p className="font-semibold">{statementDate}</p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground mb-1">Property</p>
+                <p className="font-semibold">{propertyLabel}</p>
+              </div>
+              <div className="text-right">
+                <p className="text-sm text-muted-foreground mb-1">Statement Period</p>
+                <p className="font-semibold">{periodLabel}</p>
+              </div>
+            </div>
+
+            <div className="grid md:grid-cols-2 gap-6 mb-8 p-6 bg-blue-50 rounded-lg">
+              <div>
+                <p className="text-sm text-muted-foreground mb-1">Opening Balance</p>
+                <p className="text-2xl font-bold">KES {Math.abs(openingBalance).toLocaleString()}</p>
+              </div>
+              <div className="text-right">
+                <p className="text-sm text-muted-foreground mb-1">Closing Balance</p>
+                <p
+                  className={`text-2xl font-bold ${
+                    closingBalance < 0 ? 'text-green-600' : 'text-red-600'
+                  }`}
+                >
+                  KES {Math.abs(closingBalance).toLocaleString()}
+                </p>
+              </div>
+            </div>
+
+            <div className="mb-8">
+              <h3 className="font-semibold text-lg mb-4">Transaction History</h3>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="text-left p-3 font-semibold text-sm">Date</th>
+                      <th className="text-left p-3 font-semibold text-sm">Type</th>
+                      <th className="text-left p-3 font-semibold text-sm">Description</th>
+                      <th className="text-left p-3 font-semibold text-sm">Reference</th>
+                      <th className="text-right p-3 font-semibold text-sm">Debit</th>
+                      <th className="text-right p-3 font-semibold text-sm">Credit</th>
+                      <th className="text-right p-3 font-semibold text-sm">Balance</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {transactions.length === 0 ? (
+                      <tr>
+                        <td colSpan={7} className="text-center text-sm text-muted-foreground py-8">
+                          No transactions recorded for this period.
+                        </td>
+                      </tr>
+                    ) : (
+                      transactions.map((transaction) => {
+                        const isCredit = transaction.amount < 0
+                        const displayAmount = formatCurrency(Math.abs(transaction.amount))
+                        const balanceRaw = transaction.balance_after ?? 0
+                        const balanceText = `KES ${Math.abs(balanceRaw).toLocaleString()}`
+                        const balanceClass = balanceRaw < 0 ? 'text-green-600' : 'text-red-600'
+                        return (
+                          <tr key={transaction.id} className="border-b last:border-0">
+                            <td className="p-3 text-sm">{formatDate(transaction.posted_at)}</td>
+                            <td className="p-3 text-sm capitalize">
+                              {transaction.payment_type || transaction.kind}
+                            </td>
+                            <td className="p-3 text-sm">
+                              <p>{transaction.description}</p>
+                              {transaction.coverage_label ? (
+                                <p className="text-xs text-muted-foreground mt-1">
+                                  Coverage: {transaction.coverage_label}
+                                </p>
+                              ) : null}
+                            </td>
+                            <td className="p-3 text-sm">{transaction.reference || '—'}</td>
+                            <td className="p-3 text-sm text-right text-slate-900">
+                              {isCredit ? '—' : displayAmount}
+                            </td>
+                            <td className="p-3 text-sm text-right text-green-600">
+                              {isCredit ? displayAmount : '—'}
+                            </td>
+                            <td className={`p-3 text-sm text-right font-semibold ${balanceClass}`}>
+                              {balanceText}
+                            </td>
+                          </tr>
+                        )
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
