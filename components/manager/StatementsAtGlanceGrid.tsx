@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { AgGridReact } from "ag-grid-react"
 import type { ColDef } from "ag-grid-community"
 import { AllCommunityModule, ModuleRegistry } from "ag-grid-community"
+import { exportRowsAsCSV, exportRowsAsExcel, exportRowsAsPDF, ExportColumn } from "@/lib/export/download"
 
 ModuleRegistry.registerModules([AllCommunityModule])
 
@@ -37,6 +38,7 @@ export function StatementsAtGlanceGrid() {
   const [buildingId, setBuildingId] = useState("")
   const [error, setError] = useState<string | null>(null)
   const [zoom, setZoom] = useState(1)
+  const [exporting, setExporting] = useState(false)
 
   const ZOOM_MIN = 0.8
   const ZOOM_MAX = 1.4
@@ -85,6 +87,68 @@ export function StatementsAtGlanceGrid() {
       // Ignore; grid may not be ready yet.
     }
   }, [zoom])
+
+  const getCurrentViewRows = (): Row[] => {
+    const api = gridRef.current?.api
+    if (!api) return []
+    const exportRows: Row[] = []
+    api.forEachNodeAfterFilterAndSort((node) => {
+      if (node?.data) exportRows.push(node.data as Row)
+    })
+    return exportRows
+  }
+
+  const exportColumns = useMemo<ExportColumn<Row>[]>(
+    () => [
+      { header: "Tenant", accessor: (row) => row.tenant_name || "Tenant" },
+      { header: "Property", accessor: (row) => row.building_name || "Property" },
+      { header: "Unit", accessor: (row) => row.unit_number || "" },
+      { header: "Balance (Arrears)", accessor: (row) => kes(row.current_balance), align: "right" },
+      { header: "Open Invoices", accessor: (row) => Number(row.open_invoices_count || 0), align: "right" },
+      { header: "Last Payment", accessor: (row) => row.last_payment_date || "—" },
+      { header: "Oldest Due", accessor: (row) => row.oldest_due_date || "—" },
+    ],
+    []
+  )
+
+  const handleExport = async (format: "pdf" | "excel" | "csv") => {
+    if (exporting) return
+    const dataToExport = getCurrentViewRows()
+    if (dataToExport.length === 0) return
+
+    const now = new Date()
+    const dateStamp = now.toISOString().slice(0, 10)
+    const fileBase = `statements-at-a-glance-${dateStamp}`
+    const subtitleParts: string[] = []
+    if (buildingId) subtitleParts.push(`Property filter: ${buildingOptions.find((b) => b.id === buildingId)?.name || buildingId}`)
+    if (q.trim()) subtitleParts.push(`Search: "${q.trim()}"`)
+    subtitleParts.push(`Rows: ${dataToExport.length}`)
+
+    const totalBalance = dataToExport.reduce((sum, row) => sum + Number(row.current_balance || 0), 0)
+    const totalOpen = dataToExport.reduce((sum, row) => sum + Number(row.open_invoices_count || 0), 0)
+
+    const summaryRows: Array<Array<string | number>> = [
+      ["", "", "Totals", kes(totalBalance), totalOpen, "", ""],
+    ]
+
+    try {
+      setExporting(true)
+      if (format === "pdf") {
+        exportRowsAsPDF(fileBase, exportColumns, dataToExport, {
+          title: "Tenant Statements (At-a-glance)",
+          subtitle: subtitleParts.join(" • "),
+          footerNote: "Figures reflect the filtered/sorted table view at time of export.",
+          summaryRows,
+        })
+      } else if (format === "excel") {
+        exportRowsAsExcel(fileBase, exportColumns, dataToExport, summaryRows)
+      } else {
+        exportRowsAsCSV(fileBase, exportColumns, dataToExport, summaryRows)
+      }
+    } finally {
+      setTimeout(() => setExporting(false), 300)
+    }
+  }
 
   const buildingOptions = useMemo(() => {
     const map = new Map<string, string>()
@@ -190,6 +254,32 @@ export function StatementsAtGlanceGrid() {
             aria-label="Zoom in table"
           >
             +
+          </button>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            className="border rounded-md px-3 py-2 bg-white text-sm hover:bg-slate-50 disabled:opacity-40"
+            onClick={() => handleExport("pdf")}
+            disabled={loading || exporting}
+          >
+            PDF
+          </button>
+          <button
+            type="button"
+            className="border rounded-md px-3 py-2 bg-white text-sm hover:bg-slate-50 disabled:opacity-40"
+            onClick={() => handleExport("excel")}
+            disabled={loading || exporting}
+          >
+            Excel
+          </button>
+          <button
+            type="button"
+            className="border rounded-md px-3 py-2 bg-white text-sm hover:bg-slate-50 disabled:opacity-40"
+            onClick={() => handleExport("csv")}
+            disabled={loading || exporting}
+          >
+            CSV
           </button>
         </div>
       </div>
