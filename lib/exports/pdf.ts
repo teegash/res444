@@ -4,8 +4,6 @@ import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import type { LetterheadMeta } from './letterhead'
 import { buildLetterheadLines, formatGeneratedAt, safeFilename } from './letterhead'
-import type { LoadedImageData } from './image'
-import { loadImageAsDataUrl } from './image'
 
 export type PdfTableColumn = {
   header: string
@@ -20,7 +18,6 @@ export type PdfExportTableOptions = {
   body: Array<Array<string | number>>
   summaryRows?: Array<Array<string | number>>
   footerNote?: string
-  logo?: LoadedImageData | null
   orientation?: 'portrait' | 'landscape' | 'auto'
 }
 
@@ -47,40 +44,26 @@ function computeHeaderHeight(meta: LetterheadMeta, subtitle?: string) {
 
 export function drawLetterhead(
   doc: jsPDF,
-  opts: { meta: LetterheadMeta; subtitle?: string; headerHeight: number; logo?: LoadedImageData | null }
+  opts: { meta: LetterheadMeta; subtitle?: string; headerHeight: number }
 ) {
-  const { meta, subtitle, headerHeight, logo } = opts
+  const { meta, subtitle, headerHeight } = opts
   const pageWidth = doc.internal.pageSize.getWidth()
 
   // Top bar
   doc.setFillColor(...BRAND_PRIMARY_RGB)
   doc.rect(0, 0, pageWidth, 52, 'F')
 
-  const logoSize = 34
-  const logoX = PAGE_MARGIN_X
-  const logoY = 14
-
-  // Logo container
-  doc.setFillColor(255, 255, 255)
-  doc.roundedRect(logoX, logoY, logoSize, logoSize, 6, 6, 'F')
-  if (logo?.dataUrl) {
-    try {
-      // Stretch to fill (requested), keep inside the box.
-      doc.addImage(logo.dataUrl, logo.format, logoX + 1, logoY + 1, logoSize - 2, logoSize - 2)
-    } catch {
-      // non-blocking
-    }
-  }
-  doc.setDrawColor(...BORDER_RGB)
-  doc.roundedRect(logoX, logoY, logoSize, logoSize, 6, 6, 'S')
-
   // Org name
-  const orgX = logoX + logoSize + 12
   doc.setTextColor('#ffffff')
   doc.setFont('helvetica', 'bold')
-  doc.setFontSize(16)
-  doc.text(meta.organizationName || 'Organization', orgX, 34, {
-    maxWidth: pageWidth - PAGE_MARGIN_X * 2 - logoSize - 12,
+  doc.setFontSize(18)
+  doc.text(meta.organizationName || 'Organization', PAGE_MARGIN_X, 34, {
+    maxWidth: pageWidth - PAGE_MARGIN_X * 2,
+  })
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(10.5)
+  doc.text('Property Management', PAGE_MARGIN_X, 48, {
+    maxWidth: pageWidth - PAGE_MARGIN_X * 2,
   })
 
   // Title row
@@ -215,7 +198,6 @@ export function exportTablePdf(options: PdfExportTableOptions) {
         meta: options.meta,
         subtitle: options.subtitle,
         headerHeight,
-        logo: options.logo,
       })
       drawFooter(doc, options.footerNote)
     },
@@ -235,7 +217,6 @@ function money(n: unknown) {
  */
 export async function exportStatementPdf(meta: LetterheadMeta, rows: any[]) {
   const filenameBase = safeFilename(meta.documentTitle || 'statement')
-  const logo = meta.organizationLogoUrl ? await loadImageAsDataUrl(meta.organizationLogoUrl) : null
 
   const body = (rows || []).map((r: any) => [
     r.entry_date ?? r.posted_at ?? '',
@@ -260,6 +241,5 @@ export async function exportStatementPdf(meta: LetterheadMeta, rows: any[]) {
     body,
     footerNote:
       'Disclaimer: If any item on this statement is disputed, please contact management immediately.',
-    logo,
   })
 }

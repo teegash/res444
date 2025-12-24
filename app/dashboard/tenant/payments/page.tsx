@@ -738,7 +738,7 @@ export default function PaymentHistoryPage() {
                     <Button
                       variant="default"
                       size="sm"
-                      onClick={() => downloadReceiptPdf(receiptDetails)}
+                      onClick={() => void downloadReceiptPdf(receiptDetails)}
                     >
                       <Download className="h-4 w-4 mr-2" />
                       Download PDF

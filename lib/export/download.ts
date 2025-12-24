@@ -2,7 +2,6 @@
 
 import type { LetterheadMeta, ResolvedOrganizationBrand } from '@/lib/exports/letterhead'
 import { fetchCurrentOrganizationBrand, safeFilename } from '@/lib/exports/letterhead'
-import { loadImageAsDataUrl } from '@/lib/exports/image'
 import { exportTablePdf } from '@/lib/exports/pdf'
 import { exportCsvWithLetterhead } from '@/lib/exports/csv'
 import { exportExcelWithLetterhead } from '@/lib/exports/excel'
@@ -150,8 +149,6 @@ export async function exportRowsAsPDF<T>(
     letterhead: options?.letterhead,
   })
 
-  const logo = meta.organizationLogoUrl ? await loadImageAsDataUrl(meta.organizationLogoUrl) : null
-
   const pdfColumns = columns.map((col) => ({
     header: col.header,
     align: col.align,
@@ -167,7 +164,6 @@ export async function exportRowsAsPDF<T>(
     body: body as any,
     summaryRows: options?.summaryRows,
     footerNote: options?.footerNote,
-    logo,
     orientation: options?.orientation,
   })
 }

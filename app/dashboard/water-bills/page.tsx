@@ -19,7 +19,6 @@ import { SkeletonLoader, SkeletonTable } from '@/components/ui/skeletons'
 import { Badge } from '@/components/ui/badge'
 import type { LetterheadMeta } from '@/lib/exports/letterhead'
 import { fetchCurrentOrganizationBrand } from '@/lib/exports/letterhead'
-import { loadImageAsDataUrl } from '@/lib/exports/image'
 import { drawLetterhead, getLetterheadHeight } from '@/lib/exports/pdf'
 
 interface TenantSummary {
@@ -283,7 +282,6 @@ export default function WaterBillsPage() {
         organizationName: org?.name || 'RES',
         organizationLocation: org?.location ?? undefined,
         organizationPhone: org?.phone ?? undefined,
-        organizationLogoUrl: org?.logo_url ?? null,
         tenantName: selectedUnitData.tenant?.name || undefined,
         tenantPhone: selectedUnitData.tenant?.phone || undefined,
         propertyName: selectedPropertyData?.name || undefined,
@@ -291,7 +289,6 @@ export default function WaterBillsPage() {
         documentTitle: 'Water Consumption Invoice',
         generatedAtISO,
       }
-      const logo = meta.organizationLogoUrl ? await loadImageAsDataUrl(meta.organizationLogoUrl) : null
 
       const doc = new jsPDF({ unit: 'pt', format: 'a4' })
       const pageWidth = doc.internal.pageSize.getWidth()
@@ -299,7 +296,7 @@ export default function WaterBillsPage() {
       const subtitle = `Invoice Date: ${new Date().toLocaleDateString()} • Due Date: ${computeDueDate()}`
       const headerHeight = getLetterheadHeight(meta, subtitle)
       const drawHeader = () => {
-        drawLetterhead(doc, { meta, subtitle, headerHeight, logo })
+        drawLetterhead(doc, { meta, subtitle, headerHeight })
         return headerHeight + 18
       }
       const newPageCursor = () => {

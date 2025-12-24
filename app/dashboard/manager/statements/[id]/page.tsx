@@ -240,7 +240,6 @@ export default function TenantStatementPage({ params }: { params: { id?: string 
     const subtitle = `${tenantName} • ${propertyLabel}`
     const letterhead = {
       organizationName: organization?.name || 'RES',
-      organizationLogoUrl: organization?.logo_url || null,
       tenantName,
       tenantPhone: statement?.tenant?.phone_number || undefined,
       propertyName: statement?.lease?.property_name || undefined,

@@ -1,7 +1,6 @@
 import jsPDF from 'jspdf'
 import type { LetterheadMeta } from '@/lib/exports/letterhead'
 import { fetchCurrentOrganizationBrand } from '@/lib/exports/letterhead'
-import { loadImageAsDataUrl } from '@/lib/exports/image'
 import { drawLetterhead, getLetterheadHeight } from '@/lib/exports/pdf'
 
 type KeyValueRow = { label: string; value: string }
@@ -70,14 +69,13 @@ export async function exportLeasePdf(options: LeasePdfOptions) {
   }
 
   const subtitle = options.headerSubtitle
-  const logo = meta.organizationLogoUrl ? await loadImageAsDataUrl(meta.organizationLogoUrl) : null
 
   const doc = new jsPDF({ unit: 'pt', format: 'a4' })
   const pageWidth = doc.internal.pageSize.getWidth()
 
   const headerHeight = getLetterheadHeight(meta, subtitle)
   const drawHeader = () => {
-    drawLetterhead(doc, { meta, subtitle, headerHeight, logo })
+    drawLetterhead(doc, { meta, subtitle, headerHeight })
     return headerHeight + 18
   }
   const newPageCursor = () => {

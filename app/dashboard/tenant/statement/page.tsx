@@ -175,7 +175,6 @@ export default function TenantAccountStatementPage() {
     const subtitle = `${tenantName} • ${propertyLabel} • ${periodLabel}`
     const letterhead = {
       organizationName: organization?.name || 'RES',
-      organizationLogoUrl: organization?.logo_url || null,
       tenantName,
       tenantPhone: statement.tenant.phone_number || undefined,
       propertyName: statement.lease?.property_name || undefined,

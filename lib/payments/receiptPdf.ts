@@ -3,7 +3,6 @@
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import { fetchCurrentOrganizationBrand } from '@/lib/exports/letterhead'
-import { loadImageAsDataUrl } from '@/lib/exports/image'
 import type { LetterheadMeta } from '@/lib/exports/letterhead'
 import { drawLetterhead, getLetterheadHeight } from '@/lib/exports/pdf'
 
@@ -55,7 +54,6 @@ export async function downloadReceiptPdf(receipt: ReceiptPdfPayload) {
     organizationName: org?.name || 'RES',
     organizationLocation: org?.location ?? undefined,
     organizationPhone: org?.phone ?? undefined,
-    organizationLogoUrl: org?.logo_url ?? null,
     tenantName: receipt.tenant.name || undefined,
     tenantPhone: receipt.tenant.phone_number || undefined,
     propertyName: receipt.property?.property_name || undefined,
@@ -63,14 +61,13 @@ export async function downloadReceiptPdf(receipt: ReceiptPdfPayload) {
     documentTitle: 'Payment Receipt',
     generatedAtISO: new Date().toISOString(),
   }
-  const logo = meta.organizationLogoUrl ? await loadImageAsDataUrl(meta.organizationLogoUrl) : null
   const headerHeight = getLetterheadHeight(meta, undefined)
 
   const doc = new jsPDF({ unit: 'pt', format: 'a4' })
   const pageWidth = doc.internal.pageSize.getWidth()
 
   const drawHeader = () => {
-    drawLetterhead(doc, { meta, headerHeight, logo })
+    drawLetterhead(doc, { meta, headerHeight })
   }
 
   drawHeader()

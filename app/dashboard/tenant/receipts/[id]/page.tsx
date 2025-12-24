@@ -155,7 +155,7 @@ export default function TenantReceiptPage({ params }: { params: { id: string } }
               <Share2 className="h-4 w-4 mr-2" />
               Share
             </Button>
-            <Button size="sm" onClick={() => downloadReceiptPdf(receipt)}>
+            <Button size="sm" onClick={() => void downloadReceiptPdf(receipt)}>
               <Download className="h-4 w-4 mr-2" />
               Download PDF
             </Button>

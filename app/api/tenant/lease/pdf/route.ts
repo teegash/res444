@@ -3,34 +3,6 @@ import PDFDocument from 'pdfkit'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 
-async function fetchImageBuffer(url: string) {
-  try {
-    const res = await fetch(url, { cache: 'force-cache' })
-    if (!res.ok) return null
-    const contentType = res.headers.get('content-type') || ''
-    if (!contentType.startsWith('image/')) return null
-    const buf = Buffer.from(await res.arrayBuffer())
-    return { buf, contentType }
-  } catch {
-    return null
-  }
-}
-
-async function coerceImageToPdfkitBuffer(image: { buf: Buffer; contentType: string }) {
-  const type = image.contentType.toLowerCase()
-  if (type.includes('png') || type.includes('jpeg') || type.includes('jpg')) return image.buf
-  if (type.includes('webp')) {
-    try {
-      const mod = await import('sharp')
-      const sharp = (mod as any).default || mod
-      return await sharp(image.buf).png().toBuffer()
-    } catch {
-      return null
-    }
-  }
-  return null
-}
-
 function formatDate(value?: string | null) {
   if (!value) return '—'
   const parsed = new Date(value)
@@ -136,35 +108,18 @@ export async function GET() {
 
     const title = 'Residential Lease Summary'
     const orgName = organization?.name || 'RES'
-    const logoUrl = organization?.logo_url || null
 
     const drawHeader = async (withLogo: boolean) => {
       const pageWidth = doc.page.width
 
       doc.save()
       doc.rect(0, 0, pageWidth, 70).fill('#2563EB')
-      doc.roundedRect(50, 18, 34, 34, 6).fill('#FFFFFF')
-      doc.roundedRect(50, 18, 34, 34, 6).stroke('#E2E8F0')
-
-      if (withLogo && logoUrl) {
-        const img = await fetchImageBuffer(logoUrl)
-        if (img?.buf) {
-          const usable = await coerceImageToPdfkitBuffer(img)
-          if (usable) {
-            try {
-              doc.image(usable, 51, 19, { width: 32, height: 32 })
-            } catch {
-              // ignore
-            }
-          }
-        }
-      }
 
       doc
         .fillColor('#FFFFFF')
         .fontSize(16)
         .font('Helvetica-Bold')
-        .text(orgName, 94, 40, { width: pageWidth - 160, ellipsis: true })
+        .text(orgName, 50, 40, { width: pageWidth - 100, ellipsis: true })
 
       doc.restore()
 
@@ -182,7 +137,7 @@ export async function GET() {
         .moveDown(0.8)
     }
 
-    await drawHeader(true)
+    await drawHeader(false)
     doc.on('pageAdded', () => {
       // Best-effort header for next pages (logo may be skipped).
       void drawHeader(false)
