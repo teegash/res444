@@ -14,7 +14,7 @@ import {
 } from '@/components/ui/select'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import { Loader2, ArrowLeft, Download, Calendar, FileText, UploadCloud, PenLine } from 'lucide-react'
+import { Loader2, ArrowLeft, Download, Calendar, FileText, UploadCloud } from 'lucide-react'
 import { useToast } from '@/components/ui/use-toast'
 import { exportLeasePdf } from '@/lib/pdf/leaseDocument'
 
@@ -93,7 +93,6 @@ export default function TenantLeaseManagementPage() {
   const [data, setData] = useState<LeaseResponse | null>(null)
   const [uploading, setUploading] = useState(false)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
-  const [creatingRenewal, setCreatingRenewal] = useState(false)
 
   const [startDate, setStartDate] = useState('')
   const [durationMonths, setDurationMonths] = useState('12')
@@ -257,40 +256,6 @@ export default function TenantLeaseManagementPage() {
       })
     } finally {
       setSaving(false)
-    }
-  }
-
-  const handleCreateRenewal = async () => {
-    if (!lease?.id) {
-      toast({
-        title: 'Lease not ready',
-        description: 'Save/assign the lease before creating a renewal envelope.',
-        variant: 'destructive',
-      })
-      return
-    }
-    try {
-      setCreatingRenewal(true)
-      const res = await fetch(`/api/lease-renewals/${encodeURIComponent(lease.id)}/create`, {
-        method: 'POST',
-        credentials: 'include',
-      })
-      const json = await res.json().catch(() => ({}))
-      if (!res.ok || !json.ok) throw new Error(json.error || 'Failed to create renewal.')
-      const renewalId = json.renewalId as string
-      toast({
-        title: json.existing ? 'Renewal already exists' : 'Renewal created',
-        description: 'Tenant can now review and sign the renewal in their portal.',
-      })
-      router.push(`/dashboard/manager/lease-renewals/${encodeURIComponent(renewalId)}`)
-    } catch (e) {
-      toast({
-        title: 'Create renewal failed',
-        description: e instanceof Error ? e.message : 'Unable to create renewal.',
-        variant: 'destructive',
-      })
-    } finally {
-      setCreatingRenewal(false)
     }
   }
 
@@ -522,32 +487,6 @@ export default function TenantLeaseManagementPage() {
           </div>
 
           <div className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>Lease Renewal (Digital Signing)</CardTitle>
-                <CardDescription>Create a renewal envelope for tenant signing.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3 text-sm">
-                <div className="rounded-lg border p-3 bg-slate-50">
-                  <p className="font-medium">Flow</p>
-                  <p className="text-xs text-muted-foreground">
-                    1) Create envelope → 2) Tenant signs → 3) Manager countersigns → 4) Completed PDF
-                  </p>
-                </div>
-                <Button className="w-full gap-2" onClick={handleCreateRenewal} disabled={creatingRenewal}>
-                  {creatingRenewal ? <Loader2 className="h-4 w-4 animate-spin" /> : <PenLine className="h-4 w-4" />}
-                  {creatingRenewal ? 'Creating…' : 'Create renewal envelope'}
-                </Button>
-                <Button
-                  variant="outline"
-                  className="w-full"
-                  onClick={() => router.push('/dashboard/manager/lease-renewals')}
-                >
-                  View all renewals
-                </Button>
-              </CardContent>
-            </Card>
-
             <Card>
               <CardHeader>
                 <CardTitle>Lease Documents</CardTitle>

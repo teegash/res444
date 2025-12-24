@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { useToast } from '@/components/ui/use-toast'
+import { Switch } from '@/components/ui/switch'
 import { exportLeasePdf } from '@/lib/pdf/leaseDocument'
 
 type LeaseDetails = {
@@ -73,7 +74,8 @@ export default function LeasePage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [downloading, setDownloading] = useState(false)
-  const [currentRenewal, setCurrentRenewal] = useState<{ id: string; status: string } | null>(null)
+  const [autoRenewEnabled, setAutoRenewEnabled] = useState(false)
+  const [togglingAutoRenew, setTogglingAutoRenew] = useState(false)
   const { toast } = useToast()
 
   useEffect(() => {
@@ -88,6 +90,7 @@ export default function LeasePage() {
         }
         const payload = await response.json()
         setLease(payload.data || null)
+        setAutoRenewEnabled(Boolean(payload.data?.lease_auto_generated))
       } catch (err) {
         console.error('[LeasePage] fetch failed', err)
         setError(err instanceof Error ? err.message : 'Unable to load lease info.')
@@ -98,33 +101,6 @@ export default function LeasePage() {
 
     fetchLease()
   }, [])
-
-  useEffect(() => {
-    if (!lease?.id) {
-      setCurrentRenewal(null)
-      return
-    }
-    let cancelled = false
-    const loadRenewal = async () => {
-      try {
-        const res = await fetch(`/api/tenant/lease-renewals/current?leaseId=${encodeURIComponent(lease.id)}`, {
-          cache: 'no-store',
-          credentials: 'include',
-        })
-        const json = await res.json().catch(() => ({}))
-        if (!res.ok) return
-        if (!cancelled) {
-          setCurrentRenewal(json.renewal?.id ? { id: json.renewal.id, status: json.renewal.status } : null)
-        }
-      } catch {
-        if (!cancelled) setCurrentRenewal(null)
-      }
-    }
-    loadRenewal()
-    return () => {
-      cancelled = true
-    }
-  }, [lease?.id])
 
   useEffect(() => {
     const fetchSigned = async () => {
@@ -215,6 +191,7 @@ export default function LeasePage() {
           { label: 'End Date', value: formatDate(lease.end_date) },
           { label: 'Monthly Rent', value: monthlyRent },
           { label: 'Deposit Amount', value: depositAmount },
+          { label: 'Auto Renewal', value: autoRenewEnabled ? 'Enabled' : 'Disabled' },
         ],
       },
       {
@@ -267,6 +244,7 @@ export default function LeasePage() {
     leaseStatus,
     monthlyRent,
     depositAmount,
+    autoRenewEnabled,
     agreementUrl,
     toast,
   ])
@@ -277,6 +255,35 @@ export default function LeasePage() {
       await generatePdf()
     } finally {
       setDownloading(false)
+    }
+  }
+
+  const handleAutoRenewToggle = async (enabled: boolean) => {
+    try {
+      setTogglingAutoRenew(true)
+      const response = await fetch('/api/tenant/lease/auto-renew', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled }),
+      })
+      const payload = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        throw new Error(payload.error || 'Failed to update auto-renew preference.')
+      }
+      setAutoRenewEnabled(enabled)
+      toast({
+        title: `Auto-renew ${enabled ? 'enabled' : 'disabled'}`,
+        description: 'Your lease renewal preference has been saved.',
+      })
+    } catch (err) {
+      console.error('[LeasePage] auto-renew toggle failed', err)
+      toast({
+        title: 'Update failed',
+        description: err instanceof Error ? err.message : 'Unable to update auto-renew.',
+        variant: 'destructive',
+      })
+    } finally {
+      setTogglingAutoRenew(false)
     }
   }
 
@@ -466,20 +473,23 @@ export default function LeasePage() {
                 <p className="font-semibold">30 days (standard)</p>
               </div>
             </div>
-            <div className="flex flex-col sm:flex-row gap-3 mt-6 items-start sm:items-center justify-between">
-              <div className="text-sm text-muted-foreground">
-                Renewals are handled through an explicit digital signing workflow prepared by management.
+            <div className="flex flex-col sm:flex-row gap-4 mt-6 items-start sm:items-center">
+              <div className="flex items-center gap-3">
+                <div>
+                  <p className="text-sm font-medium">Auto-renew lease</p>
+                  <p className="text-xs text-muted-foreground">
+                    Automatically extend your lease unless you opt out.
+                  </p>
+                </div>
+                <Switch
+                  checked={autoRenewEnabled}
+                  onCheckedChange={handleAutoRenewToggle}
+                  disabled={!lease || togglingAutoRenew}
+                />
               </div>
-              <div className="flex gap-2 items-center">
-                {currentRenewal?.id ? (
-                  <Link href={`/dashboard/tenant/lease-renewal/${encodeURIComponent(currentRenewal.id)}`}>
-                    <Button variant="default">View renewal</Button>
-                  </Link>
-                ) : null}
-                <Link href="/dashboard/tenant/messages">
-                  <Button variant="outline">Contact Property Manager</Button>
-                </Link>
-              </div>
+              <Link href="/dashboard/tenant/messages">
+                <Button variant="outline">Contact Property Manager</Button>
+              </Link>
             </div>
           </CardContent>
         </Card>

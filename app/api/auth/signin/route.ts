@@ -28,7 +28,7 @@ async function fetchWithTimeout(
   }
 }
 
-async function fetchUserRoleFromProfiles(userId: string, timeoutMs: number) {
+async function fetchUserRoleFromProfiles(userId: string) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
@@ -49,7 +49,7 @@ async function fetchUserRoleFromProfiles(userId: string, timeoutMs: number) {
           Prefer: 'return=representation',
         },
       },
-      timeoutMs,
+      1000,
       'Role lookup'
     )
 
@@ -65,7 +65,7 @@ async function fetchUserRoleFromProfiles(userId: string, timeoutMs: number) {
   }
 }
 
-async function hasOrganizationMembership(userId: string, timeoutMs: number) {
+async function hasOrganizationMembership(userId: string) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
@@ -85,7 +85,7 @@ async function hasOrganizationMembership(userId: string, timeoutMs: number) {
           'Content-Type': 'application/json',
         },
       },
-      timeoutMs,
+      1000,
       'Organization membership lookup'
     )
 
@@ -102,15 +102,11 @@ async function hasOrganizationMembership(userId: string, timeoutMs: number) {
 }
 
 export async function POST(request: NextRequest) {
-  const debug = request.nextUrl.searchParams.get('debug') === '1'
-  const timings: Record<string, number> = {}
-  const t0 = Date.now()
-
   try {
     const body = await request.json().catch(() => null)
     if (!body) {
       return NextResponse.json(
-        { success: false, error: 'Invalid request body. Expected JSON.', ...(debug ? { debug: { timings } } : {}) },
+        { success: false, error: 'Invalid request body. Expected JSON.' },
         { status: 400, headers: { 'Content-Type': 'application/json' } }
       )
     }
@@ -121,7 +117,6 @@ export async function POST(request: NextRequest) {
         {
           success: false,
           error: 'Email and password are required',
-          ...(debug ? { debug: { timings } } : {}),
         },
         { status: 400, headers: { 'Content-Type': 'application/json' } }
       )
@@ -137,9 +132,6 @@ export async function POST(request: NextRequest) {
         {
           success: false,
           error: 'Server configuration error. Please contact support.',
-          ...(debug
-            ? { debug: { timings, missing: { NEXT_PUBLIC_SUPABASE_URL: !supabaseUrl, NEXT_PUBLIC_SUPABASE_ANON_KEY: !anonKey } } }
-            : {}),
         },
         { status: 500 }
       )
@@ -169,20 +161,15 @@ export async function POST(request: NextRequest) {
       password,
     })
 
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('Sign in timed out after 4500ms')), 4500)
+    )
+
     let signInResult: Awaited<ReturnType<typeof supabase.auth.signInWithPassword>>
     try {
-      if (debug) {
-        signInResult = await signInPromise
-      } else {
-        const SIGN_IN_TIMEOUT_MS = 4500
-        const timeoutPromise = new Promise((_, reject) =>
-          setTimeout(() => reject(new Error(`Sign in timed out after ${SIGN_IN_TIMEOUT_MS}ms`)), SIGN_IN_TIMEOUT_MS)
-        )
-        signInResult = (await Promise.race([signInPromise, timeoutPromise])) as Awaited<
-          ReturnType<typeof supabase.auth.signInWithPassword>
-        >
-      }
-      timings.signInWithPasswordMs = Date.now() - t0
+      signInResult = (await Promise.race([signInPromise, timeoutPromise])) as Awaited<
+        ReturnType<typeof supabase.auth.signInWithPassword>
+      >
     } catch (signInError: any) {
       console.error('Sign in failed:', signInError.message)
       if (signInError.message.includes('timed out')) {
@@ -190,7 +177,6 @@ export async function POST(request: NextRequest) {
           {
             success: false,
             error: 'Sign in timed out. Please check your connection and try again.',
-            ...(debug ? { debug: { timings, step: 'signInWithPassword' } } : {}),
           },
           { status: 504 }
         )
@@ -199,7 +185,6 @@ export async function POST(request: NextRequest) {
         {
           success: false,
           error: signInError.message || 'Failed to sign in. Please try again.',
-          ...(debug ? { debug: { timings, step: 'signInWithPassword' } } : {}),
         },
         { status: 500 }
       )
@@ -224,7 +209,6 @@ export async function POST(request: NextRequest) {
         {
           success: false,
           error: userFriendlyMessage,
-          ...(debug ? { debug: { timings, authError: { message: authError.message, status: (authError as any).status } } } : {}),
         },
         { status: 401, headers: { 'Content-Type': 'application/json' } }
       )
@@ -235,7 +219,6 @@ export async function POST(request: NextRequest) {
         {
           success: false,
           error: 'Failed to create session',
-          ...(debug ? { debug: { timings } } : {}),
         },
         { status: 401, headers: { 'Content-Type': 'application/json' } }
       )
@@ -263,10 +246,7 @@ export async function POST(request: NextRequest) {
 
     // Fallback to profile table via REST (service role) with strict timeout
     if (!userRole) {
-      const ROLE_LOOKUP_TIMEOUT_MS = debug ? 10_000 : 1000
-      const tRole = Date.now()
-      userRole = await fetchUserRoleFromProfiles(userId, ROLE_LOOKUP_TIMEOUT_MS)
-      timings.roleLookupMs = Date.now() - tRole
+      userRole = await fetchUserRoleFromProfiles(userId)
     }
 
     // If still no role, that's a problem
@@ -275,7 +255,6 @@ export async function POST(request: NextRequest) {
         {
           success: false,
           error: 'User role not found. Please contact support.',
-          ...(debug ? { debug: { timings } } : {}),
         },
         { status: 403 }
       )
@@ -283,16 +262,12 @@ export async function POST(request: NextRequest) {
 
     let needsOrganizationSetup = false
     if (userRole === 'admin') {
-      const MEMBERSHIP_LOOKUP_TIMEOUT_MS = debug ? 10_000 : 1000
-      const tMem = Date.now()
-      const membershipExists = await hasOrganizationMembership(userId, MEMBERSHIP_LOOKUP_TIMEOUT_MS)
-      timings.membershipLookupMs = Date.now() - tMem
+      const membershipExists = await hasOrganizationMembership(userId)
       needsOrganizationSetup = !membershipExists
     }
 
     // Login successful - fast!
     console.log('✓ Login successful - role:', userRole, 'needsOrganizationSetup:', needsOrganizationSetup)
-    timings.totalMs = Date.now() - t0
 
     // Return session data - client will set cookies using the session tokens
     const response = NextResponse.json(
@@ -302,7 +277,6 @@ export async function POST(request: NextRequest) {
         user_id: userId,
         needsOrganizationSetup,
         session: session, // Include session for client to set cookies
-        ...(debug ? { debug: { timings } } : {}),
       },
       { status: 200, headers: { 'Content-Type': 'application/json' } }
     )
@@ -320,7 +294,6 @@ export async function POST(request: NextRequest) {
       {
         success: false,
         error: err.message || 'An unexpected error occurred',
-        ...(debug ? { debug: { timings: { ...timings, totalMs: Date.now() - t0 }, thrown: true } } : {}),
       },
       { status: 500, headers: { 'Content-Type': 'application/json' } }
     )

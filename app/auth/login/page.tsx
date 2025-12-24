@@ -102,22 +102,18 @@ function LoginForm() {
     try {
       console.log('Starting sign in request...')
       const requestStartTime = Date.now()
-      const debug = searchParams.get('debug') === '1'
 
       const controller = new AbortController()
-      let timeoutId: ReturnType<typeof setTimeout> | null = null
-      if (!debug) {
-        timeoutId = setTimeout(() => {
-          const elapsed = Date.now() - requestStartTime
-          console.error(`Client-side fetch timed out after ${elapsed}ms`)
-          controller.abort()
-        }, 4500)
-      }
+      const timeoutId = setTimeout(() => {
+        const elapsed = Date.now() - requestStartTime
+        console.error(`Client-side fetch timed out after ${elapsed}ms`)
+        controller.abort()
+      }, 4500)
 
       let response: Response
       try {
         console.log('Sending sign in request to API...')
-        response = await fetch(`/api/auth/signin${debug ? '?debug=1' : ''}`, {
+        response = await fetch('/api/auth/signin', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -128,11 +124,11 @@ function LoginForm() {
           }),
           signal: controller.signal,
         })
-        if (timeoutId !== null) clearTimeout(timeoutId)
+        clearTimeout(timeoutId)
         const elapsed = Date.now() - requestStartTime
         console.log(`Sign in request completed in ${elapsed}ms, status:`, response.status)
       } catch (fetchError: any) {
-        if (timeoutId !== null) clearTimeout(timeoutId)
+        clearTimeout(timeoutId)
         const elapsed = Date.now() - requestStartTime
         console.error(`Sign in request failed after ${elapsed}ms:`, fetchError)
 
@@ -157,18 +153,12 @@ function LoginForm() {
         } catch {
           errorData = { error: 'Failed to sign in' }
         }
-        if (debug && errorData?.debug) {
-          console.log('[Auth Debug] /api/auth/signin debug payload:', errorData.debug)
-        }
         setError(errorData.error || `Sign in failed with status ${response.status}`)
         setIsLoading(false)
         return
       }
 
       const result = await response.json()
-      if (debug && result?.debug) {
-        console.log('[Auth Debug] /api/auth/signin debug payload:', result.debug)
-      }
 
       if (!result.success) {
         setError(result.error || 'Failed to sign in')
