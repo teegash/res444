@@ -16,6 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { exportRowsAsCSV, exportRowsAsExcel, exportRowsAsPDF, ExportColumn } from '@/lib/export/download'
 import { OrganizationBrand } from '@/components/statements/OrganizationBrand'
 import { getFilteredStatementView, StatementPeriodFilter } from '@/lib/statements/periodFilter'
+import { StatementLedgerGrid, type LedgerView } from '@/components/statements/StatementLedgerGrid'
 
 type StatementTransaction = {
   id: string
@@ -81,6 +82,7 @@ export default function TenantAccountStatementPage() {
   const [error, setError] = useState<string | null>(null)
   const [exporting, setExporting] = useState(false)
   const [periodFilter, setPeriodFilter] = useState<StatementPeriodFilter>('all')
+  const [ledgerView, setLedgerView] = useState<LedgerView | null>(null)
 
   useEffect(() => {
     const loadOrg = async () => {
@@ -183,17 +185,18 @@ export default function TenantAccountStatementPage() {
       generatedAtISO: new Date().toISOString(),
     }
     try {
+      const exportRows = ledgerView?.rows ?? transactions
       if (format === 'pdf') {
-        await exportRowsAsPDF(fileBase, exportColumns, transactions, {
+        await exportRowsAsPDF(fileBase, exportColumns, exportRows, {
           title: 'Account Statement',
           subtitle,
           footerNote: `Generated on ${new Date().toLocaleString()}`,
           letterhead,
         })
       } else if (format === 'excel') {
-        await exportRowsAsExcel(fileBase, exportColumns, transactions, undefined, { letterhead })
+        await exportRowsAsExcel(fileBase, exportColumns, exportRows, undefined, { letterhead })
       } else {
-        await exportRowsAsCSV(fileBase, exportColumns, transactions, undefined, { letterhead })
+        await exportRowsAsCSV(fileBase, exportColumns, exportRows, undefined, { letterhead })
       }
     } finally {
       setExporting(false)
@@ -343,66 +346,10 @@ export default function TenantAccountStatementPage() {
 
             <div className="mb-8">
               <h3 className="font-semibold text-lg mb-4">Transaction History</h3>
-              <div className="overflow-x-auto">
-                <table className="w-full table-fixed">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="text-left p-3 font-semibold text-sm w-28">Date</th>
-                      <th className="text-left p-3 font-semibold text-sm w-28">Type</th>
-                      <th className="text-left p-3 font-semibold text-sm">Description</th>
-                      <th className="text-left p-3 font-semibold text-sm w-56">Reference</th>
-                      <th className="text-right p-3 font-semibold text-sm w-28">Debit</th>
-                      <th className="text-right p-3 font-semibold text-sm w-28">Credit</th>
-                      <th className="text-right p-3 font-semibold text-sm w-32">Balance</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {transactions.length === 0 ? (
-                      <tr>
-                        <td colSpan={7} className="text-center text-sm text-muted-foreground py-8">
-                          No transactions recorded for this period.
-                        </td>
-                      </tr>
-                    ) : (
-                      transactions.map((transaction) => {
-                        const isCredit = transaction.amount < 0
-                        const displayAmount = formatCurrency(Math.abs(transaction.amount))
-                        const balanceRaw = transaction.balance_after ?? 0
-                        const balanceText = `KES ${Math.abs(balanceRaw).toLocaleString()}`
-                        const balanceClass = balanceRaw < 0 ? 'text-green-600' : 'text-red-600'
-                        return (
-                          <tr key={transaction.id} className="border-b last:border-0">
-                            <td className="p-3 text-sm">{formatDate(transaction.posted_at)}</td>
-                            <td className="p-3 text-sm capitalize">
-                              {transaction.payment_type || transaction.kind}
-                            </td>
-                            <td className="p-3 text-sm">
-                              <p>{transaction.description}</p>
-                              {transaction.coverage_label ? (
-                                <p className="text-xs text-muted-foreground mt-1">
-                                  Coverage: {transaction.coverage_label}
-                                </p>
-                              ) : null}
-                            </td>
-                            <td className="p-3 text-sm font-mono text-slate-700 break-all leading-5">
-                              {transaction.reference || '—'}
-                            </td>
-                            <td className="p-3 text-sm text-right text-slate-900">
-                              {isCredit ? '—' : displayAmount}
-                            </td>
-                            <td className="p-3 text-sm text-right text-green-600">
-                              {isCredit ? displayAmount : '—'}
-                            </td>
-                            <td className={`p-3 text-sm text-right font-semibold ${balanceClass}`}>
-                              {balanceText}
-                            </td>
-                          </tr>
-                        )
-                      })
-                    )}
-                  </tbody>
-                </table>
-              </div>
+              <StatementLedgerGrid
+                transactions={transactions as any}
+                onViewChange={(view) => setLedgerView(view)}
+              />
             </div>
           </div>
         </div>
