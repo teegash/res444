@@ -130,7 +130,7 @@ export async function downloadReceiptPdf(receipt: ReceiptPdfPayload) {
       lineColor: [226, 232, 240],
     },
     headStyles: {
-      fillColor: [37, 99, 235],
+      fillColor: [72, 103, 164],
       textColor: [255, 255, 255],
       fontStyle: 'bold',
     },

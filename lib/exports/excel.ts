@@ -54,7 +54,7 @@ export async function exportExcelWithLetterhead(args: {
     worksheet.mergeCells(1, 1, 1, maxCols)
     const orgCell = worksheet.getCell(1, 1)
     orgCell.value = meta.organizationName || 'RES'
-    orgCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF2563EB' } }
+    orgCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4867A4' } }
     orgCell.font = { bold: true, size: 16, color: { argb: 'FFFFFFFF' } }
     orgCell.alignment = { vertical: 'middle', horizontal: 'left' }
 
@@ -94,7 +94,7 @@ export async function exportExcelWithLetterhead(args: {
   const headerRow = worksheet.getRow(headerRowIndex)
   headerRow.values = args.headers.map((h) => normalizeCell(h) as any)
   headerRow.font = { bold: true, color: { argb: 'FFFFFFFF' } }
-  headerRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF2563EB' } }
+  headerRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4867A4' } }
   headerRow.alignment = { vertical: 'middle', horizontal: 'left' }
   headerRow.height = 20
 

@@ -113,13 +113,19 @@ export async function GET() {
       const pageWidth = doc.page.width
 
       doc.save()
-      doc.rect(0, 0, pageWidth, 70).fill('#2563EB')
+      doc.rect(0, 0, pageWidth, 70).fill('#4867A4')
 
       doc
         .fillColor('#FFFFFF')
         .fontSize(16)
         .font('Helvetica-Bold')
-        .text(orgName, 50, 40, { width: pageWidth - 100, ellipsis: true })
+        .text(orgName, 50, 32, { width: pageWidth - 100, ellipsis: true })
+
+      doc
+        .fillColor('#E2E8F0')
+        .fontSize(10)
+        .font('Helvetica-Oblique')
+        .text('Property Management', 50, 50, { width: pageWidth - 100, ellipsis: true })
 
       doc.restore()
 

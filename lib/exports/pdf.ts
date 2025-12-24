@@ -21,7 +21,8 @@ export type PdfExportTableOptions = {
   orientation?: 'portrait' | 'landscape' | 'auto'
 }
 
-const BRAND_PRIMARY_RGB: [number, number, number] = [37, 99, 235] // #2563eb
+// Brand primary: elegant blend of previous blue + #606975.
+const BRAND_PRIMARY_RGB: [number, number, number] = [72, 103, 164] // #4867A4
 const BRAND_DARK_RGB: [number, number, number] = [15, 23, 42]
 const BRAND_MUTED_RGB: [number, number, number] = [71, 85, 105]
 const BORDER_RGB: [number, number, number] = [226, 232, 240]
@@ -55,14 +56,14 @@ export function drawLetterhead(
 
   // Org name
   doc.setTextColor('#ffffff')
-  doc.setFont('helvetica', 'bold')
+  doc.setFont('times', 'bold')
   doc.setFontSize(18)
-  doc.text(meta.organizationName || 'Organization', PAGE_MARGIN_X, 34, {
+  doc.text(meta.organizationName || 'Organization', PAGE_MARGIN_X, 30, {
     maxWidth: pageWidth - PAGE_MARGIN_X * 2,
   })
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(10.5)
-  doc.text('Property Management', PAGE_MARGIN_X, 48, {
+  doc.setFont('times', 'italic')
+  doc.setFontSize(11)
+  doc.text('Property Management', PAGE_MARGIN_X, 44, {
     maxWidth: pageWidth - PAGE_MARGIN_X * 2,
   })
 
