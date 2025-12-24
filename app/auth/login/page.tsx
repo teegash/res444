@@ -104,13 +104,11 @@ function LoginForm() {
       const requestStartTime = Date.now()
 
       const controller = new AbortController()
-      // Client timeout should be higher than the server timeout to allow server-side cold starts.
-      const CLIENT_SIGNIN_TIMEOUT_MS = 15000
       const timeoutId = setTimeout(() => {
         const elapsed = Date.now() - requestStartTime
         console.error(`Client-side fetch timed out after ${elapsed}ms`)
         controller.abort()
-      }, CLIENT_SIGNIN_TIMEOUT_MS)
+      }, 4500)
 
       let response: Response
       try {
