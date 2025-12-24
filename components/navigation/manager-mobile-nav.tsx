@@ -14,7 +14,6 @@ import {
   Bell,
   MessageSquare,
   Droplet,
-  PenLine,
 } from 'lucide-react'
 import { useAuth } from '@/lib/auth/context'
 
@@ -55,7 +54,6 @@ export function ManagerMobileNav() {
   const moreItems: NavItem[] = isCaretaker
     ? []
     : [
-        { key: 'renewals', label: 'Renewals', icon: PenLine, href: '/dashboard/manager/lease-renewals' },
         { key: 'maintenance', label: 'Maintenance', icon: Wrench, href: '/dashboard/maintenance' },
         { key: 'notices', label: 'Notices', icon: Bell, href: '/dashboard/manager/notices' },
         { key: 'messages', label: 'Messages', icon: MessageSquare, href: '/dashboard/communications' },

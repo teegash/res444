@@ -19,11 +19,6 @@
 # misc
 .DS_Store
 *.pem
-*.p12
-*.pfx
-*.keystore
-*.jks
-*.p12.b64.txt
 
 # debug
 npm-debug.log*
