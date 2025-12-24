@@ -50,6 +50,8 @@ export default function FinancialStatementPage() {
 
   const handleExport = (format: 'pdf' | 'excel' | 'csv') => {
     const filename = `financial-statement-${period}-${property}-${new Date().toISOString().slice(0, 10)}`
+    const generatedAtISO = new Date().toISOString()
+    const letterhead = { documentTitle: 'Financial Statement', generatedAtISO }
     const columns = [
       { header: 'Property', accessor: (row: StatementRow) => row.property },
       { header: 'Month', accessor: (row: StatementRow) => row.month },
@@ -61,11 +63,12 @@ export default function FinancialStatementPage() {
       exportRowsAsPDF(filename, columns, filtered, {
         title: 'Financial Statement',
         subtitle: `Period: ${period}, Property: ${property}`,
+        letterhead,
       })
     } else if (format === 'excel') {
-      exportRowsAsExcel(filename, columns, filtered)
+      exportRowsAsExcel(filename, columns, filtered, undefined, { letterhead })
     } else {
-      exportRowsAsCSV(filename, columns, filtered)
+      exportRowsAsCSV(filename, columns, filtered, undefined, { letterhead })
     }
   }
 

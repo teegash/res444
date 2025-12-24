@@ -73,19 +73,22 @@ export default function ReportsPage() {
 
   const handleDownloadReport = (format: 'pdf' | 'excel' | 'csv') => {
     const fileBase = `dashboard-report-${new Date().toISOString().slice(0, 10)}`
+    const generatedAtISO = new Date().toISOString()
+    const letterhead = { documentTitle: 'Dashboard Snapshot', generatedAtISO }
     switch (format) {
       case 'pdf':
         exportRowsAsPDF(fileBase, columns, rows, {
           title: 'Dashboard Snapshot',
           subtitle: 'Revenue, occupancy, and payment performance',
           footerNote: `Generated on ${new Date().toLocaleString()}`,
+          letterhead,
         })
         break
       case 'excel':
-        exportRowsAsExcel(fileBase, columns, rows)
+        exportRowsAsExcel(fileBase, columns, rows, undefined, { letterhead })
         break
       case 'csv':
-        exportRowsAsCSV(fileBase, columns, rows)
+        exportRowsAsCSV(fileBase, columns, rows, undefined, { letterhead })
         break
     }
   }

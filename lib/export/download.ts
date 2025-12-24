@@ -1,8 +1,11 @@
 'use client'
 
-import jsPDF from 'jspdf'
-import autoTable from 'jspdf-autotable'
-import * as XLSX from 'xlsx'
+import type { LetterheadMeta, ResolvedOrganizationBrand } from '@/lib/exports/letterhead'
+import { fetchCurrentOrganizationBrand, safeFilename } from '@/lib/exports/letterhead'
+import { loadImageAsDataUrl } from '@/lib/exports/image'
+import { exportTablePdf } from '@/lib/exports/pdf'
+import { exportCsvWithLetterhead } from '@/lib/exports/csv'
+import { exportExcelWithLetterhead } from '@/lib/exports/excel'
 
 export type ExportColumn<T> = {
   header: string
@@ -16,55 +19,12 @@ type PdfOptions = {
   subtitle?: string
   footerNote?: string
   summaryRows?: Array<Array<string | number>>
+  letterhead?: Partial<LetterheadMeta>
+  orientation?: 'portrait' | 'landscape' | 'auto'
 }
 
-const BRAND_PRIMARY_RGB: [number, number, number] = [37, 99, 235] // #2563eb
-const BRAND_ACCENT_RGB: [number, number, number] = [241, 245, 249]
-const BRAND_DARK = '#0f172a'
-const BRAND_MUTED = '#475569'
-const PAGE_MARGIN = 48
-
-function drawPremiumHeader(doc: jsPDF, title?: string, subtitle?: string) {
-  const pageWidth = doc.internal.pageSize.getWidth()
-  const headerHeight = 90
-  doc.setFillColor(...BRAND_PRIMARY_RGB)
-  doc.rect(0, 0, pageWidth, headerHeight, 'F')
-
-  doc.setTextColor('#ffffff')
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(20)
-  doc.text(title || 'RES Report', PAGE_MARGIN, 50)
-
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(11)
-  if (subtitle) {
-    doc.text(subtitle, PAGE_MARGIN, 70)
-  }
-  doc.text(`Generated • ${new Date().toLocaleString()}`, pageWidth - PAGE_MARGIN, 70, {
-    align: 'right',
-  })
-
-  return headerHeight
-}
-
-function drawFooter(doc: jsPDF, footerNote?: string) {
-  const pageWidth = doc.internal.pageSize.getWidth()
-  const pageHeight = doc.internal.pageSize.getHeight()
-  const footerY = pageHeight - 30
-
-  doc.setTextColor(BRAND_MUTED)
-  doc.setFont('helvetica', 'italic')
-  doc.setFontSize(10)
-
-  if (footerNote) {
-    doc.text(footerNote, PAGE_MARGIN, footerY, {
-      maxWidth: pageWidth - PAGE_MARGIN * 2,
-    })
-  }
-
-  doc.text(`Page ${doc.internal.getNumberOfPages()}`, pageWidth - PAGE_MARGIN, footerY, {
-    align: 'right',
-  })
+type ExportMetaOptions = {
+  letterhead?: Partial<LetterheadMeta>
 }
 
 function normalizeValue(value: string | number | null | undefined) {
@@ -78,111 +38,136 @@ function normalizeValue(value: string | number | null | undefined) {
   return value
 }
 
-function downloadBlob(filename: string, blob: Blob) {
-  const link = document.createElement('a')
-  link.href = URL.createObjectURL(blob)
-  link.download = filename
-  document.body.appendChild(link)
-  link.click()
-  document.body.removeChild(link)
-  setTimeout(() => URL.revokeObjectURL(link.href), 0)
+function stripExtension(filename: string, ext: string) {
+  const re = new RegExp(`\\.${ext}$`, 'i')
+  return filename.replace(re, '')
 }
 
-export function exportRowsAsCSV<T>(
+let cachedOrgBrand: ResolvedOrganizationBrand | null | undefined
+let cachedOrgBrandAt = 0
+const ORG_CACHE_TTL_MS = 5 * 60 * 1000
+
+async function getOrgBrandCached() {
+  const now = Date.now()
+  if (cachedOrgBrandAt && now - cachedOrgBrandAt < ORG_CACHE_TTL_MS) return cachedOrgBrand ?? null
+  cachedOrgBrandAt = now
+  cachedOrgBrand = await fetchCurrentOrganizationBrand()
+  return cachedOrgBrand ?? null
+}
+
+async function resolveLetterheadMeta(args: {
+  filenameBase: string
+  title?: string
+  letterhead?: Partial<LetterheadMeta>
+}): Promise<LetterheadMeta> {
+  const nowIso = new Date().toISOString()
+  const orgBrand = await getOrgBrandCached()
+
+  const baseTitle = args.title || args.letterhead?.documentTitle || args.filenameBase
+  const organizationName =
+    args.letterhead?.organizationName || orgBrand?.name || 'RES'
+
+  return {
+    organizationName,
+    organizationLocation: args.letterhead?.organizationLocation || (orgBrand?.location ?? undefined),
+    organizationPhone: args.letterhead?.organizationPhone || (orgBrand?.phone ?? undefined),
+    organizationLogoUrl:
+      args.letterhead?.organizationLogoUrl !== undefined
+        ? args.letterhead.organizationLogoUrl
+        : orgBrand?.logo_url ?? null,
+    tenantName: args.letterhead?.tenantName,
+    tenantPhone: args.letterhead?.tenantPhone,
+    propertyName: args.letterhead?.propertyName,
+    unitNumber: args.letterhead?.unitNumber,
+    documentTitle: args.letterhead?.documentTitle || baseTitle,
+    generatedAtISO: args.letterhead?.generatedAtISO || nowIso,
+  }
+}
+
+export async function exportRowsAsCSV<T>(
   filename: string,
   columns: ExportColumn<T>[],
   data: T[],
-  summaryRows?: Array<Array<string | number>>
+  summaryRows?: Array<Array<string | number>>,
+  options?: ExportMetaOptions
 ) {
+  const filenameBase = safeFilename(stripExtension(filename, 'csv'))
+  const meta = await resolveLetterheadMeta({
+    filenameBase,
+    title: options?.letterhead?.documentTitle,
+    letterhead: options?.letterhead,
+  })
+
   const headers = columns.map((col) => col.header)
-  const rows = data.map((row) =>
-    columns.map((col) => {
-      const value = normalizeValue(col.accessor(row))
-      if (typeof value === 'number') {
-        return value.toString()
-      }
-      const needsQuotes = /[",\n]/.test(value)
-      const sanitized = value.replace(/"/g, '""')
-      return needsQuotes ? `"${sanitized}"` : sanitized
-    })
-  )
+  const rows = data.map((row) => columns.map((col) => normalizeValue(col.accessor(row)) as any))
 
-  const summary = summaryRows?.map((row) => row.map((cell) => `${cell}`)) || []
-
-  const csvContent = [headers.join(','), ...rows.map((row) => row.join(',')), ...summary.map((r) => r.join(','))].join('\n')
-  downloadBlob(filename.endsWith('.csv') ? filename : `${filename}.csv`, new Blob([csvContent], { type: 'text/csv;charset=utf-8;' }))
+  exportCsvWithLetterhead({
+    filenameBase,
+    meta,
+    headers,
+    rows: rows as any,
+    summaryRows,
+  })
 }
 
-export function exportRowsAsExcel<T>(
+export async function exportRowsAsExcel<T>(
   filename: string,
   columns: ExportColumn<T>[],
   data: T[],
-  summaryRows?: Array<Array<string | number>>
+  summaryRows?: Array<Array<string | number>>,
+  options?: ExportMetaOptions
 ) {
-  const aoa = [
-    columns.map((col) => col.header),
-    ...data.map((row) => columns.map((col) => normalizeValue(col.accessor(row)))),
-    ...(summaryRows || []),
-  ]
-  const worksheet = XLSX.utils.aoa_to_sheet(aoa)
-  const workbook = XLSX.utils.book_new()
-  XLSX.utils.book_append_sheet(workbook, worksheet, 'Report')
-  XLSX.writeFile(workbook, filename.endsWith('.xlsx') ? filename : `${filename}.xlsx`, { compression: true })
+  const filenameBase = safeFilename(stripExtension(filename, 'xlsx'))
+  const meta = await resolveLetterheadMeta({
+    filenameBase,
+    title: options?.letterhead?.documentTitle,
+    letterhead: options?.letterhead,
+  })
+
+  const headers = columns.map((col) => col.header)
+  const rows = data.map((row) => columns.map((col) => normalizeValue(col.accessor(row)) as any))
+
+  exportExcelWithLetterhead({
+    filenameBase,
+    sheetName: 'Report',
+    meta,
+    headers,
+    rows: rows as any,
+    summaryRows,
+  })
 }
 
-export function exportRowsAsPDF<T>(
+export async function exportRowsAsPDF<T>(
   filename: string,
   columns: ExportColumn<T>[],
   data: T[],
   options?: PdfOptions
 ) {
-  const doc = new jsPDF({
-    unit: 'pt',
-    format: 'a4',
+  const filenameBase = safeFilename(stripExtension(filename, 'pdf'))
+  const meta = await resolveLetterheadMeta({
+    filenameBase,
+    title: options?.title,
+    letterhead: options?.letterhead,
   })
 
-  const headerHeight = drawPremiumHeader(doc, options?.title, options?.subtitle)
-  let cursorY = headerHeight + 30
+  const logo = meta.organizationLogoUrl ? await loadImageAsDataUrl(meta.organizationLogoUrl) : null
 
-  autoTable(doc, {
-    startY: cursorY,
-    theme: 'striped',
-    margin: { left: PAGE_MARGIN, right: PAGE_MARGIN },
-    head: [columns.map((col) => col.header)],
-    body: [
-      ...data.map((row) => columns.map((col) => normalizeValue(col.accessor(row)))),
-      ...(options?.summaryRows || []),
-    ],
-    styles: {
-      fontSize: 10,
-      cellPadding: 6,
-      font: 'helvetica',
-    },
-    headStyles: {
-      fillColor: BRAND_PRIMARY_RGB,
-      textColor: [255, 255, 255],
-      fontStyle: 'bold',
-      halign: 'left',
-    },
-    bodyStyles: {
-      halign: 'left',
-      textColor: BRAND_DARK,
-      fillColor: BRAND_ACCENT_RGB,
-      lineColor: [226, 232, 240],
-    },
-    alternateRowStyles: {
-      fillColor: [255, 255, 255],
-    },
-    columnStyles: columns.reduce<Record<number, { halign: 'left' | 'right' | 'center' }>>((acc, col, index) => {
-      if (col.align) {
-        acc[index] = { halign: col.align }
-      }
-      return acc
-    }, {}),
-    stylesAlign: 'left',
+  const pdfColumns = columns.map((col) => ({
+    header: col.header,
+    align: col.align,
+  }))
+
+  const body = data.map((row) => columns.map((col) => normalizeValue(col.accessor(row)) as any))
+
+  exportTablePdf({
+    filenameBase,
+    meta,
+    subtitle: options?.subtitle,
+    columns: pdfColumns,
+    body: body as any,
+    summaryRows: options?.summaryRows,
+    footerNote: options?.footerNote,
+    logo,
+    orientation: options?.orientation,
   })
-
-  drawFooter(doc, options?.footerNote)
-
-  doc.save(filename.endsWith('.pdf') ? filename : `${filename}.pdf`)
 }

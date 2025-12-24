@@ -58,6 +58,8 @@ export default function OccupancyReportPage() {
 
   const handleExport = (format: 'pdf' | 'excel' | 'csv') => {
     const filename = `occupancy-${period}-${property}-${new Date().toISOString().slice(0, 10)}`
+    const generatedAtISO = new Date().toISOString()
+    const letterhead = { documentTitle: 'Occupancy Report', generatedAtISO }
     const columns = [
       { header: 'Property', accessor: (row: OccupancyRow) => row.property },
       { header: 'Occupied', accessor: (row: OccupancyRow) => `${row.occupied}/${row.total}` },
@@ -75,11 +77,12 @@ export default function OccupancyReportPage() {
         title: 'Occupancy Report',
         subtitle: `Period: ${period}, Property: ${property}`,
         summaryRows,
+        letterhead,
       })
     } else if (format === 'excel') {
-      exportRowsAsExcel(filename, columns, rows, summaryRows)
+      exportRowsAsExcel(filename, columns, rows, summaryRows, { letterhead })
     } else {
-      exportRowsAsCSV(filename, columns, rows, summaryRows)
+      exportRowsAsCSV(filename, columns, rows, summaryRows, { letterhead })
     }
   }
 

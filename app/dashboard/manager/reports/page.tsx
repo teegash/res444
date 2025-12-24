@@ -174,6 +174,8 @@ export default function ReportsPage() {
 
   const handleExport = (format: 'pdf' | 'excel' | 'csv') => {
     const filename = `reports-${period}-${propertyScope}-${new Date().toISOString().slice(0, 10)}`
+    const generatedAtISO = new Date().toISOString()
+    const letterhead = { documentTitle: 'Portfolio Performance', generatedAtISO }
     const columns = [
       { header: 'Property', accessor: (row: any) => row.property },
       { header: 'Revenue', accessor: (row: any) => row.revenue },
@@ -198,11 +200,13 @@ export default function ReportsPage() {
         title: 'Portfolio Performance',
         subtitle: `Period: ${period}, Scope: ${propertyScope}. Performance % mirrors the bar graph (revenue vs expected).`,
         summaryRows,
+        letterhead,
+        orientation: 'landscape',
       })
     } else if (format === 'excel') {
-      exportRowsAsExcel(filename, columns, exportRows, summaryRows)
+      exportRowsAsExcel(filename, columns, exportRows, summaryRows, { letterhead })
     } else {
-      exportRowsAsCSV(filename, columns, exportRows, summaryRows)
+      exportRowsAsCSV(filename, columns, exportRows, summaryRows, { letterhead })
     }
   }
 

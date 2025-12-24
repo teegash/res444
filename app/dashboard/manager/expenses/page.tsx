@@ -410,6 +410,8 @@ export default function ExpensesPage() {
 
   const handleExport = (format: 'pdf' | 'excel' | 'csv') => {
     const filename = `expenses-${propertyFilter}-${new Date().toISOString().slice(0, 10)}`
+    const generatedAtISO = new Date().toISOString()
+    const letterhead = { documentTitle: 'Expenses', generatedAtISO }
     const columns = [
       { header: 'Property', accessor: (row: Expense) => row.apartment_buildings?.name || 'Property' },
       { header: 'Category', accessor: (row: Expense) => row.category },
@@ -425,11 +427,12 @@ export default function ExpensesPage() {
         title: 'Expenses',
         subtitle: `Property: ${propertyFilter}`,
         summaryRows,
+        letterhead,
       })
     } else if (format === 'excel') {
-      exportRowsAsExcel(filename, columns, filteredOneTimeExpenses, summaryRows)
+      exportRowsAsExcel(filename, columns, filteredOneTimeExpenses, summaryRows, { letterhead })
     } else {
-      exportRowsAsCSV(filename, columns, filteredOneTimeExpenses, summaryRows)
+      exportRowsAsCSV(filename, columns, filteredOneTimeExpenses, summaryRows, { letterhead })
     }
   }
 

@@ -1,0 +1,63 @@
+'use client'
+
+import { saveAs } from 'file-saver'
+import type { LetterheadMeta } from './letterhead'
+
+function normalizeCell(value: unknown) {
+  if (value === null || value === undefined) return ''
+  if (typeof value === 'number') return Number.isFinite(value) ? `${value}` : ''
+  return `${value}`
+}
+
+function csvEscape(value: string) {
+  const needsQuotes = /[",\n]/.test(value)
+  const sanitized = value.replace(/"/g, '""')
+  return needsQuotes ? `"${sanitized}"` : sanitized
+}
+
+export function exportCsvWithLetterhead(args: {
+  filenameBase: string
+  meta?: LetterheadMeta | null
+  headers: string[]
+  rows: Array<Array<string | number>>
+  summaryRows?: Array<Array<string | number>>
+}) {
+  const lines: string[] = []
+
+  if (args.meta) {
+    const m = args.meta
+    lines.push(['Organization', m.organizationName].map((v) => csvEscape(normalizeCell(v))).join(','))
+    if (m.organizationLocation) {
+      lines.push(['Location', m.organizationLocation].map((v) => csvEscape(normalizeCell(v))).join(','))
+    }
+    if (m.organizationPhone) {
+      lines.push(['Phone', m.organizationPhone].map((v) => csvEscape(normalizeCell(v))).join(','))
+    }
+    lines.push(['Document', m.documentTitle].map((v) => csvEscape(normalizeCell(v))).join(','))
+    lines.push(['Generated', m.generatedAtISO].map((v) => csvEscape(normalizeCell(v))).join(','))
+    if (m.tenantName) lines.push(['Tenant', m.tenantName].map((v) => csvEscape(normalizeCell(v))).join(','))
+    if (m.tenantPhone) lines.push(['Tenant Phone', m.tenantPhone].map((v) => csvEscape(normalizeCell(v))).join(','))
+    if (m.propertyName) lines.push(['Property', m.propertyName].map((v) => csvEscape(normalizeCell(v))).join(','))
+    if (m.unitNumber) lines.push(['Unit', m.unitNumber].map((v) => csvEscape(normalizeCell(v))).join(','))
+    lines.push('') // spacer line
+  }
+
+  lines.push(args.headers.map((h) => csvEscape(normalizeCell(h))).join(','))
+
+  for (const row of args.rows) {
+    lines.push(row.map((cell) => csvEscape(normalizeCell(cell))).join(','))
+  }
+
+  if (args.summaryRows?.length) {
+    lines.push('')
+    for (const row of args.summaryRows) {
+      lines.push(row.map((cell) => csvEscape(normalizeCell(cell))).join(','))
+    }
+  }
+
+  const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' })
+  saveAs(blob, `${args.filenameBase}.csv`)
+}
+
+// Backward-friendly alias name (as referenced in the implementation guide).
+export const exportCsv = exportCsvWithLetterhead

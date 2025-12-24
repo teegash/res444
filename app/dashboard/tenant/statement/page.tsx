@@ -168,25 +168,36 @@ export default function TenantAccountStatementPage() {
     { header: 'Balance', accessor: (txn) => formatCurrency(txn.balance_after ?? 0), align: 'right' },
   ]
 
-  const handleExport = (format: 'pdf' | 'csv' | 'excel') => {
+  const handleExport = async (format: 'pdf' | 'csv' | 'excel') => {
     if (!statement) return
     setExporting(true)
     const fileBase = `account-statement-${tenantName.replace(/\s+/g, '-').toLowerCase()}`
     const subtitle = `${tenantName} • ${propertyLabel} • ${periodLabel}`
+    const letterhead = {
+      organizationName: organization?.name || 'RES',
+      organizationLogoUrl: organization?.logo_url || null,
+      tenantName,
+      tenantPhone: statement.tenant.phone_number || undefined,
+      propertyName: statement.lease?.property_name || undefined,
+      unitNumber: statement.lease?.unit_number || undefined,
+      documentTitle: 'Account Statement',
+      generatedAtISO: new Date().toISOString(),
+    }
     try {
       if (format === 'pdf') {
-        exportRowsAsPDF(fileBase, exportColumns, transactions, {
+        await exportRowsAsPDF(fileBase, exportColumns, transactions, {
           title: 'Account Statement',
           subtitle,
           footerNote: `Generated on ${new Date().toLocaleString()}`,
+          letterhead,
         })
       } else if (format === 'excel') {
-        exportRowsAsExcel(fileBase, exportColumns, transactions)
+        await exportRowsAsExcel(fileBase, exportColumns, transactions, undefined, { letterhead })
       } else {
-        exportRowsAsCSV(fileBase, exportColumns, transactions)
+        await exportRowsAsCSV(fileBase, exportColumns, transactions, undefined, { letterhead })
       }
     } finally {
-      setTimeout(() => setExporting(false), 300)
+      setExporting(false)
     }
   }
 

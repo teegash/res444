@@ -233,30 +233,41 @@ export default function TenantStatementPage({ params }: { params: { id?: string 
     },
   ]
 
-  const handleExport = (format: 'pdf' | 'csv' | 'excel') => {
+  const handleExport = async (format: 'pdf' | 'csv' | 'excel') => {
     if (!statement) return
     setExporting(true)
     const fileBase = tenantId ? `tenant-statement-${tenantId}` : 'tenant-statement'
     const subtitle = `${tenantName} • ${propertyLabel}`
+    const letterhead = {
+      organizationName: organization?.name || 'RES',
+      organizationLogoUrl: organization?.logo_url || null,
+      tenantName,
+      tenantPhone: statement?.tenant?.phone_number || undefined,
+      propertyName: statement?.lease?.property_name || undefined,
+      unitNumber: statement?.lease?.unit_number || undefined,
+      documentTitle: 'Tenant Account Statement',
+      generatedAtISO: new Date().toISOString(),
+    }
 
     try {
       switch (format) {
         case 'pdf':
-          exportRowsAsPDF(fileBase, exportColumns, transactions, {
+          await exportRowsAsPDF(fileBase, exportColumns, transactions, {
             title: 'Tenant Account Statement',
             subtitle: `${subtitle} • ${periodLabel}`,
             footerNote: `Generated on ${new Date().toLocaleString()}`,
+            letterhead,
           })
           break
         case 'csv':
-          exportRowsAsCSV(fileBase, exportColumns, transactions)
+          await exportRowsAsCSV(fileBase, exportColumns, transactions, undefined, { letterhead })
           break
         case 'excel':
-          exportRowsAsExcel(fileBase, exportColumns, transactions)
+          await exportRowsAsExcel(fileBase, exportColumns, transactions, undefined, { letterhead })
           break
       }
     } finally {
-      setTimeout(() => setExporting(false), 300)
+      setExporting(false)
     }
   }
 

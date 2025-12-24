@@ -411,10 +411,19 @@ export default function PaymentHistoryPage() {
     },
   ]
 
-  const handleExport = (format: 'pdf' | 'csv' | 'excel') => {
+  const handleExport = async (format: 'pdf' | 'csv' | 'excel') => {
     setExporting(true)
     const fileBase = `tenant-payments-${tenantName.replace(/\s+/g, '-').toLowerCase()}`
     const subtitle = `${tenantName} • ${propertyLabel}`
+    const generatedAtISO = new Date().toISOString()
+    const letterhead = {
+      tenantName,
+      tenantPhone: tenantSummary?.profile?.phone_number || undefined,
+      propertyName: tenantSummary?.lease?.property_name || undefined,
+      unitNumber: tenantSummary?.lease?.unit_label || undefined,
+      documentTitle: 'Payment History',
+      generatedAtISO,
+    }
     const rows: ExportRow[] = [
       ...payments,
       {
@@ -440,21 +449,22 @@ export default function PaymentHistoryPage() {
     try {
       switch (format) {
         case 'pdf':
-          exportRowsAsPDF(fileBase, exportColumns, rows, {
+          await exportRowsAsPDF(fileBase, exportColumns, rows, {
             title: 'Payment History',
             subtitle,
             footerNote: `Generated on ${new Date().toLocaleString()}`,
+            letterhead,
           })
           break
         case 'csv':
-          exportRowsAsCSV(fileBase, exportColumns, rows)
+          await exportRowsAsCSV(fileBase, exportColumns, rows, undefined, { letterhead })
           break
         case 'excel':
-          exportRowsAsExcel(fileBase, exportColumns, rows)
+          await exportRowsAsExcel(fileBase, exportColumns, rows, undefined, { letterhead })
           break
       }
     } finally {
-      setTimeout(() => setExporting(false), 300)
+      setExporting(false)
     }
   }
 

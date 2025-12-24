@@ -118,6 +118,7 @@ export function StatementsAtGlanceGrid() {
 
     const now = new Date()
     const dateStamp = now.toISOString().slice(0, 10)
+    const generatedAtISO = now.toISOString()
     const fileBase = `statements-at-a-glance-${dateStamp}`
     const subtitleParts: string[] = []
     if (buildingId) subtitleParts.push(`Property filter: ${buildingOptions.find((b) => b.id === buildingId)?.name || buildingId}`)
@@ -134,19 +135,34 @@ export function StatementsAtGlanceGrid() {
     try {
       setExporting(true)
       if (format === "pdf") {
-        exportRowsAsPDF(fileBase, exportColumns, dataToExport, {
+        await exportRowsAsPDF(fileBase, exportColumns, dataToExport, {
           title: "Tenant Statements (At-a-glance)",
           subtitle: subtitleParts.join(" • "),
           footerNote: "Figures reflect the filtered/sorted table view at time of export.",
           summaryRows,
+          letterhead: {
+            documentTitle: "Tenant Statements (At-a-glance)",
+            generatedAtISO,
+          },
+          orientation: "landscape",
         })
       } else if (format === "excel") {
-        exportRowsAsExcel(fileBase, exportColumns, dataToExport, summaryRows)
+        await exportRowsAsExcel(fileBase, exportColumns, dataToExport, summaryRows, {
+          letterhead: {
+            documentTitle: "Tenant Statements (At-a-glance)",
+            generatedAtISO,
+          },
+        })
       } else {
-        exportRowsAsCSV(fileBase, exportColumns, dataToExport, summaryRows)
+        await exportRowsAsCSV(fileBase, exportColumns, dataToExport, summaryRows, {
+          letterhead: {
+            documentTitle: "Tenant Statements (At-a-glance)",
+            generatedAtISO,
+          },
+        })
       }
     } finally {
-      setTimeout(() => setExporting(false), 300)
+      setExporting(false)
     }
   }
 

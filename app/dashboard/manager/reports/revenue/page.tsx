@@ -63,6 +63,8 @@ export default function RevenueReportPage() {
 
   const handleExport = (format: 'pdf' | 'excel' | 'csv') => {
     const filename = `revenue-${period}-${property}-${new Date().toISOString().slice(0, 10)}`
+    const generatedAtISO = new Date().toISOString()
+    const letterhead = { documentTitle: 'Revenue Report', generatedAtISO }
     const columns = [
       { header: 'Property', accessor: (row: RevenueRow) => row.property },
       { header: 'Period', accessor: (row: RevenueRow) => row.period },
@@ -77,11 +79,12 @@ export default function RevenueReportPage() {
         title: 'Revenue Report',
         subtitle: `Period: ${period}, Property: ${property}`,
         summaryRows,
+        letterhead,
       })
     } else if (format === 'excel') {
-      exportRowsAsExcel(filename, columns, filtered, summaryRows)
+      exportRowsAsExcel(filename, columns, filtered, summaryRows, { letterhead })
     } else {
-      exportRowsAsCSV(filename, columns, filtered, summaryRows)
+      exportRowsAsCSV(filename, columns, filtered, summaryRows, { letterhead })
     }
   }
 

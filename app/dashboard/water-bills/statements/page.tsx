@@ -196,10 +196,13 @@ export default function WaterBillStatementsPage() {
                 size="sm"
                 onClick={() => {
                   const fileBase = `water-bill-statements-${new Date().toISOString().slice(0, 10)}`
+                  const generatedAtISO = new Date().toISOString()
+                  const letterhead = { documentTitle: 'Water Bill Statements', generatedAtISO }
                   if (filteredRecords.length === 0) return
                   exportRowsAsPDF(fileBase, exportColumns, filteredRecords, {
                     title: 'Water Bill Statements',
                     subtitle: `Filtered (${propertyFilter}, ${statusFilter})`,
+                    letterhead,
                   })
                 }}
                 disabled={loading || filteredRecords.length === 0}
@@ -211,8 +214,10 @@ export default function WaterBillStatementsPage() {
                 size="sm"
                 onClick={() => {
                   const fileBase = `water-bill-statements-${new Date().toISOString().slice(0, 10)}`
+                  const generatedAtISO = new Date().toISOString()
+                  const letterhead = { documentTitle: 'Water Bill Statements', generatedAtISO }
                   if (filteredRecords.length === 0) return
-                  exportRowsAsExcel(fileBase, exportColumns, filteredRecords)
+                  exportRowsAsExcel(fileBase, exportColumns, filteredRecords, undefined, { letterhead })
                 }}
                 disabled={loading || filteredRecords.length === 0}
               >
@@ -223,8 +228,10 @@ export default function WaterBillStatementsPage() {
                 size="sm"
                 onClick={() => {
                   const fileBase = `water-bill-statements-${new Date().toISOString().slice(0, 10)}`
+                  const generatedAtISO = new Date().toISOString()
+                  const letterhead = { documentTitle: 'Water Bill Statements', generatedAtISO }
                   if (filteredRecords.length === 0) return
-                  exportRowsAsCSV(fileBase, exportColumns, filteredRecords)
+                  exportRowsAsCSV(fileBase, exportColumns, filteredRecords, undefined, { letterhead })
                 }}
                 disabled={loading || filteredRecords.length === 0}
               >

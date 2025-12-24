@@ -120,18 +120,22 @@ export function VerifiedPaymentsTab({ payments, stats, loading }: VerifiedPaymen
 
   const handleExportAll = (format: 'csv' | 'pdf' | 'excel') => {
     const filename = `verified-payments-${timeFilter === 'all' ? 'all-time' : `last-${timeFilter}-days`}`
+    const rangeLabel = timeFilter === 'all' ? 'All Time' : `Past ${timeFilter} days`
+    const generatedAtISO = new Date().toISOString()
+    const letterhead = { documentTitle: `Verified Payments (${rangeLabel})`, generatedAtISO }
     switch (format) {
       case 'csv':
-        exportRowsAsCSV(filename, exportColumns, filteredPayments)
+        exportRowsAsCSV(filename, exportColumns, filteredPayments, undefined, { letterhead })
         break
       case 'excel':
-        exportRowsAsExcel(filename, exportColumns, filteredPayments)
+        exportRowsAsExcel(filename, exportColumns, filteredPayments, undefined, { letterhead })
         break
       case 'pdf':
         exportRowsAsPDF(filename, exportColumns, filteredPayments, {
           title: 'Verified Payments',
-          subtitle: `Range: ${timeFilter === 'all' ? 'All Time' : `Past ${timeFilter} days`}`,
+          subtitle: `Range: ${rangeLabel}`,
           footerNote: `Generated on ${new Date().toLocaleString()}`,
+          letterhead,
         })
         break
     }
