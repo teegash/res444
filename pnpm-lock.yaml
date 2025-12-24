@@ -92,6 +92,15 @@ importers:
       '@radix-ui/react-tooltip':
         specifier: latest
         version: 1.2.8(@types/react-dom@19.2.3(@types/react@19.2.6))(@types/react@19.2.6)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
+      '@signpdf/placeholder-plain':
+        specifier: ^3.2.5
+        version: 3.2.5(pdfkit@0.17.2)
+      '@signpdf/signer-p12':
+        specifier: ^3.2.4
+        version: 3.2.4(node-forge@1.3.3)
+      '@signpdf/signpdf':
+        specifier: ^3.2.5
+        version: 3.2.5
       '@supabase/ssr':
         specifier: ^0.7.0
         version: 0.7.0(@supabase/supabase-js@2.83.0)
@@ -158,9 +167,15 @@ importers:
       next-themes:
         specifier: latest
         version: 0.4.6(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
+      node-forge:
+        specifier: ^1.3.3
+        version: 1.3.3
       nodemailer:
         specifier: ^7.0.10
         version: 7.0.10
+      pdf-lib:
+        specifier: ^1.17.1
+        version: 1.17.1
       pdfkit:
         specifier: ^0.17.2
         version: 0.17.2
@@ -491,6 +506,12 @@ packages:
     engines: {node: '>= 10'}
     cpu: [x64]
     os: [win32]
+
+  '@pdf-lib/standard-fonts@1.0.0':
+    resolution: {integrity: sha512-hU30BK9IUN/su0Mn9VdlVKsWBS6GyhVfqjwl1FjZN4TxP6cCw0jP2w7V3Hf5uX7M0AZJ16vey9yE0ny7Sa59ZA==}
+
+  '@pdf-lib/upng@1.0.1':
+    resolution: {integrity: sha512-dQK2FUMQtowVP00mtIksrlZhdFXQZPC+taih1q4CvPZ5vqdxR/LKBaFg0oAfzd1GlHZXXSPdQfzQnt+ViGvEIQ==}
 
   '@radix-ui/number@1.1.1':
     resolution: {integrity: sha512-MkKCwxlXTgz6CFoJx3pCwn07GKp36+aZyu/u2Ln2VrA5DcdyCZkASEDBTd8x5whTQQL5CiYf4prXKLcgQdv29g==}
@@ -1158,6 +1179,30 @@ packages:
         optional: true
       react-redux:
         optional: true
+
+  '@signpdf/placeholder-pdfkit010@3.2.5':
+    resolution: {integrity: sha512-dLfUIyeqjFP6pUxegucK6G5HLTzdSSwHghqh621ocKDUH7/dCCd/BazS8B50yFBd+UBlGj7AvVzOV4Q0gGNfzw==}
+    engines: {node: '>=12', yarn: '>=1.22.18'}
+    peerDependencies:
+      pdfkit: ~0.10.0
+
+  '@signpdf/placeholder-plain@3.2.5':
+    resolution: {integrity: sha512-G6yq5zGNw86nck0OcoGP+mFawAKcHKA6L8Hamfsl9V2jMQjYmJFhZZdkZOw3CR2ApruXb7GN83tPxhiCKrWjfg==}
+    engines: {node: '>=12'}
+
+  '@signpdf/signer-p12@3.2.4':
+    resolution: {integrity: sha512-DTeYMj1DI30VYmaZXp2zZEg9YwVm3NmqjLF3q6ZxUwlOUSLLOUFkVafIs4YibTAGBmgjWKEMfmNCndK2ACLlzQ==}
+    engines: {node: '>=12', yarn: '>=1.22.18'}
+    peerDependencies:
+      node-forge: ^1.2.1
+
+  '@signpdf/signpdf@3.2.5':
+    resolution: {integrity: sha512-mxGgVU+VkhCxNZ1eDGCmkE5zWFJExXPXn2myjrLcekHnJNpBKZr6WBrrznGOlLeDVAaiSVXjeysehgpZSJlJIA==}
+    engines: {node: '>=12'}
+
+  '@signpdf/utils@3.2.4':
+    resolution: {integrity: sha512-6e7OZugRY6obyTbAKdj6yCIywCJqN0FDywsIrhkRnOTAKm4J3WVXq18NjzmE6iEXLknxok9EXNW/eVvY9Vp1gg==}
+    engines: {node: '>=12', yarn: '>=1.22.18'}
 
   '@standard-schema/spec@1.0.0':
     resolution: {integrity: sha512-m2bOd0f2RT9k8QJx1JN85cZYyH1RqFBdlwtkSlf4tBDYLCiiZnv1fIIwacK6cqwXavOydf0NPToMQgpKq+dVlA==}
@@ -2058,6 +2103,10 @@ packages:
       sass:
         optional: true
 
+  node-forge@1.3.3:
+    resolution: {integrity: sha512-rLvcdSyRCyouf6jcOIPe/BgwG/d7hKjzMKOas33/pHEr6gbq18IK9zV7DiPvzsz0oBJPme6qr6H6kGZuI9/DZg==}
+    engines: {node: '>= 6.13.0'}
+
   node-releases@2.0.27:
     resolution: {integrity: sha512-nmh3lCkYZ3grZvqcCH+fjmQ7X+H0OeZgP40OierEaAptX4XofMh5kwNbWh7lBduUzCcV/8kZ+NDLCwm2iorIlA==}
 
@@ -2092,6 +2141,9 @@ packages:
   path-is-absolute@1.0.1:
     resolution: {integrity: sha512-AVbw3UJ2e9bq64vSaS9Am0fje1Pa8pbGqTTsmXfaIiMpnr5DlDhfJOuLj9Sf95ZPVDAUerDfEk88MPmPe7UCQg==}
     engines: {node: '>=0.10.0'}
+
+  pdf-lib@1.17.1:
+    resolution: {integrity: sha512-V/mpyJAoTsN4cnP31vc0wfNA1+p20evqqnap0KLoRUN0Yk/p3wN52DOEsL4oBFcLdb76hlpKPtzJIgo67j/XLw==}
 
   pdfkit@0.17.2:
     resolution: {integrity: sha512-UnwF5fXy08f0dnp4jchFYAROKMNTaPqb/xgR8GtCzIcqoTnbOqtp3bwKvO4688oHI6vzEEs8Q6vqqEnC5IUELw==}
@@ -2347,6 +2399,9 @@ packages:
 
   traverse@0.3.9:
     resolution: {integrity: sha512-iawgk0hLP3SxGKDfnDJf8wTz4p2qImnyihM5Hh/sGvQ3K37dPi/w8sRhdNIxYA1TwFwc5mDhIJq+O0RsvXBKdQ==}
+
+  tslib@1.14.1:
+    resolution: {integrity: sha512-Xni35NKzjgMrwevysHTCArtLDpPvye8zV/0E4EyYn43P7/7qvQwPh9BGkHewbMulVntbigmcT7rdX3BNo9wRJg==}
 
   tslib@2.8.1:
     resolution: {integrity: sha512-oJFu94HQb+KVduSUQL7wnpmqnfmLsOA/nAh6b6EH0wCEoK0/mPeXU6c3wKDV83MkOuHPRHtSXKKU99IBazS/2w==}
@@ -2669,6 +2724,14 @@ snapshots:
 
   '@next/swc-win32-x64-msvc@16.0.8':
     optional: true
+
+  '@pdf-lib/standard-fonts@1.0.0':
+    dependencies:
+      pako: 1.0.11
+
+  '@pdf-lib/upng@1.0.1':
+    dependencies:
+      pako: 1.0.11
 
   '@radix-ui/number@1.1.1': {}
 
@@ -3376,6 +3439,29 @@ snapshots:
     optionalDependencies:
       react: 19.2.0
       react-redux: 9.2.0(@types/react@19.2.6)(react@19.2.0)(redux@5.0.1)
+
+  '@signpdf/placeholder-pdfkit010@3.2.5(pdfkit@0.17.2)':
+    dependencies:
+      '@signpdf/utils': 3.2.4
+      pdfkit: 0.17.2
+
+  '@signpdf/placeholder-plain@3.2.5(pdfkit@0.17.2)':
+    dependencies:
+      '@signpdf/placeholder-pdfkit010': 3.2.5(pdfkit@0.17.2)
+      '@signpdf/utils': 3.2.4
+    transitivePeerDependencies:
+      - pdfkit
+
+  '@signpdf/signer-p12@3.2.4(node-forge@1.3.3)':
+    dependencies:
+      '@signpdf/utils': 3.2.4
+      node-forge: 1.3.3
+
+  '@signpdf/signpdf@3.2.5':
+    dependencies:
+      '@signpdf/utils': 3.2.4
+
+  '@signpdf/utils@3.2.4': {}
 
   '@standard-schema/spec@1.0.0': {}
 
@@ -4248,6 +4334,8 @@ snapshots:
       - '@babel/core'
       - babel-plugin-macros
 
+  node-forge@1.3.3: {}
+
   node-releases@2.0.27: {}
 
   nodemailer@7.0.10: {}
@@ -4269,6 +4357,13 @@ snapshots:
   pako@2.1.0: {}
 
   path-is-absolute@1.0.1: {}
+
+  pdf-lib@1.17.1:
+    dependencies:
+      '@pdf-lib/standard-fonts': 1.0.0
+      '@pdf-lib/upng': 1.0.1
+      pako: 1.0.11
+      tslib: 1.14.1
 
   pdfkit@0.17.2:
     dependencies:
@@ -4544,6 +4639,8 @@ snapshots:
   tmp@0.2.5: {}
 
   traverse@0.3.9: {}
+
+  tslib@1.14.1: {}
 
   tslib@2.8.1: {}
 

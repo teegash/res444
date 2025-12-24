@@ -4,7 +4,7 @@
 	import { useState, useEffect, useMemo } from 'react'
 	import { usePathname, useRouter } from 'next/navigation'
 	import { Button } from '@/components/ui/button'
-	import { LayoutDashboard, Building2, Users, CreditCard, Droplet, Wrench, MessageSquare, Bell, BarChart3, FileText, Settings, LogOut, Lock, Unlock, Receipt, Camera, Loader2 } from 'lucide-react'
+		import { LayoutDashboard, Building2, Users, CreditCard, Droplet, Wrench, MessageSquare, Bell, BarChart3, FileText, PenLine, Settings, LogOut, Lock, Unlock, Receipt, Camera, Loader2 } from 'lucide-react'
 	import { cn } from '@/lib/utils'
 	import { useAuth } from '@/lib/auth/context'
 	import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -23,6 +23,7 @@ const menuItems = [
   { icon: Bell, label: 'Notices', href: '/dashboard/manager/notices' },
   { icon: BarChart3, label: 'Reports', href: '/dashboard/manager/reports' },
   { icon: FileText, label: 'Statements', href: '/dashboard/manager/statements' },
+  { icon: PenLine, label: 'Lease Renewals', href: '/dashboard/manager/lease-renewals' },
 ]
 
 	function Sidebar() {
