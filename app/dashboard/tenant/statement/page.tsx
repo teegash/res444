@@ -200,7 +200,7 @@ export default function TenantAccountStatementPage() {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      <div className="max-w-5xl mx-auto p-4 md:p-6 space-y-6">
+      <div className="mx-auto w-full max-w-[1440px] px-3 sm:px-4 lg:px-6 py-4 space-y-6">
         <div className="flex items-center justify-between flex-wrap gap-4">
           <div className="flex items-center gap-4">
             <Link href="/dashboard/tenant/payments">
@@ -237,7 +237,7 @@ export default function TenantAccountStatementPage() {
         </div>
 
         <div className="bg-white rounded-lg shadow-sm">
-          <div className="p-8 md:p-12">
+          <div className="p-4 sm:p-6 lg:p-10">
             <div className="flex items-start justify-between mb-8 pb-6 border-b">
               <div className="flex items-center gap-3">
                 <div className="p-3 bg-green-100 rounded-lg">
@@ -362,4 +362,3 @@ export default function TenantAccountStatementPage() {
     </div>
   )
 }
-
