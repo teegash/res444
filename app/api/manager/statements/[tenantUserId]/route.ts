@@ -148,13 +148,22 @@ function coerceNumber(value: unknown): number | null {
 }
 
 function toStatementTransaction(row: any, fallbackId: string): StatementTransaction {
+  const entryType = coerceString(row?.entry_type)
+
+  const debit = coerceNumber(row?.debit) ?? 0
+  const credit = coerceNumber(row?.credit) ?? 0
+
   const kindRaw = coerceString(row?.kind) || coerceString(row?.type) || coerceString(row?.transaction_kind)
   const kind: StatementTransaction['kind'] =
-    kindRaw === 'payment' || kindRaw === 'charge'
-      ? (kindRaw as StatementTransaction['kind'])
-      : (coerceNumber(row?.amount) ?? coerceNumber(row?.amount_paid) ?? 0) < 0
-        ? 'payment'
-        : 'charge'
+    entryType === 'payment'
+      ? 'payment'
+      : entryType === 'invoice'
+        ? 'charge'
+        : kindRaw === 'payment' || kindRaw === 'charge'
+          ? (kindRaw as StatementTransaction['kind'])
+          : debit - credit < 0
+            ? 'payment'
+            : 'charge'
 
   const paymentType =
     coerceString(row?.payment_type) ||
@@ -166,11 +175,13 @@ function toStatementTransaction(row: any, fallbackId: string): StatementTransact
 
   const status =
     coerceString(row?.status) ||
+    coerceString(row?.status_text) ||
     coerceString(row?.payment_status) ||
     (row?.verified === true ? 'verified' : 'posted')
 
   const postedAt =
     coerceString(row?.posted_at) ||
+    coerceString(row?.entry_date) ||
     coerceString(row?.payment_date) ||
     coerceString(row?.due_date) ||
     coerceString(row?.created_at)
@@ -193,19 +204,21 @@ function toStatementTransaction(row: any, fallbackId: string): StatementTransact
     coerceString(row?.transaction_id) ||
     coerceString(row?.payment_id) ||
     coerceString(row?.invoice_id) ||
+    coerceString(row?.source_id) ||
     fallbackId
 
-  const rawAmount =
+  const netAmount =
     coerceNumber(row?.amount) ??
-    coerceNumber(row?.amount_paid) ??
-    coerceNumber(row?.amount_due) ??
-    coerceNumber(row?.charge_amount) ??
-    0
+    coerceNumber(row?.net_amount) ??
+    coerceNumber(row?.debit_minus_credit) ??
+    debit - credit
 
-  const normalizedAmount =
-    kind === 'payment' ? -Math.abs(rawAmount) : Math.abs(rawAmount)
+  const normalizedAmount = kind === 'payment' ? -Math.abs(netAmount) : Math.abs(netAmount)
 
-  const balanceAfter = coerceNumber(row?.balance_after) ?? coerceNumber(row?.balance)
+  const balanceAfter =
+    coerceNumber(row?.balance_after) ??
+    coerceNumber(row?.running_balance) ??
+    coerceNumber(row?.balance)
   const coverageLabel =
     coerceString(row?.coverage_label) || coerceString(row?.coverageLabel) || coerceString(row?.coverage)
 
