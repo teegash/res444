@@ -132,13 +132,6 @@ function toStatementTransaction(row: any, fallbackId: string): StatementTransact
     coerceString(row?.memo) ||
     (kind === 'payment' ? 'Payment' : 'Charge')
 
-  const reference =
-    coerceString(row?.reference) ||
-    coerceString(row?.mpesa_receipt_number) ||
-    coerceString(row?.bank_reference_number) ||
-    coerceString(row?.receipt_number) ||
-    null
-
   const id =
     coerceString(row?.id) ||
     coerceString(row?.transaction_id) ||
@@ -146,6 +139,26 @@ function toStatementTransaction(row: any, fallbackId: string): StatementTransact
     coerceString(row?.invoice_id) ||
     coerceString(row?.source_id) ||
     fallbackId
+
+  const directReference =
+    coerceString(row?.reference) ||
+    coerceString(row?.mpesa_receipt_number) ||
+    coerceString(row?.bank_reference_number) ||
+    coerceString(row?.receipt_number) ||
+    null
+
+  const referenceFallbackSource =
+    coerceString(row?.source_id) ||
+    coerceString(row?.invoice_id) ||
+    coerceString(row?.payment_id) ||
+    coerceString(row?.transaction_id) ||
+    null
+
+  const uuidish = typeof id === 'string' && /^[0-9a-f]{8}-/i.test(id) ? id : null
+  const reference =
+    directReference ||
+    (referenceFallbackSource ? referenceFallbackSource.slice(0, 8).toUpperCase() : null) ||
+    (uuidish ? uuidish.slice(0, 8).toUpperCase() : null)
 
   const netAmount =
     coerceNumber(row?.amount) ??
@@ -258,4 +271,3 @@ export function buildStatementPayloadFromRpc(args: {
 
   return { payload, rawRows }
 }
-

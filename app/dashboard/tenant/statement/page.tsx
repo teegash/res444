@@ -298,16 +298,16 @@ export default function TenantAccountStatementPage() {
             <div className="mb-8">
               <h3 className="font-semibold text-lg mb-4">Transaction History</h3>
               <div className="overflow-x-auto">
-                <table className="w-full">
+                <table className="w-full table-fixed">
                   <thead className="bg-gray-50">
                     <tr>
-                      <th className="text-left p-3 font-semibold text-sm">Date</th>
-                      <th className="text-left p-3 font-semibold text-sm">Type</th>
+                      <th className="text-left p-3 font-semibold text-sm w-28">Date</th>
+                      <th className="text-left p-3 font-semibold text-sm w-28">Type</th>
                       <th className="text-left p-3 font-semibold text-sm">Description</th>
-                      <th className="text-left p-3 font-semibold text-sm">Reference</th>
-                      <th className="text-right p-3 font-semibold text-sm">Debit</th>
-                      <th className="text-right p-3 font-semibold text-sm">Credit</th>
-                      <th className="text-right p-3 font-semibold text-sm">Balance</th>
+                      <th className="text-left p-3 font-semibold text-sm w-40">Reference</th>
+                      <th className="text-right p-3 font-semibold text-sm w-28">Debit</th>
+                      <th className="text-right p-3 font-semibold text-sm w-28">Credit</th>
+                      <th className="text-right p-3 font-semibold text-sm w-32">Balance</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -338,7 +338,9 @@ export default function TenantAccountStatementPage() {
                                 </p>
                               ) : null}
                             </td>
-                            <td className="p-3 text-sm">{transaction.reference || '—'}</td>
+                            <td className="p-3 text-xs font-mono text-slate-700 break-all">
+                              {transaction.reference || '—'}
+                            </td>
                             <td className="p-3 text-sm text-right text-slate-900">
                               {isCredit ? '—' : displayAmount}
                             </td>
