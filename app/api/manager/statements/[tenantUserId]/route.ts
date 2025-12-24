@@ -101,39 +101,52 @@ export async function GET(
     const leaseId =
       request.nextUrl.searchParams.get('leaseId') || request.nextUrl.searchParams.get('lease_id') || null
 
-    const { data: lease, error: leaseError } = await admin
+    let resolvedLeaseId: string | null = leaseId
+    let lease: any | null = null
+
+    const leaseQuery = admin
       .from('leases')
       .select(
         `
-        id,
-        status,
-        start_date,
-        end_date,
-        monthly_rent,
-        rent_paid_until,
-        unit:apartment_units (
-          unit_number,
-          building:apartment_buildings (
-            name,
-            location
+          id,
+          status,
+          start_date,
+          end_date,
+          monthly_rent,
+          rent_paid_until,
+          unit:apartment_units (
+            unit_number,
+            building:apartment_buildings (
+              name,
+              location
+            )
           )
-        )
-      `
+        `
       )
       .eq('tenant_user_id', tenantUserId)
       .eq('organization_id', orgId)
-      .order('start_date', { ascending: false })
-      .limit(1)
-      .maybeSingle()
 
-    if (leaseError) {
-      throw leaseError
+    if (resolvedLeaseId) {
+      const { data: leaseRow, error: leaseError } = await leaseQuery.eq('id', resolvedLeaseId).maybeSingle()
+      if (leaseError) throw leaseError
+      lease = leaseRow
+      if (!lease) {
+        return NextResponse.json({ success: false, error: 'Lease not found.' }, { status: 404 })
+      }
+    } else {
+      const { data: leaseRow, error: leaseError } = await leaseQuery
+        .order('start_date', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      if (leaseError) throw leaseError
+      lease = leaseRow
+      resolvedLeaseId = lease?.id || null
     }
 
     const { data, error } = await admin.rpc('get_tenant_statement', {
       p_organization_id: orgId,
       p_tenant_user_id: tenantUserId,
-      p_lease_id: leaseId,
+      p_lease_id: resolvedLeaseId,
     })
 
     if (error) {

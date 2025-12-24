@@ -14,6 +14,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import {
   exportRowsAsCSV,
   exportRowsAsExcel,
@@ -21,6 +22,7 @@ import {
   ExportColumn,
 } from '@/lib/export/download'
 import { OrganizationBrand } from '@/components/statements/OrganizationBrand'
+import { getFilteredStatementView, StatementPeriodFilter } from '@/lib/statements/periodFilter'
 
 type StatementTransaction = {
   id: string
@@ -86,11 +88,18 @@ export default function TenantStatementPage({ params }: { params: { id?: string 
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [exporting, setExporting] = useState(false)
+  const [periodFilter, setPeriodFilter] = useState<StatementPeriodFilter>('all')
   const searchParams = useSearchParams()
   const router = useRouter()
   const pathname = usePathname()
   const queryTenantId = searchParams.get('tenantId')?.trim() || ''
   const leaseId = searchParams.get('leaseId')?.trim() || ''
+  const backHref = useMemo(() => {
+    if (!pathname) return '/dashboard/manager/statements'
+    return pathname.startsWith('/manager/statements')
+      ? '/manager/statements'
+      : '/dashboard/manager/statements'
+  }, [pathname])
   const pathTenantId = useMemo(() => {
     if (!pathname) return ''
     const segments = pathname.split('/').filter(Boolean)
@@ -108,7 +117,7 @@ export default function TenantStatementPage({ params }: { params: { id?: string 
         setStatement(null)
         setLoading(false)
         redirectTimer = setTimeout(() => {
-          router.replace('/dashboard/tenants')
+          router.replace(backHref)
         }, 1600)
         return
       }
@@ -142,7 +151,7 @@ export default function TenantStatementPage({ params }: { params: { id?: string 
         clearTimeout(redirectTimer)
       }
     }
-  }, [tenantId, router])
+  }, [tenantId, leaseId, backHref, router])
 
   useEffect(() => {
     const loadOrg = async () => {
@@ -165,9 +174,14 @@ export default function TenantStatementPage({ params }: { params: { id?: string 
     loadOrg()
   }, [])
 
+  const filteredView = useMemo(
+    () => getFilteredStatementView(statement?.transactions || [], periodFilter),
+    [statement?.transactions, periodFilter]
+  )
+
   const periodLabel = useMemo(() => {
-    if (!statement?.period) return 'Latest activity'
-    const { start, end } = statement.period
+    const activePeriod = periodFilter === 'all' ? statement?.period : filteredView.period
+    const { start, end } = activePeriod || { start: null, end: null }
     if (start && end) {
       const startDate = new Date(start).toLocaleDateString(undefined, { month: 'long', year: 'numeric' })
       const endDate = new Date(end).toLocaleDateString(undefined, { month: 'long', year: 'numeric' })
@@ -176,13 +190,13 @@ export default function TenantStatementPage({ params }: { params: { id?: string 
     if (end) {
       return new Date(end).toLocaleDateString(undefined, { month: 'long', year: 'numeric' })
     }
-    return 'Latest activity'
-  }, [statement?.period])
+    return periodFilter === 'all' ? 'Latest activity' : 'No activity in selected period'
+  }, [statement?.period, filteredView.period, periodFilter])
 
   const statementDate = statement?.period?.end ? formatDate(statement.period.end) : formatDate(new Date().toISOString())
-  const transactions = statement?.transactions || []
-  const closingBalance = statement?.summary?.closingBalance ?? 0
-  const openingBalance = statement?.summary?.openingBalance ?? 0
+  const transactions = filteredView.transactions
+  const closingBalance = filteredView.summary.closingBalance
+  const openingBalance = filteredView.summary.openingBalance
   const tenantName = statement?.tenant?.name || 'Tenant'
   const propertyLabel = statement?.lease
     ? `${statement.lease.property_name || 'Property'}${statement.lease.unit_number ? ` - ${statement.lease.unit_number}` : ''}`
@@ -228,17 +242,17 @@ export default function TenantStatementPage({ params }: { params: { id?: string 
     try {
       switch (format) {
         case 'pdf':
-          exportRowsAsPDF(fileBase, exportColumns, statement.transactions, {
+          exportRowsAsPDF(fileBase, exportColumns, transactions, {
             title: 'Tenant Account Statement',
-            subtitle,
+            subtitle: `${subtitle} • ${periodLabel}`,
             footerNote: `Generated on ${new Date().toLocaleString()}`,
           })
           break
         case 'csv':
-          exportRowsAsCSV(fileBase, exportColumns, statement.transactions)
+          exportRowsAsCSV(fileBase, exportColumns, transactions)
           break
         case 'excel':
-          exportRowsAsExcel(fileBase, exportColumns, statement.transactions)
+          exportRowsAsExcel(fileBase, exportColumns, transactions)
           break
       }
     } finally {
@@ -360,7 +374,7 @@ export default function TenantStatementPage({ params }: { params: { id?: string 
                     <th className="text-left p-3 font-semibold text-sm w-28">Date</th>
                     <th className="text-left p-3 font-semibold text-sm w-28">Type</th>
                     <th className="text-left p-3 font-semibold text-sm">Description</th>
-                    <th className="text-left p-3 font-semibold text-sm w-40">Reference</th>
+                    <th className="text-left p-3 font-semibold text-sm w-56">Reference</th>
                     <th className="text-right p-3 font-semibold text-sm w-28">Debit</th>
                     <th className="text-right p-3 font-semibold text-sm w-28">Credit</th>
                     <th className="text-right p-3 font-semibold text-sm w-32">Balance</th>
@@ -398,7 +412,7 @@ export default function TenantStatementPage({ params }: { params: { id?: string 
                             </p>
                           ) : null}
                         </td>
-                          <td className="p-3 text-xs font-mono text-slate-700 break-all">
+                          <td className="p-3 text-sm font-mono text-slate-700 break-all leading-5">
                             {transaction.reference || '—'}
                           </td>
                           <td className="p-3 text-sm text-right text-slate-900">
@@ -437,7 +451,7 @@ export default function TenantStatementPage({ params }: { params: { id?: string 
               className="mb-2 px-2 text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 w-auto transition-colors"
               asChild
             >
-              <Link href="/dashboard/tenants" className="flex items-center gap-2">
+              <Link href={backHref} className="flex items-center gap-2">
                 <ArrowLeft className="h-4 w-4" />
                 Back
               </Link>
@@ -447,7 +461,7 @@ export default function TenantStatementPage({ params }: { params: { id?: string 
               Detailed record of rent and utility transactions.
             </p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 items-center">
             <Button variant="outline" size="sm" onClick={() => window.print()}>
               <Printer className="h-4 w-4 mr-2" />
               Print
@@ -456,6 +470,18 @@ export default function TenantStatementPage({ params }: { params: { id?: string 
               <Share2 className="h-4 w-4 mr-2" />
               Share
             </Button>
+            <Select value={periodFilter} onValueChange={(value) => setPeriodFilter(value as StatementPeriodFilter)}>
+              <SelectTrigger className="h-9 w-[170px]">
+                <SelectValue placeholder="Time period" />
+              </SelectTrigger>
+              <SelectContent align="end">
+                <SelectItem value="month">Past month</SelectItem>
+                <SelectItem value="3months">Past 3 months</SelectItem>
+                <SelectItem value="6months">Past 6 months</SelectItem>
+                <SelectItem value="year">Past 1 year</SelectItem>
+                <SelectItem value="all">All history</SelectItem>
+              </SelectContent>
+            </Select>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button size="sm" disabled={exporting}>

@@ -186,7 +186,10 @@ export function StatementsAtGlanceGrid() {
         headerName: "Action",
         minWidth: 110,
         cellRenderer: (p: any) => {
-          const row = p.data as Row
+          const row = (p?.data as Row | undefined) || null
+          if (!row?.tenant_user_id || !row?.lease_id) {
+            return <span className="text-slate-400">—</span>
+          }
           const href = `/manager/statements/${row.tenant_user_id}?leaseId=${row.lease_id}`
           return (
             <a
@@ -311,7 +314,8 @@ export function StatementsAtGlanceGrid() {
               e.api.sizeColumnsToFit()
             }}
             onRowDoubleClicked={(e) => {
-              const row = e.data as Row
+              const row = (e?.data as Row | undefined) || null
+              if (!row?.tenant_user_id || !row?.lease_id) return
               router.push(`/manager/statements/${row.tenant_user_id}?leaseId=${row.lease_id}`)
             }}
           />

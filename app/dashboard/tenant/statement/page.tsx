@@ -12,8 +12,10 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { exportRowsAsCSV, exportRowsAsExcel, exportRowsAsPDF, ExportColumn } from '@/lib/export/download'
 import { OrganizationBrand } from '@/components/statements/OrganizationBrand'
+import { getFilteredStatementView, StatementPeriodFilter } from '@/lib/statements/periodFilter'
 
 type StatementTransaction = {
   id: string
@@ -78,6 +80,7 @@ export default function TenantAccountStatementPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [exporting, setExporting] = useState(false)
+  const [periodFilter, setPeriodFilter] = useState<StatementPeriodFilter>('all')
 
   useEffect(() => {
     const loadOrg = async () => {
@@ -126,18 +129,24 @@ export default function TenantAccountStatementPage() {
     load()
   }, [leaseId])
 
+  const filteredView = useMemo(
+    () => getFilteredStatementView(statement?.transactions || [], periodFilter),
+    [statement?.transactions, periodFilter]
+  )
+
   const tenantName = statement?.tenant?.name || 'Tenant'
-  const transactions = statement?.transactions || []
-  const closingBalance = statement?.summary?.closingBalance ?? 0
-  const openingBalance = statement?.summary?.openingBalance ?? 0
+  const transactions = filteredView.transactions
+  const closingBalance = filteredView.summary.closingBalance
+  const openingBalance = filteredView.summary.openingBalance
   const statementDate = statement?.period?.end ? formatDate(statement.period.end) : formatDate(new Date().toISOString())
   const propertyLabel = statement?.lease
     ? `${statement.lease.property_name || 'Property'}${statement.lease.unit_number ? ` - ${statement.lease.unit_number}` : ''}`
     : 'Property not assigned'
 
   const periodLabel = useMemo(() => {
-    const start = statement?.period?.start || null
-    const end = statement?.period?.end || null
+    const activePeriod = periodFilter === 'all' ? statement?.period : filteredView.period
+    const start = activePeriod?.start || null
+    const end = activePeriod?.end || null
     if (start && end) {
       const startDate = new Date(start).toLocaleDateString(undefined, { month: 'long', year: 'numeric' })
       const endDate = new Date(end).toLocaleDateString(undefined, { month: 'long', year: 'numeric' })
@@ -146,8 +155,8 @@ export default function TenantAccountStatementPage() {
     if (end) {
       return new Date(end).toLocaleDateString(undefined, { month: 'long', year: 'numeric' })
     }
-    return 'Latest activity'
-  }, [statement?.period?.start, statement?.period?.end])
+    return periodFilter === 'all' ? 'Latest activity' : 'No activity in selected period'
+  }, [statement?.period?.start, statement?.period?.end, filteredView.period, periodFilter])
 
   const exportColumns: ExportColumn<StatementTransaction>[] = [
     { header: 'Date', accessor: (txn) => formatDate(txn.posted_at) },
@@ -234,7 +243,7 @@ export default function TenantAccountStatementPage() {
             </Link>
             <h1 className="text-xl font-bold">Account Statement</h1>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 items-center">
             <Button variant="outline" size="sm" onClick={() => window.print()}>
               <Printer className="h-4 w-4 mr-2" />
               Print
@@ -243,6 +252,18 @@ export default function TenantAccountStatementPage() {
               <Share2 className="h-4 w-4 mr-2" />
               Share
             </Button>
+            <Select value={periodFilter} onValueChange={(value) => setPeriodFilter(value as StatementPeriodFilter)}>
+              <SelectTrigger className="h-9 w-[170px]">
+                <SelectValue placeholder="Time period" />
+              </SelectTrigger>
+              <SelectContent align="end">
+                <SelectItem value="month">Past month</SelectItem>
+                <SelectItem value="3months">Past 3 months</SelectItem>
+                <SelectItem value="6months">Past 6 months</SelectItem>
+                <SelectItem value="year">Past 1 year</SelectItem>
+                <SelectItem value="all">All history</SelectItem>
+              </SelectContent>
+            </Select>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button size="sm" className="gap-2" disabled={exporting}>
@@ -319,7 +340,7 @@ export default function TenantAccountStatementPage() {
                       <th className="text-left p-3 font-semibold text-sm w-28">Date</th>
                       <th className="text-left p-3 font-semibold text-sm w-28">Type</th>
                       <th className="text-left p-3 font-semibold text-sm">Description</th>
-                      <th className="text-left p-3 font-semibold text-sm w-40">Reference</th>
+                      <th className="text-left p-3 font-semibold text-sm w-56">Reference</th>
                       <th className="text-right p-3 font-semibold text-sm w-28">Debit</th>
                       <th className="text-right p-3 font-semibold text-sm w-28">Credit</th>
                       <th className="text-right p-3 font-semibold text-sm w-32">Balance</th>
@@ -353,7 +374,7 @@ export default function TenantAccountStatementPage() {
                                 </p>
                               ) : null}
                             </td>
-                            <td className="p-3 text-xs font-mono text-slate-700 break-all">
+                            <td className="p-3 text-sm font-mono text-slate-700 break-all leading-5">
                               {transaction.reference || '—'}
                             </td>
                             <td className="p-3 text-sm text-right text-slate-900">
