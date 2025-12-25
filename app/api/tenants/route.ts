@@ -37,7 +37,7 @@ function summarizeLeaseState(
   const start = lease.start_date ? new Date(lease.start_date) : null
   const end = lease.end_date ? new Date(lease.end_date) : null
 
-  if (renewalStartDate && renewalStartDate > today) {
+  if (hasCompletedRenewal && renewalStartDate && renewalStartDate > today) {
     return {
       status: 'renewed',
       detail: `Renewed lease starts on ${renewalStartDate.toLocaleDateString()}.`,
@@ -373,11 +373,12 @@ export async function GET() {
           ? Number(lease.deposit_amount)
           : null
       const hasCompletedRenewal = lease?.id ? completedRenewalLeaseIds.has(lease.id) : false
-      const renewalStartRaw = lease?.id ? completedRenewalStartMap.get(lease.id) ?? null : null
+      const renewalStartRaw =
+        hasCompletedRenewal && lease?.id ? completedRenewalStartMap.get(lease.id) ?? null : null
       const renewalStartParsed = renewalStartRaw ? parseDateOnly(renewalStartRaw) : null
-      const leaseEndParsed = lease?.end_date ? parseDateOnly(lease.end_date) : null
+      const leaseEndParsed = hasCompletedRenewal && lease?.end_date ? parseDateOnly(lease.end_date) : null
       const renewalStartFallback =
-        !renewalStartParsed && leaseEndParsed ? addDaysUtc(leaseEndParsed, 1) : null
+        hasCompletedRenewal && !renewalStartParsed && leaseEndParsed ? addDaysUtc(leaseEndParsed, 1) : null
       const renewalStartDate = renewalStartParsed || renewalStartFallback
       const leaseSummary = summarizeLeaseState(lease, renewalStartDate, hasCompletedRenewal)
       const paymentStatus = lease
