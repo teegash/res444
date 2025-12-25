@@ -275,9 +275,9 @@ export async function POST(req: Request, { params }: { params: { leaseId: string
     };
 
     const drawHeading = (text: string) => {
-      ensureSpace(headingSize + 6);
+      ensureSpace(headingSize + 10);
       page.drawText(text, { x: margin, y, size: headingSize, font: fontBold, color: rgb(0, 0, 0) });
-      y -= headingSize + 6;
+      y -= headingSize + 10;
     };
 
     const drawParagraph = (text: string, size = bodySize) => {
@@ -342,7 +342,7 @@ export async function POST(req: Request, { params }: { params: { leaseId: string
       );
       let cursor = startY;
       page.drawText(title, { x, y: cursor, size: headingSize, font: fontBold, color: rgb(0, 0, 0) });
-      cursor -= headingSize + 4;
+      cursor -= headingSize + 8;
       entries.forEach((entry) => {
         const labelText = `${entry.label}:`;
         const lines = wrapText(entry.value, width - labelWidth - 6, font, bodySize);
@@ -359,7 +359,7 @@ export async function POST(req: Request, { params }: { params: { leaseId: string
 
     const orgName = safeText(organization?.name, "Organization");
     page.drawText(orgName, { x: margin, y, size: 16, font: fontBold, color: rgb(0, 0, 0) });
-    y -= 20;
+    y -= 18;
 
     const orgLine = [
       organization?.phone ? `Tel: ${organization.phone}` : null,
@@ -385,7 +385,14 @@ export async function POST(req: Request, { params }: { params: { leaseId: string
       font: fontBold,
       color: rgb(0, 0, 0),
     });
-    y -= 20;
+    y -= 14;
+    page.drawLine({
+      start: { x: margin, y },
+      end: { x: margin + contentWidth, y },
+      thickness: 0.6,
+      color: rgb(0.82, 0.82, 0.82),
+    });
+    y -= 14;
 
     drawLabelValue("Renewal ID", safeText(renewal.id));
     drawLabelValue("Lease ID", safeText(lease.id));
@@ -438,7 +445,7 @@ export async function POST(req: Request, { params }: { params: { leaseId: string
       financialEntries,
       columnWidth
     );
-    y = rowStart - Math.max(usedLeft, usedRight) - 10;
+    y = rowStart - Math.max(usedLeft, usedRight) - 16;
 
     const propertyHeight = measureBlockHeight("Property & Unit", propertyEntries, columnWidth);
     const termHeight = measureBlockHeight("Lease Term", termEntries, columnWidth);
@@ -453,7 +460,7 @@ export async function POST(req: Request, { params }: { params: { leaseId: string
       termEntries,
       columnWidth
     );
-    y = rowStartTwo - Math.max(usedProp, usedTerm) - 10;
+    y = rowStartTwo - Math.max(usedProp, usedTerm) - 16;
 
     drawHeading("Notes");
     drawParagraph(
@@ -470,8 +477,9 @@ export async function POST(req: Request, { params }: { params: { leaseId: string
         + "otherwise stated."
     );
 
-    ensureSpace(90);
-    const sigY = y;
+    ensureSpace(120);
+    const targetSigY = margin + 110;
+    const sigY = y > targetSigY ? targetSigY : y;
     page.drawText("Tenant Signature", { x: margin, y: sigY, size: 10, font: fontBold });
     page.drawLine({
       start: { x: margin, y: sigY - 12 },
