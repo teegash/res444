@@ -6,6 +6,15 @@ import { createClient } from "@supabase/supabase-js";
 
 type Role = "admin" | "manager" | "caretaker" | "tenant";
 
+const uuidRegex =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function isUuid(value: string | null | undefined) {
+  if (!value) return false;
+  if (value === "undefined" || value === "null") return false;
+  return uuidRegex.test(value);
+}
+
 async function supabaseAuthed() {
   const cookieStore = await cookies();
   return createServerClient(
@@ -76,7 +85,7 @@ async function resolveInternalUrl(path: string) {
 }
 
 export async function getRenewalByLease(leaseId: string) {
-  if (!leaseId || leaseId === "undefined") {
+  if (!isUuid(leaseId)) {
     return { ok: false, activeRenewal: null, latestRenewal: null };
   }
   const actor = await getActorUserIdOrThrow();
@@ -123,7 +132,9 @@ export async function getRenewalByLease(leaseId: string) {
 }
 
 export async function getRenewalDetails(renewalId: string) {
-  if (!renewalId || renewalId === "undefined") throw new Error("Missing renewalId");
+  if (!isUuid(renewalId)) {
+    return { ok: false, error: "Missing renewalId" };
+  }
   const actor = await getActorUserIdOrThrow();
   const admin = supabaseAdmin();
 
@@ -204,22 +215,28 @@ function internalKey() {
 }
 
 export async function createRenewalByLease(leaseId: string) {
-  if (!leaseId || leaseId === "undefined") {
+  if (!isUuid(leaseId)) {
     return { ok: false, error: "Missing leaseId" };
   }
   const actor = await getActorUserIdOrThrow();
-  return callInternal(`/api/lease-renewals/by-lease/${leaseId}/create`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${internalKey()}`,
-      "x-internal-api-key": internalKey(),
-      "x-actor-user-id": actor,
-    },
-  });
+  try {
+    return await callInternal(`/api/lease-renewals/by-lease/${leaseId}/create`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${internalKey()}`,
+        "x-internal-api-key": internalKey(),
+        "x-actor-user-id": actor,
+      },
+    });
+  } catch (err: any) {
+    return { ok: false, error: err?.message || "Failed to start renewal" };
+  }
 }
 
 export async function tenantSignRenewal(renewalId: string) {
-  if (!renewalId || renewalId === "undefined") throw new Error("Missing renewalId");
+  if (!isUuid(renewalId)) {
+    return { ok: false, error: "Missing renewalId" };
+  }
   const actor = await getActorUserIdOrThrow();
   return callInternal(`/api/lease-renewals/${renewalId}/tenant-sign`, {
     method: "POST",
@@ -232,7 +249,9 @@ export async function tenantSignRenewal(renewalId: string) {
 }
 
 export async function managerSignRenewal(renewalId: string) {
-  if (!renewalId || renewalId === "undefined") throw new Error("Missing renewalId");
+  if (!isUuid(renewalId)) {
+    return { ok: false, error: "Missing renewalId" };
+  }
   const actor = await getActorUserIdOrThrow();
   return callInternal(`/api/lease-renewals/${renewalId}/manager-sign`, {
     method: "POST",
@@ -248,7 +267,9 @@ export async function getRenewalDownloadUrl(
   renewalId: string,
   type: "unsigned" | "tenant_signed" | "fully_signed"
 ) {
-  if (!renewalId || renewalId === "undefined") throw new Error("Missing renewalId");
+  if (!isUuid(renewalId)) {
+    return { ok: false, error: "Missing renewalId" };
+  }
   const actor = await getActorUserIdOrThrow();
   return callInternal(`/api/lease-renewals/${renewalId}/download?type=${type}`, {
     method: "GET",

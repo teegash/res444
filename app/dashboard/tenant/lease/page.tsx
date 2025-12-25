@@ -470,7 +470,7 @@ export default function LeasePage() {
                 <>
                   <div className="text-sm text-muted-foreground">No renewal has been started yet.</div>
                     <Button
-                      disabled={renewalBusy === 'create'}
+                      disabled={!lease?.id || lease.id === 'undefined' || renewalBusy === 'create'}
                       onClick={async () => {
                         if (!lease?.id) {
                           toast({
@@ -482,10 +482,10 @@ export default function LeasePage() {
                         }
                         try {
                           setRenewalBusy('create')
-                          const res: any = await createRenewalByLease(lease.id)
-                          if (res?.ok === false) {
-                            throw new Error(res?.error || 'Failed to start renewal.')
-                          }
+                        const res: any = await createRenewalByLease(lease.id)
+                        if (res?.ok === false) {
+                          throw new Error(res?.error || 'Failed to start renewal.')
+                        }
                           await refreshRenewal(lease.id)
                           toast({ title: 'Renewal created', description: 'Open it and sign when ready.' })
                       } catch (e: any) {
