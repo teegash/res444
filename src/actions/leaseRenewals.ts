@@ -172,7 +172,16 @@ export async function getRenewalDetails(renewalId: string) {
 
 async function callInternal(path: string, init: RequestInit) {
   const url = await resolveInternalUrl(path);
-  const res = await fetch(url, { cache: "no-store", ...init });
+  const incoming = await headers();
+  const mergedHeaders = new Headers(init.headers || {});
+  const cookieHeader = incoming.get("cookie");
+  if (cookieHeader) mergedHeaders.set("cookie", cookieHeader);
+
+  const res = await fetch(url, {
+    cache: "no-store",
+    ...init,
+    headers: mergedHeaders,
+  });
   const text = await res.text();
   let json: any;
   try {
