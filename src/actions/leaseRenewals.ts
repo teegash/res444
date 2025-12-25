@@ -16,6 +16,7 @@ function internalHeaders(actorUserId: string) {
 
   return {
     Authorization: `Bearer ${key}`,
+    "x-internal-api-key": key,
     "x-actor-user-id": actorUserId,
     "Content-Type": "application/json",
   };
@@ -98,4 +99,3 @@ export async function getRenewalDownloadUrl(
     headers: internalHeaders(actor),
   });
 }
-

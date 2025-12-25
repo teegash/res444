@@ -32,10 +32,19 @@ function requireInternalApiKey(req: Request) {
   if (!expected) throw new Error("Server misconfigured: INTERNAL_API_KEY missing");
 
   const auth = req.headers.get("authorization") || "";
-  if (!auth.startsWith("Bearer ")) throw new Error("Unauthorized");
+  if (auth.startsWith("Bearer ")) {
+    const token = auth.slice("Bearer ".length).trim();
+    if (token !== expected) throw new Error("Forbidden");
+    return;
+  }
 
-  const token = auth.slice("Bearer ".length).trim();
-  if (token !== expected) throw new Error("Forbidden");
+  const direct = req.headers.get("x-internal-api-key");
+  if (direct) {
+    if (direct !== expected) throw new Error("Forbidden");
+    return;
+  }
+
+  throw new Error("Unauthorized");
 }
 
 function requireActorUserId(req: Request) {
@@ -135,4 +144,3 @@ export async function GET(req: Request, { params }: { params: { renewalId: strin
     return json({ error: msg }, status);
   }
 }
-
