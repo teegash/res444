@@ -10,6 +10,9 @@ import { useToast } from '@/components/ui/use-toast'
 import { exportLeasePdf } from '@/lib/pdf/leaseDocument'
 import { createRenewalByLease, getRenewalByLease, getRenewalDownloadUrl, tenantSignRenewal } from '@/src/actions/leaseRenewals'
 
+const uuidRegex =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+
 type LeaseDetails = {
   id: string
   start_date: string
@@ -45,6 +48,9 @@ type LeaseRenewal = {
   pdf_tenant_signed_path: string | null
   pdf_fully_signed_path: string | null
 }
+
+const isValidRenewalId = (value?: string | null) =>
+  Boolean(value && value !== 'undefined' && value !== 'null' && uuidRegex.test(value))
 
 const currencyFormatter = new Intl.NumberFormat('en-KE', {
   style: 'currency',
@@ -632,11 +638,21 @@ export default function LeasePage() {
 
                   <div className="pt-2">
                     <Button
-                      disabled={renewal.status !== 'sent_for_signature' || renewalBusy === 'tenantSign'}
+                      disabled={
+                        renewal.status !== 'sent_for_signature' ||
+                        renewalBusy === 'tenantSign' ||
+                        !isValidRenewalId(renewal?.id)
+                      }
                       onClick={async () => {
                         try {
                           setRenewalBusy('tenantSign')
-                          await tenantSignRenewal(renewal.id)
+                          if (!isValidRenewalId(renewal?.id)) {
+                            throw new Error('Missing renewal reference. Please refresh the page.')
+                          }
+                          const res: any = await tenantSignRenewal(renewal.id)
+                          if (res?.ok === false) {
+                            throw new Error(res?.error || 'Signing failed')
+                          }
                           await refreshRenewal(lease.id)
                           toast({
                             title: 'Signed',
