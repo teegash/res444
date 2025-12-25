@@ -40,6 +40,28 @@ function supabaseAdmin() {
   return createClient(url, key, { auth: { persistSession: false } });
 }
 
+function expectedSuffixForType(type: string) {
+  if (type === "unsigned") return "/unsigned.pdf";
+  if (type === "tenant_signed") return "/tenant_signed.pdf";
+  return "/fully_signed.pdf";
+}
+
+function splitPath(path: string) {
+  const idx = path.lastIndexOf("/");
+  if (idx === -1) return { dir: "", name: path };
+  return { dir: path.slice(0, idx), name: path.slice(idx + 1) };
+}
+
+async function assertFileExists(admin: any, path: string) {
+  const { dir, name } = splitPath(path);
+  const { data, error } = await admin.storage
+    .from("lease-renewals")
+    .list(dir, { limit: 1, search: name });
+
+  if (error) throw new Error(`Storage lookup failed: ${error.message}`);
+  if (!data || data.length === 0) throw new Error("File not found in storage");
+}
+
 async function getMembership(admin: any, organizationId: string, userId: string) {
   const { data, error } = await admin
     .from("organization_members")
@@ -96,6 +118,15 @@ export async function GET(req: Request, { params }: { params: { renewalId: strin
     if (type === "fully_signed") path = r.pdf_fully_signed_path;
 
     if (!path) return json({ error: "Requested file not available yet" }, 404);
+    if (!path.endsWith(expectedSuffixForType(type))) {
+      return json({ error: "Requested file path does not match expected type" }, 400);
+    }
+
+    try {
+      await assertFileExists(admin, path);
+    } catch (err: any) {
+      return json({ error: err?.message || "File not found in storage" }, 404);
+    }
 
     const { data: signed, error: sErr } = await admin.storage.from("lease-renewals").createSignedUrl(path, 120);
 
