@@ -375,6 +375,8 @@ export async function POST(req: Request, { params }: { params: { leaseId: string
       y -= 14;
     }
 
+    y -= 6;
+
     const title = "Lease Renewal Agreement";
     const titleSize = 14;
     const titleWidth = fontBold.widthOfTextAtSize(title, titleSize);
@@ -397,6 +399,7 @@ export async function POST(req: Request, { params }: { params: { leaseId: string
     drawLabelValue("Renewal ID", safeText(renewal.id));
     drawLabelValue("Lease ID", safeText(lease.id));
     drawLabelValue("Generated", new Date().toLocaleString("en-KE"));
+    y -= 8;
 
     const partiesEntries = [
       { label: "Landlord/Manager", value: orgName },
