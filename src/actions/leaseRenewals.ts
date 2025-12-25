@@ -76,6 +76,7 @@ async function resolveInternalUrl(path: string) {
 }
 
 export async function getRenewalByLease(leaseId: string) {
+  if (!leaseId || leaseId === "undefined") throw new Error("Missing leaseId");
   const actor = await getActorUserIdOrThrow();
   const admin = supabaseAdmin();
 
@@ -120,6 +121,7 @@ export async function getRenewalByLease(leaseId: string) {
 }
 
 export async function getRenewalDetails(renewalId: string) {
+  if (!renewalId || renewalId === "undefined") throw new Error("Missing renewalId");
   const actor = await getActorUserIdOrThrow();
   const admin = supabaseAdmin();
 
@@ -200,6 +202,7 @@ function internalKey() {
 }
 
 export async function createRenewalByLease(leaseId: string) {
+  if (!leaseId || leaseId === "undefined") throw new Error("Missing leaseId");
   const actor = await getActorUserIdOrThrow();
   return callInternal(`/api/lease-renewals/by-lease/${leaseId}/create`, {
     method: "POST",
@@ -212,6 +215,7 @@ export async function createRenewalByLease(leaseId: string) {
 }
 
 export async function tenantSignRenewal(renewalId: string) {
+  if (!renewalId || renewalId === "undefined") throw new Error("Missing renewalId");
   const actor = await getActorUserIdOrThrow();
   return callInternal(`/api/lease-renewals/${renewalId}/tenant-sign`, {
     method: "POST",
@@ -224,6 +228,7 @@ export async function tenantSignRenewal(renewalId: string) {
 }
 
 export async function managerSignRenewal(renewalId: string) {
+  if (!renewalId || renewalId === "undefined") throw new Error("Missing renewalId");
   const actor = await getActorUserIdOrThrow();
   return callInternal(`/api/lease-renewals/${renewalId}/manager-sign`, {
     method: "POST",
@@ -239,6 +244,7 @@ export async function getRenewalDownloadUrl(
   renewalId: string,
   type: "unsigned" | "tenant_signed" | "fully_signed"
 ) {
+  if (!renewalId || renewalId === "undefined") throw new Error("Missing renewalId");
   const actor = await getActorUserIdOrThrow();
   return callInternal(`/api/lease-renewals/${renewalId}/download?type=${type}`, {
     method: "GET",

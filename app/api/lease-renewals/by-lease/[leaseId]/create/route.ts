@@ -78,6 +78,9 @@ export async function POST(req: Request, { params }: { params: { leaseId: string
     requireInternalApiKey(req);
 
     const leaseId = params.leaseId;
+    if (!leaseId || leaseId === "undefined") {
+      return json({ error: "Missing leaseId" }, 400);
+    }
     const admin = supabaseAdmin();
 
     const { data: lease, error: leaseErr } = await admin

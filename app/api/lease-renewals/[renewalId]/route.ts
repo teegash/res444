@@ -78,6 +78,9 @@ export async function GET(req: Request, { params }: { params: { renewalId: strin
     const actorUserId = requireActorUserId(req);
 
     const renewalId = params.renewalId;
+    if (!renewalId || renewalId === "undefined") {
+      return json({ error: "Missing renewalId" }, 400);
+    }
     const admin = supabaseAdmin();
 
     const { data: renewal, error: rErr } = await admin

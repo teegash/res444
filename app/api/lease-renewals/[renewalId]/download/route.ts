@@ -58,6 +58,9 @@ export async function GET(req: Request, { params }: { params: { renewalId: strin
     const actorUserId = requireActorUserId(req);
 
     const renewalId = params.renewalId;
+    if (!renewalId || renewalId === "undefined") {
+      return json({ error: "Missing renewalId" }, 400);
+    }
     const url = new URL(req.url);
     const type = (url.searchParams.get("type") || "fully_signed").toLowerCase();
     if (!["unsigned", "tenant_signed", "fully_signed"].includes(type)) {
