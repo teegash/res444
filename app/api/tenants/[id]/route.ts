@@ -205,6 +205,52 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       if ((row as any).unit_id) unitIds.push((row as any).unit_id)
     })
 
+    const { data: renewalRows } = await adminSupabase
+      .from('lease_renewals')
+      .select('id, lease_id, pdf_unsigned_path, pdf_tenant_signed_path, pdf_fully_signed_path')
+      .eq('tenant_user_id', tenantId)
+      .eq('organization_id', membership?.organization_id || '')
+
+    const renewalIds = (renewalRows || []).map((row: any) => row.id).filter(Boolean)
+    const renewalPaths = (renewalRows || [])
+      .flatMap((row: any) => [row.pdf_unsigned_path, row.pdf_tenant_signed_path, row.pdf_fully_signed_path])
+      .filter(Boolean) as string[]
+
+    if (renewalIds.length) {
+      const { error: renewalEventsError } = await adminSupabase
+        .from('lease_renewal_events')
+        .delete()
+        .in('renewal_id', renewalIds)
+      if (renewalEventsError) throw renewalEventsError
+    }
+
+    if (renewalPaths.length) {
+      const { error: storageError } = await adminSupabase.storage
+        .from('lease-renewals')
+        .remove(renewalPaths)
+      if (storageError) {
+        console.warn('[Tenants.DELETE] Failed to remove renewal PDFs from storage:', storageError.message)
+      }
+    }
+
+    if (renewalIds.length) {
+      const { error: renewalsError } = await adminSupabase
+        .from('lease_renewals')
+        .delete()
+        .in('id', renewalIds)
+      if (renewalsError) throw renewalsError
+    }
+
+    if (leaseIds.length) {
+      const { error: reminderError } = await adminSupabase
+        .from('reminders')
+        .delete()
+        .eq('reminder_type', 'lease_renewal')
+        .eq('related_entity_type', 'lease')
+        .in('related_entity_id', leaseIds)
+      if (reminderError) throw reminderError
+    }
+
     // Hard-delete dependent financial data first to remove revenue traces
     const { error: paymentsError } = await adminSupabase
       .from('payments')

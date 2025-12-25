@@ -84,6 +84,16 @@ function lastDayOfMonthUtc(year: number, monthIndex: number) {
   return new Date(Date.UTC(year, monthIndex + 1, 0));
 }
 
+function addMonthsPreserveDayUtc(date: Date, months: number) {
+  const startDay = date.getUTCDate();
+  const rawMonth = date.getUTCMonth() + months;
+  const year = date.getUTCFullYear() + Math.floor(rawMonth / 12);
+  const monthIndex = ((rawMonth % 12) + 12) % 12;
+  const lastDay = lastDayOfMonthUtc(year, monthIndex).getUTCDate();
+  const day = Math.min(startDay, lastDay);
+  return new Date(Date.UTC(year, monthIndex, day));
+}
+
 async function getMembership(admin: any, organizationId: string, userId: string) {
   const { data, error } = await admin
     .from("organization_members")
@@ -253,14 +263,19 @@ export async function POST(req: Request, { params }: { params: { renewalId: stri
 
     const renewalStartDate =
       proposedStartDate ?? (leaseEndDate ? addDaysUtc(leaseEndDate, 1) : leaseStartDate);
-    const renewalEndDate = proposedEndDate
-      ? proposedEndDate
-      : renewalStartDate
-        ? lastDayOfMonthUtc(
-            renewalStartDate.getUTCFullYear(),
-            renewalStartDate.getUTCMonth() + termMonths - 1
-          )
-        : null;
+    let renewalEndDate: Date | null = null;
+    if (proposedEndDate) {
+      renewalEndDate = proposedEndDate;
+    } else if (renewalStartDate) {
+      if (termMonths % 12 === 0) {
+        renewalEndDate = addMonthsPreserveDayUtc(renewalStartDate, termMonths);
+      } else {
+        renewalEndDate = lastDayOfMonthUtc(
+          renewalStartDate.getUTCFullYear(),
+          renewalStartDate.getUTCMonth() + termMonths - 1
+        );
+      }
+    }
 
     const renewalRent =
       r.proposed_rent !== null && r.proposed_rent !== undefined ? r.proposed_rent : leaseRow?.monthly_rent;
