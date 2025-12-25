@@ -139,7 +139,21 @@ export default function TenantLeaseManagementPage() {
   const leaseSummary = useMemo(() => data?.lease_status, [data])
   const tenant = data?.tenant
   const lease = data?.lease
-  const canDownloadFullySigned = Boolean(renewal?.status === 'completed' && renewal?.pdf_fully_signed_path)
+
+  const renewalWindowOpen = useMemo(() => {
+    if (!lease?.end_date) return false
+    const end = new Date(lease.end_date)
+    const now = new Date()
+    const diffDays = Math.floor((end.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+    if (Number.isNaN(diffDays)) return false
+    return diffDays >= 0 && diffDays <= 60
+  }, [lease?.end_date])
+
+  const hasActiveRenewal = Boolean(
+    renewal && ['draft', 'sent_for_signature', 'in_progress'].includes(renewal.status)
+  )
+
+  const canStartRenewal = renewalWindowOpen && !hasActiveRenewal
 
   const refreshRenewal = useCallback(async (leaseId?: string | null) => {
     if (!leaseId || leaseId === 'undefined') {
@@ -150,7 +164,7 @@ export default function TenantLeaseManagementPage() {
     setRenewalLoading(true)
     try {
       const res: any = await getRenewalByLease(leaseId)
-      const nextRenewal = res?.activeRenewal
+      const nextRenewal = res?.activeRenewal || res?.latestRenewal
       setRenewal(nextRenewal?.id ? nextRenewal : null)
     } catch (e) {
       console.warn('[ManagerLease] Failed to load renewal', e)
@@ -424,47 +438,6 @@ export default function TenantLeaseManagementPage() {
             Back to tenants
           </Button>
           <h1 className="text-2xl font-bold">Lease Management</h1>
-          <div className="ml-auto flex items-center gap-2">
-            {canDownloadFullySigned && (
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={renewalBusy === 'download'}
-                onClick={async () => {
-                  try {
-                    if (!renewal?.id || renewal.id === 'undefined') {
-                      toast({
-                        title: 'Download failed',
-                        description: 'Missing renewal reference. Please refresh the page.',
-                        variant: 'destructive',
-                      })
-                      return
-                    }
-                    setRenewalBusy('download')
-                    const res: any = await getRenewalDownloadUrl(renewal.id, 'fully_signed')
-                    if (res?.ok === false) {
-                      throw new Error(res?.error || 'Download failed')
-                    }
-                    if (!res?.url) {
-                      throw new Error('Download URL unavailable')
-                    }
-                    window.open(res.url, '_blank')
-                  } catch (e: any) {
-                    toast({
-                      title: 'Download failed',
-                      description: e?.message ?? 'Error',
-                      variant: 'destructive',
-                    })
-                  } finally {
-                    setRenewalBusy(null)
-                  }
-                }}
-              >
-                <Download className="h-4 w-4 mr-2" />
-                Fully Signed PDF
-              </Button>
-            )}
-          </div>
         </div>
 
         {error && (
@@ -657,42 +630,48 @@ export default function TenantLeaseManagementPage() {
                 ) : !renewal ? (
                   <>
                     <div className="text-sm text-muted-foreground">No renewal has been started yet.</div>
-                    <Button
-                      disabled={!lease?.id || lease.id === 'undefined' || renewalBusy === 'create'}
-                      onClick={async () => {
-                        if (!lease?.id) {
-                          toast({
-                            title: 'Lease unavailable',
-                            description: 'Load tenant lease details before starting a renewal.',
-                            variant: 'destructive',
-                          })
-                          return
-                        }
-                        try {
-                          setRenewalBusy('create')
-                        const res: any = await createRenewalByLease(lease.id)
-                        if (res?.ok === false) {
-                          throw new Error(res?.error || 'Failed to start renewal.')
-                        }
-                          await refreshRenewal(lease.id)
-                          toast({
-                            title: 'Renewal initiated',
-                            description: 'Tenant can now sign from their lease page.',
-                          })
-                        } catch (e: any) {
-                          const msg = e?.message ?? 'Error'
-                          toast({
-                            title: 'Failed to start renewal',
-                            description: msg,
-                            variant: 'destructive',
-                          })
-                        } finally {
-                          setRenewalBusy(null)
-                        }
-                      }}
-                    >
-                      Force Lease Renewal
-                    </Button>
+                    {canStartRenewal ? (
+                      <Button
+                        disabled={!lease?.id || lease.id === 'undefined' || renewalBusy === 'create'}
+                        onClick={async () => {
+                          if (!lease?.id) {
+                            toast({
+                              title: 'Lease unavailable',
+                              description: 'Load tenant lease details before starting a renewal.',
+                              variant: 'destructive',
+                            })
+                            return
+                          }
+                          try {
+                            setRenewalBusy('create')
+                            const res: any = await createRenewalByLease(lease.id)
+                            if (res?.ok === false) {
+                              throw new Error(res?.error || 'Failed to start renewal.')
+                            }
+                            await refreshRenewal(lease.id)
+                            toast({
+                              title: 'Renewal initiated',
+                              description: 'Tenant can now sign from their lease page.',
+                            })
+                          } catch (e: any) {
+                            const msg = e?.message ?? 'Error'
+                            toast({
+                              title: 'Failed to start renewal',
+                              description: msg,
+                              variant: 'destructive',
+                            })
+                          } finally {
+                            setRenewalBusy(null)
+                          }
+                        }}
+                      >
+                        Force Lease Renewal
+                      </Button>
+                    ) : (
+                      <div className="text-xs text-muted-foreground">
+                        Renewal opens 60 days before lease end.
+                      </div>
+                    )}
                   </>
                 ) : (
                   <>
@@ -792,9 +771,91 @@ export default function TenantLeaseManagementPage() {
                         Tenant
                       </Button>
 
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={
+                          !renewal?.id ||
+                          renewal.id === 'undefined' ||
+                          !renewal.pdf_fully_signed_path ||
+                          renewalBusy === 'download'
+                        }
+                        onClick={async () => {
+                          try {
+                            if (!renewal?.id || renewal.id === 'undefined') {
+                              toast({
+                                title: 'Download failed',
+                                description: 'Missing renewal reference. Please refresh the page.',
+                                variant: 'destructive',
+                              })
+                              return
+                            }
+                            setRenewalBusy('download')
+                            const res: any = await getRenewalDownloadUrl(renewal.id, 'fully_signed')
+                            if (res?.ok === false) {
+                              throw new Error(res?.error || 'Download failed')
+                            }
+                            if (!res?.url) {
+                              throw new Error('Download URL unavailable')
+                            }
+                            window.open(res.url, '_blank')
+                          } catch (e: any) {
+                            toast({
+                              title: 'Download failed',
+                              description: e?.message ?? 'Error',
+                              variant: 'destructive',
+                            })
+                          } finally {
+                            setRenewalBusy(null)
+                          }
+                        }}
+                      >
+                        <Download className="h-4 w-4 mr-2" />
+                        Fully Signed
+                      </Button>
+
                     </div>
 
                     <div className="pt-2 space-y-2">
+                      {canStartRenewal && renewal.status === 'completed' ? (
+                        <Button
+                          variant="outline"
+                          disabled={!lease?.id || lease.id === 'undefined' || renewalBusy === 'create'}
+                          onClick={async () => {
+                            if (!lease?.id) {
+                              toast({
+                                title: 'Lease unavailable',
+                                description: 'Load tenant lease details before starting a renewal.',
+                                variant: 'destructive',
+                              })
+                              return
+                            }
+                            try {
+                              setRenewalBusy('create')
+                              const res: any = await createRenewalByLease(lease.id)
+                              if (res?.ok === false) {
+                                throw new Error(res?.error || 'Failed to start renewal.')
+                              }
+                              await refreshRenewal(lease.id)
+                              toast({
+                                title: 'Renewal initiated',
+                                description: 'Tenant can now sign from their lease page.',
+                              })
+                            } catch (e: any) {
+                              const msg = e?.message ?? 'Error'
+                              toast({
+                                title: 'Failed to start renewal',
+                                description: msg,
+                                variant: 'destructive',
+                              })
+                            } finally {
+                              setRenewalBusy(null)
+                            }
+                          }}
+                        >
+                          Force Lease Renewal
+                        </Button>
+                      ) : null}
                       <Button
                         disabled={renewal.status !== 'in_progress' || renewalBusy === 'managerSign'}
                         onClick={async () => {
