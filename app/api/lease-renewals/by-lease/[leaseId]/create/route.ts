@@ -82,7 +82,7 @@ export async function POST(req: Request, { params }: { params: { leaseId: string
 
     const { data: lease, error: leaseErr } = await admin
       .from("leases")
-      .select("id, organization_id, tenant_user_id, start_date, end_date, unit_id, building_id")
+      .select("id, organization_id, tenant_user_id, start_date, end_date, unit_id")
       .eq("id", leaseId)
       .single();
 
