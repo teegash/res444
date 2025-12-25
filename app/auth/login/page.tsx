@@ -103,6 +103,13 @@ function LoginForm() {
       console.log('Starting sign in request...')
       const requestStartTime = Date.now()
 
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => {
+        const elapsed = Date.now() - requestStartTime
+        console.error(`Client-side fetch timed out after ${elapsed}ms`)
+        controller.abort()
+      }, 4500)
+
       let response: Response
       try {
         console.log('Sending sign in request to API...')
@@ -115,13 +122,21 @@ function LoginForm() {
             email: formData.email,
             password: formData.password,
           }),
+          signal: controller.signal,
         })
+        clearTimeout(timeoutId)
         const elapsed = Date.now() - requestStartTime
         console.log(`Sign in request completed in ${elapsed}ms, status:`, response.status)
       } catch (fetchError: any) {
+        clearTimeout(timeoutId)
         const elapsed = Date.now() - requestStartTime
         console.error(`Sign in request failed after ${elapsed}ms:`, fetchError)
 
+        if (fetchError.name === 'AbortError') {
+          setError('Sign in request timed out. Please check your connection and try again.')
+          setIsLoading(false)
+          return
+        }
         if (fetchError.name === 'TypeError' && fetchError.message.includes('fetch')) {
           setError('Network error. Please check your internet connection and try again.')
           setIsLoading(false)
