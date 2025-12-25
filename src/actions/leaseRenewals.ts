@@ -1,6 +1,6 @@
 "use server";
 
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
 import { createClient } from "@supabase/supabase-js";
 
@@ -55,6 +55,24 @@ async function getMemberRoleOrNull(
   if (error) throw new Error(`Organization membership check failed: ${error.message}`);
   const role = (data?.role ?? null) as Role | null;
   return role;
+}
+
+async function resolveInternalUrl(path: string) {
+  if (path.startsWith("http://") || path.startsWith("https://")) return path;
+
+  const hdrs = await headers();
+  const proto = hdrs.get("x-forwarded-proto") || "https";
+  const host = hdrs.get("x-forwarded-host") || hdrs.get("host");
+
+  if (host) return `${proto}://${host}${path}`;
+
+  const appUrl = process.env.APP_URL || process.env.NEXT_PUBLIC_SITE_URL;
+  if (appUrl) return `${appUrl.replace(/\/$/, "")}${path}`;
+
+  const vercel = process.env.VERCEL_URL;
+  if (vercel) return `${vercel.startsWith("http") ? vercel : `https://${vercel}`}${path}`;
+
+  return `http://localhost:3000${path}`;
 }
 
 export async function getRenewalByLease(leaseId: string) {
@@ -153,7 +171,8 @@ export async function getRenewalDetails(renewalId: string) {
 }
 
 async function callInternal(path: string, init: RequestInit) {
-  const res = await fetch(path, { cache: "no-store", ...init });
+  const url = await resolveInternalUrl(path);
+  const res = await fetch(url, { cache: "no-store", ...init });
   const text = await res.text();
   let json: any;
   try {
