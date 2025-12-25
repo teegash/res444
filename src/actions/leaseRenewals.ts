@@ -30,23 +30,37 @@ async function getActorUserIdOrThrow() {
 }
 
 async function callInternal(path: string, init?: RequestInit) {
+  // Prefer relative fetch first to avoid Vercel Preview/Deployment Protection 401s on absolute self-fetches.
+  // Fallback to absolute URL only if relative fetch fails in the current runtime.
   const base = appBaseUrl();
-  const url = base ? `${base}${path}` : path;
-  const res = await fetch(url, { cache: "no-store", ...init });
-  const text = await res.text();
+  const urls = [path, ...(base ? [`${base}${path}`] : [])];
 
-  let jsonData: any = null;
-  try {
-    jsonData = JSON.parse(text);
-  } catch {
-    jsonData = { raw: text };
+  let lastErr: unknown = null;
+
+  for (const url of urls) {
+    try {
+      const res = await fetch(url, { cache: "no-store", ...init });
+      const text = await res.text();
+
+      let jsonData: any = null;
+      try {
+        jsonData = JSON.parse(text);
+      } catch {
+        jsonData = { raw: text };
+      }
+
+      if (!res.ok) {
+        const msg = jsonData?.error || `Request failed (${res.status})`;
+        throw new Error(msg);
+      }
+
+      return jsonData;
+    } catch (err) {
+      lastErr = err;
+    }
   }
 
-  if (!res.ok) {
-    throw new Error(jsonData?.error || `Request failed (${res.status})`);
-  }
-
-  return jsonData;
+  throw lastErr instanceof Error ? lastErr : new Error(String(lastErr));
 }
 
 export async function getRenewalByLease(leaseId: string) {
