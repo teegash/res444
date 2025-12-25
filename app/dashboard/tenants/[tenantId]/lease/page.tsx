@@ -155,6 +155,48 @@ export default function TenantLeaseManagementPage() {
 
   const canStartRenewal = renewalWindowOpen && !hasActiveRenewal
 
+  const displayLeaseStatus = useMemo(() => {
+    if (!lease) return leaseSummary?.status || 'unassigned'
+    const start = lease.start_date ? new Date(lease.start_date) : null
+    const end = lease.end_date ? new Date(lease.end_date) : null
+    const today = new Date()
+    const statusValue = (lease.status || '').toLowerCase()
+    const isRenewed = statusValue === 'renewed' || renewal?.status === 'completed'
+
+    if (start && start <= today && (!end || end >= today)) {
+      return 'valid'
+    }
+    if (end && end < today) {
+      return 'expired'
+    }
+    if (start && start > today) {
+      return isRenewed ? 'renewed' : 'pending'
+    }
+    return lease.status || leaseSummary?.status || 'pending'
+  }, [lease, leaseSummary?.status, renewal?.status])
+
+  const displayLeaseDetail = useMemo(() => {
+    if (!lease) return leaseSummary?.detail || 'Lease status pending verification.'
+    const start = lease.start_date ? new Date(lease.start_date) : null
+    const end = lease.end_date ? new Date(lease.end_date) : null
+    const today = new Date()
+    const statusValue = (lease.status || '').toLowerCase()
+    const isRenewed = statusValue === 'renewed' || renewal?.status === 'completed'
+
+    if (start && start <= today && (!end || end >= today)) {
+      return 'Lease is currently active.'
+    }
+    if (end && end < today) {
+      return `Lease ended on ${end.toLocaleDateString()}.`
+    }
+    if (start && start > today) {
+      return isRenewed
+        ? `Renewed lease starts on ${start.toLocaleDateString()}.`
+        : `Lease activates on ${start.toLocaleDateString()}.`
+    }
+    return leaseSummary?.detail || 'Lease status pending verification.'
+  }, [lease, leaseSummary?.detail, renewal?.status])
+
   const refreshRenewal = useCallback(async (leaseId?: string | null) => {
     if (!leaseId || leaseId === 'undefined') {
       setRenewal(null)
@@ -386,7 +428,7 @@ export default function TenantLeaseManagementPage() {
           { label: 'Start Date', value: lease.start_date || startDate || '—' },
           { label: 'End Date', value: lease.end_date || '—' },
           { label: 'Deposit Amount', value: formatCurrency(lease.deposit_amount) },
-          { label: 'Lease Status', value: leaseSummary?.status || lease.status || '—' },
+          { label: 'Lease Status', value: displayLeaseStatus || lease.status || '—' },
           { label: 'Duration (months)', value: durationMonths },
         ],
       },
@@ -555,12 +597,12 @@ export default function TenantLeaseManagementPage() {
                 <div className="rounded-lg border p-3 bg-slate-50">
                   <span
                     className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold capitalize ${statusBadgeClasses(
-                      leaseSummary?.status
+                      displayLeaseStatus
                     )}`}
                   >
-                    {leaseSummary?.status || 'unassigned'}
+                    {displayLeaseStatus || 'unassigned'}
                   </span>
-                  <p className="text-xs text-muted-foreground">{leaseSummary?.detail}</p>
+                  <p className="text-xs text-muted-foreground">{displayLeaseDetail}</p>
                 </div>
               </CardContent>
             </Card>

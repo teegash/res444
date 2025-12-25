@@ -154,11 +154,12 @@ async function addFullySignedStamp(pdfBuffer: Buffer) {
   const dateText = `Countersigned: ${new Date().toLocaleDateString("en-KE")}`;
   const size = 11;
   const padding = 6;
-  const textWidth = font.widthOfTextAtSize(stampText, size);
-  const boxWidth = textWidth + padding * 2;
+  const boxWidth = 150;
   const boxHeight = size + padding * 2;
-  const x = page.getWidth() - boxWidth - 48;
-  const y = page.getHeight() - boxHeight - 120;
+  const x = 50 + boxWidth + 16;
+  const y = 78;
+  const textWidth = font.widthOfTextAtSize(stampText, size);
+  const textX = x + Math.max(0, (boxWidth - textWidth) / 2);
 
   page.drawRectangle({
     x,
@@ -170,14 +171,14 @@ async function addFullySignedStamp(pdfBuffer: Buffer) {
     borderColor: rgb(0.12, 0.45, 0.2),
   });
   page.drawText(stampText, {
-    x: x + padding,
+    x: textX,
     y: y + padding,
     size,
     font,
     color: rgb(0.12, 0.45, 0.2),
   });
   page.drawText(dateText, {
-    x: x,
+    x,
     y: y - 12,
     size: 8,
     font,

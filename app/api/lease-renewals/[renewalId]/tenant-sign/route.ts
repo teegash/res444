@@ -107,11 +107,12 @@ async function addTenantStamp(pdfBuffer: Buffer) {
   const dateText = `Signed: ${new Date().toLocaleDateString("en-KE")}`;
   const size = 11;
   const padding = 6;
-  const textWidth = font.widthOfTextAtSize(stampText, size);
-  const boxWidth = textWidth + padding * 2;
+  const boxWidth = 150;
   const boxHeight = size + padding * 2;
-  const x = page.getWidth() - boxWidth - 48;
-  const y = page.getHeight() - boxHeight - 90;
+  const x = 50;
+  const y = 78;
+  const textWidth = font.widthOfTextAtSize(stampText, size);
+  const textX = x + Math.max(0, (boxWidth - textWidth) / 2);
 
   page.drawRectangle({
     x,
@@ -123,14 +124,14 @@ async function addTenantStamp(pdfBuffer: Buffer) {
     borderColor: rgb(0.76, 0.13, 0.13),
   });
   page.drawText(stampText, {
-    x: x + padding,
+    x: textX,
     y: y + padding,
     size,
     font,
     color: rgb(0.76, 0.13, 0.13),
   });
   page.drawText(dateText, {
-    x: x,
+    x,
     y: y - 12,
     size: 8,
     font,
