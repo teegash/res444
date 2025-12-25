@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 
-function summarizeLeaseState(lease: any) {
+function summarizeLeaseState(lease: any, hasCompletedRenewal: boolean) {
   if (!lease) {
     return {
       status: 'unassigned',
@@ -37,7 +37,8 @@ function summarizeLeaseState(lease: any) {
   }
 
   if (start && start > today) {
-    if ((lease.status || '').toLowerCase() === 'renewed') {
+    const leaseStatus = (lease.status || '').toLowerCase()
+    if (leaseStatus === 'renewed' || hasCompletedRenewal) {
       return {
         status: 'renewed',
         detail: `Renewed lease starts on ${start.toLocaleDateString()}.`,
@@ -160,7 +161,7 @@ export async function GET() {
         `
         )
         .eq('organization_id', membership.organization_id)
-        .in('status', ['active', 'pending'])
+        .in('status', ['active', 'pending', 'renewed'])
         .in('tenant_user_id', tenantIds)
         .order('start_date', { ascending: false })
 
@@ -204,6 +205,30 @@ export async function GET() {
       if (!lease?.tenant_user_id) continue
       if (!leaseMap.has(lease.tenant_user_id)) {
         leaseMap.set(lease.tenant_user_id, lease)
+      }
+    }
+
+    const leaseIds = Array.from(
+      new Set(Array.from(leaseMap.values()).map((lease) => lease?.id).filter(Boolean) as string[])
+    )
+
+    const completedRenewalLeaseIds = new Set<string>()
+    if (leaseIds.length > 0) {
+      const { data: completedRenewals, error: renewalError } = await adminSupabase
+        .from('lease_renewals')
+        .select('lease_id')
+        .eq('organization_id', membership.organization_id)
+        .in('lease_id', leaseIds)
+        .eq('status', 'completed')
+
+      if (renewalError) {
+        throw renewalError
+      }
+
+      for (const renewal of completedRenewals || []) {
+        if (renewal?.lease_id) {
+          completedRenewalLeaseIds.add(renewal.lease_id)
+        }
       }
     }
 
@@ -313,7 +338,8 @@ export async function GET() {
         lease?.deposit_amount !== null && lease?.deposit_amount !== undefined
           ? Number(lease.deposit_amount)
           : null
-      const leaseSummary = summarizeLeaseState(lease)
+      const hasCompletedRenewal = lease?.id ? completedRenewalLeaseIds.has(lease.id) : false
+      const leaseSummary = summarizeLeaseState(lease, hasCompletedRenewal)
       const paymentStatus = lease
         ? resolvePaymentStatus(profile.id, monthlyRentValue)
         : {
