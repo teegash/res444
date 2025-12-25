@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { useToast } from '@/components/ui/use-toast'
 import { exportLeasePdf } from '@/lib/pdf/leaseDocument'
+import { createRenewalByLease, getRenewalByLease, getRenewalDownloadUrl, tenantSignRenewal } from '@/src/actions/leaseRenewals'
 
 type LeaseDetails = {
   id: string
@@ -35,6 +36,14 @@ type LeaseDetails = {
       location: string | null
     } | null
   } | null
+}
+
+type LeaseRenewal = {
+  id: string
+  status: string
+  pdf_unsigned_path: string | null
+  pdf_tenant_signed_path: string | null
+  pdf_fully_signed_path: string | null
 }
 
 const currencyFormatter = new Intl.NumberFormat('en-KE', {
@@ -73,7 +82,22 @@ export default function LeasePage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [downloading, setDownloading] = useState(false)
+  const [renewal, setRenewal] = useState<LeaseRenewal | null>(null)
+  const [renewalLoading, setRenewalLoading] = useState(false)
+  const [renewalBusy, setRenewalBusy] = useState<null | 'create' | 'tenantSign' | 'download'>(null)
   const { toast } = useToast()
+
+  const refreshRenewal = useCallback(async (leaseId: string) => {
+    setRenewalLoading(true)
+    try {
+      const res: any = await getRenewalByLease(leaseId)
+      setRenewal(res.activeRenewal || null)
+    } catch (e) {
+      console.warn('[LeasePage] Failed to load renewal', e)
+    } finally {
+      setRenewalLoading(false)
+    }
+  }, [])
 
   useEffect(() => {
     const fetchLease = async () => {
@@ -87,6 +111,9 @@ export default function LeasePage() {
         }
         const payload = await response.json()
         setLease(payload.data || null)
+        if (payload.data?.id) {
+          refreshRenewal(payload.data.id)
+        }
       } catch (err) {
         console.error('[LeasePage] fetch failed', err)
         setError(err instanceof Error ? err.message : 'Unable to load lease info.')
@@ -427,6 +454,138 @@ export default function LeasePage() {
             >
               <p className="text-sm font-medium">{renewalInfo.highlight ? 'Action required' : 'Heads up'}</p>
               <p className="text-sm mt-1">{renewalInfo.message}</p>
+            </div>
+
+            <div className="rounded-lg border p-4 bg-white mb-4 space-y-3">
+              {renewalLoading ? (
+                <div className="text-sm text-muted-foreground">Loading renewal status…</div>
+              ) : !lease?.id ? (
+                <div className="text-sm text-muted-foreground">Lease not loaded.</div>
+              ) : !renewal ? (
+                <>
+                  <div className="text-sm text-muted-foreground">No renewal has been started yet.</div>
+                  <Button
+                    disabled={renewalBusy === 'create'}
+                    onClick={async () => {
+                      try {
+                        setRenewalBusy('create')
+                        await createRenewalByLease(lease.id)
+                        await refreshRenewal(lease.id)
+                        toast({ title: 'Renewal created', description: 'Open it and sign when ready.' })
+                      } catch (e: any) {
+                        toast({
+                          title: 'Failed to start renewal',
+                          description: e?.message ?? 'Error',
+                          variant: 'destructive',
+                        })
+                      } finally {
+                        setRenewalBusy(null)
+                      }
+                    }}
+                  >
+                    Start Renewal
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between">
+                    <div className="text-sm">
+                      Status:{' '}
+                      <Badge className="ml-2" variant="secondary">
+                        {renewal.status}
+                      </Badge>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      variant="outline"
+                      disabled={!renewal.pdf_unsigned_path || renewalBusy === 'download'}
+                      onClick={async () => {
+                        try {
+                          setRenewalBusy('download')
+                          const res: any = await getRenewalDownloadUrl(renewal.id, 'unsigned')
+                          if (res?.url) window.open(res.url, '_blank')
+                        } catch (e: any) {
+                          toast({ title: 'Download failed', description: e?.message ?? 'Error', variant: 'destructive' })
+                        } finally {
+                          setRenewalBusy(null)
+                        }
+                      }}
+                    >
+                      <Download className="h-4 w-4 mr-2" />
+                      Download Unsigned
+                    </Button>
+
+                    <Button
+                      variant="outline"
+                      disabled={!renewal.pdf_tenant_signed_path || renewalBusy === 'download'}
+                      onClick={async () => {
+                        try {
+                          setRenewalBusy('download')
+                          const res: any = await getRenewalDownloadUrl(renewal.id, 'tenant_signed')
+                          if (res?.url) window.open(res.url, '_blank')
+                        } catch (e: any) {
+                          toast({ title: 'Download failed', description: e?.message ?? 'Error', variant: 'destructive' })
+                        } finally {
+                          setRenewalBusy(null)
+                        }
+                      }}
+                    >
+                      <Download className="h-4 w-4 mr-2" />
+                      Download Tenant-Signed
+                    </Button>
+
+                    <Button
+                      variant="outline"
+                      disabled={!renewal.pdf_fully_signed_path || renewalBusy === 'download'}
+                      onClick={async () => {
+                        try {
+                          setRenewalBusy('download')
+                          const res: any = await getRenewalDownloadUrl(renewal.id, 'fully_signed')
+                          if (res?.url) window.open(res.url, '_blank')
+                        } catch (e: any) {
+                          toast({ title: 'Download failed', description: e?.message ?? 'Error', variant: 'destructive' })
+                        } finally {
+                          setRenewalBusy(null)
+                        }
+                      }}
+                    >
+                      <Download className="h-4 w-4 mr-2" />
+                      Download Fully Signed
+                    </Button>
+                  </div>
+
+                  <div className="pt-2">
+                    <Button
+                      disabled={renewal.status !== 'sent_for_signature' || renewalBusy === 'tenantSign'}
+                      onClick={async () => {
+                        try {
+                          setRenewalBusy('tenantSign')
+                          await tenantSignRenewal(renewal.id)
+                          await refreshRenewal(lease.id)
+                          toast({
+                            title: 'Signed',
+                            description: 'Your signature has been applied. Awaiting countersign.',
+                          })
+                        } catch (e: any) {
+                          toast({ title: 'Signing failed', description: e?.message ?? 'Error', variant: 'destructive' })
+                        } finally {
+                          setRenewalBusy(null)
+                        }
+                      }}
+                    >
+                      Sign Renewal
+                    </Button>
+
+                    {renewal.status !== 'sent_for_signature' && (
+                      <div className="text-xs text-muted-foreground mt-2">
+                        Signing is enabled only when the renewal is sent for signature.
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
             </div>
             <div className="grid gap-4 md:grid-cols-2 text-sm">
               <div>

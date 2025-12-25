@@ -139,10 +139,10 @@ export async function POST(req: Request, { params }: { params: { renewalId: stri
 
     if (!r.pdf_unsigned_path) return json({ error: "Missing pdf_unsigned_path" }, 400);
 
-    const p12base64 = process.env.TENANT_SIGN_P12_BASE64;
-    const p12pass = process.env.TENANT_SIGN_P12_PASSWORD;
+    const p12base64 = process.env.TENANT_P12_BASE64;
+    const p12pass = process.env.TENANT_CERT_PASSWORD;
     if (!p12base64 || !p12pass) {
-      return json({ error: "Missing TENANT_SIGN_P12_BASE64 or TENANT_SIGN_P12_PASSWORD" }, 500);
+      return json({ error: "Missing TENANT_P12_BASE64 or TENANT_CERT_PASSWORD" }, 500);
     }
 
     const pdfBuffer = await downloadPdf(admin, r.pdf_unsigned_path);
@@ -196,4 +196,3 @@ export async function POST(req: Request, { params }: { params: { renewalId: stri
     return json({ error: msg }, status);
   }
 }
-

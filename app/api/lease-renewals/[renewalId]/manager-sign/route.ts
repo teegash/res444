@@ -108,7 +108,7 @@ async function cancelPendingLeaseRenewalReminders(admin: any, leaseId: string) {
     .eq("reminder_type", "lease_renewal")
     .eq("related_entity_type", "lease")
     .eq("related_entity_id", leaseId)
-    .in("delivery_status", ["pending", "processing"]);
+    .eq("delivery_status", "pending");
 
   if (error) throw new Error(`Failed to cancel reminders: ${error.message}`);
 }
@@ -147,10 +147,10 @@ export async function POST(req: Request, { params }: { params: { renewalId: stri
 
     if (!r.pdf_tenant_signed_path) return json({ error: "Missing pdf_tenant_signed_path" }, 400);
 
-    const p12base64 = process.env.MANAGER_SIGN_P12_BASE64;
-    const p12pass = process.env.MANAGER_SIGN_P12_PASSWORD;
+    const p12base64 = process.env.MANAGER_P12_BASE64;
+    const p12pass = process.env.MANAGER_CERT_PASSWORD;
     if (!p12base64 || !p12pass) {
-      return json({ error: "Missing MANAGER_SIGN_P12_BASE64 or MANAGER_SIGN_P12_PASSWORD" }, 500);
+      return json({ error: "Missing MANAGER_P12_BASE64 or MANAGER_CERT_PASSWORD" }, 500);
     }
 
     const pdfBuffer = await downloadPdf(admin, r.pdf_tenant_signed_path);
@@ -206,4 +206,3 @@ export async function POST(req: Request, { params }: { params: { renewalId: stri
     return json({ error: msg }, status);
   }
 }
-

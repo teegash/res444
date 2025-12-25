@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -17,6 +17,12 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Loader2, ArrowLeft, Download, Calendar, FileText, UploadCloud } from 'lucide-react'
 import { useToast } from '@/components/ui/use-toast'
 import { exportLeasePdf } from '@/lib/pdf/leaseDocument'
+import {
+  createRenewalByLease,
+  getRenewalByLease,
+  getRenewalDownloadUrl,
+  managerSignRenewal,
+} from '@/src/actions/leaseRenewals'
 
 interface LeaseResponse {
   tenant: {
@@ -50,6 +56,14 @@ interface LeaseResponse {
     status: string
     detail: string
   }
+}
+
+type LeaseRenewal = {
+  id: string
+  status: string
+  pdf_unsigned_path: string | null
+  pdf_tenant_signed_path: string | null
+  pdf_fully_signed_path: string | null
 }
 
 const durationOptions = Array.from({ length: 10 }, (_, index) => (index + 1) * 6)
@@ -94,6 +108,10 @@ export default function TenantLeaseManagementPage() {
   const [uploading, setUploading] = useState(false)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
 
+  const [renewal, setRenewal] = useState<LeaseRenewal | null>(null)
+  const [renewalLoading, setRenewalLoading] = useState(false)
+  const [renewalBusy, setRenewalBusy] = useState<null | 'create' | 'managerSign' | 'download'>(null)
+
   const [startDate, setStartDate] = useState('')
   const [durationMonths, setDurationMonths] = useState('12')
   const [monthlyRent, setMonthlyRent] = useState('')
@@ -102,6 +120,18 @@ export default function TenantLeaseManagementPage() {
   const leaseSummary = useMemo(() => data?.lease_status, [data])
   const tenant = data?.tenant
   const lease = data?.lease
+
+  const refreshRenewal = useCallback(async (leaseId: string) => {
+    setRenewalLoading(true)
+    try {
+      const res: any = await getRenewalByLease(leaseId)
+      setRenewal(res.activeRenewal || null)
+    } catch (e) {
+      console.warn('[ManagerLease] Failed to load renewal', e)
+    } finally {
+      setRenewalLoading(false)
+    }
+  }, [])
 
   const durationFromRange = (start: string, end: string) => {
     const startDate = new Date(start)
@@ -173,6 +203,9 @@ export default function TenantLeaseManagementPage() {
         }
         const payload = await response.json()
         setData(payload.data)
+        if (payload.data?.lease?.id) {
+          refreshRenewal(payload.data.lease.id)
+        }
 
         if (payload.data?.lease) {
           setStartDate(payload.data.lease.start_date || '')
@@ -191,7 +224,7 @@ export default function TenantLeaseManagementPage() {
       }
     }
     fetchLease()
-  }, [tenantId])
+  }, [tenantId, refreshRenewal])
 
   const handleSave = async () => {
     if (!tenantId) return
@@ -531,6 +564,170 @@ export default function TenantLeaseManagementPage() {
                 <p className="text-xs text-muted-foreground">
                   Uploaded files are stored securely and exposed as a download link in the tenant portal’s lease page.
                 </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <FileText className="h-5 w-5 text-blue-600" />
+                  Lease Renewal
+                </CardTitle>
+                <CardDescription>Initiate and countersign lease renewals.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3 text-sm">
+                {renewalLoading ? (
+                  <div className="text-sm text-muted-foreground">Loading renewal status…</div>
+                ) : !lease?.id ? (
+                  <div className="text-sm text-muted-foreground">Lease not loaded.</div>
+                ) : !renewal ? (
+                  <>
+                    <div className="text-sm text-muted-foreground">No renewal has been started yet.</div>
+                    <Button
+                      disabled={renewalBusy === 'create'}
+                      onClick={async () => {
+                        try {
+                          setRenewalBusy('create')
+                          await createRenewalByLease(lease.id)
+                          await refreshRenewal(lease.id)
+                          toast({
+                            title: 'Renewal initiated',
+                            description: 'Tenant can now sign from their lease page.',
+                          })
+                        } catch (e: any) {
+                          const msg = e?.message ?? 'Error'
+                          toast({
+                            title: 'Failed to start renewal',
+                            description: msg,
+                            variant: 'destructive',
+                          })
+                        } finally {
+                          setRenewalBusy(null)
+                        }
+                      }}
+                    >
+                      Force Lease Renewal
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <div className="flex items-center justify-between">
+                      <div className="text-sm">
+                        Status:{' '}
+                        <span className="inline-flex ml-2 rounded-md border px-2 py-0.5 text-xs font-medium">
+                          {renewal.status}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={!renewal.pdf_unsigned_path || renewalBusy === 'download'}
+                        onClick={async () => {
+                          try {
+                            setRenewalBusy('download')
+                            const res: any = await getRenewalDownloadUrl(renewal.id, 'unsigned')
+                            if (res?.url) window.open(res.url, '_blank')
+                          } catch (e: any) {
+                            toast({
+                              title: 'Download failed',
+                              description: e?.message ?? 'Error',
+                              variant: 'destructive',
+                            })
+                          } finally {
+                            setRenewalBusy(null)
+                          }
+                        }}
+                      >
+                        <Download className="h-4 w-4 mr-2" />
+                        Unsigned
+                      </Button>
+
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={!renewal.pdf_tenant_signed_path || renewalBusy === 'download'}
+                        onClick={async () => {
+                          try {
+                            setRenewalBusy('download')
+                            const res: any = await getRenewalDownloadUrl(renewal.id, 'tenant_signed')
+                            if (res?.url) window.open(res.url, '_blank')
+                          } catch (e: any) {
+                            toast({
+                              title: 'Download failed',
+                              description: e?.message ?? 'Error',
+                              variant: 'destructive',
+                            })
+                          } finally {
+                            setRenewalBusy(null)
+                          }
+                        }}
+                      >
+                        <Download className="h-4 w-4 mr-2" />
+                        Tenant
+                      </Button>
+
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={!renewal.pdf_fully_signed_path || renewalBusy === 'download'}
+                        onClick={async () => {
+                          try {
+                            setRenewalBusy('download')
+                            const res: any = await getRenewalDownloadUrl(renewal.id, 'fully_signed')
+                            if (res?.url) window.open(res.url, '_blank')
+                          } catch (e: any) {
+                            toast({
+                              title: 'Download failed',
+                              description: e?.message ?? 'Error',
+                              variant: 'destructive',
+                            })
+                          } finally {
+                            setRenewalBusy(null)
+                          }
+                        }}
+                      >
+                        <Download className="h-4 w-4 mr-2" />
+                        Fully
+                      </Button>
+                    </div>
+
+                    <div className="pt-2 space-y-2">
+                      <Button
+                        disabled={renewal.status !== 'in_progress' || renewalBusy === 'managerSign'}
+                        onClick={async () => {
+                          try {
+                            setRenewalBusy('managerSign')
+                            await managerSignRenewal(renewal.id)
+                            await refreshRenewal(lease.id)
+                            toast({
+                              title: 'Countersigned',
+                              description: 'Renewal completed. Fully signed PDF is now available.',
+                            })
+                          } catch (e: any) {
+                            toast({
+                              title: 'Countersign failed',
+                              description: e?.message ?? 'Error',
+                              variant: 'destructive',
+                            })
+                          } finally {
+                            setRenewalBusy(null)
+                          }
+                        }}
+                      >
+                        Countersign
+                      </Button>
+
+                      {renewal.status !== 'in_progress' && (
+                        <div className="text-xs text-muted-foreground">
+                          Countersign is enabled only after the tenant signs (status: in_progress).
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
               </CardContent>
             </Card>
 
