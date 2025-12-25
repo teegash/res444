@@ -156,31 +156,14 @@ export async function POST(request: NextRequest) {
       },
     })
 
-    const signInPromise = supabase.auth.signInWithPassword({
-      email: email.toLowerCase().trim(),
-      password,
-    })
-
-    const timeoutPromise = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error('Sign in timed out after 4500ms')), 4500)
-    )
-
     let signInResult: Awaited<ReturnType<typeof supabase.auth.signInWithPassword>>
     try {
-      signInResult = (await Promise.race([signInPromise, timeoutPromise])) as Awaited<
-        ReturnType<typeof supabase.auth.signInWithPassword>
-      >
+      signInResult = await supabase.auth.signInWithPassword({
+        email: email.toLowerCase().trim(),
+        password,
+      })
     } catch (signInError: any) {
       console.error('Sign in failed:', signInError.message)
-      if (signInError.message.includes('timed out')) {
-        return NextResponse.json(
-          {
-            success: false,
-            error: 'Sign in timed out. Please check your connection and try again.',
-          },
-          { status: 504 }
-        )
-      }
       return NextResponse.json(
         {
           success: false,
