@@ -47,6 +47,8 @@ type LeaseRenewal = {
   pdf_unsigned_path: string | null
   pdf_tenant_signed_path: string | null
   pdf_fully_signed_path: string | null
+  proposed_start_date?: string | null
+  proposed_end_date?: string | null
 }
 
 const isValidRenewalId = (value?: string | null) =>
@@ -63,6 +65,59 @@ const formatDate = (value?: string | null, fallback = '—') => {
   const parsed = new Date(value)
   if (Number.isNaN(parsed.getTime())) return fallback
   return parsed.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })
+}
+
+const parseDateOnly = (value?: string | null) => {
+  if (!value) return null
+  const raw = value.trim()
+  const base = raw.includes('T') ? raw.split('T')[0] : raw.split(' ')[0]
+  const [y, m, d] = base.split('-').map((part) => Number(part))
+  if (y && m && d) {
+    return new Date(Date.UTC(y, m - 1, d))
+  }
+  const parsed = new Date(raw)
+  if (Number.isNaN(parsed.getTime())) return null
+  return new Date(Date.UTC(parsed.getUTCFullYear(), parsed.getUTCMonth(), parsed.getUTCDate()))
+}
+
+const toIsoDate = (value: Date | null) => {
+  if (!value) return null
+  return value.toISOString().slice(0, 10)
+}
+
+const addDaysUtc = (date: Date, days: number) => {
+  const next = new Date(date.getTime())
+  next.setUTCDate(next.getUTCDate() + days)
+  return next
+}
+
+const monthsBetweenUtc = (start: Date, end: Date) =>
+  (end.getUTCFullYear() - start.getUTCFullYear()) * 12 + (end.getUTCMonth() - start.getUTCMonth())
+
+const lastDayOfMonthUtc = (year: number, monthIndex: number) => new Date(Date.UTC(year, monthIndex + 1, 0))
+
+const addMonthsPreserveDayUtc = (date: Date, months: number) => {
+  const startDay = date.getUTCDate()
+  const rawMonth = date.getUTCMonth() + months
+  const year = date.getUTCFullYear() + Math.floor(rawMonth / 12)
+  const monthIndex = ((rawMonth % 12) + 12) % 12
+  const lastDay = lastDayOfMonthUtc(year, monthIndex).getUTCDate()
+  const day = Math.min(startDay, lastDay)
+  return new Date(Date.UTC(year, monthIndex, day))
+}
+
+const deriveRenewalDates = (start?: string | null, end?: string | null) => {
+  const leaseStart = parseDateOnly(start)
+  const leaseEnd = parseDateOnly(end)
+  if (!leaseEnd) return { start: null, end: null }
+  const termMonthsRaw = leaseStart && leaseEnd ? monthsBetweenUtc(leaseStart, leaseEnd) : 0
+  const termMonths = termMonthsRaw > 0 ? termMonthsRaw : 12
+  const renewalStart = addDaysUtc(leaseEnd, 1)
+  const renewalEnd =
+    termMonths % 12 === 0
+      ? addMonthsPreserveDayUtc(renewalStart, termMonths)
+      : lastDayOfMonthUtc(renewalStart.getUTCFullYear(), renewalStart.getUTCMonth() + termMonths - 1)
+  return { start: toIsoDate(renewalStart), end: toIsoDate(renewalEnd) }
 }
 
 const formatCurrency = (value?: number | null) => {
@@ -160,16 +215,38 @@ export default function LeasePage() {
     fetchSigned()
   }, [])
 
+  const derivedRenewalDates = useMemo(
+    () => deriveRenewalDates(lease?.start_date, lease?.end_date),
+    [lease?.end_date, lease?.start_date]
+  )
+
+  const effectiveStartDate = useMemo(() => {
+    if (renewal?.status === 'completed') {
+      return renewal.proposed_start_date || derivedRenewalDates.start || lease?.start_date || null
+    }
+    return lease?.start_date || null
+  }, [derivedRenewalDates.start, lease?.start_date, renewal?.proposed_start_date, renewal?.status])
+
+  const effectiveEndDate = useMemo(() => {
+    if (renewal?.status === 'completed') {
+      return renewal.proposed_end_date || derivedRenewalDates.end || lease?.end_date || null
+    }
+    return lease?.end_date || null
+  }, [derivedRenewalDates.end, lease?.end_date, renewal?.proposed_end_date, renewal?.status])
+
   const propertyName = lease?.unit?.building?.name || '—'
   const propertyLocation = lease?.unit?.building?.location || '—'
   const unitLabel = lease?.unit?.unit_number || '—'
-  const leasePeriod = lease ? `${formatDate(lease.start_date)} – ${formatDate(lease.end_date)}` : '—'
+  const leasePeriod =
+    effectiveStartDate || effectiveEndDate
+      ? `${formatDate(effectiveStartDate)} – ${formatDate(effectiveEndDate)}`
+      : '—'
   const monthlyRent = formatCurrency(lease?.monthly_rent)
   const depositAmount = formatCurrency(lease?.deposit_amount)
   const leaseStatus = useMemo(() => {
     if (!lease) return 'Unknown'
-    const start = lease.start_date ? new Date(lease.start_date) : null
-    const end = lease.end_date ? new Date(lease.end_date) : null
+    const start = effectiveStartDate ? new Date(effectiveStartDate) : null
+    const end = effectiveEndDate ? new Date(effectiveEndDate) : null
     const today = new Date()
     const statusValue = (lease.status || '').toLowerCase()
     const isRenewed = statusValue === 'renewed' || renewal?.status === 'completed'
@@ -184,16 +261,16 @@ export default function LeasePage() {
       return isRenewed ? 'renewed' : 'pending'
     }
     return lease.status || 'pending'
-  }, [lease, renewal?.status])
+  }, [effectiveEndDate, effectiveStartDate, lease, renewal?.status])
 
   const renewalWindowOpen = useMemo(() => {
-    if (!lease?.end_date) return false
-    const end = new Date(lease.end_date)
+    if (!effectiveEndDate) return false
+    const end = new Date(effectiveEndDate)
     const now = new Date()
     const diffDays = Math.floor((end.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
     if (Number.isNaN(diffDays)) return false
     return diffDays >= 0 && diffDays <= 60
-  }, [lease?.end_date])
+  }, [effectiveEndDate])
 
   const hasActiveRenewal = Boolean(
     renewal && ['draft', 'sent_for_signature', 'in_progress'].includes(renewal.status)
@@ -203,38 +280,38 @@ export default function LeasePage() {
   const agreementUrl = lease?.lease_agreement_url || ''
 
   const renewalInfo = useMemo(() => {
-    if (!lease?.end_date) {
+    if (!effectiveEndDate) {
       return {
         message: 'No lease end date on file. Contact management for renewal information.',
         highlight: false,
       }
     }
-    const end = new Date(lease.end_date)
+    const end = new Date(effectiveEndDate)
     const now = new Date()
     const diffDays = Math.floor((end.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
     if (Number.isNaN(diffDays)) {
       return {
-        message: `Your lease expires on ${formatDate(lease.end_date)}.`,
+        message: `Your lease expires on ${formatDate(effectiveEndDate)}.`,
         highlight: false,
       }
     }
     if (diffDays < 0) {
       return {
-        message: `This lease expired on ${formatDate(lease.end_date)}.`,
+        message: `This lease expired on ${formatDate(effectiveEndDate)}.`,
         highlight: true,
       }
     }
     if (diffDays <= 60) {
       return {
-        message: `Your lease expires on ${formatDate(lease.end_date)}. You can renew any time within the next ${diffDays} days.`,
+        message: `Your lease expires on ${formatDate(effectiveEndDate)}. You can renew any time within the next ${diffDays} days.`,
         highlight: true,
       }
     }
     return {
-      message: `Your lease expires on ${formatDate(lease.end_date)}. Renewal will open ${60} days before expiration.`,
+      message: `Your lease expires on ${formatDate(effectiveEndDate)}. Renewal will open ${60} days before expiration.`,
       highlight: false,
     }
-  }, [lease?.end_date])
+  }, [effectiveEndDate])
 
   const generatePdf = useCallback(async () => {
     if (!lease) {
@@ -259,8 +336,8 @@ export default function LeasePage() {
       {
         title: 'Lease Terms',
         rows: [
-          { label: 'Start Date', value: formatDate(lease.start_date) },
-          { label: 'End Date', value: formatDate(lease.end_date) },
+          { label: 'Start Date', value: formatDate(effectiveStartDate) },
+          { label: 'End Date', value: formatDate(effectiveEndDate) },
           { label: 'Monthly Rent', value: monthlyRent },
           { label: 'Deposit Amount', value: depositAmount },
         ],
@@ -425,14 +502,14 @@ export default function LeasePage() {
               <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
                 <div>
                   <p className="font-medium">Lease start</p>
-                  <p className="text-muted-foreground">{formatDate(lease?.start_date)}</p>
+                  <p className="text-muted-foreground">{formatDate(effectiveStartDate)}</p>
                 </div>
                 <Badge variant="outline">start</Badge>
               </div>
               <div className="flex items-center justify-between p-3 bg-purple-50 rounded-lg">
                 <div>
                   <p className="font-medium">Lease end</p>
-                  <p className="text-muted-foreground">{formatDate(lease?.end_date)}</p>
+                  <p className="text-muted-foreground">{formatDate(effectiveEndDate)}</p>
                 </div>
                 <Badge variant="outline" className="border-purple-500 text-purple-700">
                   expiry

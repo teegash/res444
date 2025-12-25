@@ -44,10 +44,15 @@ function unsignedPath(orgId: string, leaseId: string, renewalId: string) {
 
 function parseDateOnly(value?: string | null) {
   if (!value) return null;
-  const iso = value.split("T")[0];
-  const [y, m, d] = iso.split("-").map((part) => Number(part));
-  if (!y || !m || !d) return null;
-  return new Date(Date.UTC(y, m - 1, d));
+  const raw = value.trim();
+  const base = raw.includes("T") ? raw.split("T")[0] : raw.split(" ")[0];
+  const [y, m, d] = base.split("-").map((part) => Number(part));
+  if (y && m && d) {
+    return new Date(Date.UTC(y, m - 1, d));
+  }
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return new Date(Date.UTC(parsed.getUTCFullYear(), parsed.getUTCMonth(), parsed.getUTCDate()));
 }
 
 function addDaysUtc(date: Date, days: number) {
@@ -79,6 +84,11 @@ function formatDate(value?: string | Date | null) {
   const parsed = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(parsed.getTime())) return "—";
   return parsed.toLocaleDateString("en-KE", { year: "numeric", month: "long", day: "numeric" });
+}
+
+function toIsoDate(value: Date | null) {
+  if (!value) return null;
+  return value.toISOString().slice(0, 10);
 }
 
 function formatMoney(value?: number | null) {
@@ -246,6 +256,18 @@ export async function POST(req: Request, { params }: { params: { leaseId: string
           renewalStartDate.getUTCMonth() + termMonths - 1
         );
       }
+    }
+
+    if (renewalStartDate || renewalEndDate) {
+      const { error: proposedErr } = await admin
+        .from("lease_renewals")
+        .update({
+          proposed_start_date: renewal.proposed_start_date ?? toIsoDate(renewalStartDate),
+          proposed_end_date: renewal.proposed_end_date ?? toIsoDate(renewalEndDate),
+        })
+        .eq("id", renewal.id);
+
+      if (proposedErr) return json({ error: proposedErr.message }, 400);
     }
 
     const renewalRent = renewal.proposed_rent ?? lease.monthly_rent;

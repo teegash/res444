@@ -68,10 +68,15 @@ function extractRenewalIdFromPath(req: Request) {
 
 function parseDateOnly(value?: string | null) {
   if (!value) return null;
-  const iso = value.split("T")[0];
-  const [y, m, d] = iso.split("-").map((part) => Number(part));
-  if (!y || !m || !d) return null;
-  return new Date(Date.UTC(y, m - 1, d));
+  const raw = value.trim();
+  const base = raw.includes("T") ? raw.split("T")[0] : raw.split(" ")[0];
+  const [y, m, d] = base.split("-").map((part) => Number(part));
+  if (y && m && d) {
+    return new Date(Date.UTC(y, m - 1, d));
+  }
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return new Date(Date.UTC(parsed.getUTCFullYear(), parsed.getUTCMonth(), parsed.getUTCDate()));
 }
 
 function toIsoDate(value: Date) {
@@ -338,13 +343,22 @@ export async function POST(req: Request, ctx?: { params?: { renewalId?: string; 
     const fullySignedPath = fullySignedPathFromTenant(r.pdf_tenant_signed_path);
     await uploadPdf(admin, fullySignedPath, fullySignedPdf);
 
+    const renewalUpdates: Record<string, any> = {
+      pdf_fully_signed_path: fullySignedPath,
+      manager_signed_at: new Date().toISOString(),
+      status: "completed",
+    };
+
+    if (!r.proposed_start_date && renewalStartDate) {
+      renewalUpdates.proposed_start_date = toIsoDate(renewalStartDate);
+    }
+    if (!r.proposed_end_date && renewalEndDate) {
+      renewalUpdates.proposed_end_date = toIsoDate(renewalEndDate);
+    }
+
     const { error: updErr } = await admin
       .from("lease_renewals")
-      .update({
-        pdf_fully_signed_path: fullySignedPath,
-        manager_signed_at: new Date().toISOString(),
-        status: "completed",
-      })
+      .update(renewalUpdates)
       .eq("id", renewalId);
 
     if (updErr) return json({ error: updErr.message }, 400);
