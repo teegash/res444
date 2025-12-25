@@ -58,6 +58,14 @@ function supabaseAdmin() {
   return createClient(url, key, { auth: { persistSession: false } });
 }
 
+function extractRenewalIdFromPath(req: Request) {
+  const pathname = new URL(req.url).pathname;
+  const parts = pathname.split("/").filter(Boolean);
+  const idx = parts.indexOf("lease-renewals");
+  if (idx >= 0 && parts[idx + 1]) return decodeURIComponent(parts[idx + 1]);
+  return null;
+}
+
 function parseDateOnly(value?: string | null) {
   if (!value) return null;
   const iso = value.split("T")[0];
@@ -205,12 +213,17 @@ async function cancelPendingLeaseRenewalReminders(admin: any, leaseId: string) {
   if (error) throw new Error(`Failed to cancel reminders: ${error.message}`);
 }
 
-export async function POST(req: Request, { params }: { params: { renewalId: string } }) {
+export async function POST(req: Request, ctx?: { params?: { renewalId?: string; id?: string } }) {
   try {
     requireInternalApiKey(req);
     const actorUserId = requireActorUserId(req);
 
-    const renewalId = params.renewalId;
+    const renewalId =
+      ctx?.params?.renewalId && ctx.params.renewalId !== "undefined"
+        ? ctx.params.renewalId
+        : ctx?.params?.id && ctx.params.id !== "undefined"
+          ? ctx.params.id
+          : extractRenewalIdFromPath(req);
     if (!renewalId || renewalId === "undefined") {
       return json({ error: "Missing renewalId" }, 400);
     }
