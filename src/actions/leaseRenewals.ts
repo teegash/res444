@@ -13,18 +13,14 @@ async function supabaseAuthed() {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        get(name: string) {
-          return cookieStore.get(name)?.value;
+        getAll() {
+          return cookieStore.getAll();
         },
-        set(name: string, value: string, options: any) {
-          if (typeof cookieStore.set === "function") {
+        setAll(cookiesToSet) {
+          if (typeof cookieStore.set !== "function") return;
+          cookiesToSet.forEach(({ name, value, options }) => {
             cookieStore.set({ name, value, ...options });
-          }
-        },
-        remove(name: string, options: any) {
-          if (typeof cookieStore.set === "function") {
-            cookieStore.set({ name, value: "", ...options, maxAge: 0 });
-          }
+          });
         },
       },
     }
