@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 
 import { SignPdf } from "@signpdf/signpdf";
 import { P12Signer } from "@signpdf/signer-p12";
@@ -81,6 +82,48 @@ async function uploadPdf(admin: any, path: string, bytes: Uint8Array | Buffer) {
 
 function fullySignedPathFromTenant(tenantSignedPath: string) {
   return tenantSignedPath.replace("/tenant_signed.pdf", "/fully_signed.pdf");
+}
+
+async function addFullySignedStamp(pdfBuffer: Buffer) {
+  const pdfDoc = await PDFDocument.load(pdfBuffer);
+  const [page] = pdfDoc.getPages();
+  const font = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+  const stampText = "FULLY SIGNED";
+  const dateText = `Countersigned: ${new Date().toLocaleDateString("en-KE")}`;
+  const size = 11;
+  const padding = 6;
+  const textWidth = font.widthOfTextAtSize(stampText, size);
+  const boxWidth = textWidth + padding * 2;
+  const boxHeight = size + padding * 2;
+  const x = page.getWidth() - boxWidth - 48;
+  const y = page.getHeight() - boxHeight - 120;
+
+  page.drawRectangle({
+    x,
+    y,
+    width: boxWidth,
+    height: boxHeight,
+    borderWidth: 1,
+    color: rgb(1, 1, 1),
+    borderColor: rgb(0.12, 0.45, 0.2),
+  });
+  page.drawText(stampText, {
+    x: x + padding,
+    y: y + padding,
+    size,
+    font,
+    color: rgb(0.12, 0.45, 0.2),
+  });
+  page.drawText(dateText, {
+    x: x,
+    y: y - 12,
+    size: 8,
+    font,
+    color: rgb(0.4, 0.4, 0.4),
+  });
+
+  const stampedBytes = await pdfDoc.save();
+  return Buffer.from(stampedBytes);
 }
 
 async function logEvent(
@@ -168,8 +211,10 @@ export async function POST(req: Request, { params }: { params: { renewalId: stri
     const pdfBuffer = await downloadPdf(admin, r.pdf_tenant_signed_path);
     const p12Buffer = Buffer.from(p12base64, "base64");
 
+    const stampedPdf = await addFullySignedStamp(pdfBuffer);
+
     const pdfWithPlaceholder = plainAddPlaceholder({
-      pdfBuffer,
+      pdfBuffer: stampedPdf,
       reason: "Lease renewal - landlord/manager countersign",
       signatureLength: 8192,
     });

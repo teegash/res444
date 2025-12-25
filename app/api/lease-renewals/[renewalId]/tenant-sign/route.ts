@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 
 import { SignPdf } from "@signpdf/signpdf";
 import { P12Signer } from "@signpdf/signer-p12";
@@ -84,6 +85,48 @@ function tenantSignedPathFromUnsigned(unsignedPath: string) {
   return unsignedPath.replace("/unsigned.pdf", "/tenant_signed.pdf");
 }
 
+async function addTenantStamp(pdfBuffer: Buffer) {
+  const pdfDoc = await PDFDocument.load(pdfBuffer);
+  const [page] = pdfDoc.getPages();
+  const font = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+  const stampText = "TENANT SIGNED";
+  const dateText = `Signed: ${new Date().toLocaleDateString("en-KE")}`;
+  const size = 11;
+  const padding = 6;
+  const textWidth = font.widthOfTextAtSize(stampText, size);
+  const boxWidth = textWidth + padding * 2;
+  const boxHeight = size + padding * 2;
+  const x = page.getWidth() - boxWidth - 48;
+  const y = page.getHeight() - boxHeight - 90;
+
+  page.drawRectangle({
+    x,
+    y,
+    width: boxWidth,
+    height: boxHeight,
+    borderWidth: 1,
+    color: rgb(1, 1, 1),
+    borderColor: rgb(0.76, 0.13, 0.13),
+  });
+  page.drawText(stampText, {
+    x: x + padding,
+    y: y + padding,
+    size,
+    font,
+    color: rgb(0.76, 0.13, 0.13),
+  });
+  page.drawText(dateText, {
+    x: x,
+    y: y - 12,
+    size: 8,
+    font,
+    color: rgb(0.4, 0.4, 0.4),
+  });
+
+  const stampedBytes = await pdfDoc.save();
+  return Buffer.from(stampedBytes);
+}
+
 async function logEvent(
   admin: any,
   args: {
@@ -160,8 +203,10 @@ export async function POST(req: Request, { params }: { params: { renewalId: stri
     const pdfBuffer = await downloadPdf(admin, r.pdf_unsigned_path);
     const p12Buffer = Buffer.from(p12base64, "base64");
 
+    const stampedPdf = await addTenantStamp(pdfBuffer);
+
     const pdfWithPlaceholder = plainAddPlaceholder({
-      pdfBuffer,
+      pdfBuffer: stampedPdf,
       reason: "Lease renewal - tenant signing",
       signatureLength: 8192,
     });
