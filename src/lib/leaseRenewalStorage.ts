@@ -1,4 +1,4 @@
-import { supabaseAdmin } from '@/lib/supabaseAdmin'
+import { supabaseAdmin } from '@/src/lib/supabaseAdmin'
 
 export const BUCKET = 'lease-renewals'
 
@@ -27,4 +27,3 @@ export async function downloadPdf(path: string): Promise<Buffer> {
   if (error) throw new Error(error.message)
   return Buffer.from(await data.arrayBuffer())
 }
-

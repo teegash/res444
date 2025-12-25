@@ -1,4 +1,4 @@
-import { supabaseAdmin } from '@/lib/supabaseAdmin'
+import { supabaseAdmin } from '@/src/lib/supabaseAdmin'
 
 export async function logLeaseRenewalEvent(args: {
   renewal_id: string
@@ -22,4 +22,3 @@ export async function logLeaseRenewalEvent(args: {
 
   if (error) throw new Error(error.message)
 }
-
