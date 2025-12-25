@@ -353,6 +353,10 @@ export async function POST(req: Request, ctx?: { params?: { renewalId?: string; 
     if (renewalEndDate) leaseUpdates.end_date = toIsoDate(renewalEndDate);
     if (renewalRent !== null && renewalRent !== undefined) leaseUpdates.monthly_rent = renewalRent;
     if (renewalDeposit !== null && renewalDeposit !== undefined) leaseUpdates.deposit_amount = renewalDeposit;
+    if (renewalStartDate) {
+      const today = new Date();
+      leaseUpdates.status = renewalStartDate > today ? "renewed" : "active";
+    }
 
     if (Object.keys(leaseUpdates).length > 0) {
       const { error: leaseUpdErr } = await admin.from("leases").update(leaseUpdates).eq("id", r.lease_id);

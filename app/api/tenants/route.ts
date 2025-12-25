@@ -37,6 +37,12 @@ function summarizeLeaseState(lease: any) {
   }
 
   if (start && start > today) {
+    if ((lease.status || '').toLowerCase() === 'renewed') {
+      return {
+        status: 'renewed',
+        detail: `Renewed lease starts on ${start.toLocaleDateString()}.`,
+      }
+    }
     return {
       status: 'pending',
       detail: `Lease becomes active on ${start.toLocaleDateString()}.`,

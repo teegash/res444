@@ -28,6 +28,9 @@ function deriveLeaseStatus(lease: any) {
     return { status: 'expired', detail: `Lease ended on ${end.toLocaleDateString()}.` }
   }
   if (start && start > today) {
+    if ((lease.status || '').toLowerCase() === 'renewed') {
+      return { status: 'renewed', detail: `Renewed lease starts on ${start.toLocaleDateString()}.` }
+    }
     return { status: 'pending', detail: `Lease activates on ${start.toLocaleDateString()}.` }
   }
   return { status: lease.status || 'pending', detail: 'Lease data pending verification.' }

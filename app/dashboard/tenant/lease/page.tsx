@@ -597,43 +597,44 @@ export default function LeasePage() {
                       Download Tenant-Signed
                     </Button>
 
-                    <Button
-                      variant="outline"
-                      disabled={
-                        !renewal?.id ||
-                        renewal.id === 'undefined' ||
-                        !renewal.pdf_fully_signed_path ||
-                        renewalBusy === 'download'
-                      }
-                      onClick={async () => {
-                        try {
-                          if (!renewal?.id || renewal.id === 'undefined') {
+                    {renewal.status === 'completed' && renewal.pdf_fully_signed_path ? (
+                      <Button
+                        variant="outline"
+                        disabled={!renewal?.id || renewal.id === 'undefined' || renewalBusy === 'download'}
+                        onClick={async () => {
+                          try {
+                            if (!renewal?.id || renewal.id === 'undefined') {
+                              toast({
+                                title: 'Download failed',
+                                description: 'Missing renewal reference. Please refresh the page.',
+                                variant: 'destructive',
+                              })
+                              return
+                            }
+                            setRenewalBusy('download')
+                            const res: any = await getRenewalDownloadUrl(renewal.id, 'fully_signed')
+                            if (res?.ok === false) {
+                              throw new Error(res?.error || 'Download failed')
+                            }
+                            if (!res?.url) {
+                              throw new Error('Download URL unavailable')
+                            }
+                            window.open(res.url, '_blank')
+                          } catch (e: any) {
                             toast({
                               title: 'Download failed',
-                              description: 'Missing renewal reference. Please refresh the page.',
+                              description: e?.message ?? 'Error',
                               variant: 'destructive',
                             })
-                            return
+                          } finally {
+                            setRenewalBusy(null)
                           }
-                          setRenewalBusy('download')
-                          const res: any = await getRenewalDownloadUrl(renewal.id, 'fully_signed')
-                          if (res?.ok === false) {
-                            throw new Error(res?.error || 'Download failed')
-                          }
-                          if (!res?.url) {
-                            throw new Error('Download URL unavailable')
-                          }
-                          window.open(res.url, '_blank')
-                        } catch (e: any) {
-                          toast({ title: 'Download failed', description: e?.message ?? 'Error', variant: 'destructive' })
-                        } finally {
-                          setRenewalBusy(null)
-                        }
-                      }}
-                    >
-                      <Download className="h-4 w-4 mr-2" />
-                      Download Fully Signed
-                    </Button>
+                        }}
+                      >
+                        <Download className="h-4 w-4 mr-2" />
+                        Download Fully Signed
+                      </Button>
+                    ) : null}
                   </div>
 
                   <div className="pt-2">
