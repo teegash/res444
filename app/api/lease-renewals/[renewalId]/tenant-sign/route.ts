@@ -151,12 +151,25 @@ async function logEvent(
   if (error) throw new Error(`Failed to log event: ${error.message}`);
 }
 
-export async function POST(req: Request, { params }: { params: { renewalId: string } }) {
+function extractRenewalId(req: Request, params?: { renewalId?: string; id?: string }) {
+  if (params?.renewalId) return params.renewalId;
+  if (params?.id) return params.id;
+
+  const segments = new URL(req.url).pathname.split("/").filter(Boolean);
+  const idx = segments.indexOf("lease-renewals");
+  if (idx >= 0 && segments[idx + 1]) return segments[idx + 1];
+  return null;
+}
+
+export async function POST(
+  req: Request,
+  ctx: { params?: { renewalId?: string; id?: string } }
+) {
   try {
     requireInternalApiKey(req);
     const actorUserId = requireActorUserId(req);
 
-    const renewalId = params.renewalId;
+    const renewalId = extractRenewalId(req, ctx?.params);
     if (!renewalId || renewalId === "undefined") {
       return json({ error: "Missing renewalId" }, 400);
     }
