@@ -85,6 +85,20 @@ function tenantSignedPathFromUnsigned(unsignedPath: string) {
   return unsignedPath.replace("/unsigned.pdf", "/tenant_signed.pdf");
 }
 
+function assertLooksLikePdf(buf: Buffer) {
+  const head = buf.subarray(0, 5).toString("utf8");
+  if (head !== "%PDF-") {
+    const sample = buf.subarray(0, 200).toString("utf8");
+    throw new Error(`Downloaded file is not a PDF. head=${JSON.stringify(head)} sample=${JSON.stringify(sample)}`);
+  }
+}
+
+async function rebuildPdf(pdfBuffer: Buffer) {
+  const pdfDoc = await PDFDocument.load(pdfBuffer, { ignoreEncryption: true });
+  const rebuilt = await pdfDoc.save({ useObjectStreams: false });
+  return Buffer.from(rebuilt);
+}
+
 async function addTenantStamp(pdfBuffer: Buffer) {
   const pdfDoc = await PDFDocument.load(pdfBuffer);
   const [page] = pdfDoc.getPages();
@@ -123,7 +137,7 @@ async function addTenantStamp(pdfBuffer: Buffer) {
     color: rgb(0.4, 0.4, 0.4),
   });
 
-  const stampedBytes = await pdfDoc.save();
+  const stampedBytes = await pdfDoc.save({ useObjectStreams: false });
   return Buffer.from(stampedBytes);
 }
 
@@ -214,9 +228,11 @@ export async function POST(
     }
 
     const pdfBuffer = await downloadPdf(admin, r.pdf_unsigned_path);
+    assertLooksLikePdf(pdfBuffer);
+    const rebuiltPdf = await rebuildPdf(pdfBuffer);
     const p12Buffer = Buffer.from(p12base64, "base64");
 
-    const stampedPdf = await addTenantStamp(pdfBuffer);
+    const stampedPdf = await addTenantStamp(rebuiltPdf);
 
     const pdfWithPlaceholder = plainAddPlaceholder({
       pdfBuffer: stampedPdf,

@@ -110,8 +110,9 @@ function wrapText(text: string, maxWidth: number, font: PDFFont, size: number) {
   return lines.length ? lines : [""];
 }
 
-async function uploadPdf(admin: any, path: string, bytes: Uint8Array | ArrayBuffer) {
-  const { error } = await admin.storage.from("lease-renewals").upload(path, bytes, {
+async function uploadPdf(admin: any, path: string, bytes: Uint8Array | ArrayBuffer | Buffer) {
+  const body = Buffer.isBuffer(bytes) ? bytes : Buffer.from(bytes);
+  const { error } = await admin.storage.from("lease-renewals").upload(path, body, {
     contentType: "application/pdf",
     upsert: true,
   });
@@ -531,7 +532,7 @@ export async function POST(req: Request, { params }: { params: { leaseId: string
       });
     });
 
-    const unsignedBytes = await pdfDoc.save();
+    const unsignedBytes = await pdfDoc.save({ useObjectStreams: false });
 
     const path = unsignedPath(lease.organization_id, lease.id, renewal.id);
     await uploadPdf(admin, path, unsignedBytes);
