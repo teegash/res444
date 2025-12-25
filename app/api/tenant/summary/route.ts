@@ -15,6 +15,62 @@ function parseCurrency(value?: string | null, fallback?: number | null) {
   return null
 }
 
+function parseDateOnly(value?: string | null) {
+  if (!value) return null
+  const raw = value.trim()
+  const base = raw.includes('T') ? raw.split('T')[0] : raw.split(' ')[0]
+  const [y, m, d] = base.split('-').map((part) => Number(part))
+  if (y && m && d) {
+    return new Date(Date.UTC(y, m - 1, d))
+  }
+  const parsed = new Date(raw)
+  if (Number.isNaN(parsed.getTime())) return null
+  return new Date(Date.UTC(parsed.getUTCFullYear(), parsed.getUTCMonth(), parsed.getUTCDate()))
+}
+
+function addDaysUtc(date: Date, days: number) {
+  const next = new Date(date.getTime())
+  next.setUTCDate(next.getUTCDate() + days)
+  return next
+}
+
+function monthsBetweenUtc(start: Date, end: Date) {
+  return (end.getUTCFullYear() - start.getUTCFullYear()) * 12 + (end.getUTCMonth() - start.getUTCMonth())
+}
+
+function lastDayOfMonthUtc(year: number, monthIndex: number) {
+  return new Date(Date.UTC(year, monthIndex + 1, 0))
+}
+
+function addMonthsPreserveDayUtc(date: Date, months: number) {
+  const startDay = date.getUTCDate()
+  const rawMonth = date.getUTCMonth() + months
+  const year = date.getUTCFullYear() + Math.floor(rawMonth / 12)
+  const monthIndex = ((rawMonth % 12) + 12) % 12
+  const lastDay = lastDayOfMonthUtc(year, monthIndex).getUTCDate()
+  const day = Math.min(startDay, lastDay)
+  return new Date(Date.UTC(year, monthIndex, day))
+}
+
+function toIsoDate(value: Date | null) {
+  if (!value) return null
+  return value.toISOString().slice(0, 10)
+}
+
+function deriveRenewalDates(start?: string | null, end?: string | null) {
+  const leaseStart = parseDateOnly(start)
+  const leaseEnd = parseDateOnly(end)
+  if (!leaseEnd) return { start: null, end: null }
+  const termMonthsRaw = leaseStart && leaseEnd ? monthsBetweenUtc(leaseStart, leaseEnd) : 0
+  const termMonths = termMonthsRaw > 0 ? termMonthsRaw : 12
+  const renewalStart = addDaysUtc(leaseEnd, 1)
+  const renewalEnd =
+    termMonths % 12 === 0
+      ? addMonthsPreserveDayUtc(renewalStart, termMonths)
+      : lastDayOfMonthUtc(renewalStart.getUTCFullYear(), renewalStart.getUTCMonth() + termMonths - 1)
+  return { start: toIsoDate(renewalStart), end: toIsoDate(renewalEnd) }
+}
+
 export async function GET() {
   try {
     const supabase = await createClient()
@@ -63,13 +119,40 @@ export async function GET() {
       `
       )
       .eq('tenant_user_id', user.id)
-      .in('status', ['active', 'pending'])
+      .in('status', ['active', 'pending', 'renewed'])
       .order('start_date', { ascending: false })
       .limit(1)
       .maybeSingle()
 
     if (leaseError) {
       throw leaseError
+    }
+
+    let effectiveStartDate = lease?.start_date ?? null
+    let effectiveEndDate = lease?.end_date ?? null
+    let effectiveStatus = lease?.status ?? null
+
+    if (lease?.id) {
+      const { data: completedRenewal } = await adminSupabase
+        .from('lease_renewals')
+        .select('id, proposed_start_date, proposed_end_date, created_at')
+        .eq('lease_id', lease.id)
+        .eq('status', 'completed')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+      if (completedRenewal) {
+        const derived = deriveRenewalDates(lease.start_date, lease.end_date)
+        effectiveStartDate = completedRenewal.proposed_start_date || derived.start || effectiveStartDate
+        effectiveEndDate = completedRenewal.proposed_end_date || derived.end || effectiveEndDate
+
+        const startDate = effectiveStartDate ? parseDateOnly(effectiveStartDate) : null
+        if (startDate) {
+          const today = new Date()
+          effectiveStatus = startDate > today ? 'renewed' : lease.status
+        }
+      }
     }
 
     const monthlyRent = lease
@@ -116,9 +199,9 @@ export async function GET() {
       lease: lease
         ? {
             id: lease.id,
-            status: lease.status,
-            start_date: lease.start_date,
-            end_date: lease.end_date,
+            status: effectiveStatus,
+            start_date: effectiveStartDate,
+            end_date: effectiveEndDate,
             monthly_rent: monthlyRent,
             unit_number: lease.unit?.unit_number || null,
             unit_label: unitLabel,
