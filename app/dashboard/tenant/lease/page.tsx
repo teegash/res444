@@ -87,7 +87,12 @@ export default function LeasePage() {
   const [renewalBusy, setRenewalBusy] = useState<null | 'create' | 'tenantSign' | 'download'>(null)
   const { toast } = useToast()
 
-  const refreshRenewal = useCallback(async (leaseId: string) => {
+  const refreshRenewal = useCallback(async (leaseId?: string | null) => {
+    if (!leaseId || leaseId === 'undefined') {
+      setRenewal(null)
+      setRenewalLoading(false)
+      return
+    }
     setRenewalLoading(true)
     try {
       const res: any = await getRenewalByLease(leaseId)
@@ -464,12 +469,20 @@ export default function LeasePage() {
               ) : !renewal ? (
                 <>
                   <div className="text-sm text-muted-foreground">No renewal has been started yet.</div>
-                  <Button
-                    disabled={renewalBusy === 'create'}
-                    onClick={async () => {
-                      try {
-                        setRenewalBusy('create')
-                        await createRenewalByLease(lease.id)
+                    <Button
+                      disabled={renewalBusy === 'create'}
+                      onClick={async () => {
+                        if (!lease?.id) {
+                          toast({
+                            title: 'Lease unavailable',
+                            description: 'Load your lease details before starting a renewal.',
+                            variant: 'destructive',
+                          })
+                          return
+                        }
+                        try {
+                          setRenewalBusy('create')
+                          await createRenewalByLease(lease.id)
                         await refreshRenewal(lease.id)
                         toast({ title: 'Renewal created', description: 'Open it and sign when ready.' })
                       } catch (e: any) {

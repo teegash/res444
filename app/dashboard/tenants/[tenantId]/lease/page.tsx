@@ -121,7 +121,12 @@ export default function TenantLeaseManagementPage() {
   const tenant = data?.tenant
   const lease = data?.lease
 
-  const refreshRenewal = useCallback(async (leaseId: string) => {
+  const refreshRenewal = useCallback(async (leaseId?: string | null) => {
+    if (!leaseId || leaseId === 'undefined') {
+      setRenewal(null)
+      setRenewalLoading(false)
+      return
+    }
     setRenewalLoading(true)
     try {
       const res: any = await getRenewalByLease(leaseId)
@@ -586,6 +591,14 @@ export default function TenantLeaseManagementPage() {
                     <Button
                       disabled={renewalBusy === 'create'}
                       onClick={async () => {
+                        if (!lease?.id) {
+                          toast({
+                            title: 'Lease unavailable',
+                            description: 'Load tenant lease details before starting a renewal.',
+                            variant: 'destructive',
+                          })
+                          return
+                        }
                         try {
                           setRenewalBusy('create')
                           await createRenewalByLease(lease.id)

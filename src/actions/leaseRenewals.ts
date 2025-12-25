@@ -76,7 +76,9 @@ async function resolveInternalUrl(path: string) {
 }
 
 export async function getRenewalByLease(leaseId: string) {
-  if (!leaseId || leaseId === "undefined") throw new Error("Missing leaseId");
+  if (!leaseId || leaseId === "undefined") {
+    return { ok: false, activeRenewal: null, latestRenewal: null };
+  }
   const actor = await getActorUserIdOrThrow();
   const admin = supabaseAdmin();
 
