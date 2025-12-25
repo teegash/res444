@@ -74,6 +74,22 @@ const currencyFormatter = new Intl.NumberFormat('en-KE', {
   minimumFractionDigits: 0,
 })
 
+const statusBadgeClasses = (status?: string | null) => {
+  switch ((status || '').toLowerCase()) {
+    case 'valid':
+    case 'active':
+      return 'bg-green-100 text-green-700'
+    case 'renewed':
+      return 'bg-sky-100 text-sky-700'
+    case 'expired':
+      return 'bg-rose-100 text-rose-700'
+    case 'pending':
+      return 'bg-amber-100 text-amber-700'
+    default:
+      return 'bg-slate-100 text-slate-700'
+  }
+}
+
 function summarizeLease(lease: LeaseResponse['lease'] | null) {
   if (!lease) {
     return { status: 'unassigned', detail: 'Lease has not been assigned.' }
@@ -123,6 +139,7 @@ export default function TenantLeaseManagementPage() {
   const leaseSummary = useMemo(() => data?.lease_status, [data])
   const tenant = data?.tenant
   const lease = data?.lease
+  const canDownloadFullySigned = Boolean(renewal?.status === 'completed' && renewal?.pdf_fully_signed_path)
 
   const refreshRenewal = useCallback(async (leaseId?: string | null) => {
     if (!leaseId || leaseId === 'undefined') {
@@ -199,41 +216,42 @@ export default function TenantLeaseManagementPage() {
     }
   }
 
-  useEffect(() => {
+  const loadLease = useCallback(async () => {
     if (!tenantId) return
-    const fetchLease = async () => {
-      setLoading(true)
-      setError(null)
-      try {
-        const response = await fetch(`/api/tenants/${tenantId}/lease?tenantId=${tenantId}`)
-        if (!response.ok) {
-          const payload = await response.json().catch(() => ({}))
-          throw new Error(payload.error || 'Failed to load lease data.')
-        }
-        const payload = await response.json()
-        setData(payload.data)
-        if (payload.data?.lease?.id) {
-          refreshRenewal(payload.data.lease.id)
-        }
-
-        if (payload.data?.lease) {
-          setStartDate(payload.data.lease.start_date || '')
-          setDurationMonths(
-            payload.data.lease.start_date && payload.data.lease.end_date
-              ? durationFromRange(payload.data.lease.start_date, payload.data.lease.end_date).toString()
-              : '12'
-          )
-          setMonthlyRent(payload.data.lease.monthly_rent?.toString() || '')
-          setDepositAmount(payload.data.lease.deposit_amount?.toString() || '')
-        }
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Unable to load lease information.')
-      } finally {
-        setLoading(false)
+    setLoading(true)
+    setError(null)
+    try {
+      const response = await fetch(`/api/tenants/${tenantId}/lease?tenantId=${tenantId}`)
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}))
+        throw new Error(payload.error || 'Failed to load lease data.')
       }
+      const payload = await response.json()
+      setData(payload.data)
+      if (payload.data?.lease?.id) {
+        refreshRenewal(payload.data.lease.id)
+      }
+
+      if (payload.data?.lease) {
+        setStartDate(payload.data.lease.start_date || '')
+        setDurationMonths(
+          payload.data.lease.start_date && payload.data.lease.end_date
+            ? durationFromRange(payload.data.lease.start_date, payload.data.lease.end_date).toString()
+            : '12'
+        )
+        setMonthlyRent(payload.data.lease.monthly_rent?.toString() || '')
+        setDepositAmount(payload.data.lease.deposit_amount?.toString() || '')
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to load lease information.')
+    } finally {
+      setLoading(false)
     }
-    fetchLease()
   }, [tenantId, refreshRenewal])
+
+  useEffect(() => {
+    void loadLease()
+  }, [loadLease])
 
   const handleSave = async () => {
     if (!tenantId) return
@@ -406,6 +424,47 @@ export default function TenantLeaseManagementPage() {
             Back to tenants
           </Button>
           <h1 className="text-2xl font-bold">Lease Management</h1>
+          <div className="ml-auto flex items-center gap-2">
+            {canDownloadFullySigned && (
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={renewalBusy === 'download'}
+                onClick={async () => {
+                  try {
+                    if (!renewal?.id || renewal.id === 'undefined') {
+                      toast({
+                        title: 'Download failed',
+                        description: 'Missing renewal reference. Please refresh the page.',
+                        variant: 'destructive',
+                      })
+                      return
+                    }
+                    setRenewalBusy('download')
+                    const res: any = await getRenewalDownloadUrl(renewal.id, 'fully_signed')
+                    if (res?.ok === false) {
+                      throw new Error(res?.error || 'Download failed')
+                    }
+                    if (!res?.url) {
+                      throw new Error('Download URL unavailable')
+                    }
+                    window.open(res.url, '_blank')
+                  } catch (e: any) {
+                    toast({
+                      title: 'Download failed',
+                      description: e?.message ?? 'Error',
+                      variant: 'destructive',
+                    })
+                  } finally {
+                    setRenewalBusy(null)
+                  }
+                }}
+              >
+                <Download className="h-4 w-4 mr-2" />
+                Fully Signed PDF
+              </Button>
+            )}
+          </div>
         </div>
 
         {error && (
@@ -521,7 +580,13 @@ export default function TenantLeaseManagementPage() {
                   </div>
                 </div>
                 <div className="rounded-lg border p-3 bg-slate-50">
-                  <p className="text-sm font-semibold capitalize">{leaseSummary?.status || 'unassigned'}</p>
+                  <span
+                    className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold capitalize ${statusBadgeClasses(
+                      leaseSummary?.status
+                    )}`}
+                  >
+                    {leaseSummary?.status || 'unassigned'}
+                  </span>
                   <p className="text-xs text-muted-foreground">{leaseSummary?.detail}</p>
                 </div>
               </CardContent>
@@ -727,45 +792,6 @@ export default function TenantLeaseManagementPage() {
                         Tenant
                       </Button>
 
-                      {renewal.status === 'completed' && renewal.pdf_fully_signed_path ? (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          disabled={!renewal?.id || renewal.id === 'undefined' || renewalBusy === 'download'}
-                          onClick={async () => {
-                            try {
-                              if (!renewal?.id || renewal.id === 'undefined') {
-                                toast({
-                                  title: 'Download failed',
-                                  description: 'Missing renewal reference. Please refresh the page.',
-                                  variant: 'destructive',
-                                })
-                                return
-                              }
-                              setRenewalBusy('download')
-                              const res: any = await getRenewalDownloadUrl(renewal.id, 'fully_signed')
-                              if (res?.ok === false) {
-                                throw new Error(res?.error || 'Download failed')
-                              }
-                              if (!res?.url) {
-                                throw new Error('Download URL unavailable')
-                              }
-                              window.open(res.url, '_blank')
-                            } catch (e: any) {
-                              toast({
-                                title: 'Download failed',
-                                description: e?.message ?? 'Error',
-                                variant: 'destructive',
-                              })
-                            } finally {
-                              setRenewalBusy(null)
-                            }
-                          }}
-                        >
-                          <Download className="h-4 w-4 mr-2" />
-                          Download Fully Signed
-                        </Button>
-                      ) : null}
                     </div>
 
                     <div className="pt-2 space-y-2">
@@ -776,6 +802,7 @@ export default function TenantLeaseManagementPage() {
                             setRenewalBusy('managerSign')
                             await managerSignRenewal(renewal.id)
                             await refreshRenewal(lease.id)
+                            await loadLease()
                             toast({
                               title: 'Countersigned',
                               description: 'Renewal completed. Fully signed PDF is now available.',

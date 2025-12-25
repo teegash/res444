@@ -104,6 +104,8 @@ const leaseBadgeClass = (status: string) => {
       return 'bg-green-50 text-green-700 border-green-200'
     case 'valid':
       return 'bg-green-100 text-green-800 border-green-200'
+    case 'renewed':
+      return 'bg-sky-100 text-sky-700 border-sky-200'
     case 'pending':
       return 'bg-amber-50 text-amber-700 border-amber-200'
     case 'unassigned':

@@ -73,11 +73,15 @@ const formatCurrency = (value?: number | null) => {
 const statusBadgeClasses = (status?: string | null) => {
   switch ((status || '').toLowerCase()) {
     case 'active':
+    case 'valid':
       return 'bg-green-100 text-green-700'
+    case 'renewed':
+      return 'bg-sky-100 text-sky-700'
     case 'pending':
       return 'bg-amber-100 text-amber-700'
+    case 'expired':
     case 'ended':
-      return 'bg-slate-200 text-slate-700'
+      return 'bg-rose-100 text-rose-700'
     default:
       return 'bg-gray-200 text-gray-700'
   }
@@ -162,8 +166,45 @@ export default function LeasePage() {
   const leasePeriod = lease ? `${formatDate(lease.start_date)} – ${formatDate(lease.end_date)}` : '—'
   const monthlyRent = formatCurrency(lease?.monthly_rent)
   const depositAmount = formatCurrency(lease?.deposit_amount)
-  const leaseStatus = lease?.status || 'Unknown'
+  const leaseStatus = useMemo(() => {
+    if (!lease) return 'Unknown'
+    const start = lease.start_date ? new Date(lease.start_date) : null
+    const end = lease.end_date ? new Date(lease.end_date) : null
+    const today = new Date()
+    const statusValue = (lease.status || '').toLowerCase()
+
+    if (start && start <= today && (!end || end >= today)) {
+      return 'valid'
+    }
+    if (end && end < today) {
+      return 'expired'
+    }
+    if (start && start > today) {
+      return statusValue === 'renewed' ? 'renewed' : 'pending'
+    }
+    return lease.status || 'pending'
+  }, [lease])
   const agreementUrl = lease?.lease_agreement_url || ''
+  const canDownloadFullySigned = Boolean(renewal?.status === 'completed' && renewal?.pdf_fully_signed_path)
+
+  const handleDownloadFullySigned = useCallback(async () => {
+    if (!canDownloadFullySigned || !renewal?.id) return
+    try {
+      setRenewalBusy('download')
+      const res: any = await getRenewalDownloadUrl(renewal.id, 'fully_signed')
+      if (res?.ok === false) {
+        throw new Error(res?.error || 'Download failed')
+      }
+      if (!res?.url) {
+        throw new Error('Download URL unavailable')
+      }
+      window.open(res.url, '_blank')
+    } catch (e: any) {
+      toast({ title: 'Download failed', description: e?.message ?? 'Error', variant: 'destructive' })
+    } finally {
+      setRenewalBusy(null)
+    }
+  }, [canDownloadFullySigned, renewal?.id, toast])
 
   const renewalInfo = useMemo(() => {
     if (!lease?.end_date) {
@@ -308,6 +349,17 @@ export default function LeasePage() {
             <h1 className="text-2xl font-bold">Lease Agreement</h1>
           </div>
           <div className="ml-auto flex gap-2">
+            {canDownloadFullySigned && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleDownloadFullySigned}
+                disabled={renewalBusy === 'download'}
+              >
+                <Download className="h-4 w-4 mr-2" />
+                Fully Signed PDF
+              </Button>
+            )}
             {agreementUrl && (
               <Button variant="outline" size="sm" asChild>
                 <a href={agreementUrl} target="_blank" rel="noreferrer" className="flex items-center">
@@ -597,44 +649,6 @@ export default function LeasePage() {
                       Download Tenant-Signed
                     </Button>
 
-                    {renewal.status === 'completed' && renewal.pdf_fully_signed_path ? (
-                      <Button
-                        variant="outline"
-                        disabled={!renewal?.id || renewal.id === 'undefined' || renewalBusy === 'download'}
-                        onClick={async () => {
-                          try {
-                            if (!renewal?.id || renewal.id === 'undefined') {
-                              toast({
-                                title: 'Download failed',
-                                description: 'Missing renewal reference. Please refresh the page.',
-                                variant: 'destructive',
-                              })
-                              return
-                            }
-                            setRenewalBusy('download')
-                            const res: any = await getRenewalDownloadUrl(renewal.id, 'fully_signed')
-                            if (res?.ok === false) {
-                              throw new Error(res?.error || 'Download failed')
-                            }
-                            if (!res?.url) {
-                              throw new Error('Download URL unavailable')
-                            }
-                            window.open(res.url, '_blank')
-                          } catch (e: any) {
-                            toast({
-                              title: 'Download failed',
-                              description: e?.message ?? 'Error',
-                              variant: 'destructive',
-                            })
-                          } finally {
-                            setRenewalBusy(null)
-                          }
-                        }}
-                      >
-                        <Download className="h-4 w-4 mr-2" />
-                        Download Fully Signed
-                      </Button>
-                    ) : null}
                   </div>
 
                   <div className="pt-2">
