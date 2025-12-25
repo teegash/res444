@@ -42,9 +42,31 @@ function unsignedPath(orgId: string, leaseId: string, renewalId: string) {
   return `org/${orgId}/lease/${leaseId}/renewal/${renewalId}/unsigned.pdf`;
 }
 
-function formatDate(value?: string | null) {
+function parseDateOnly(value?: string | null) {
+  if (!value) return null;
+  const iso = value.split("T")[0];
+  const [y, m, d] = iso.split("-").map((part) => Number(part));
+  if (!y || !m || !d) return null;
+  return new Date(Date.UTC(y, m - 1, d));
+}
+
+function addDaysUtc(date: Date, days: number) {
+  const next = new Date(date.getTime());
+  next.setUTCDate(next.getUTCDate() + days);
+  return next;
+}
+
+function monthsBetweenUtc(start: Date, end: Date) {
+  return (end.getUTCFullYear() - start.getUTCFullYear()) * 12 + (end.getUTCMonth() - start.getUTCMonth());
+}
+
+function lastDayOfMonthUtc(year: number, monthIndex: number) {
+  return new Date(Date.UTC(year, monthIndex + 1, 0));
+}
+
+function formatDate(value?: string | Date | null) {
   if (!value) return "—";
-  const parsed = new Date(value);
+  const parsed = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(parsed.getTime())) return "—";
   return parsed.toLocaleDateString("en-KE", { year: "numeric", month: "long", day: "numeric" });
 }
@@ -190,8 +212,26 @@ export async function POST(req: Request, { params }: { params: { leaseId: string
       building = buildingRow || null;
     }
 
-    const renewalStart = renewal.proposed_start_date ?? lease.start_date;
-    const renewalEnd = renewal.proposed_end_date ?? lease.end_date;
+    const leaseStartDate = parseDateOnly(lease.start_date);
+    const leaseEndDate = parseDateOnly(lease.end_date);
+    const proposedStartDate = parseDateOnly(renewal.proposed_start_date);
+    const proposedEndDate = parseDateOnly(renewal.proposed_end_date);
+
+    const termMonthsRaw =
+      leaseStartDate && leaseEndDate ? monthsBetweenUtc(leaseStartDate, leaseEndDate) : 0;
+    const termMonths = termMonthsRaw > 0 ? termMonthsRaw : 12;
+
+    const renewalStartDate =
+      proposedStartDate ?? (leaseEndDate ? addDaysUtc(leaseEndDate, 1) : leaseStartDate);
+    const renewalEndDate = proposedEndDate
+      ? proposedEndDate
+      : renewalStartDate
+        ? lastDayOfMonthUtc(
+            renewalStartDate.getUTCFullYear(),
+            renewalStartDate.getUTCMonth() + termMonths - 1
+          )
+        : null;
+
     const renewalRent = renewal.proposed_rent ?? lease.monthly_rent;
     const renewalDeposit = renewal.proposed_deposit ?? lease.deposit_amount;
     const renewalNotes = renewal.notes ?? null;
@@ -202,8 +242,12 @@ export async function POST(req: Request, { params }: { params: { leaseId: string
     const pageSize: [number, number] = [595.28, 841.89];
     let page = pdfDoc.addPage(pageSize);
     const margin = 48;
-    const lineGap = 14;
+    const lineGap = 12;
     const contentWidth = page.getWidth() - margin * 2;
+    const bodySize = 9;
+    const headingSize = 11;
+    const columnGap = 24;
+    const columnWidth = (contentWidth - columnGap) / 2;
     let y = page.getHeight() - margin;
 
     const addPage = () => {
@@ -216,12 +260,12 @@ export async function POST(req: Request, { params }: { params: { leaseId: string
     };
 
     const drawHeading = (text: string) => {
-      ensureSpace(18);
-      page.drawText(text, { x: margin, y, size: 12, font: fontBold, color: rgb(0, 0, 0) });
-      y -= 18;
+      ensureSpace(headingSize + 6);
+      page.drawText(text, { x: margin, y, size: headingSize, font: fontBold, color: rgb(0, 0, 0) });
+      y -= headingSize + 6;
     };
 
-    const drawParagraph = (text: string, size = 10) => {
+    const drawParagraph = (text: string, size = bodySize) => {
       const lines = wrapText(text, contentWidth, font, size);
       ensureSpace(lines.length * lineGap + 6);
       lines.forEach((line) => {
@@ -233,18 +277,69 @@ export async function POST(req: Request, { params }: { params: { leaseId: string
 
     const drawLabelValue = (label: string, value: string) => {
       const labelText = `${label}:`;
-      const size = 10;
-      const labelWidth = fontBold.widthOfTextAtSize(labelText, size);
+      const labelWidth = fontBold.widthOfTextAtSize(labelText, bodySize);
       const maxWidth = contentWidth - labelWidth - 6;
-      const lines = wrapText(value, maxWidth, font, size);
+      const lines = wrapText(value, maxWidth, font, bodySize);
       ensureSpace(lines.length * lineGap + 4);
-      page.drawText(labelText, { x: margin, y, size, font: fontBold, color: rgb(0, 0, 0) });
+      page.drawText(labelText, { x: margin, y, size: bodySize, font: fontBold, color: rgb(0, 0, 0) });
       let lineY = y;
       lines.forEach((line) => {
-        page.drawText(line, { x: margin + labelWidth + 6, y: lineY, size, font, color: rgb(0, 0, 0) });
+        page.drawText(line, {
+          x: margin + labelWidth + 6,
+          y: lineY,
+          size: bodySize,
+          font,
+          color: rgb(0, 0, 0),
+        });
         lineY -= lineGap;
       });
       y = lineY - 2;
+    };
+
+    const measureBlockHeight = (
+      title: string,
+      entries: Array<{ label: string; value: string }>,
+      width: number
+    ) => {
+      const titleHeight = headingSize + 4;
+      const labelWidth = Math.max(
+        ...entries.map((entry) => fontBold.widthOfTextAtSize(`${entry.label}:`, bodySize)),
+        0
+      );
+      let height = titleHeight;
+      entries.forEach((entry) => {
+        const lines = wrapText(entry.value, width - labelWidth - 6, font, bodySize);
+        height += lines.length * lineGap + 2;
+      });
+      return height;
+    };
+
+    const drawBlock = (
+      x: number,
+      startY: number,
+      title: string,
+      entries: Array<{ label: string; value: string }>,
+      width: number
+    ) => {
+      const labelWidth = Math.max(
+        ...entries.map((entry) => fontBold.widthOfTextAtSize(`${entry.label}:`, bodySize)),
+        0
+      );
+      let cursor = startY;
+      page.drawText(title, { x, y: cursor, size: headingSize, font: fontBold, color: rgb(0, 0, 0) });
+      cursor -= headingSize + 4;
+      entries.forEach((entry) => {
+        const labelText = `${entry.label}:`;
+        const lines = wrapText(entry.value, width - labelWidth - 6, font, bodySize);
+        page.drawText(labelText, { x, y: cursor, size: bodySize, font: fontBold, color: rgb(0, 0, 0) });
+        let lineY = cursor;
+        lines.forEach((line) => {
+          page.drawText(line, { x: x + labelWidth + 6, y: lineY, size: bodySize, font, color: rgb(0, 0, 0) });
+          lineY -= lineGap;
+        });
+        cursor = lineY - 2;
+      });
+      return startY - cursor;
     };
 
     const orgName = safeText(organization?.name, "Organization");
@@ -281,35 +376,69 @@ export async function POST(req: Request, { params }: { params: { leaseId: string
     drawLabelValue("Lease ID", safeText(lease.id));
     drawLabelValue("Generated", new Date().toLocaleString("en-KE"));
 
-    drawHeading("Parties");
-    drawLabelValue("Landlord/Manager", orgName);
-    drawLabelValue("Tenant", safeText(tenantProfile?.full_name));
-    drawLabelValue("Tenant Phone", safeText(tenantProfile?.phone_number));
-    drawLabelValue("Tenant Address", safeText(tenantProfile?.address));
-    if (tenantProfile?.national_id) {
-      drawLabelValue("Tenant ID", safeText(tenantProfile.national_id));
-    }
+    const partiesEntries = [
+      { label: "Landlord/Manager", value: orgName },
+      { label: "Tenant", value: safeText(tenantProfile?.full_name) },
+      { label: "Tenant Phone", value: safeText(tenantProfile?.phone_number) },
+      { label: "Tenant Address", value: safeText(tenantProfile?.address) },
+      { label: "Tenant ID", value: safeText(tenantProfile?.national_id) },
+    ].filter((entry) => entry.value !== "—");
 
-    drawHeading("Property and Unit");
-    drawLabelValue("Property", safeText(building?.name));
-    drawLabelValue("Property Location", safeText(building?.location));
-    drawLabelValue("Unit Number", safeText(unit?.unit_number));
-    drawLabelValue("Floor", safeText(unit?.floor?.toString()));
-    drawLabelValue("Bedrooms", safeText(unit?.number_of_bedrooms?.toString()));
-    drawLabelValue("Bathrooms", safeText(unit?.number_of_bathrooms?.toString()));
-    drawLabelValue("Size (sqft)", safeText(unit?.size_sqft?.toString()));
+    const financialEntries = [
+      { label: "Monthly Rent", value: formatMoney(renewalRent) },
+      { label: "Deposit", value: formatMoney(renewalDeposit) },
+      { label: "Next Rent Due", value: formatDate(lease.next_rent_due_date) },
+      { label: "Lease Status", value: safeText(lease.status) },
+    ].filter((entry) => entry.value !== "—");
 
-    drawHeading("Lease Term");
-    drawLabelValue("Current Lease Start", formatDate(lease.start_date));
-    drawLabelValue("Current Lease End", formatDate(lease.end_date));
-    drawLabelValue("Renewal Start", formatDate(renewalStart));
-    drawLabelValue("Renewal End", formatDate(renewalEnd));
+    const propertyEntries = [
+      { label: "Property", value: safeText(building?.name) },
+      { label: "Location", value: safeText(building?.location) },
+      { label: "Unit", value: safeText(unit?.unit_number) },
+      { label: "Floor", value: safeText(unit?.floor?.toString()) },
+      { label: "Bedrooms", value: safeText(unit?.number_of_bedrooms?.toString()) },
+      { label: "Bathrooms", value: safeText(unit?.number_of_bathrooms?.toString()) },
+      { label: "Size (sqft)", value: safeText(unit?.size_sqft?.toString()) },
+    ].filter((entry) => entry.value !== "—");
 
-    drawHeading("Financial Terms");
-    drawLabelValue("Monthly Rent", formatMoney(renewalRent));
-    drawLabelValue("Deposit", formatMoney(renewalDeposit));
-    drawLabelValue("Next Rent Due Date", formatDate(lease.next_rent_due_date));
-    drawLabelValue("Lease Status", safeText(lease.status));
+    const termLabel = termMonths ? `${termMonths} months` : "—";
+    const termEntries = [
+      { label: "Current Lease Start", value: formatDate(lease.start_date) },
+      { label: "Current Lease End", value: formatDate(lease.end_date) },
+      { label: "Renewal Start", value: formatDate(renewalStartDate) },
+      { label: "Renewal End", value: formatDate(renewalEndDate) },
+      { label: "Renewal Term", value: termLabel },
+    ].filter((entry) => entry.value !== "—");
+
+    const partiesHeight = measureBlockHeight("Parties", partiesEntries, columnWidth);
+    const financialHeight = measureBlockHeight("Financial Terms", financialEntries, columnWidth);
+    ensureSpace(Math.max(partiesHeight, financialHeight) + 6);
+
+    const rowStart = y;
+    const usedLeft = drawBlock(margin, rowStart, "Parties", partiesEntries, columnWidth);
+    const usedRight = drawBlock(
+      margin + columnWidth + columnGap,
+      rowStart,
+      "Financial Terms",
+      financialEntries,
+      columnWidth
+    );
+    y = rowStart - Math.max(usedLeft, usedRight) - 10;
+
+    const propertyHeight = measureBlockHeight("Property & Unit", propertyEntries, columnWidth);
+    const termHeight = measureBlockHeight("Lease Term", termEntries, columnWidth);
+    ensureSpace(Math.max(propertyHeight, termHeight) + 6);
+
+    const rowStartTwo = y;
+    const usedProp = drawBlock(margin, rowStartTwo, "Property & Unit", propertyEntries, columnWidth);
+    const usedTerm = drawBlock(
+      margin + columnWidth + columnGap,
+      rowStartTwo,
+      "Lease Term",
+      termEntries,
+      columnWidth
+    );
+    y = rowStartTwo - Math.max(usedProp, usedTerm) - 10;
 
     drawHeading("Notes");
     drawParagraph(

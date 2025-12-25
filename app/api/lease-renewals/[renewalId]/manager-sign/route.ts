@@ -15,6 +15,10 @@ type RenewalRow = {
   status: string;
   pdf_tenant_signed_path: string | null;
   pdf_fully_signed_path: string | null;
+  proposed_start_date?: string | null;
+  proposed_end_date?: string | null;
+  proposed_rent?: number | null;
+  proposed_deposit?: number | null;
 };
 
 function json(data: unknown, status = 200) {
@@ -52,6 +56,32 @@ function supabaseAdmin() {
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !key) throw new Error("Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY");
   return createClient(url, key, { auth: { persistSession: false } });
+}
+
+function parseDateOnly(value?: string | null) {
+  if (!value) return null;
+  const iso = value.split("T")[0];
+  const [y, m, d] = iso.split("-").map((part) => Number(part));
+  if (!y || !m || !d) return null;
+  return new Date(Date.UTC(y, m - 1, d));
+}
+
+function toIsoDate(value: Date) {
+  return value.toISOString().slice(0, 10);
+}
+
+function addDaysUtc(date: Date, days: number) {
+  const next = new Date(date.getTime());
+  next.setUTCDate(next.getUTCDate() + days);
+  return next;
+}
+
+function monthsBetweenUtc(start: Date, end: Date) {
+  return (end.getUTCFullYear() - start.getUTCFullYear()) * 12 + (end.getUTCMonth() - start.getUTCMonth());
+}
+
+function lastDayOfMonthUtc(year: number, monthIndex: number) {
+  return new Date(Date.UTC(year, monthIndex + 1, 0));
 }
 
 async function getMembership(admin: any, organizationId: string, userId: string) {
@@ -178,7 +208,9 @@ export async function POST(req: Request, { params }: { params: { renewalId: stri
 
     const { data: renewal, error: rErr } = await admin
       .from("lease_renewals")
-      .select("id, organization_id, lease_id, status, pdf_tenant_signed_path, pdf_fully_signed_path")
+      .select(
+        "id, organization_id, lease_id, status, pdf_tenant_signed_path, pdf_fully_signed_path, proposed_start_date, proposed_end_date, proposed_rent, proposed_deposit"
+      )
       .eq("id", renewalId)
       .single();
 
@@ -201,6 +233,41 @@ export async function POST(req: Request, { params }: { params: { renewalId: stri
     }
 
     if (!r.pdf_tenant_signed_path) return json({ error: "Missing pdf_tenant_signed_path" }, 400);
+
+    const { data: leaseRow, error: leaseErr } = await admin
+      .from("leases")
+      .select("id, start_date, end_date, monthly_rent, deposit_amount, status")
+      .eq("id", r.lease_id)
+      .single();
+
+    if (leaseErr) return json({ error: leaseErr.message }, 400);
+
+    const leaseStartDate = parseDateOnly(leaseRow?.start_date);
+    const leaseEndDate = parseDateOnly(leaseRow?.end_date);
+    const proposedStartDate = parseDateOnly(r.proposed_start_date ?? null);
+    const proposedEndDate = parseDateOnly(r.proposed_end_date ?? null);
+
+    const termMonthsRaw =
+      leaseStartDate && leaseEndDate ? monthsBetweenUtc(leaseStartDate, leaseEndDate) : 0;
+    const termMonths = termMonthsRaw > 0 ? termMonthsRaw : 12;
+
+    const renewalStartDate =
+      proposedStartDate ?? (leaseEndDate ? addDaysUtc(leaseEndDate, 1) : leaseStartDate);
+    const renewalEndDate = proposedEndDate
+      ? proposedEndDate
+      : renewalStartDate
+        ? lastDayOfMonthUtc(
+            renewalStartDate.getUTCFullYear(),
+            renewalStartDate.getUTCMonth() + termMonths - 1
+          )
+        : null;
+
+    const renewalRent =
+      r.proposed_rent !== null && r.proposed_rent !== undefined ? r.proposed_rent : leaseRow?.monthly_rent;
+    const renewalDeposit =
+      r.proposed_deposit !== null && r.proposed_deposit !== undefined
+        ? r.proposed_deposit
+        : leaseRow?.deposit_amount;
 
     const p12base64 = process.env.MANAGER_P12_BASE64;
     const p12pass = process.env.MANAGER_CERT_PASSWORD;
@@ -236,6 +303,17 @@ export async function POST(req: Request, { params }: { params: { renewalId: stri
       .eq("id", renewalId);
 
     if (updErr) return json({ error: updErr.message }, 400);
+
+    const leaseUpdates: Record<string, any> = {};
+    if (renewalStartDate) leaseUpdates.start_date = toIsoDate(renewalStartDate);
+    if (renewalEndDate) leaseUpdates.end_date = toIsoDate(renewalEndDate);
+    if (renewalRent !== null && renewalRent !== undefined) leaseUpdates.monthly_rent = renewalRent;
+    if (renewalDeposit !== null && renewalDeposit !== undefined) leaseUpdates.deposit_amount = renewalDeposit;
+
+    if (Object.keys(leaseUpdates).length > 0) {
+      const { error: leaseUpdErr } = await admin.from("leases").update(leaseUpdates).eq("id", r.lease_id);
+      if (leaseUpdErr) return json({ error: leaseUpdErr.message }, 400);
+    }
 
     await cancelPendingLeaseRenewalReminders(admin, r.lease_id);
 
