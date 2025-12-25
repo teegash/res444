@@ -77,7 +77,14 @@ export async function POST(req: Request, { params }: { params: { leaseId: string
   try {
     requireInternalApiKey(req);
 
-    const leaseId = params.leaseId;
+    let leaseId = params.leaseId;
+    if (!leaseId || leaseId === "undefined") {
+      const parts = new URL(req.url).pathname.split("/").filter(Boolean);
+      const idx = parts.indexOf("by-lease");
+      if (idx >= 0 && parts[idx + 1]) {
+        leaseId = decodeURIComponent(parts[idx + 1]);
+      }
+    }
     if (!leaseId || leaseId === "undefined") {
       return json({ error: "Missing leaseId" }, 400);
     }
