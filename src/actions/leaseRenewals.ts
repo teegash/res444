@@ -238,14 +238,18 @@ export async function tenantSignRenewal(renewalId: string) {
     return { ok: false, error: "Missing renewalId" };
   }
   const actor = await getActorUserIdOrThrow();
-  return callInternal(`/api/lease-renewals/${renewalId}/tenant-sign`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${internalKey()}`,
-      "x-internal-api-key": internalKey(),
-      "x-actor-user-id": actor,
-    },
-  });
+  try {
+    return await callInternal(`/api/lease-renewals/${renewalId}/tenant-sign`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${internalKey()}`,
+        "x-internal-api-key": internalKey(),
+        "x-actor-user-id": actor,
+      },
+    });
+  } catch (err: any) {
+    return { ok: false, error: err?.message || "Failed to sign renewal" };
+  }
 }
 
 export async function managerSignRenewal(renewalId: string) {
@@ -253,14 +257,18 @@ export async function managerSignRenewal(renewalId: string) {
     return { ok: false, error: "Missing renewalId" };
   }
   const actor = await getActorUserIdOrThrow();
-  return callInternal(`/api/lease-renewals/${renewalId}/manager-sign`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${internalKey()}`,
-      "x-internal-api-key": internalKey(),
-      "x-actor-user-id": actor,
-    },
-  });
+  try {
+    return await callInternal(`/api/lease-renewals/${renewalId}/manager-sign`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${internalKey()}`,
+        "x-internal-api-key": internalKey(),
+        "x-actor-user-id": actor,
+      },
+    });
+  } catch (err: any) {
+    return { ok: false, error: err?.message || "Failed to countersign renewal" };
+  }
 }
 
 export async function getRenewalDownloadUrl(
@@ -271,12 +279,16 @@ export async function getRenewalDownloadUrl(
     return { ok: false, error: "Missing renewalId" };
   }
   const actor = await getActorUserIdOrThrow();
-  return callInternal(`/api/lease-renewals/${renewalId}/download?type=${type}`, {
-    method: "GET",
-    headers: {
-      Authorization: `Bearer ${internalKey()}`,
-      "x-internal-api-key": internalKey(),
-      "x-actor-user-id": actor,
-    },
-  });
+  try {
+    return await callInternal(`/api/lease-renewals/${renewalId}/download?type=${type}`, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${internalKey()}`,
+        "x-internal-api-key": internalKey(),
+        "x-actor-user-id": actor,
+      },
+    });
+  } catch (err: any) {
+    return { ok: false, error: err?.message || "Failed to get download URL" };
+  }
 }
