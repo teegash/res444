@@ -6,8 +6,8 @@ import { createClient } from "@supabase/supabase-js";
 
 type Role = "admin" | "manager" | "caretaker" | "tenant";
 
-function supabaseAuthed() {
-  const cookieStore = cookies();
+async function supabaseAuthed() {
+  const cookieStore = await cookies();
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -17,10 +17,14 @@ function supabaseAuthed() {
           return cookieStore.get(name)?.value;
         },
         set(name: string, value: string, options: any) {
-          cookieStore.set({ name, value, ...options });
+          if (typeof cookieStore.set === "function") {
+            cookieStore.set({ name, value, ...options });
+          }
         },
         remove(name: string, options: any) {
-          cookieStore.set({ name, value: "", ...options, maxAge: 0 });
+          if (typeof cookieStore.set === "function") {
+            cookieStore.set({ name, value: "", ...options, maxAge: 0 });
+          }
         },
       },
     }
@@ -35,7 +39,7 @@ function supabaseAdmin() {
 }
 
 async function getActorUserIdOrThrow() {
-  const supabase = supabaseAuthed();
+  const supabase = await supabaseAuthed();
   const { data, error } = await supabase.auth.getUser();
   if (error || !data?.user) throw new Error("Not authenticated");
   return data.user.id;
