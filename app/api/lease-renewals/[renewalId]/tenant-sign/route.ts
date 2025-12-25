@@ -1,0 +1,177 @@
+import { NextResponse } from 'next/server'
+import { createAdminClient } from '@/lib/supabase/admin'
+
+import { SignPdf } from '@signpdf/signpdf'
+import { P12Signer } from '@signpdf/signer-p12'
+import { plainAddPlaceholder } from '@signpdf/placeholder-plain'
+
+export const runtime = 'nodejs'
+
+function json(data: unknown, status = 200) {
+  return NextResponse.json(data, { status })
+}
+
+function requireInternalApiKey(req: Request) {
+  const expected = process.env.INTERNAL_API_KEY
+  if (!expected) throw new Error('Server misconfigured: INTERNAL_API_KEY missing')
+
+  const auth = req.headers.get('authorization') || ''
+  if (!auth.startsWith('Bearer ')) throw new Error('Unauthorized')
+
+  const token = auth.slice('Bearer '.length).trim()
+  if (token !== expected) throw new Error('Forbidden')
+}
+
+function requireActorUserId(req: Request) {
+  const actor = req.headers.get('x-actor-user-id')
+  if (!actor) throw new Error('Missing x-actor-user-id')
+  return actor
+}
+
+async function downloadPdfFromBucket(supabase: any, path: string) {
+  const { data, error } = await supabase.storage.from('lease-renewals').download(path)
+  if (error) throw new Error(`Storage download failed: ${error.message}`)
+  return Buffer.from(await data.arrayBuffer())
+}
+
+async function uploadPdfToBucket(supabase: any, path: string, bytes: Uint8Array | Buffer) {
+  const { error } = await supabase.storage.from('lease-renewals').upload(path, bytes as any, {
+    contentType: 'application/pdf',
+    upsert: true,
+  })
+  if (error) throw new Error(`Storage upload failed: ${error.message}`)
+}
+
+function tenantSignedPathFromUnsigned(unsignedPath: string) {
+  return unsignedPath.replace('/unsigned.pdf', '/tenant_signed.pdf')
+}
+
+async function logEvent(
+  supabase: any,
+  args: {
+    renewal_id: string
+    organization_id: string
+    actor_user_id: string | null
+    action: string
+    metadata?: any
+    ip?: string | null
+    user_agent?: string | null
+  }
+) {
+  const { error } = await supabase.from('lease_renewal_events').insert({
+    renewal_id: args.renewal_id,
+    organization_id: args.organization_id,
+    actor_user_id: args.actor_user_id,
+    action: args.action,
+    metadata: args.metadata ?? {},
+    ip: args.ip ?? null,
+    user_agent: args.user_agent ?? null,
+  })
+
+  if (error) throw new Error(`Failed to log event: ${error.message}`)
+}
+
+export async function POST(req: Request, { params }: { params: { renewalId: string } }) {
+  try {
+    requireInternalApiKey(req)
+    const actorUserId = requireActorUserId(req)
+
+    const supabase = createAdminClient()
+    if (!supabase) {
+      return json({ error: 'Supabase admin client not configured (missing env vars)' }, 500)
+    }
+
+    const renewalId = params.renewalId
+
+    const { data: renewal, error: rErr } = await supabase
+      .from('lease_renewals')
+      .select('*')
+      .eq('id', renewalId)
+      .single()
+
+    if (rErr) return json({ error: rErr.message }, 400)
+
+    if (renewal.tenant_user_id !== actorUserId) {
+      return json({ error: 'Forbidden: only the tenant can sign this renewal.' }, 403)
+    }
+
+    if (renewal.status === 'tenant_signed' || renewal.status === 'completed') {
+      return json({
+        ok: true,
+        alreadySigned: true,
+        status: renewal.status,
+        tenantSignedPath: renewal.pdf_tenant_signed_path ?? null,
+      })
+    }
+
+    if (renewal.status !== 'sent_to_tenant') {
+      return json({ error: `Invalid status for tenant signing: ${renewal.status}` }, 409)
+    }
+
+    if (!renewal.pdf_unsigned_path) return json({ error: 'Missing unsigned PDF' }, 400)
+
+    const p12base64 = process.env.TENANT_SIGN_P12_BASE64 ?? process.env.TENANT_P12_BASE64
+    const p12pass = process.env.TENANT_SIGN_P12_PASSWORD ?? process.env.TENANT_CERT_PASSWORD
+    if (!p12base64 || !p12pass) {
+      return json(
+        {
+          error:
+            'Missing tenant signing env vars (TENANT_SIGN_P12_BASE64 + TENANT_SIGN_P12_PASSWORD) or (TENANT_P12_BASE64 + TENANT_CERT_PASSWORD)',
+        },
+        500
+      )
+    }
+
+    const pdfBuffer = await downloadPdfFromBucket(supabase, renewal.pdf_unsigned_path)
+    const p12Buffer = Buffer.from(p12base64, 'base64')
+
+    const pdfWithPlaceholder = plainAddPlaceholder({
+      pdfBuffer,
+      reason: 'Lease renewal - tenant signing',
+      signatureLength: 8192,
+    })
+
+    const signer = new P12Signer(p12Buffer, { passphrase: p12pass })
+    const signpdf = new SignPdf()
+
+    const signedPdf = await signpdf.sign(pdfWithPlaceholder, signer)
+
+    const tenantSignedPath = tenantSignedPathFromUnsigned(renewal.pdf_unsigned_path)
+    await uploadPdfToBucket(supabase, tenantSignedPath, signedPdf)
+
+    const { error: updErr } = await supabase
+      .from('lease_renewals')
+      .update({
+        pdf_tenant_signed_path: tenantSignedPath,
+        tenant_signed_at: new Date().toISOString(),
+        status: 'tenant_signed',
+      })
+      .eq('id', renewalId)
+
+    if (updErr) return json({ error: updErr.message }, 400)
+
+    await logEvent(supabase, {
+      renewal_id: renewalId,
+      organization_id: renewal.organization_id,
+      actor_user_id: actorUserId,
+      action: 'tenant_signed',
+      metadata: { tenantSignedPath },
+      ip: req.headers.get('x-forwarded-for'),
+      user_agent: req.headers.get('user-agent'),
+    })
+
+    return json({ ok: true, tenantSignedPath })
+  } catch (e: any) {
+    const msg = e?.message ?? String(e)
+    const status =
+      msg === 'Unauthorized'
+        ? 401
+        : msg === 'Forbidden'
+          ? 403
+          : msg.startsWith('Missing x-actor-user-id')
+            ? 400
+            : 500
+    return json({ error: msg }, status)
+  }
+}
+
