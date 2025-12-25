@@ -482,9 +482,12 @@ export default function LeasePage() {
                         }
                         try {
                           setRenewalBusy('create')
-                          await createRenewalByLease(lease.id)
-                        await refreshRenewal(lease.id)
-                        toast({ title: 'Renewal created', description: 'Open it and sign when ready.' })
+                          const res: any = await createRenewalByLease(lease.id)
+                          if (res?.ok === false) {
+                            throw new Error(res?.error || 'Failed to start renewal.')
+                          }
+                          await refreshRenewal(lease.id)
+                          toast({ title: 'Renewal created', description: 'Open it and sign when ready.' })
                       } catch (e: any) {
                         toast({
                           title: 'Failed to start renewal',

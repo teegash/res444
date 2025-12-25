@@ -204,7 +204,9 @@ function internalKey() {
 }
 
 export async function createRenewalByLease(leaseId: string) {
-  if (!leaseId || leaseId === "undefined") throw new Error("Missing leaseId");
+  if (!leaseId || leaseId === "undefined") {
+    return { ok: false, error: "Missing leaseId" };
+  }
   const actor = await getActorUserIdOrThrow();
   return callInternal(`/api/lease-renewals/by-lease/${leaseId}/create`, {
     method: "POST",

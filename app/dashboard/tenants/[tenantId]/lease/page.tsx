@@ -601,7 +601,10 @@ export default function TenantLeaseManagementPage() {
                         }
                         try {
                           setRenewalBusy('create')
-                          await createRenewalByLease(lease.id)
+                          const res: any = await createRenewalByLease(lease.id)
+                          if (res?.ok === false) {
+                            throw new Error(res?.error || 'Failed to start renewal.')
+                          }
                           await refreshRenewal(lease.id)
                           toast({
                             title: 'Renewal initiated',
