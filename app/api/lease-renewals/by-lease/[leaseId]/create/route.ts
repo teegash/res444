@@ -481,40 +481,6 @@ export async function POST(req: Request, { params }: { params: { leaseId: string
         + "otherwise stated."
     );
 
-    ensureSpace(120);
-    const targetSigY = margin + 110;
-    const sigY = y > targetSigY ? targetSigY : y;
-    page.drawText("Tenant Signature", { x: margin, y: sigY, size: 10, font: fontBold });
-    page.drawLine({
-      start: { x: margin, y: sigY - 12 },
-      end: { x: margin + 200, y: sigY - 12 },
-      thickness: 1,
-      color: rgb(0.2, 0.2, 0.2),
-    });
-    page.drawText("Date:", { x: margin, y: sigY - 30, size: 9, font });
-    page.drawLine({
-      start: { x: margin + 28, y: sigY - 32 },
-      end: { x: margin + 120, y: sigY - 32 },
-      thickness: 1,
-      color: rgb(0.2, 0.2, 0.2),
-    });
-
-    const rightX = page.getWidth() - margin - 200;
-    page.drawText("Landlord/Manager Signature", { x: rightX, y: sigY, size: 10, font: fontBold });
-    page.drawLine({
-      start: { x: rightX, y: sigY - 12 },
-      end: { x: rightX + 200, y: sigY - 12 },
-      thickness: 1,
-      color: rgb(0.2, 0.2, 0.2),
-    });
-    page.drawText("Date:", { x: rightX, y: sigY - 30, size: 9, font });
-    page.drawLine({
-      start: { x: rightX + 28, y: sigY - 32 },
-      end: { x: rightX + 120, y: sigY - 32 },
-      thickness: 1,
-      color: rgb(0.2, 0.2, 0.2),
-    });
-
     const pages = pdfDoc.getPages();
     pages.forEach((p, idx) => {
       const footerY = 28;
