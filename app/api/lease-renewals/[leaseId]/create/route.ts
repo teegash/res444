@@ -1,69 +1,16 @@
 import { NextResponse } from "next/server";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
-import { createClient } from "@supabase/supabase-js";
+import { supabaseAdmin } from "@/src/lib/supabaseAdmin";
+import { requireInternalApiKey } from "@/src/lib/internalApiAuth";
+import { unsignedPath, uploadPdf } from "@/src/lib/leaseRenewalStorage";
+import { logLeaseRenewalEvent } from "@/src/lib/leaseRenewalEvents";
 
 export const runtime = "nodejs";
 
-function json(data: unknown, status = 200) {
-  return NextResponse.json(data, { status });
-}
-
-function requireInternalApiKey(req: Request) {
-  const expected = process.env.INTERNAL_API_KEY;
-  if (!expected) throw new Error("Server misconfigured: INTERNAL_API_KEY missing");
-
-  const auth = req.headers.get("authorization") || "";
-  if (!auth.startsWith("Bearer ")) throw new Error("Unauthorized");
-  const token = auth.slice("Bearer ".length).trim();
-
-  if (token !== expected) throw new Error("Forbidden");
-}
-
-function supabaseAdmin() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !serviceKey) throw new Error("Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY");
-
-  return createClient(url, serviceKey, { auth: { persistSession: false } });
-}
-
-function unsignedPath(orgId: string, leaseId: string, renewalId: string) {
-  return `org/${orgId}/lease/${leaseId}/renewal/${renewalId}/unsigned.pdf`;
-}
-
-async function uploadPdf(admin: any, path: string, bytes: Uint8Array | ArrayBuffer) {
-  const { error } = await admin.storage.from("lease-renewals").upload(path, bytes, {
-    contentType: "application/pdf",
-    upsert: true,
-  });
-  if (error) throw new Error(`Storage upload failed: ${error.message}`);
-}
-
-async function logEvent(
-  admin: any,
-  args: {
-    renewal_id: string;
-    organization_id: string;
-    actor_user_id?: string | null;
-    action: string;
-    metadata?: any;
-    ip?: string | null;
-    user_agent?: string | null;
-  }
+export async function POST(
+  req: Request,
+  { params }: { params: { leaseId: string } }
 ) {
-  const { error } = await admin.from("lease_renewal_events").insert({
-    renewal_id: args.renewal_id,
-    organization_id: args.organization_id,
-    actor_user_id: args.actor_user_id ?? null,
-    action: args.action,
-    metadata: args.metadata ?? {},
-    ip: args.ip ?? null,
-    user_agent: args.user_agent ?? null,
-  });
-  if (error) throw new Error(`Failed to log event: ${error.message}`);
-}
-
-export async function POST(req: Request, { params }: { params: { leaseId: string } }) {
   try {
     requireInternalApiKey(req);
 
@@ -72,12 +19,14 @@ export async function POST(req: Request, { params }: { params: { leaseId: string
 
     const { data: lease, error: leaseErr } = await admin
       .from("leases")
-      .select("id, organization_id, tenant_user_id, start_date, end_date, unit_id, building_id")
+      .select(
+        "id, organization_id, tenant_user_id, start_date, end_date, unit_id, building_id"
+      )
       .eq("id", leaseId)
       .single();
 
-    if (leaseErr) return json({ error: leaseErr.message }, 400);
-    if (!lease?.tenant_user_id) return json({ error: "Lease has no tenant_user_id" }, 400);
+    if (leaseErr)
+      return NextResponse.json({ error: leaseErr.message }, { status: 400 });
 
     const { data: renewal, error: renewErr } = await admin
       .from("lease_renewals")
@@ -90,7 +39,8 @@ export async function POST(req: Request, { params }: { params: { leaseId: string
       .select("*")
       .single();
 
-    if (renewErr) return json({ error: renewErr.message }, 400);
+    if (renewErr)
+      return NextResponse.json({ error: renewErr.message }, { status: 400 });
 
     const pdfDoc = await PDFDocument.create();
     const page = pdfDoc.addPage([595.28, 841.89]); // A4
@@ -106,40 +56,47 @@ export async function POST(req: Request, { params }: { params: { leaseId: string
     draw(`Lease End (Current): ${lease.end_date ?? "-"}`, 50, 735);
 
     draw("Tenant Digital Signature:", 50, 140, 11);
-    page.drawLine({ start: { x: 50, y: 120 }, end: { x: 250, y: 120 }, thickness: 1 });
+    page.drawLine({
+      start: { x: 50, y: 120 },
+      end: { x: 250, y: 120 },
+      thickness: 1,
+    });
 
     draw("Landlord/Manager Digital Signature:", 320, 140, 11);
-    page.drawLine({ start: { x: 320, y: 120 }, end: { x: 540, y: 120 }, thickness: 1 });
+    page.drawLine({
+      start: { x: 320, y: 120 },
+      end: { x: 540, y: 120 },
+      thickness: 1,
+    });
 
     const unsignedBytes = await pdfDoc.save();
 
     const path = unsignedPath(lease.organization_id, lease.id, renewal.id);
-    await uploadPdf(admin, path, unsignedBytes);
+    await uploadPdf(path, unsignedBytes);
 
     const { error: updErr } = await admin
       .from("lease_renewals")
-      .update({
-        pdf_unsigned_path: path,
-        status: "sent_for_signature",
-      })
+      .update({ pdf_unsigned_path: path, status: "sent_to_tenant" })
       .eq("id", renewal.id);
 
-    if (updErr) return json({ error: updErr.message }, 400);
+    if (updErr)
+      return NextResponse.json({ error: updErr.message }, { status: 400 });
 
-    await logEvent(admin, {
+    await logLeaseRenewalEvent({
       renewal_id: renewal.id,
       organization_id: lease.organization_id,
       actor_user_id: null,
-      action: "created_and_sent_for_signature",
+      action: "created_and_sent_to_tenant",
       metadata: { unsignedPath: path },
       ip: req.headers.get("x-forwarded-for"),
       user_agent: req.headers.get("user-agent"),
     });
 
-    return json({ ok: true, renewalId: renewal.id, unsignedPath: path });
+    return NextResponse.json({ ok: true, renewalId: renewal.id, unsignedPath: path });
   } catch (e: any) {
     const msg = e?.message || String(e);
     const status = msg === "Unauthorized" ? 401 : msg === "Forbidden" ? 403 : 500;
-    return json({ error: msg }, status);
+    return NextResponse.json({ error: msg }, { status });
   }
 }
+
