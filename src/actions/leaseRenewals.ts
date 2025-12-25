@@ -279,15 +279,59 @@ export async function getRenewalDownloadUrl(
     return { ok: false, error: "Missing renewalId" };
   }
   const actor = await getActorUserIdOrThrow();
+  const admin = supabaseAdmin();
+  const expectedSuffix =
+    type === "unsigned"
+      ? "/unsigned.pdf"
+      : type === "tenant_signed"
+        ? "/tenant_signed.pdf"
+        : "/fully_signed.pdf";
+
   try {
-    return await callInternal(`/api/lease-renewals/${renewalId}/download?type=${type}`, {
-      method: "GET",
-      headers: {
-        Authorization: `Bearer ${internalKey()}`,
-        "x-internal-api-key": internalKey(),
-        "x-actor-user-id": actor,
-      },
-    });
+    const { data: renewal, error: rErr } = await admin
+      .from("lease_renewals")
+      .select("id, organization_id, tenant_user_id, pdf_unsigned_path, pdf_tenant_signed_path, pdf_fully_signed_path")
+      .eq("id", renewalId)
+      .single();
+
+    if (rErr) return { ok: false, error: rErr.message };
+
+    const r = renewal as any;
+    if (r.tenant_user_id !== actor) {
+      const role = await getMemberRoleOrNull(admin, r.organization_id, actor);
+      if (!role || !["admin", "manager", "caretaker"].includes(role)) {
+        return { ok: false, error: "Forbidden" };
+      }
+    } else {
+      const role = await getMemberRoleOrNull(admin, r.organization_id, actor);
+      if (!role) return { ok: false, error: "Forbidden" };
+    }
+
+    let path: string | null = null;
+    if (type === "unsigned") path = r.pdf_unsigned_path;
+    if (type === "tenant_signed") path = r.pdf_tenant_signed_path;
+    if (type === "fully_signed") path = r.pdf_fully_signed_path;
+
+    if (!path) return { ok: false, error: "File not available" };
+    if (!path.endsWith(expectedSuffix)) {
+      return { ok: false, error: "Requested file path does not match expected type" };
+    }
+
+    const idx = path.lastIndexOf("/");
+    const dir = idx === -1 ? "" : path.slice(0, idx);
+    const name = idx === -1 ? path : path.slice(idx + 1);
+    const { data: listed, error: listErr } = await admin.storage
+      .from("lease-renewals")
+      .list(dir, { limit: 1, search: name });
+    if (listErr) return { ok: false, error: `Storage lookup failed: ${listErr.message}` };
+    if (!listed || listed.length === 0) return { ok: false, error: "File not found in storage" };
+
+    const { data: signed, error: sErr } = await admin.storage
+      .from("lease-renewals")
+      .createSignedUrl(path, 120);
+    if (sErr) return { ok: false, error: sErr.message };
+
+    return { ok: true, url: signed.signedUrl };
   } catch (err: any) {
     return { ok: false, error: err?.message || "Failed to get download URL" };
   }
