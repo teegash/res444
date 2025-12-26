@@ -3,5 +3,11 @@
     "app/api/auth/register/route.ts": {
       "maxDuration": 60
     }
-  }
+  },
+  "crons": [
+    {
+      "path": "/api/cron/mpesa-auto-verify",
+      "schedule": "*/5 * * * *"
+    }
+  ]
 }

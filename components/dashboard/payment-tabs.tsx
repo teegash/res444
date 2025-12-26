@@ -1,7 +1,7 @@
 
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { PendingVerificationTab } from '@/components/dashboard/payment-tabs/pending-verification-tab'
@@ -51,7 +51,6 @@ export function PaymentTabs({ refreshKey, onIntegrationUpdate, propertyId }: Pay
   const [data, setData] = useState<PaymentsDashboardData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const autoSyncingRef = useRef(false)
 
   useEffect(() => {
     const nextTab = normalizeTab(searchParams.get('tab'))
@@ -128,35 +127,6 @@ export function PaymentTabs({ refreshKey, onIntegrationUpdate, propertyId }: Pay
   useEffect(() => {
     fetchData()
   }, [fetchData, refreshKey])
-
-  const runAutoSync = useCallback(async () => {
-    if (autoSyncingRef.current) {
-      return
-    }
-    autoSyncingRef.current = true
-    try {
-      const response = await fetch('/api/manager/payments', { method: 'POST' })
-      if (!response.ok) {
-        throw new Error('Auto-verification request failed.')
-      }
-      await fetchData()
-    } catch (err) {
-      console.warn('[PaymentTabs] Auto-sync failed', err)
-    } finally {
-      autoSyncingRef.current = false
-    }
-  }, [fetchData])
-
-  useEffect(() => {
-    if (!data?.integration?.autoVerifyEnabled) {
-      return
-    }
-    const frequencySeconds = Math.max(5, data.integration.autoVerifyFrequencySeconds || 30)
-    const interval = setInterval(() => {
-      runAutoSync()
-    }, frequencySeconds * 1000)
-    return () => clearInterval(interval)
-  }, [data?.integration?.autoVerifyEnabled, data?.integration?.autoVerifyFrequencySeconds, runAutoSync])
 
   if (error) {
     return (

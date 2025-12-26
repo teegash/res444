@@ -34,6 +34,30 @@ type InvoiceSummary = {
   lease_paid_until?: string | null
 }
 
+type PollState = {
+  active: boolean
+  attempts: number
+  lastDelayMs: number
+  startedAt: number | null
+}
+
+const MAX_POLL_ATTEMPTS = 12
+const INITIAL_POLL_DELAY_MS = 5000
+const MAX_POLL_DELAY_MS = 30000
+
+function nextPollDelay(prev: number) {
+  const next = Math.round(prev * 1.6)
+  return Math.min(Math.max(next, INITIAL_POLL_DELAY_MS), MAX_POLL_DELAY_MS)
+}
+
+function isFinalStatus(status: string | null | undefined) {
+  if (!status) return false
+  const normalized = status.toLowerCase()
+  return ['success', 'completed', 'failed', 'cancelled', 'canceled', 'timeout'].some((key) =>
+    normalized.includes(key)
+  )
+}
+
 export default function TenantPaymentPortal() {
   const router = useRouter()
   const { toast } = useToast()
@@ -60,7 +84,20 @@ export default function TenantPaymentPortal() {
     'We are securing your request. Approve the prompt on your phone.'
   )
   const [mpesaPollPaymentId, setMpesaPollPaymentId] = useState<string | null>(null)
-  const mpesaPollIntervalRef = useRef<NodeJS.Timeout | null>(null)
+  const [poll, setPoll] = useState<PollState>({
+    active: false,
+    attempts: 0,
+    lastDelayMs: INITIAL_POLL_DELAY_MS,
+    startedAt: null,
+  })
+  const pollRef = useRef<PollState>({
+    active: false,
+    attempts: 0,
+    lastDelayMs: INITIAL_POLL_DELAY_MS,
+    startedAt: null,
+  })
+  const mpesaPollTimerRef = useRef<number | null>(null)
+  const runPollCycleRef = useRef<() => void>(() => {})
 
   const baseAmount = invoice ? invoice.amount : 0
   const totalAmount = baseAmount * monthsToPay
@@ -179,59 +216,154 @@ export default function TenantPaymentPortal() {
     fetchInvoice()
   }, [fetchInvoice])
 
-  useEffect(() => {
-    if (!mpesaPollPaymentId) {
-      if (mpesaPollIntervalRef.current) {
-        clearInterval(mpesaPollIntervalRef.current)
-        mpesaPollIntervalRef.current = null
-      }
+  const setPollState = useCallback((next: PollState) => {
+    pollRef.current = next
+    setPoll(next)
+  }, [])
+
+  const updatePollState = useCallback((updater: (prev: PollState) => PollState) => {
+    setPoll((prev) => {
+      const next = updater(prev)
+      pollRef.current = next
+      return next
+    })
+  }, [])
+
+  const clearPollTimer = useCallback(() => {
+    if (mpesaPollTimerRef.current !== null) {
+      clearTimeout(mpesaPollTimerRef.current)
+      mpesaPollTimerRef.current = null
+    }
+  }, [])
+
+  const pollStatusOnce = useCallback(async (): Promise<string | null> => {
+    if (!mpesaPollPaymentId) return null
+    const response = await fetch(`/api/payments/mpesa/status/${mpesaPollPaymentId}`, {
+      cache: 'no-store',
+    })
+    const payload = await response.json().catch(() => ({}))
+    if (!response.ok) {
+      throw new Error(payload.error || 'Failed to fetch payment status.')
+    }
+    const status = payload.data?.status as string | null | undefined
+    const message = payload.data?.message
+    const normalized = status ? status.toLowerCase() : ''
+    const isSuccess = normalized.includes('success') || normalized.includes('completed')
+    const isFailure =
+      normalized.includes('failed') ||
+      normalized.includes('cancelled') ||
+      normalized.includes('canceled') ||
+      normalized.includes('timeout')
+
+    if (isSuccess) {
+      setSecurityModalStatus('success')
+      setSecurityModalMessage(message || 'Payment confirmed.')
+      setMpesaMessage(message || null)
+      setMpesaPollPaymentId(null)
+      await fetchInvoice()
+    } else if (isFailure) {
+      setSecurityModalStatus('error')
+      setSecurityModalMessage(message || 'Payment failed. Please try again.')
+      setMpesaPollPaymentId(null)
+    } else {
+      setSecurityModalStatus('prompt')
+      setSecurityModalMessage(message || 'Awaiting confirmation from Safaricom…')
+    }
+
+    return status || null
+  }, [mpesaPollPaymentId, fetchInvoice])
+
+  const scheduleNextPoll = useCallback((delayMs: number) => {
+    if (document.visibilityState === 'hidden') {
+      return
+    }
+    mpesaPollTimerRef.current = window.setTimeout(() => {
+      runPollCycleRef.current()
+    }, delayMs)
+  }, [])
+
+  const runPollCycle = useCallback(async () => {
+    let status: string | null = null
+    try {
+      status = await pollStatusOnce()
+    } catch (error) {
+      console.error('[MpesaStatusPoll] Failed to fetch status', error)
+    }
+
+    const prev = pollRef.current
+    const attempts = prev.attempts + 1
+
+    if (isFinalStatus(status)) {
+      clearPollTimer()
+      setPollState({ ...prev, attempts, active: false })
       return
     }
 
-    const pollStatus = async () => {
-      try {
-        const response = await fetch(`/api/payments/mpesa/status/${mpesaPollPaymentId}`, {
-          cache: 'no-store',
-        })
-        const payload = await response.json().catch(() => ({}))
-        if (!response.ok) {
-          throw new Error(payload.error || 'Failed to fetch payment status.')
-        }
-        const status = payload.data?.status
-        const message = payload.data?.message
-
-        if (status === 'success') {
-          setSecurityModalStatus('success')
-          setSecurityModalMessage(message || 'Payment confirmed.')
-          setMpesaMessage(message || null)
-          setMpesaPollPaymentId(null)
-          await fetchInvoice()
-        } else if (status === 'failed') {
-          setSecurityModalStatus('error')
-          setSecurityModalMessage(message || 'Payment failed. Please try again.')
-          setMpesaPollPaymentId(null)
-        } else {
-          setSecurityModalStatus('prompt')
-          setSecurityModalMessage(message || 'Awaiting confirmation from Safaricom…')
-        }
-      } catch (error) {
-        console.error('[MpesaStatusPoll] Failed to fetch status', error)
-      }
+    if (attempts >= MAX_POLL_ATTEMPTS) {
+      clearPollTimer()
+      setPollState({ ...prev, attempts, active: false })
+      return
     }
 
-    pollStatus()
-    mpesaPollIntervalRef.current = setInterval(pollStatus, 5000)
+    const nextDelayMs = nextPollDelay(prev.lastDelayMs)
+    setPollState({ ...prev, attempts, lastDelayMs: nextDelayMs, active: true })
+    scheduleNextPoll(nextDelayMs)
+  }, [pollStatusOnce, clearPollTimer, scheduleNextPoll, setPollState])
 
-    return () => {
-      if (mpesaPollIntervalRef.current) {
-        clearInterval(mpesaPollIntervalRef.current)
-        mpesaPollIntervalRef.current = null
+  useEffect(() => {
+    runPollCycleRef.current = () => {
+      void runPollCycle()
+    }
+  }, [runPollCycle])
+
+  const startPolling = useCallback(() => {
+    if (!mpesaPollPaymentId) return
+    clearPollTimer()
+    setPollState({
+      active: true,
+      attempts: 0,
+      lastDelayMs: INITIAL_POLL_DELAY_MS,
+      startedAt: Date.now(),
+    })
+    void runPollCycle()
+  }, [mpesaPollPaymentId, clearPollTimer, setPollState, runPollCycle])
+
+  const stopPolling = useCallback(() => {
+    clearPollTimer()
+    updatePollState((prev) => ({ ...prev, active: false }))
+  }, [clearPollTimer, updatePollState])
+
+  useEffect(() => {
+    if (!mpesaPollPaymentId) {
+      stopPolling()
+      return
+    }
+    startPolling()
+    return () => stopPolling()
+  }, [mpesaPollPaymentId, startPolling, stopPolling])
+
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        if (pollRef.current.active && mpesaPollPaymentId && mpesaPollTimerRef.current === null) {
+          scheduleNextPoll(pollRef.current.lastDelayMs)
+        }
+        return
       }
+      clearPollTimer()
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
+  }, [mpesaPollPaymentId, scheduleNextPoll, clearPollTimer])
+
+  useEffect(() => {
+    return () => {
       if (depositPreviewUrl) {
         URL.revokeObjectURL(depositPreviewUrl)
       }
     }
-  }, [mpesaPollPaymentId, fetchInvoice, depositPreviewUrl])
+  }, [depositPreviewUrl])
 
   const handleDepositUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
@@ -663,6 +795,23 @@ export default function TenantPaymentPortal() {
                     />
                   </div>
                   {mpesaMessage && <p className="text-xs text-green-700">{mpesaMessage}</p>}
+                  <div className="flex flex-wrap items-center gap-3">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={startPolling}
+                      disabled={!mpesaPollPaymentId}
+                      className="h-8 px-3 text-xs"
+                    >
+                      {poll.active ? 'Checking...' : 'Refresh M-Pesa Status'}
+                    </Button>
+                    {poll.active && (
+                      <span className="text-xs text-muted-foreground">
+                        Checking status… Attempt {poll.attempts}/{MAX_POLL_ATTEMPTS}
+                      </span>
+                    )}
+                  </div>
                 </div>
               )}
 

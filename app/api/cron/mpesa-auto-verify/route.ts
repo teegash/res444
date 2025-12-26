@@ -1,94 +1,89 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { autoVerifyMpesaPayments } from '@/lib/mpesa/autoVerify'
-import { getMpesaSettings } from '@/lib/mpesa/settings'
+
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
 
 /**
- * M-Pesa Auto-Verification Cron Endpoint
- * 
- * This endpoint should be called every 30 seconds to auto-verify pending M-Pesa payments
- * 
- * Configuration:
- * - Vercel Cron: Add to vercel.json
- * - GitHub Actions: Schedule workflow
- * - External Cron: Call this endpoint every 30 seconds
- * 
+ * Vercel Cron Proxy -> Supabase Edge Function
+ *
+ * - Vercel Cron calls this endpoint on schedule.
+ * - This endpoint forwards securely to Supabase Edge Function mpesa-auto-verify.
+ *
  * Security:
- * - Use CRON_SECRET in Authorization header for protection
- * - Or configure IP whitelist in your hosting provider
+ * - Allow Vercel Cron calls via `x-vercel-cron: 1`
+ * - Allow manual admin calls via Authorization Bearer CRON_SECRET (optional)
+ * - Supabase Edge Function is protected by x-cron-secret (SUPABASE_EDGE_CRON_SECRET)
  */
+function isVercelCron(request: NextRequest) {
+  return request.headers.get('x-vercel-cron') === '1'
+}
+
 export async function GET(request: NextRequest) {
   try {
-    // Verify cron secret (optional but recommended)
-    const authHeader = request.headers.get('authorization')
-    const cronSecret = process.env.CRON_SECRET
+    const enabled = (process.env.ENABLE_VERCEL_CRON_JOBS ?? '').toLowerCase() === 'true'
+    if (!enabled) {
+      return NextResponse.json({ ok: true, skipped: true, reason: 'cron_disabled_by_env' }, { status: 200 })
+    }
 
-    if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+    const cronHeaderOk = isVercelCron(request)
+
+    const authHeader = request.headers.get('authorization') ?? ''
+    const cronSecret = process.env.CRON_SECRET ?? ''
+    const manualOk = cronSecret ? authHeader === `Bearer ${cronSecret}` : false
+
+    if (!cronHeaderOk && !manualOk) {
       return NextResponse.json(
-        {
-          success: false,
-          error: 'Unauthorized',
-        },
-        { status: 401 }
+        { ok: false, error: 'Forbidden (not Vercel Cron and not authorized manually)' },
+        { status: 403 }
       )
     }
 
-    const settings = await getMpesaSettings()
+    const targetUrl = process.env.SUPABASE_EDGE_MPESA_AUTOVERIFY_URL ?? ''
+    const supaSecret = process.env.SUPABASE_EDGE_CRON_SECRET ?? ''
 
-    if (!settings.auto_verify_enabled) {
-      return NextResponse.json({
-        success: true,
-        message: 'M-Pesa auto-verification is disabled',
-        data: {
-          checked_count: 0,
-          verified_count: 0,
-          failed_count: 0,
-          pending_count: 0,
-          skipped_count: 0,
-          error_count: 0,
-          payments_auto_verified: [],
-        },
-      })
+    if (!targetUrl || !supaSecret) {
+      return NextResponse.json(
+        { ok: false, error: 'Missing SUPABASE_EDGE_MPESA_AUTOVERIFY_URL or SUPABASE_EDGE_CRON_SECRET' },
+        { status: 500 }
+      )
     }
 
-    // Run auto-verification
-    const result = await autoVerifyMpesaPayments(settings)
+    const incoming = new URL(request.url)
+    const forwardUrl = new URL(targetUrl)
 
-    // Return result
-    return NextResponse.json({
-      success: result.success,
-      message: result.success
-        ? `Auto-verification completed: ${result.verified_count} verified, ${result.failed_count} failed, ${result.pending_count} pending`
-        : 'Auto-verification failed',
-      data: {
-        checked_count: result.checked_count,
-        verified_count: result.verified_count,
-        failed_count: result.failed_count,
-        pending_count: result.pending_count,
-        skipped_count: result.skipped_count,
-        error_count: result.error_count,
-        payments_auto_verified: result.payments_auto_verified,
-        errors: result.errors,
-        executed_at: new Date().toISOString(),
+    // Forward any incoming query params (for manual debugging)
+    incoming.searchParams.forEach((value, key) => {
+      forwardUrl.searchParams.set(key, value)
+    })
+
+    // HARD CAP: never process more than 100 records per cron run
+    // This protects Vercel + Supabase costs even if defaults change later
+    forwardUrl.searchParams.set('limit', '100')
+
+    const res = await fetch(forwardUrl.toString(), {
+      method: 'POST',
+      headers: {
+        'x-cron-secret': supaSecret,
+        'Content-Type': 'application/json',
+      },
+      body: '',
+      cache: 'no-store',
+    })
+
+    const text = await res.text()
+
+    return new NextResponse(text, {
+      status: res.status,
+      headers: {
+        'Content-Type': res.headers.get('Content-Type') ?? 'application/json',
       },
     })
   } catch (error) {
-    const err = error as Error
-    console.error('Error in M-Pesa auto-verify cron:', err)
-
-    return NextResponse.json(
-      {
-        success: false,
-        error: 'An unexpected error occurred',
-        details: err.message,
-      },
-      { status: 500 }
-    )
+    const message = error instanceof Error ? error.message : String(error)
+    return NextResponse.json({ ok: false, error: message }, { status: 500 })
   }
 }
 
-/**
- * Also support POST for manual triggers
- */
 export async function POST(request: NextRequest) {
   return GET(request)
 }

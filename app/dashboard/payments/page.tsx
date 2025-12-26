@@ -18,7 +18,6 @@ export default function PaymentsPage() {
   const { user } = useAuth()
   const [manualSyncedAt, setManualSyncedAt] = useState<string | null>(null)
   const [autoSyncedAt, setAutoSyncedAt] = useState<string | null>(null)
-  const [autoCheckFrequency, setAutoCheckFrequency] = useState<number>(30)
   const [isSyncing, setIsSyncing] = useState(false)
   const [refreshKey, setRefreshKey] = useState(0)
   const [loadingSummary, setLoadingSummary] = useState(false)
@@ -57,7 +56,6 @@ export default function PaymentsPage() {
 
   const handleIntegrationUpdate = useCallback((integration: IntegrationSummary | null) => {
     setAutoSyncedAt(integration?.lastAutoCheck || null)
-    setAutoCheckFrequency(Math.max(5, integration?.autoVerifyFrequencySeconds || 30))
     setLoadingSummary(false)
   }, [])
 
@@ -92,7 +90,7 @@ export default function PaymentsPage() {
                     <div>
                       <p className="font-semibold">Last sync: {lastSyncedLabel}</p>
                       <p className="text-sm text-muted-foreground">
-                        Auto-checking M-Pesa payments every {autoCheckFrequency} seconds via Daraja
+                        Auto-verification runs on schedule (cron). Manual sync is available.
                       </p>
                     </div>
                   </div>
