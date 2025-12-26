@@ -90,7 +90,7 @@ export default function PaymentsPage() {
                     <div>
                       <p className="font-semibold">Last sync: {lastSyncedLabel}</p>
                       <p className="text-sm text-muted-foreground">
-                        Auto-verification runs on schedule (cron). Manual sync is available.
+                        Auto-verification runs every 5 minutes (cron). Manual sync is available.
                       </p>
                     </div>
                   </div>

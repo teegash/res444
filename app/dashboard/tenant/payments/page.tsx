@@ -132,6 +132,13 @@ export default function PaymentHistoryPage() {
   const [receiptLoading, setReceiptLoading] = useState(false)
   const [receiptError, setReceiptError] = useState<string | null>(null)
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    if (window.location.hash === '#upcoming-payments') {
+      document.getElementById('upcoming-payments')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
+  }, [])
+
   const fetchPayments = useCallback(async () => {
     try {
       setLoading(true)
@@ -540,7 +547,7 @@ export default function PaymentHistoryPage() {
         </div>
 
         {/* Upcoming Payments */}
-        <Card>
+        <Card id="upcoming-payments">
           <CardHeader>
             <CardTitle>Upcoming Payments</CardTitle>
             <CardDescription>Your next rent payments</CardDescription>

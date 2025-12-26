@@ -173,7 +173,6 @@ export function PaymentTabs({ refreshKey, onIntegrationUpdate, propertyId }: Pay
           payments={data?.pending || []}
           loading={loading}
           lastChecked={data?.integration?.lastAutoCheck || null}
-          pollFrequencySeconds={data?.integration?.autoVerifyFrequencySeconds}
         />
       </TabsContent>
 

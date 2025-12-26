@@ -27,7 +27,6 @@ type PendingVerificationTabProps = {
   payments: PaymentRecord[]
   loading: boolean
   lastChecked: string | null
-  pollFrequencySeconds?: number
 }
 
 const formatDate = (value?: string | null) => {
@@ -60,9 +59,7 @@ export function PendingVerificationTab({
   payments,
   loading,
   lastChecked,
-  pollFrequencySeconds,
 }: PendingVerificationTabProps) {
-  const frequency = Math.max(5, pollFrequencySeconds || 30)
   const router = useRouter()
 
   return (
@@ -72,7 +69,7 @@ export function PendingVerificationTab({
           <div className="flex items-center gap-3">
             <div className={`w-3 h-3 rounded-full ${loading ? 'bg-amber-500 animate-pulse' : 'bg-green-500'}`} />
             <div>
-              <p className="font-semibold">Auto-checking M-Pesa payments every {frequency} seconds</p>
+              <p className="font-semibold">Auto-checking M-Pesa payments every 5 minutes</p>
               <p className="text-sm text-muted-foreground">
                 Last checked: {lastChecked ? formatDate(lastChecked) : 'Sync scheduled'}
               </p>

@@ -188,8 +188,8 @@ export function IntegrationStatusTab({ stats, integration, loading, onSettingsUp
               </p>
             </div>
             <div>
-              <p className="text-muted-foreground">Response time</p>
-              <p className="font-semibold">~{integration?.autoVerifyFrequencySeconds || 30}s interval</p>
+              <p className="text-muted-foreground">Auto-check cadence</p>
+              <p className="font-semibold">Every 5 minutes (cron)</p>
             </div>
           </div>
         </CardContent>
@@ -400,7 +400,7 @@ export function IntegrationStatusTab({ stats, integration, loading, onSettingsUp
             </div>
             <div className="flex items-center justify-between">
               <span className="text-muted-foreground">Frequency</span>
-              <span className="font-semibold text-right">Every {frequency} seconds</span>
+              <span className="font-semibold text-right">Every 5 minutes (cron)</span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-muted-foreground">Max retries</span>
