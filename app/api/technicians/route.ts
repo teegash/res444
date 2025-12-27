@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
-import { assertRole, getOrgContext, supabaseServer } from '@/lib/auth/org'
+import { assertRole, getOrgContext } from '@/lib/auth/org'
+import { createAdminClient } from '@/lib/supabase/admin'
 
 type CreateTechnicianBody = {
   full_name: string
@@ -14,7 +15,10 @@ type CreateTechnicianBody = {
 export async function GET(request: Request) {
   try {
     const ctx = await getOrgContext()
-    const supabase = await supabaseServer()
+    const supabase = createAdminClient()
+    if (!supabase) {
+      return NextResponse.json({ ok: false, error: 'Server configuration error' }, { status: 500 })
+    }
     const url = new URL(request.url)
     const professionId = url.searchParams.get('professionId')
     const activeOnly = url.searchParams.get('activeOnly') === 'true'
@@ -79,7 +83,10 @@ export async function POST(request: Request) {
     const ctx = await getOrgContext()
     assertRole(ctx, ['admin', 'manager'])
 
-    const supabase = await supabaseServer()
+    const supabase = createAdminClient()
+    if (!supabase) {
+      return NextResponse.json({ ok: false, error: 'Server configuration error' }, { status: 500 })
+    }
     const body = (await request.json().catch(() => null)) as CreateTechnicianBody | null
 
     if (!body || !body.full_name?.trim()) {

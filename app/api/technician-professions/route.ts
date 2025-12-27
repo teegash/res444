@@ -1,10 +1,14 @@
 import { NextResponse } from 'next/server'
-import { getOrgContext, supabaseServer } from '@/lib/auth/org'
+import { getOrgContext } from '@/lib/auth/org'
+import { createAdminClient } from '@/lib/supabase/admin'
 
 export async function GET() {
   try {
     const ctx = await getOrgContext()
-    const supabase = await supabaseServer()
+    const supabase = createAdminClient()
+    if (!supabase) {
+      return NextResponse.json({ ok: false, error: 'Server configuration error' }, { status: 500 })
+    }
 
     const { data, error } = await supabase
       .from('technician_professions')

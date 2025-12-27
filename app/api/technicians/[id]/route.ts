@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
-import { assertRole, getOrgContext, supabaseServer } from '@/lib/auth/org'
+import { assertRole, getOrgContext } from '@/lib/auth/org'
+import { createAdminClient } from '@/lib/supabase/admin'
 
 type UpdateTechnicianBody = {
   full_name?: string
@@ -15,7 +16,10 @@ export async function PUT(request: Request, { params }: { params: { id: string }
   try {
     const ctx = await getOrgContext()
     assertRole(ctx, ['admin', 'manager'])
-    const supabase = await supabaseServer()
+    const supabase = createAdminClient()
+    if (!supabase) {
+      return NextResponse.json({ ok: false, error: 'Server configuration error' }, { status: 500 })
+    }
     const body = (await request.json().catch(() => null)) as UpdateTechnicianBody | null
 
     if (!body) {
@@ -89,7 +93,10 @@ export async function DELETE(_: Request, { params }: { params: { id: string } })
   try {
     const ctx = await getOrgContext()
     assertRole(ctx, ['admin', 'manager'])
-    const supabase = await supabaseServer()
+    const supabase = createAdminClient()
+    if (!supabase) {
+      return NextResponse.json({ ok: false, error: 'Server configuration error' }, { status: 500 })
+    }
 
     const { error: mapErr } = await supabase
       .from('technician_profession_map')
