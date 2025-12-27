@@ -135,6 +135,11 @@ export default function TechniciansPage() {
     setEditing(null)
   }, [])
 
+  const isValidUuid = useCallback((value?: string | null) => {
+    if (!value || value === 'undefined') return false
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)
+  }, [])
+
   const resolveProfessionId = useCallback((profession: Profession) => {
     return profession.id || profession.profession_id || ''
   }, [])
@@ -157,7 +162,7 @@ export default function TechniciansPage() {
   }
 
   const openEdit = (technician: Technician) => {
-    if (!technician.id) {
+    if (!isValidUuid(technician.id)) {
       toast({
         title: 'Technician unavailable',
         description: 'This record is missing an ID. Refresh and try again.',
@@ -175,12 +180,13 @@ export default function TechniciansPage() {
       notes: technician.notes || '',
       profession_ids: (technician.professions || [])
         .map((profession) => resolveProfessionId(profession))
-        .filter((id) => id),
+        .filter((id) => isValidUuid(id)),
     })
     setModalOpen(true)
   }
 
   const toggleProfession = (professionId: string) => {
+    if (!isValidUuid(professionId)) return
     setForm((prev) => {
       const next = new Set(prev.profession_ids)
       if (next.has(professionId)) {
@@ -205,6 +211,9 @@ export default function TechniciansPage() {
 
     setSaving(true)
     try {
+      const professionIds = form.profession_ids
+        .map((id) => id.trim())
+        .filter((id) => isValidUuid(id))
       const payload = {
         full_name: fullName,
         phone: form.phone.trim() || null,
@@ -212,7 +221,7 @@ export default function TechniciansPage() {
         company: form.company.trim() || null,
         is_active: form.is_active,
         notes: form.notes.trim() || null,
-        profession_ids: form.profession_ids,
+        profession_ids: professionIds,
       }
 
       const response = await fetch(
@@ -251,7 +260,7 @@ export default function TechniciansPage() {
   }
 
   const handleDelete = (technician: Technician) => {
-    if (!technician.id) {
+    if (!isValidUuid(technician.id)) {
       toast({
         title: 'Technician unavailable',
         description: 'This record is missing an ID. Refresh and try again.',
@@ -267,6 +276,9 @@ export default function TechniciansPage() {
     if (!deleteTarget) return
     setDeleting(true)
     try {
+      if (!isValidUuid(deleteTarget.id)) {
+        throw new Error('Invalid technician id')
+      }
       const response = await fetch(`/api/technicians/${deleteTarget.id}`, { method: 'DELETE' })
       const result = await response.json().catch(() => ({}))
       if (!response.ok) {
@@ -398,14 +410,14 @@ export default function TechniciansPage() {
                         value={searchTerm}
                         onChange={(event) => setSearchTerm(event.target.value)}
                         placeholder="Search technicians by name, phone, or company"
-                        className="pr-10 hover:bg-slate-50 hover:border-slate-300 focus-visible:border-slate-300 focus-visible:ring-slate-300/40"
+                        className="pr-10 hover:bg-slate-50 hover:border-slate-300 hover:ring-0 focus-visible:border-slate-300 focus-visible:ring-slate-300/40"
                       />
                       {searchTerm && (
                         <Button
                           type="button"
                           variant="ghost"
                           size="icon-sm"
-                          className="absolute right-1 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                          className="absolute right-1 top-1/2 -translate-y-1/2 text-muted-foreground hover:bg-slate-100 hover:text-slate-700"
                           onClick={() => setSearchTerm('')}
                           aria-label="Clear search"
                         >
@@ -495,7 +507,7 @@ export default function TechniciansPage() {
                                   <Button
                                     variant="outline"
                                     size="sm"
-                                    className="gap-1"
+                                    className="gap-1 hover:bg-slate-100 hover:text-slate-700"
                                     onClick={() => openEdit(tech)}
                                   >
                                     <Pencil className="h-4 w-4" />
@@ -504,7 +516,7 @@ export default function TechniciansPage() {
                                   <Button
                                     variant="outline"
                                     size="sm"
-                                    className="gap-1 text-red-600 hover:text-red-600"
+                                    className="gap-1 text-red-600 hover:bg-slate-100 hover:text-red-600"
                                     onClick={() => handleDelete(tech)}
                                   >
                                     <Trash2 className="h-4 w-4" />
@@ -587,8 +599,8 @@ export default function TechniciansPage() {
                       className="flex items-center gap-2 text-sm border rounded-md px-3 py-2"
                     >
                       <Checkbox
-                        checked={form.profession_ids.includes(profession.id)}
-                        onCheckedChange={() => toggleProfession(profession.id)}
+                        checked={form.profession_ids.includes(resolveProfessionId(profession))}
+                        onCheckedChange={() => toggleProfession(resolveProfessionId(profession))}
                       />
                       {profession.name}
                     </label>
