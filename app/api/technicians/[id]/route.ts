@@ -16,6 +16,9 @@ export async function PUT(request: Request, { params }: { params: { id: string }
   try {
     const ctx = await getOrgContext()
     assertRole(ctx, ['admin', 'manager'])
+    if (!params?.id || params.id === 'undefined') {
+      return NextResponse.json({ ok: false, error: 'Invalid technician id' }, { status: 400 })
+    }
     const supabase = createAdminClient()
     if (!supabase) {
       return NextResponse.json({ ok: false, error: 'Server configuration error' }, { status: 500 })
@@ -54,6 +57,7 @@ export async function PUT(request: Request, { params }: { params: { id: string }
 
     if (body.profession_ids) {
       const professionIds = Array.from(new Set(body.profession_ids))
+        .filter((id): id is string => typeof id === 'string' && id.trim() !== '' && id !== 'undefined')
 
       const { error: delErr } = await supabase
         .from('technician_profession_map')
@@ -93,6 +97,9 @@ export async function DELETE(_: Request, { params }: { params: { id: string } })
   try {
     const ctx = await getOrgContext()
     assertRole(ctx, ['admin', 'manager'])
+    if (!params?.id || params.id === 'undefined') {
+      return NextResponse.json({ ok: false, error: 'Invalid technician id' }, { status: 400 })
+    }
     const supabase = createAdminClient()
     if (!supabase) {
       return NextResponse.json({ ok: false, error: 'Server configuration error' }, { status: 500 })

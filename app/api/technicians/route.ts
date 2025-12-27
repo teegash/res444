@@ -118,6 +118,7 @@ export async function POST(request: Request) {
     }
 
     const professionIds = Array.from(new Set(body.profession_ids ?? []))
+      .filter((id): id is string => typeof id === 'string' && id.trim() !== '' && id !== 'undefined')
 
     if (professionIds.length > 0) {
       const { error: mapErr } = await supabase.from('technician_profession_map').insert(

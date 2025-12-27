@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useMemo, useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { Sidebar } from '@/components/dashboard/sidebar'
 import { Header } from '@/components/dashboard/header'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -33,7 +34,8 @@ import Link from 'next/link'
 import { ArrowLeft, Plus, Pencil, Trash2, X, RefreshCw } from 'lucide-react'
 
 type Profession = {
-  id: string
+  id?: string
+  profession_id?: string
   name: string
 }
 
@@ -69,6 +71,7 @@ const emptyForm: TechnicianFormState = {
 }
 
 export default function TechniciansPage() {
+  const router = useRouter()
   const { toast } = useToast()
   const [technicians, setTechnicians] = useState<Technician[]>([])
   const [professions, setProfessions] = useState<Profession[]>([])
@@ -132,6 +135,10 @@ export default function TechniciansPage() {
     setEditing(null)
   }, [])
 
+  const resolveProfessionId = useCallback((profession: Profession) => {
+    return profession.id || profession.profession_id || ''
+  }, [])
+
   const handleRefresh = useCallback(async () => {
     try {
       setRefreshing(true)
@@ -166,7 +173,9 @@ export default function TechniciansPage() {
       company: technician.company || '',
       is_active: Boolean(technician.is_active),
       notes: technician.notes || '',
-      profession_ids: (technician.professions || []).map((profession) => profession.id),
+      profession_ids: (technician.professions || [])
+        .map((profession) => resolveProfessionId(profession))
+        .filter((id) => id),
     })
     setModalOpen(true)
   }
@@ -226,6 +235,10 @@ export default function TechniciansPage() {
       setModalOpen(false)
       resetForm()
       await loadTechnicians()
+      if (editing) {
+        router.push('/dashboard/maintenance/technicians')
+        router.refresh()
+      }
     } catch (err) {
       toast({
         title: 'Save failed',
@@ -266,6 +279,8 @@ export default function TechniciansPage() {
       await loadTechnicians()
       setDeleteOpen(false)
       setDeleteTarget(null)
+      router.push('/dashboard/maintenance/technicians')
+      router.refresh()
     } catch (err) {
       toast({
         title: 'Delete failed',
@@ -293,7 +308,9 @@ export default function TechniciansPage() {
 
     return technicians.filter((tech) => {
       if (professionFilter !== 'all') {
-        const hasProfession = (tech.professions || []).some((profession) => profession.id === professionFilter)
+        const hasProfession = (tech.professions || []).some(
+          (profession) => resolveProfessionId(profession) === professionFilter
+        )
         if (!hasProfession) return false
       }
 
@@ -312,7 +329,7 @@ export default function TechniciansPage() {
 
       return haystack.includes(term)
     })
-  }, [professionFilter, searchTerm, technicians])
+  }, [professionFilter, resolveProfessionId, searchTerm, technicians])
 
   return (
     <div className="flex min-h-screen bg-gray-50">
@@ -381,7 +398,7 @@ export default function TechniciansPage() {
                         value={searchTerm}
                         onChange={(event) => setSearchTerm(event.target.value)}
                         placeholder="Search technicians by name, phone, or company"
-                        className="pr-10"
+                        className="pr-10 hover:bg-slate-50 hover:border-slate-300 focus-visible:border-slate-300 focus-visible:ring-slate-300/40"
                       />
                       {searchTerm && (
                         <Button
@@ -402,11 +419,11 @@ export default function TechniciansPage() {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="all">All professions</SelectItem>
-                        {sortedProfessions.map((profession) => (
-                          <SelectItem key={profession.id} value={profession.id}>
-                            {profession.name}
-                          </SelectItem>
-                        ))}
+                          {sortedProfessions.map((profession) => (
+                            <SelectItem key={resolveProfessionId(profession) || profession.name} value={resolveProfessionId(profession)}>
+                              {profession.name}
+                            </SelectItem>
+                          ))}
                       </SelectContent>
                     </Select>
                   </div>
@@ -440,7 +457,10 @@ export default function TechniciansPage() {
                                 <div className="flex flex-wrap gap-1">
                                   {tech.professions && tech.professions.length > 0 ? (
                                     tech.professions.map((profession) => (
-                                      <Badge key={profession.id} variant="secondary">
+                                      <Badge
+                                        key={resolveProfessionId(profession) || profession.name}
+                                        variant="secondary"
+                                      >
                                         {profession.name}
                                       </Badge>
                                     ))
