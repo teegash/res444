@@ -95,11 +95,6 @@ export default function TenantMaintenancePage() {
     }
   }
 
-  const formatCurrency = (value?: number | null) => {
-    const amount = Number(value || 0)
-    return `KES ${amount.toLocaleString()}`
-  }
-
   const responseMessage = (request: MaintenanceRequest) => {
     if (request.status === 'completed') {
       return 'Issue resolved. Let us know if you need further assistance.'
@@ -223,12 +218,8 @@ export default function TenantMaintenancePage() {
                     >
                       <p className="text-xs uppercase tracking-wide text-slate-500">Cost</p>
                       <p className="text-slate-900 font-medium">
-                        {formatCurrency(request.maintenance_cost)}
-                        {request.maintenance_cost_paid_by === 'landlord' ? ' · landlord' : ' · tenant'}
+                        Paid by {request.maintenance_cost_paid_by === 'landlord' ? 'landlord' : 'tenant'}
                       </p>
-                      {request.maintenance_cost_notes && (
-                        <p className="text-xs text-slate-500 mt-1">{request.maintenance_cost_notes}</p>
-                      )}
                     </div>
                   </div>
                   {request.attachment_urls && request.attachment_urls.length > 0 && (
