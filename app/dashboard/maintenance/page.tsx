@@ -81,6 +81,13 @@ type DescriptionMetadata = {
   metadata: Record<string, string>
 }
 
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+
+function isValidUuid(value?: string | null) {
+  return typeof value === 'string' && UUID_RE.test(value)
+}
+
 function extractDescriptionMeta(description: string | null | undefined): DescriptionMetadata {
   if (!description) {
     return { summary: 'No additional details provided.', metadata: {} }
@@ -268,7 +275,10 @@ export default function MaintenancePage() {
           throw new Error(payload.error || 'Failed to load professions.')
         }
         if (isMounted) {
-          setProfessionOptions(payload.data || [])
+          const options = (payload.data || []).filter((profession: ProfessionOption) =>
+            isValidUuid(profession.id)
+          )
+          setProfessionOptions(options)
         }
       } catch (error) {
         console.error('[MaintenancePage] professions fetch failed', error)
@@ -308,7 +318,10 @@ export default function MaintenancePage() {
           throw new Error(payload.error || 'Failed to load technicians.')
         }
         if (isMounted) {
-          setTechnicianOptions(payload.data || [])
+          const options = (payload.data || []).filter((tech: TechnicianOption) =>
+            isValidUuid(tech.id)
+          )
+          setTechnicianOptions(options)
         }
       } catch (error) {
         console.error('[MaintenancePage] technicians fetch failed', error)
@@ -352,6 +365,10 @@ export default function MaintenancePage() {
     }
     if (!assignProfessionId || !assignTechnicianId) {
       setAssignError('Select a profession and technician to assign.')
+      return
+    }
+    if (!isValidUuid(assignProfessionId) || !isValidUuid(assignTechnicianId)) {
+      setAssignError('Select a valid profession and technician to assign.')
       return
     }
 
@@ -935,6 +952,11 @@ export default function MaintenancePage() {
               <Select
                 value={assignProfessionId}
                 onValueChange={(value) => {
+                  if (!isValidUuid(value)) {
+                    setAssignProfessionId('')
+                    setAssignTechnicianId('')
+                    return
+                  }
                   setAssignProfessionId(value)
                   setAssignTechnicianId('')
                 }}
@@ -961,7 +983,13 @@ export default function MaintenancePage() {
               <Label htmlFor="assign-technician">Technician</Label>
               <Select
                 value={assignTechnicianId}
-                onValueChange={setAssignTechnicianId}
+                onValueChange={(value) => {
+                  if (!isValidUuid(value)) {
+                    setAssignTechnicianId('')
+                    return
+                  }
+                  setAssignTechnicianId(value)
+                }}
                 disabled={!assignProfessionId || loadingTechnicians}
               >
                 <SelectTrigger id="assign-technician">

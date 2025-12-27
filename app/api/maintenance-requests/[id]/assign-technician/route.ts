@@ -2,6 +2,13 @@ import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { assertRole, getOrgContext } from '@/lib/auth/org'
 
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+
+function isValidUuid(value?: string | null) {
+  return typeof value === 'string' && UUID_RE.test(value)
+}
+
 type Body = {
   technician_id: string
   profession_id: string
@@ -9,6 +16,14 @@ type Body = {
 
 export async function POST(request: Request, { params }: { params: { id: string } }) {
   try {
+    const requestId = params?.id
+    if (!isValidUuid(requestId)) {
+      return NextResponse.json(
+        { ok: false, error: 'Invalid maintenance request id', received: requestId ?? null },
+        { status: 400 }
+      )
+    }
+
     const ctx = await getOrgContext()
     assertRole(ctx, ['admin', 'manager', 'caretaker'])
 
@@ -25,10 +40,27 @@ export async function POST(request: Request, { params }: { params: { id: string 
       )
     }
 
+    if (!isValidUuid(body.technician_id) || !isValidUuid(body.profession_id)) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: 'Invalid technician or profession id',
+          received: {
+            technician_id: body.technician_id ?? null,
+            profession_id: body.profession_id ?? null,
+          },
+        },
+        { status: 400 }
+      )
+    }
+
+    const technicianId = body.technician_id.trim()
+    const professionId = body.profession_id.trim()
+
     const { data: tech, error: techErr } = await supabase
       .from('technicians')
       .select('id, full_name, phone, is_active')
-      .eq('id', body.technician_id)
+      .eq('id', technicianId)
       .eq('organization_id', ctx.organizationId)
       .maybeSingle()
 
@@ -44,8 +76,8 @@ export async function POST(request: Request, { params }: { params: { id: string 
       .from('technician_profession_map')
       .select('technician_id')
       .eq('organization_id', ctx.organizationId)
-      .eq('technician_id', body.technician_id)
-      .eq('profession_id', body.profession_id)
+      .eq('technician_id', technicianId)
+      .eq('profession_id', professionId)
       .maybeSingle()
 
     if (mapErr || !map) {
@@ -59,13 +91,13 @@ export async function POST(request: Request, { params }: { params: { id: string 
       .from('maintenance_requests')
       .update({
         technician_id: tech.id,
-        assigned_profession_id: body.profession_id,
+        assigned_profession_id: professionId,
         assigned_technician_name: tech.full_name,
         assigned_technician_phone: tech.phone ?? null,
         status: 'assigned',
         updated_at: new Date().toISOString(),
       })
-      .eq('id', params.id)
+      .eq('id', requestId)
       .eq('organization_id', ctx.organizationId)
       .select(
         'id, status, assigned_technician_name, assigned_technician_phone, technician_id, assigned_profession_id, tenant_user_id, title'
