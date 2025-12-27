@@ -19,6 +19,9 @@ type MaintenanceRequest = {
   attachment_urls: string[] | null
   assigned_to_name?: string | null
   assigned_technician_phone?: string | null
+  maintenance_cost?: number | null
+  maintenance_cost_paid_by?: 'tenant' | 'landlord' | null
+  maintenance_cost_notes?: string | null
 }
 
 export default function TenantMaintenancePage() {
@@ -90,6 +93,11 @@ export default function TenantMaintenancePage() {
       default:
         return 'bg-slate-100 text-slate-700'
     }
+  }
+
+  const formatCurrency = (value?: number | null) => {
+    const amount = Number(value || 0)
+    return `KES ${amount.toLocaleString()}`
   }
 
   const responseMessage = (request: MaintenanceRequest) => {
@@ -188,7 +196,7 @@ export default function TenantMaintenancePage() {
                       </Badge>
                     </div>
                   </div>
-                  <div className="mt-4 grid gap-3 md:grid-cols-3 text-sm text-muted-foreground">
+                  <div className="mt-4 grid gap-3 md:grid-cols-4 text-sm text-muted-foreground">
                     <div className="rounded-lg bg-slate-50 p-3">
                       <p className="text-xs uppercase tracking-wide text-slate-500">Response</p>
                       <p className="text-slate-900 font-medium">{responseMessage(request)}</p>
@@ -204,6 +212,23 @@ export default function TenantMaintenancePage() {
                       <p className="text-slate-900 font-medium">
                         {request.attachment_urls?.length || 0} file(s)
                       </p>
+                    </div>
+                    <div
+                      className={`rounded-lg p-3 ${
+                        request.maintenance_cost_paid_by === 'landlord' &&
+                        Number(request.maintenance_cost || 0) > 0
+                          ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                          : 'bg-slate-50'
+                      }`}
+                    >
+                      <p className="text-xs uppercase tracking-wide text-slate-500">Cost</p>
+                      <p className="text-slate-900 font-medium">
+                        {formatCurrency(request.maintenance_cost)}
+                        {request.maintenance_cost_paid_by === 'landlord' ? ' · landlord' : ' · tenant'}
+                      </p>
+                      {request.maintenance_cost_notes && (
+                        <p className="text-xs text-slate-500 mt-1">{request.maintenance_cost_notes}</p>
+                      )}
                     </div>
                   </div>
                   {request.attachment_urls && request.attachment_urls.length > 0 && (

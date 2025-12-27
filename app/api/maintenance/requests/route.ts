@@ -47,6 +47,9 @@ export async function GET() {
         assigned_to,
         assigned_technician_name,
         assigned_technician_phone,
+        maintenance_cost,
+        maintenance_cost_paid_by,
+        maintenance_cost_notes,
         attachment_urls,
         unit:apartment_units (
           id,
@@ -154,6 +157,9 @@ export async function GET() {
       assigned_to_name:
         request.assigned_technician_name ||
         (request.assigned_to ? assignedMap.get(request.assigned_to) || null : null),
+      maintenance_cost: request.maintenance_cost ?? 0,
+      maintenance_cost_paid_by: request.maintenance_cost_paid_by ?? 'tenant',
+      maintenance_cost_notes: request.maintenance_cost_notes || null,
     }))
 
     return NextResponse.json({ success: true, data: payload })

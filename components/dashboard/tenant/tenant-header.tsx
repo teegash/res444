@@ -180,10 +180,16 @@ export function TenantHeader({ summary, loading }: TenantHeaderProps) {
         setUnreadCount((prev) => Math.max(0, prev - 1))
       }
       setSheetOpen(false)
-      if (notification.related_entity_type === 'payment') {
+      const relatedType = (notification.related_entity_type || '').toLowerCase()
+      if (relatedType === 'payment') {
         // Payment-related notifications should take the tenant to payment history (incl. deposit slip outcomes).
         // We intentionally do not force an invoice detail route because many notifications are payment-centric.
         router.push('/dashboard/tenant/payments')
+      } else if (relatedType === 'maintenance_request') {
+        const qs = notification.related_entity_id
+          ? `?requestId=${notification.related_entity_id}`
+          : ''
+        router.push(`/dashboard/tenant/maintenance${qs}`)
       } else {
         router.push('/dashboard/tenant/messages')
       }

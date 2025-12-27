@@ -121,6 +121,11 @@ function formatDate(value?: string | null) {
   return date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
 }
 
+function formatCurrency(value?: number | null) {
+  const amount = Number(value || 0)
+  return `KES ${amount.toLocaleString()}`
+}
+
 export default function MaintenancePage() {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -711,6 +716,9 @@ export default function MaintenancePage() {
                     const locationValue = meta.metadata.location || meta.metadata['specific location'] || 'Not specified'
                     const isAssigned =
                       Boolean(request.assigned_to_name) && request.assigned_to_name !== 'Unassigned'
+                    const hasExpense =
+                      request.maintenance_cost_paid_by === 'landlord' &&
+                      Number(request.maintenance_cost || 0) > 0
 
                     return (
                   <Card
@@ -768,7 +776,7 @@ export default function MaintenancePage() {
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm text-muted-foreground">
+                      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-sm text-muted-foreground">
                         <div className="rounded-xl bg-slate-50 px-3 py-2">
                           <p className="text-xs uppercase tracking-wide text-slate-500">Category</p>
                           <p className="font-medium text-slate-900">{categoryValue}</p>
@@ -791,6 +799,22 @@ export default function MaintenancePage() {
                               </p>
                             )}
                           </div>
+                        </div>
+                        <div
+                          className={`rounded-xl px-3 py-2 ${
+                            hasExpense ? 'bg-rose-50 border border-rose-200 text-rose-700' : 'bg-slate-50'
+                          }`}
+                        >
+                          <p className="text-xs uppercase tracking-wide text-slate-500">Expense</p>
+                          <div className="font-medium text-slate-900">
+                            {formatCurrency(request.maintenance_cost)}
+                            {request.maintenance_cost_paid_by === 'landlord' ? ' · landlord' : ' · tenant'}
+                          </div>
+                          {request.maintenance_cost_notes && (
+                            <p className="text-xs text-muted-foreground mt-0.5">
+                              {request.maintenance_cost_notes}
+                            </p>
+                          )}
                         </div>
                       </div>
 
