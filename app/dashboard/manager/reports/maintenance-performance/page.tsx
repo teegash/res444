@@ -306,7 +306,7 @@ export default function MaintenancePerformanceReportPage() {
       <div className="flex-1 flex flex-col">
         <Header />
         <main className="flex-1 p-8 overflow-auto space-y-6">
-          <div className="flex items-center justify-between">
+          <div className="space-y-4">
             <div className="flex items-center gap-3">
               <Link href="/dashboard/manager/reports">
                 <Button variant="ghost" size="icon">
@@ -321,77 +321,81 @@ export default function MaintenancePerformanceReportPage() {
               </div>
             </div>
 
-            <div className="flex gap-2 items-center">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  className="pl-9 w-56"
-                  placeholder="Quick filter"
-                  value={search}
-                  onChange={(event) => {
-                    const value = event.target.value
-                    setSearch(value)
-                    gridApiRef.current?.setGridOption('quickFilterText', value)
-                  }}
-                />
-              </div>
+            <Card className="border-0 shadow-sm bg-white/90">
+              <CardContent className="p-3 flex flex-wrap items-center gap-2">
+                <div className="relative flex-1 min-w-[220px] md:max-w-xs">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    className="pl-9 w-full"
+                    placeholder="Quick filter"
+                    value={search}
+                    onChange={(event) => {
+                      const value = event.target.value
+                      setSearch(value)
+                      gridApiRef.current?.setGridOption('quickFilterText', value)
+                    }}
+                  />
+                </div>
 
-              <Select value={year} onValueChange={setYear}>
-                <SelectTrigger className="w-[120px]">
-                  <SelectValue placeholder="Year" />
-                </SelectTrigger>
-                <SelectContent>
-                  {years.map((value) => (
-                    <SelectItem key={value} value={value}>
-                      {value}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                <Select value={year} onValueChange={setYear}>
+                  <SelectTrigger className="w-[120px]">
+                    <SelectValue placeholder="Year" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {years.map((value) => (
+                      <SelectItem key={value} value={value}>
+                        {value}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
 
-              <Select value={propertyId} onValueChange={setPropertyId}>
-                <SelectTrigger className="w-[220px]">
-                  <SelectValue placeholder="Property" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All properties</SelectItem>
-                  {properties.map((property) => (
-                    <SelectItem key={property.id} value={property.id}>
-                      {property.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                <Select value={propertyId} onValueChange={setPropertyId}>
+                  <SelectTrigger className="w-[220px]">
+                    <SelectValue placeholder="Property" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All properties</SelectItem>
+                    {properties.map((property) => (
+                      <SelectItem key={property.id} value={property.id}>
+                        {property.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
 
-              <Select value={unitId} onValueChange={setUnitId} disabled={propertyId === 'all'}>
-                <SelectTrigger className="w-[160px]">
-                  <SelectValue placeholder="Unit" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All units</SelectItem>
-                  {units.map((unit) => (
-                    <SelectItem key={unit.id} value={unit.id}>
-                      {unit.unit_number}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                <Select value={unitId} onValueChange={setUnitId} disabled={propertyId === 'all'}>
+                  <SelectTrigger className="w-[160px]">
+                    <SelectValue placeholder="Unit" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All units</SelectItem>
+                    {units.map((unit) => (
+                      <SelectItem key={unit.id} value={unit.id}>
+                        {unit.unit_number}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
 
-              <Button onClick={handleApply}>Apply</Button>
-              <Button variant="outline" onClick={handleReset}>
-                Reset
-              </Button>
+                <Button onClick={handleApply}>Apply</Button>
+                <Button variant="outline" onClick={handleReset}>
+                  Reset
+                </Button>
 
-              <Button variant="outline" onClick={() => handleExport('pdf')}>
-                <Download className="h-4 w-4 mr-2" /> PDF
-              </Button>
-              <Button variant="outline" onClick={() => handleExport('excel')}>
-                <Download className="h-4 w-4 mr-2" /> Excel
-              </Button>
-              <Button variant="outline" onClick={() => handleExport('csv')}>
-                <Download className="h-4 w-4 mr-2" /> CSV
-              </Button>
-            </div>
+                <div className="flex flex-wrap items-center gap-2 md:ml-auto">
+                  <Button variant="outline" onClick={() => handleExport('pdf')}>
+                    <Download className="h-4 w-4 mr-2" /> PDF
+                  </Button>
+                  <Button variant="outline" onClick={() => handleExport('excel')}>
+                    <Download className="h-4 w-4 mr-2" /> Excel
+                  </Button>
+                  <Button variant="outline" onClick={() => handleExport('csv')}>
+                    <Download className="h-4 w-4 mr-2" /> CSV
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
           </div>
 
           {error && (
