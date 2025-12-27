@@ -2,6 +2,15 @@ import { NextResponse } from 'next/server'
 import { assertRole, getOrgContext } from '@/lib/auth/org'
 import { createAdminClient } from '@/lib/supabase/admin'
 
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+
+function normalizeId(rawId?: string) {
+  if (!rawId) return ''
+  const trimmed = decodeURIComponent(rawId).trim()
+  return trimmed.replace(/\/+$/, '')
+}
+
 type UpdateTechnicianBody = {
   full_name?: string
   phone?: string | null
@@ -16,8 +25,13 @@ export async function PUT(request: Request, { params }: { params: { id: string }
   try {
     const ctx = await getOrgContext()
     assertRole(ctx, ['admin', 'manager'])
-    if (!params?.id || params.id === 'undefined' || !/^[0-9a-f-]{36}$/i.test(params.id)) {
-      return NextResponse.json({ ok: false, error: 'Invalid technician id' }, { status: 400 })
+    const rawId = params?.id
+    const id = normalizeId(rawId)
+    if (!UUID_RE.test(id)) {
+      return NextResponse.json(
+        { ok: false, error: 'Invalid technician id', received: rawId ?? null },
+        { status: 400 }
+      )
     }
     const supabase = createAdminClient()
     if (!supabase) {
@@ -47,7 +61,7 @@ export async function PUT(request: Request, { params }: { params: { id: string }
       const { error: upErr } = await supabase
         .from('technicians')
         .update(updatePayload)
-        .eq('id', params.id)
+        .eq('id', id)
         .eq('organization_id', ctx.organizationId)
 
       if (upErr) {
@@ -64,20 +78,20 @@ export async function PUT(request: Request, { params }: { params: { id: string }
         .from('technician_profession_map')
         .delete()
         .eq('organization_id', ctx.organizationId)
-        .eq('technician_id', params.id)
+        .eq('technician_id', id)
 
       if (delErr) {
         return NextResponse.json({ ok: false, error: delErr.message }, { status: 400 })
       }
 
-      if (professionIds.length > 0) {
-        const { error: insErr } = await supabase.from('technician_profession_map').insert(
-          professionIds.map((professionId) => ({
-            organization_id: ctx.organizationId,
-            technician_id: params.id,
-            profession_id: professionId,
-          }))
-        )
+    if (professionIds.length > 0) {
+      const { error: insErr } = await supabase.from('technician_profession_map').insert(
+        professionIds.map((professionId) => ({
+          organization_id: ctx.organizationId,
+          technician_id: id,
+          profession_id: professionId,
+        }))
+      )
 
         if (insErr) {
           return NextResponse.json({ ok: false, error: insErr.message }, { status: 400 })
@@ -98,8 +112,13 @@ export async function DELETE(_: Request, { params }: { params: { id: string } })
   try {
     const ctx = await getOrgContext()
     assertRole(ctx, ['admin', 'manager'])
-    if (!params?.id || params.id === 'undefined' || !/^[0-9a-f-]{36}$/i.test(params.id)) {
-      return NextResponse.json({ ok: false, error: 'Invalid technician id' }, { status: 400 })
+    const rawId = params?.id
+    const id = normalizeId(rawId)
+    if (!UUID_RE.test(id)) {
+      return NextResponse.json(
+        { ok: false, error: 'Invalid technician id', received: rawId ?? null },
+        { status: 400 }
+      )
     }
     const supabase = createAdminClient()
     if (!supabase) {
@@ -110,7 +129,7 @@ export async function DELETE(_: Request, { params }: { params: { id: string } })
       .from('technician_profession_map')
       .delete()
       .eq('organization_id', ctx.organizationId)
-      .eq('technician_id', params.id)
+      .eq('technician_id', id)
 
     if (mapErr) {
       return NextResponse.json({ ok: false, error: mapErr.message }, { status: 400 })
@@ -119,7 +138,7 @@ export async function DELETE(_: Request, { params }: { params: { id: string } })
     const { error } = await supabase
       .from('technicians')
       .delete()
-      .eq('id', params.id)
+      .eq('id', id)
       .eq('organization_id', ctx.organizationId)
 
     if (error) {

@@ -103,7 +103,15 @@ export default function TechniciansPage() {
     if (!response.ok) {
       throw new Error(payload.error || 'Failed to load technicians.')
     }
-    setTechnicians(payload.data || [])
+    const normalized = (payload.data || []).map((tech: Technician) => ({
+      ...tech,
+      id:
+        tech.id ||
+        (tech as { technician_id?: string; technicianId?: string }).technician_id ||
+        (tech as { technician_id?: string; technicianId?: string }).technicianId ||
+        null,
+    }))
+    setTechnicians(normalized)
   }, [])
 
   useEffect(() => {
@@ -144,6 +152,15 @@ export default function TechniciansPage() {
     return profession.id || profession.profession_id || ''
   }, [])
 
+  const resolveTechnicianId = useCallback((technician: Technician) => {
+    return (
+      technician.id ||
+      (technician as { technician_id?: string; technicianId?: string }).technician_id ||
+      (technician as { technician_id?: string; technicianId?: string }).technicianId ||
+      ''
+    )
+  }, [])
+
   const handleRefresh = useCallback(async () => {
     try {
       setRefreshing(true)
@@ -162,7 +179,8 @@ export default function TechniciansPage() {
   }
 
   const openEdit = (technician: Technician) => {
-    if (!isValidUuid(technician.id)) {
+    const technicianId = resolveTechnicianId(technician)
+    if (!isValidUuid(technicianId)) {
       toast({
         title: 'Technician unavailable',
         description: 'This record is missing an ID. Refresh and try again.',
@@ -170,7 +188,7 @@ export default function TechniciansPage() {
       })
       return
     }
-    setEditing(technician)
+    setEditing({ ...technician, id: technicianId })
     setForm({
       full_name: technician.full_name || '',
       phone: technician.phone || '',
@@ -209,6 +227,16 @@ export default function TechniciansPage() {
       return
     }
 
+    const editingId = editing ? resolveTechnicianId(editing) : ''
+    if (editing && !isValidUuid(editingId)) {
+      toast({
+        title: 'Technician unavailable',
+        description: 'This record is missing an ID. Refresh and try again.',
+        variant: 'destructive',
+      })
+      return
+    }
+
     setSaving(true)
     try {
       const professionIds = form.profession_ids
@@ -225,7 +253,7 @@ export default function TechniciansPage() {
       }
 
       const response = await fetch(
-        editing ? `/api/technicians/${editing.id}` : '/api/technicians',
+        editing ? `/api/technicians/${editingId}` : '/api/technicians',
         {
           method: editing ? 'PUT' : 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -260,7 +288,8 @@ export default function TechniciansPage() {
   }
 
   const handleDelete = (technician: Technician) => {
-    if (!isValidUuid(technician.id)) {
+    const technicianId = resolveTechnicianId(technician)
+    if (!isValidUuid(technicianId)) {
       toast({
         title: 'Technician unavailable',
         description: 'This record is missing an ID. Refresh and try again.',
@@ -276,10 +305,11 @@ export default function TechniciansPage() {
     if (!deleteTarget) return
     setDeleting(true)
     try {
-      if (!isValidUuid(deleteTarget.id)) {
+      const technicianId = resolveTechnicianId(deleteTarget)
+      if (!isValidUuid(technicianId)) {
         throw new Error('Invalid technician id')
       }
-      const response = await fetch(`/api/technicians/${deleteTarget.id}`, { method: 'DELETE' })
+      const response = await fetch(`/api/technicians/${technicianId}`, { method: 'DELETE' })
       const result = await response.json().catch(() => ({}))
       if (!response.ok) {
         throw new Error(result.error || 'Failed to delete technician.')
@@ -458,7 +488,7 @@ export default function TechniciansPage() {
                         </TableHeader>
                         <TableBody>
                           {filteredTechnicians.map((tech) => (
-                            <TableRow key={tech.id}>
+                            <TableRow key={resolveTechnicianId(tech) || tech.full_name}>
                               <TableCell className="font-medium">
                                 <div>{tech.full_name}</div>
                                 {tech.company && (
