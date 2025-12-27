@@ -18,6 +18,7 @@ import {
 import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Switch } from '@/components/ui/switch'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import {
   Table,
   TableBody,
@@ -75,6 +76,8 @@ export default function TechniciansPage() {
   const [saving, setSaving] = useState(false)
   const [editing, setEditing] = useState<Technician | null>(null)
   const [form, setForm] = useState<TechnicianFormState>(emptyForm)
+  const [searchTerm, setSearchTerm] = useState('')
+  const [professionFilter, setProfessionFilter] = useState('all')
 
   const loadProfessions = useCallback(async () => {
     const response = await fetch('/api/technician-professions', { cache: 'no-store' })
@@ -243,6 +246,31 @@ export default function TechniciansPage() {
     () => [...professions].sort((a, b) => a.name.localeCompare(b.name)),
     [professions]
   )
+  const filteredTechnicians = useMemo(() => {
+    const term = searchTerm.trim().toLowerCase()
+
+    return technicians.filter((tech) => {
+      if (professionFilter !== 'all') {
+        const hasProfession = (tech.professions || []).some((profession) => profession.id === professionFilter)
+        if (!hasProfession) return false
+      }
+
+      if (!term) return true
+
+      const haystack = [
+        tech.full_name,
+        tech.phone,
+        tech.email,
+        tech.company,
+        ...(tech.professions || []).map((profession) => profession.name),
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase()
+
+      return haystack.includes(term)
+    })
+  }, [professionFilter, searchTerm, technicians])
 
   return (
     <div className="flex min-h-screen bg-gray-50">
@@ -281,70 +309,99 @@ export default function TechniciansPage() {
                   No technicians added yet.
                 </div>
               ) : (
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Name</TableHead>
-                        <TableHead>Professions</TableHead>
-                        <TableHead>Contact</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead className="text-right">Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {technicians.map((tech) => (
-                        <TableRow key={tech.id}>
-                          <TableCell className="font-medium">
-                            <div>{tech.full_name}</div>
-                            {tech.company && (
-                              <div className="text-xs text-muted-foreground">{tech.company}</div>
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex flex-wrap gap-1">
-                              {tech.professions && tech.professions.length > 0 ? (
-                                tech.professions.map((profession) => (
-                                  <Badge key={profession.id} variant="secondary">
-                                    {profession.name}
-                                  </Badge>
-                                ))
-                              ) : (
-                                <span className="text-xs text-muted-foreground">—</span>
-                              )}
-                            </div>
-                          </TableCell>
-                          <TableCell className="text-sm">
-                            <div>{tech.phone || '—'}</div>
-                            <div className="text-xs text-muted-foreground">{tech.email || 'No email'}</div>
-                          </TableCell>
-                          <TableCell>{activeBadge(Boolean(tech.is_active))}</TableCell>
-                          <TableCell className="text-right">
-                            <div className="flex justify-end gap-2">
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="gap-1"
-                                onClick={() => openEdit(tech)}
-                              >
-                                <Pencil className="h-4 w-4" />
-                                Edit
-                              </Button>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="gap-1 text-red-600 hover:text-red-600"
-                                onClick={() => handleDelete(tech)}
-                              >
-                                <Trash2 className="h-4 w-4" />
-                                Delete
-                              </Button>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
+                <div className="space-y-4">
+                  <div className="flex flex-col gap-3 md:flex-row md:items-center">
+                    <Input
+                      value={searchTerm}
+                      onChange={(event) => setSearchTerm(event.target.value)}
+                      placeholder="Search technicians by name, phone, or company"
+                      className="md:max-w-xs"
+                    />
+                    <Select value={professionFilter} onValueChange={setProfessionFilter}>
+                      <SelectTrigger className="md:max-w-xs">
+                        <SelectValue placeholder="Filter by profession" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All professions</SelectItem>
+                        {sortedProfessions.map((profession) => (
+                          <SelectItem key={profession.id} value={profession.id}>
+                            {profession.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {filteredTechnicians.length === 0 ? (
+                    <div className="text-sm text-muted-foreground py-6 text-center">
+                      No technicians match your filters.
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Name</TableHead>
+                            <TableHead>Professions</TableHead>
+                            <TableHead>Contact</TableHead>
+                            <TableHead>Status</TableHead>
+                            <TableHead className="text-right">Actions</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {filteredTechnicians.map((tech) => (
+                            <TableRow key={tech.id}>
+                              <TableCell className="font-medium">
+                                <div>{tech.full_name}</div>
+                                {tech.company && (
+                                  <div className="text-xs text-muted-foreground">{tech.company}</div>
+                                )}
+                              </TableCell>
+                              <TableCell>
+                                <div className="flex flex-wrap gap-1">
+                                  {tech.professions && tech.professions.length > 0 ? (
+                                    tech.professions.map((profession) => (
+                                      <Badge key={profession.id} variant="secondary">
+                                        {profession.name}
+                                      </Badge>
+                                    ))
+                                  ) : (
+                                    <span className="text-xs text-muted-foreground">—</span>
+                                  )}
+                                </div>
+                              </TableCell>
+                              <TableCell className="text-sm">
+                                <div>{tech.phone || '—'}</div>
+                                <div className="text-xs text-muted-foreground">{tech.email || 'No email'}</div>
+                              </TableCell>
+                              <TableCell>{activeBadge(Boolean(tech.is_active))}</TableCell>
+                              <TableCell className="text-right">
+                                <div className="flex justify-end gap-2">
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="gap-1"
+                                    onClick={() => openEdit(tech)}
+                                  >
+                                    <Pencil className="h-4 w-4" />
+                                    Edit
+                                  </Button>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="gap-1 text-red-600 hover:text-red-600"
+                                    onClick={() => handleDelete(tech)}
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                    Delete
+                                  </Button>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  )}
                 </div>
               )}
             </CardContent>
