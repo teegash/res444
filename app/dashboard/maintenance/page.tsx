@@ -846,7 +846,17 @@ export default function MaintenancePage() {
                   </Card>
                     )})
                   )}
-                  <div className="flex justify-end pt-2">
+                  <div className="flex justify-end gap-2 pt-2">
+                    <Button asChild variant="outline">
+                      <Link href="/dashboard/manager/expenses?source=maintenance">
+                        View Maintenance Expenses
+                      </Link>
+                    </Button>
+                    <Button asChild variant="outline">
+                      <Link href="/dashboard/manager/reports/maintenance-performance">
+                        View Maintenance Performance
+                      </Link>
+                    </Button>
                     <Button asChild variant="outline">
                       <Link href="/dashboard/maintenance/technicians">Manage Technicians</Link>
                     </Button>

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 import { ArrowLeft, Plus, Download, Wallet, CheckCircle2, Pencil, Trash2, RefreshCw } from 'lucide-react'
 import { Sidebar } from '@/components/dashboard/sidebar'
 import { Header } from '@/components/dashboard/header'
@@ -91,6 +92,7 @@ export default function ExpensesPage() {
   const [editingExpense, setEditingExpense] = useState<EditingExpense | null>(null)
   const [editExpenseSaving, setEditExpenseSaving] = useState(false)
   const [deleteExpense, setDeleteExpense] = useState<Expense | null>(null)
+  const searchParams = useSearchParams()
 
   const [newExpense, setNewExpense] = useState({
     property_id: '',
@@ -155,6 +157,13 @@ export default function ExpensesPage() {
   useEffect(() => {
     loadProperties()
   }, [])
+
+  useEffect(() => {
+    const source = searchParams?.get('source')
+    if (source === 'maintenance') {
+      setSourceFilter('maintenance')
+    }
+  }, [searchParams])
 
   useEffect(() => {
     loadExpenses()
@@ -488,6 +497,9 @@ export default function ExpensesPage() {
                   <SelectItem value="maintenance">Maintenance</SelectItem>
                 </SelectContent>
               </Select>
+              {sourceFilter === 'maintenance' && (
+                <Badge className="bg-emerald-100 text-emerald-700">Maintenance</Badge>
+              )}
               <Button variant="outline" onClick={() => handleExport('pdf')} className="gap-2">
                 <Download className="h-4 w-4" /> PDF
               </Button>

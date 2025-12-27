@@ -486,6 +486,15 @@ export default function ReportsPage() {
                     </CardContent>
                   </Card>
                 </Link>
+                <Link href="/dashboard/manager/reports/maintenance-performance">
+                  <Card className="hover:shadow-md transition-shadow cursor-pointer">
+                    <CardContent className="p-6 text-center space-y-2">
+                      <div className="text-4xl">🛠️</div>
+                      <h4 className="font-medium">Maintenance Performance</h4>
+                      <p className="text-xs text-muted-foreground">Spend vs rent collected per unit</p>
+                    </CardContent>
+                  </Card>
+                </Link>
               </div>
             </CardContent>
           </Card>
