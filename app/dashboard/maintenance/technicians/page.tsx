@@ -30,7 +30,7 @@ import {
 } from '@/components/ui/table'
 import { useToast } from '@/components/ui/use-toast'
 import Link from 'next/link'
-import { ArrowLeft, Plus, Pencil, Trash2 } from 'lucide-react'
+import { ArrowLeft, Plus, Pencil, Trash2, X, RefreshCw } from 'lucide-react'
 
 type Profession = {
   id: string
@@ -38,7 +38,7 @@ type Profession = {
 }
 
 type Technician = {
-  id: string
+  id: string | null
   full_name: string
   phone: string | null
   email: string | null
@@ -80,6 +80,10 @@ export default function TechniciansPage() {
   const [form, setForm] = useState<TechnicianFormState>(emptyForm)
   const [searchTerm, setSearchTerm] = useState('')
   const [professionFilter, setProfessionFilter] = useState('all')
+  const [deleteTarget, setDeleteTarget] = useState<Technician | null>(null)
+  const [deleteOpen, setDeleteOpen] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [refreshing, setRefreshing] = useState(false)
 
   const loadProfessions = useCallback(async () => {
     const response = await fetch('/api/technician-professions', { cache: 'no-store' })
@@ -128,12 +132,32 @@ export default function TechniciansPage() {
     setEditing(null)
   }, [])
 
+  const handleRefresh = useCallback(async () => {
+    try {
+      setRefreshing(true)
+      setError(null)
+      await Promise.all([loadProfessions(), loadTechnicians()])
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to refresh technicians.')
+    } finally {
+      setRefreshing(false)
+    }
+  }, [loadProfessions, loadTechnicians])
+
   const openCreate = () => {
     resetForm()
     setModalOpen(true)
   }
 
   const openEdit = (technician: Technician) => {
+    if (!technician.id) {
+      toast({
+        title: 'Technician unavailable',
+        description: 'This record is missing an ID. Refresh and try again.',
+        variant: 'destructive',
+      })
+      return
+    }
     setEditing(technician)
     setForm({
       full_name: technician.full_name || '',
@@ -213,27 +237,43 @@ export default function TechniciansPage() {
     }
   }
 
-  const handleDelete = async (technician: Technician) => {
-    const confirmed = window.confirm(`Delete ${technician.full_name}? This cannot be undone.`)
-    if (!confirmed) return
+  const handleDelete = (technician: Technician) => {
+    if (!technician.id) {
+      toast({
+        title: 'Technician unavailable',
+        description: 'This record is missing an ID. Refresh and try again.',
+        variant: 'destructive',
+      })
+      return
+    }
+    setDeleteTarget(technician)
+    setDeleteOpen(true)
+  }
 
+  const confirmDelete = async () => {
+    if (!deleteTarget) return
+    setDeleting(true)
     try {
-      const response = await fetch(`/api/technicians/${technician.id}`, { method: 'DELETE' })
+      const response = await fetch(`/api/technicians/${deleteTarget.id}`, { method: 'DELETE' })
       const result = await response.json().catch(() => ({}))
       if (!response.ok) {
         throw new Error(result.error || 'Failed to delete technician.')
       }
       toast({
         title: 'Technician removed',
-        description: `${technician.full_name} has been removed.`,
+        description: `${deleteTarget.full_name} has been removed.`,
       })
       await loadTechnicians()
+      setDeleteOpen(false)
+      setDeleteTarget(null)
     } catch (err) {
       toast({
         title: 'Delete failed',
         description: err instanceof Error ? err.message : 'Unable to delete technician.',
         variant: 'destructive',
       })
+    } finally {
+      setDeleting(false)
     }
   }
 
@@ -299,10 +339,21 @@ export default function TechniciansPage() {
                 Maintain your technician list and their specialties for quick assignment.
               </p>
             </div>
-            <Button onClick={openCreate} className="gap-2">
-              <Plus className="w-4 h-4" />
-              Add technician
-            </Button>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                variant="outline"
+                onClick={handleRefresh}
+                className="gap-2"
+                disabled={refreshing}
+              >
+                <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
+                {refreshing ? 'Refreshing…' : 'Refresh'}
+              </Button>
+              <Button onClick={openCreate} className="gap-2">
+                <Plus className="w-4 h-4" />
+                Add technician
+              </Button>
+            </div>
           </div>
 
           {error && (
@@ -325,12 +376,26 @@ export default function TechniciansPage() {
               ) : (
                 <div className="space-y-4">
                   <div className="flex flex-col gap-3 md:flex-row md:items-center">
-                    <Input
-                      value={searchTerm}
-                      onChange={(event) => setSearchTerm(event.target.value)}
-                      placeholder="Search technicians by name, phone, or company"
-                      className="md:max-w-xs"
-                    />
+                    <div className="relative md:max-w-xs">
+                      <Input
+                        value={searchTerm}
+                        onChange={(event) => setSearchTerm(event.target.value)}
+                        placeholder="Search technicians by name, phone, or company"
+                        className="pr-10"
+                      />
+                      {searchTerm && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon-sm"
+                          className="absolute right-1 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                          onClick={() => setSearchTerm('')}
+                          aria-label="Clear search"
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
                     <Select value={professionFilter} onValueChange={setProfessionFilter}>
                       <SelectTrigger className="md:max-w-xs">
                         <SelectValue placeholder="Filter by profession" />
@@ -536,6 +601,41 @@ export default function TechniciansPage() {
               </Button>
               <Button onClick={handleSave} disabled={saving}>
                 {saving ? 'Saving…' : 'Save technician'}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={deleteOpen}
+        onOpenChange={(open) => {
+          setDeleteOpen(open)
+          if (!open) {
+            setDeleteTarget(null)
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete technician</DialogTitle>
+            <DialogDescription>
+              This action permanently removes the technician and their profession mappings.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              <p className="font-semibold">
+                {deleteTarget?.full_name || 'Selected technician'}
+              </p>
+              <p className="text-xs text-red-700/80">This cannot be undone.</p>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setDeleteOpen(false)} disabled={deleting}>
+                Cancel
+              </Button>
+              <Button variant="destructive" onClick={confirmDelete} disabled={deleting}>
+                {deleting ? 'Deleting…' : 'Delete'}
               </Button>
             </div>
           </div>

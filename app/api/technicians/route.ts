@@ -71,7 +71,12 @@ export async function GET(request: Request) {
       return NextResponse.json({ ok: false, error: error.message }, { status: 400 })
     }
 
-    return NextResponse.json({ ok: true, data })
+    const normalized = (data ?? []).map((row: any) => ({
+      ...row,
+      id: row?.id ?? row?.technician_id ?? row?.technicianId ?? row?.technicianID ?? null,
+    }))
+
+    return NextResponse.json({ ok: true, data: normalized })
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to load technicians.'
     const status = message === 'Unauthenticated' ? 401 : 500
