@@ -213,6 +213,16 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })
     }
 
+    if (action === 'assign') {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Legacy assign endpoint deprecated. Use /api/maintenance-requests/[id]/assign-technician.',
+        },
+        { status: 410 }
+      )
+    }
+
     const { data: targetRequest, error: targetError } = await adminSupabase
       .from('maintenance_requests')
       .select('id, tenant_user_id, title, organization_id')
@@ -225,48 +235,6 @@ export async function PATCH(request: NextRequest) {
 
     if (!targetRequest || targetRequest.organization_id !== membership.organization_id) {
       return NextResponse.json({ success: false, error: 'Request not found.' }, { status: 404 })
-    }
-
-    if (action === 'assign') {
-      const { technicianName, technicianPhone } = body as { technicianName?: string; technicianPhone?: string }
-      if (!technicianName?.trim() || !technicianPhone?.trim()) {
-        return NextResponse.json(
-          { success: false, error: 'Technician name and phone are required.' },
-          { status: 400 }
-        )
-      }
-      const trimmedName = technicianName.trim()
-      const trimmedPhone = technicianPhone.trim()
-
-      const { data: updated, error: updateError } = await adminSupabase
-        .from('maintenance_requests')
-        .update({
-          assigned_technician_name: trimmedName,
-          assigned_technician_phone: trimmedPhone,
-          status: 'assigned',
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', requestId)
-        .eq('organization_id', membership.organization_id)
-        .select('id, title, status, assigned_technician_name, assigned_technician_phone, tenant_user_id')
-        .single()
-
-      if (updateError || !updated) {
-        throw updateError || new Error('Failed to assign technician.')
-      }
-
-      await adminSupabase.from('communications').insert({
-        sender_user_id: user.id,
-        recipient_user_id: updated.tenant_user_id,
-        organization_id: membership.organization_id,
-        related_entity_type: 'maintenance_request',
-        related_entity_id: updated.id,
-        message_text: `Technician ${trimmedName} has been assigned (${trimmedPhone}).`,
-        message_type: 'in_app',
-        read: false,
-      })
-
-      return NextResponse.json({ success: true, data: updated })
     }
 
     if (action === 'complete') {

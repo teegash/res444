@@ -1,6 +1,7 @@
 'use client'
 
 import { FormEvent, useEffect, useMemo, useState, useCallback } from 'react'
+import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -60,6 +61,20 @@ type MaintenanceRequest = {
   assigned_technician_phone?: string | null
 }
 
+type ProfessionOption = {
+  id: string
+  name: string
+}
+
+type TechnicianOption = {
+  id: string
+  full_name: string
+  phone: string | null
+  email: string | null
+  company: string | null
+  is_active: boolean
+}
+
 type DescriptionMetadata = {
   summary: string
   metadata: Record<string, string>
@@ -113,8 +128,12 @@ export default function MaintenancePage() {
   const [statusFilter, setStatusFilter] = useState('all')
   const [priorityFilter, setPriorityFilter] = useState('all')
   const [categoryFilter, setCategoryFilter] = useState('all')
-  const [assignTechnicianName, setAssignTechnicianName] = useState('')
-  const [assignTechnicianPhone, setAssignTechnicianPhone] = useState('')
+  const [professionOptions, setProfessionOptions] = useState<ProfessionOption[]>([])
+  const [technicianOptions, setTechnicianOptions] = useState<TechnicianOption[]>([])
+  const [assignProfessionId, setAssignProfessionId] = useState('')
+  const [assignTechnicianId, setAssignTechnicianId] = useState('')
+  const [loadingProfessions, setLoadingProfessions] = useState(false)
+  const [loadingTechnicians, setLoadingTechnicians] = useState(false)
   const [assignSubmitting, setAssignSubmitting] = useState(false)
   const [assignError, setAssignError] = useState<string | null>(null)
   const [completeSubmitting, setCompleteSubmitting] = useState(false)
@@ -156,6 +175,10 @@ export default function MaintenancePage() {
     return `${avgHours.toFixed(1)} hrs`
   }, [requests])
   const selectedMeta = selectedRequest ? extractDescriptionMeta(selectedRequest.description) : null
+  const selectedTechnician = useMemo(
+    () => technicianOptions.find((tech) => tech.id === assignTechnicianId) || null,
+    [assignTechnicianId, technicianOptions]
+  )
   const highlightedRequestId = searchParams?.get('requestId')
   const filteredRequests = useMemo(() => {
     const search = searchTerm.trim().toLowerCase()
@@ -234,6 +257,78 @@ export default function MaintenancePage() {
   }, [applyScope])
 
   useEffect(() => {
+    let isMounted = true
+    const fetchProfessions = async () => {
+      try {
+        setLoadingProfessions(true)
+        const response = await fetch('/api/technician-professions', { cache: 'no-store' })
+        const payload = await response.json().catch(() => ({}))
+        if (!response.ok) {
+          throw new Error(payload.error || 'Failed to load professions.')
+        }
+        if (isMounted) {
+          setProfessionOptions(payload.data || [])
+        }
+      } catch (error) {
+        console.error('[MaintenancePage] professions fetch failed', error)
+        if (isMounted) {
+          setAssignError(error instanceof Error ? error.message : 'Unable to load professions.')
+        }
+      } finally {
+        if (isMounted) {
+          setLoadingProfessions(false)
+        }
+      }
+    }
+
+    fetchProfessions()
+    return () => {
+      isMounted = false
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!assignProfessionId) {
+      setTechnicianOptions([])
+      setAssignTechnicianId('')
+      return
+    }
+
+    let isMounted = true
+    const fetchTechnicians = async () => {
+      try {
+        setLoadingTechnicians(true)
+        const response = await fetch(
+          `/api/technicians?professionId=${assignProfessionId}&activeOnly=true`,
+          { cache: 'no-store' }
+        )
+        const payload = await response.json().catch(() => ({}))
+        if (!response.ok) {
+          throw new Error(payload.error || 'Failed to load technicians.')
+        }
+        if (isMounted) {
+          setTechnicianOptions(payload.data || [])
+        }
+      } catch (error) {
+        console.error('[MaintenancePage] technicians fetch failed', error)
+        if (isMounted) {
+          setAssignError(error instanceof Error ? error.message : 'Unable to load technicians.')
+          setTechnicianOptions([])
+        }
+      } finally {
+        if (isMounted) {
+          setLoadingTechnicians(false)
+        }
+      }
+    }
+
+    fetchTechnicians()
+    return () => {
+      isMounted = false
+    }
+  }, [assignProfessionId])
+
+  useEffect(() => {
     if (!highlightedRequestId || requests.length === 0) return
     const matched = requests.find((req) => req.id === highlightedRequestId) || null
     if (matched) {
@@ -254,23 +349,25 @@ export default function MaintenancePage() {
       setAssignError('Select a maintenance request to assign.')
       return
     }
-    if (!assignTechnicianName.trim() || !assignTechnicianPhone.trim()) {
-      setAssignError('Technician name and phone number are required.')
+    if (!assignProfessionId || !assignTechnicianId) {
+      setAssignError('Select a profession and technician to assign.')
       return
     }
 
     setAssignSubmitting(true)
     setAssignError(null)
     try {
-      const response = await fetch('/api/maintenance/requests', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          requestId: selectedRequest.id,
-          technicianName: assignTechnicianName,
-          technicianPhone: assignTechnicianPhone,
-        }),
-      })
+      const response = await fetch(
+        `/api/maintenance-requests/${selectedRequest.id}/assign-technician`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            technician_id: assignTechnicianId,
+            profession_id: assignProfessionId,
+          }),
+        }
+      )
 
       const payload = await response.json().catch(() => ({}))
       if (!response.ok) {
@@ -282,6 +379,8 @@ export default function MaintenancePage() {
         status: string | null
         assigned_technician_name?: string | null
         assigned_technician_phone?: string | null
+        technician_id?: string | null
+        assigned_profession_id?: string | null
       }
 
       setRequests((current) =>
@@ -667,8 +766,9 @@ export default function MaintenancePage() {
                             className="rounded-full bg-amber-500 hover:bg-amber-600"
                             onClick={() => {
                               setSelectedRequest(request)
-                              setAssignTechnicianName('')
-                              setAssignTechnicianPhone('')
+                              setAssignProfessionId('')
+                              setAssignTechnicianId('')
+                              setTechnicianOptions([])
                               setAssignError(null)
                               setAssignModalOpen(true)
                             }}
@@ -682,6 +782,11 @@ export default function MaintenancePage() {
                   </Card>
                     )})
                   )}
+                  <div className="flex justify-end pt-2">
+                    <Button asChild variant="outline">
+                      <Link href="/dashboard/maintenance/technicians">Manage Technicians</Link>
+                    </Button>
+                  </div>
                 </div>
               )}
             </div>
@@ -812,8 +917,9 @@ export default function MaintenancePage() {
           setAssignModalOpen(open)
           if (!open) {
             setAssignError(null)
-            setAssignTechnicianName('')
-            setAssignTechnicianPhone('')
+            setAssignProfessionId('')
+            setAssignTechnicianId('')
+            setTechnicianOptions([])
           }
         }}
       >
@@ -824,28 +930,87 @@ export default function MaintenancePage() {
           </DialogHeader>
           <form className="space-y-4" onSubmit={handleAssignSubmit}>
             <div>
-              <Label htmlFor="technician-name">Technician name</Label>
-              <Input
-                id="technician-name"
-                placeholder="e.g. Peter Mwangi"
-                value={assignTechnicianName}
-                onChange={(event) => setAssignTechnicianName(event.target.value)}
-                required
-              />
+              <Label htmlFor="assign-profession">Profession</Label>
+              <Select
+                value={assignProfessionId}
+                onValueChange={(value) => {
+                  setAssignProfessionId(value)
+                  setAssignTechnicianId('')
+                }}
+              >
+                <SelectTrigger id="assign-profession">
+                  <SelectValue placeholder={loadingProfessions ? 'Loading professions...' : 'Select profession'} />
+                </SelectTrigger>
+                <SelectContent>
+                  {professionOptions.length === 0 ? (
+                    <SelectItem value="none" disabled>
+                      No professions available
+                    </SelectItem>
+                  ) : (
+                    professionOptions.map((profession) => (
+                      <SelectItem key={profession.id} value={profession.id}>
+                        {profession.name}
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
             </div>
             <div>
-              <Label htmlFor="technician-phone">Technician phone</Label>
-              <Input
-                id="technician-phone"
-                placeholder="e.g. +2547..."
-                value={assignTechnicianPhone}
-                onChange={(event) => setAssignTechnicianPhone(event.target.value)}
-                required
-              />
-              <p className="text-xs text-muted-foreground mt-1">Provide the number the tenant should expect a call from.</p>
+              <Label htmlFor="assign-technician">Technician</Label>
+              <Select
+                value={assignTechnicianId}
+                onValueChange={setAssignTechnicianId}
+                disabled={!assignProfessionId || loadingTechnicians}
+              >
+                <SelectTrigger id="assign-technician">
+                  <SelectValue
+                    placeholder={
+                      !assignProfessionId
+                        ? 'Select profession first'
+                        : loadingTechnicians
+                          ? 'Loading technicians...'
+                          : 'Select technician'
+                    }
+                  />
+                </SelectTrigger>
+                <SelectContent>
+                  {technicianOptions.length === 0 ? (
+                    <SelectItem value="none" disabled>
+                      No technicians available
+                    </SelectItem>
+                  ) : (
+                    technicianOptions.map((tech) => (
+                      <SelectItem key={tech.id} value={tech.id}>
+                        {tech.full_name}
+                        {tech.company ? ` • ${tech.company}` : ''}
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
+              {assignProfessionId && !loadingTechnicians && technicianOptions.length === 0 && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  No active technicians found for this profession.
+                </p>
+              )}
             </div>
+            {selectedTechnician && (
+              <div className="rounded-lg border bg-slate-50 px-3 py-2 text-xs text-muted-foreground space-y-1">
+                <p className="font-medium text-slate-700">{selectedTechnician.full_name}</p>
+                <p>Phone: {selectedTechnician.phone || 'Not provided'}</p>
+                <p>Email: {selectedTechnician.email || 'Not provided'}</p>
+                {selectedTechnician.company && <p>Company: {selectedTechnician.company}</p>}
+              </div>
+            )}
             {assignError && <p className="text-sm text-red-600">{assignError}</p>}
-            <Button type="submit" className="w-full" disabled={assignSubmitting || !selectedRequest}>
+            <Button
+              type="submit"
+              className="w-full"
+              disabled={
+                assignSubmitting || !selectedRequest || !assignProfessionId || !assignTechnicianId
+              }
+            >
               {assignSubmitting ? 'Assigning…' : 'Assign Request'}
             </Button>
           </form>
