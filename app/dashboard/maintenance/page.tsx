@@ -732,11 +732,7 @@ export default function MaintenancePage() {
                       </div>
 
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm text-muted-foreground">
-                        <div
-                          className={`rounded-xl px-3 py-2 ${
-                            isAssigned ? 'bg-emerald-50 border border-emerald-100' : 'bg-slate-50'
-                          }`}
-                        >
+                        <div className="rounded-xl bg-slate-50 px-3 py-2">
                           <p className="text-xs uppercase tracking-wide text-slate-500">Category</p>
                           <p className="font-medium text-slate-900">{categoryValue}</p>
                         </div>
@@ -744,7 +740,11 @@ export default function MaintenancePage() {
                           <p className="text-xs uppercase tracking-wide text-slate-500">Location</p>
                           <p className="font-medium text-slate-900">{locationValue}</p>
                         </div>
-                        <div className="rounded-xl bg-slate-50 px-3 py-2">
+                        <div
+                          className={`rounded-xl px-3 py-2 ${
+                            isAssigned ? 'bg-emerald-50 border border-emerald-100' : 'bg-slate-50'
+                          }`}
+                        >
                           <p className="text-xs uppercase tracking-wide text-slate-500">Assigned to</p>
                           <div className="font-medium text-slate-900">
                             {request.assigned_to_name || 'Unassigned'}
