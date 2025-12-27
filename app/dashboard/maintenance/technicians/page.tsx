@@ -440,6 +440,8 @@ export default function TechniciansPage() {
                         value={searchTerm}
                         onChange={(event) => setSearchTerm(event.target.value)}
                         placeholder="Search technicians by name, phone, or company"
+                        name="technician-search"
+                        autoComplete="off"
                         className="pr-10 hover:bg-slate-50 hover:border-slate-300 hover:ring-0 focus-visible:border-slate-300 focus-visible:ring-slate-300/40"
                       />
                       {searchTerm && (
