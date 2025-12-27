@@ -143,6 +143,18 @@ export function Header() {
           fetchNotifications()
         }
       )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'communications',
+          filter: `recipient_user_id=eq.${user.id}`,
+        },
+        () => {
+          fetchNotifications()
+        }
+      )
       .subscribe()
 
     return () => {

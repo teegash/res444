@@ -148,6 +148,19 @@ export async function POST(request: Request, { params }: { params: { id: string 
       })
     }
 
+    const clearNotifications = supabase
+      .from('communications')
+      .update({ read: true })
+      .eq('organization_id', ctx.organizationId)
+      .eq('related_entity_type', 'maintenance_request')
+      .eq('related_entity_id', updated.id)
+
+    if (updated.tenant_user_id) {
+      await clearNotifications.neq('recipient_user_id', updated.tenant_user_id)
+    } else {
+      await clearNotifications
+    }
+
     return NextResponse.json({ ok: true, data: updated })
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to assign technician.'
