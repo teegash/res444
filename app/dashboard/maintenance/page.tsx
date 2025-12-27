@@ -1001,6 +1001,7 @@ export default function MaintenancePage() {
                 <p>Phone: {selectedTechnician.phone || 'Not provided'}</p>
                 <p>Email: {selectedTechnician.email || 'Not provided'}</p>
                 {selectedTechnician.company && <p>Company: {selectedTechnician.company}</p>}
+                {selectedTechnician.notes && <p>Notes: {selectedTechnician.notes}</p>}
               </div>
             )}
             {assignError && <p className="text-sm text-red-600">{assignError}</p>}
