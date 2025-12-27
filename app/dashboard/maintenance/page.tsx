@@ -72,6 +72,7 @@ type TechnicianOption = {
   phone: string | null
   email: string | null
   company: string | null
+  notes: string | null
   is_active: boolean
 }
 
@@ -1000,7 +1001,7 @@ export default function MaintenancePage() {
                 <p className="font-medium text-slate-700">{selectedTechnician.full_name}</p>
                 <p>Phone: {selectedTechnician.phone || 'Not provided'}</p>
                 <p>Email: {selectedTechnician.email || 'Not provided'}</p>
-                {selectedTechnician.company && <p>Company: {selectedTechnician.company}</p>}
+                <p>Company: {selectedTechnician.company || 'Not provided'}</p>
                 {selectedTechnician.notes && <p>Notes: {selectedTechnician.notes}</p>}
               </div>
             )}

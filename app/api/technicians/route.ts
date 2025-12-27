@@ -26,7 +26,7 @@ export async function GET(request: Request) {
     if (professionId) {
       const { data, error } = await supabase
         .from('technician_profession_map')
-        .select('technicians:technician_id(id, full_name, phone, email, company, is_active)')
+        .select('technicians:technician_id(id, full_name, phone, email, company, notes, is_active)')
         .eq('organization_id', ctx.organizationId)
         .eq('profession_id', professionId)
 
@@ -42,6 +42,7 @@ export async function GET(request: Request) {
         phone: string | null
         email: string | null
         company: string | null
+        notes: string | null
         is_active: boolean
       }>
 
