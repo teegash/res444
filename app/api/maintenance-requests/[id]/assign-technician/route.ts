@@ -5,8 +5,28 @@ import { assertRole, getOrgContext } from '@/lib/auth/org'
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
+function normalizeId(rawId?: string | null) {
+  if (!rawId) return ''
+  return decodeURIComponent(rawId).trim().replace(/\/+$/, '')
+}
+
 function isValidUuid(value?: string | null) {
   return typeof value === 'string' && UUID_RE.test(value)
+}
+
+function extractRequestId(request: Request, params?: { id?: string }) {
+  const paramId = normalizeId(params?.id)
+  if (paramId) return paramId
+  try {
+    const url = new URL(request.url, 'http://localhost')
+    const parts = url.pathname.split('/').filter(Boolean)
+    if (parts.length >= 2) {
+      return normalizeId(parts[parts.length - 2])
+    }
+    return ''
+  } catch {
+    return ''
+  }
 }
 
 type Body = {
@@ -16,10 +36,16 @@ type Body = {
 
 export async function POST(request: Request, { params }: { params: { id: string } }) {
   try {
-    const requestId = params?.id
+    const rawId = params?.id ?? null
+    const requestId = extractRequestId(request, params)
     if (!isValidUuid(requestId)) {
       return NextResponse.json(
-        { ok: false, error: 'Invalid maintenance request id', received: requestId ?? null },
+        {
+          ok: false,
+          error: 'Invalid maintenance request id',
+          received: rawId,
+          parsed: requestId || null,
+        },
         { status: 400 }
       )
     }
