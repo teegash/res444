@@ -11,6 +11,19 @@ function normalizeId(rawId?: string) {
   return trimmed.replace(/\/+$/, '')
 }
 
+function extractTechnicianId(request: Request, params?: { id?: string }) {
+  const paramId = normalizeId(params?.id)
+  if (paramId) return paramId
+  try {
+    const url = new URL(request.url, 'http://localhost')
+    const parts = url.pathname.split('/').filter(Boolean)
+    const last = parts[parts.length - 1] || ''
+    return normalizeId(last)
+  } catch {
+    return ''
+  }
+}
+
 type UpdateTechnicianBody = {
   full_name?: string
   phone?: string | null
@@ -26,10 +39,10 @@ export async function PUT(request: Request, { params }: { params: { id: string }
     const ctx = await getOrgContext()
     assertRole(ctx, ['admin', 'manager'])
     const rawId = params?.id
-    const id = normalizeId(rawId)
+    const id = extractTechnicianId(request, params)
     if (!UUID_RE.test(id)) {
       return NextResponse.json(
-        { ok: false, error: 'Invalid technician id', received: rawId ?? null },
+        { ok: false, error: 'Invalid technician id', received: rawId ?? null, parsed: id || null },
         { status: 400 }
       )
     }
@@ -84,14 +97,14 @@ export async function PUT(request: Request, { params }: { params: { id: string }
         return NextResponse.json({ ok: false, error: delErr.message }, { status: 400 })
       }
 
-    if (professionIds.length > 0) {
-      const { error: insErr } = await supabase.from('technician_profession_map').insert(
-        professionIds.map((professionId) => ({
-          organization_id: ctx.organizationId,
-          technician_id: id,
-          profession_id: professionId,
-        }))
-      )
+      if (professionIds.length > 0) {
+        const { error: insErr } = await supabase.from('technician_profession_map').insert(
+          professionIds.map((professionId) => ({
+            organization_id: ctx.organizationId,
+            technician_id: id,
+            profession_id: professionId,
+          }))
+        )
 
         if (insErr) {
           return NextResponse.json({ ok: false, error: insErr.message }, { status: 400 })
@@ -108,15 +121,15 @@ export async function PUT(request: Request, { params }: { params: { id: string }
   }
 }
 
-export async function DELETE(_: Request, { params }: { params: { id: string } }) {
+export async function DELETE(request: Request, { params }: { params: { id: string } }) {
   try {
     const ctx = await getOrgContext()
     assertRole(ctx, ['admin', 'manager'])
     const rawId = params?.id
-    const id = normalizeId(rawId)
+    const id = extractTechnicianId(request, params)
     if (!UUID_RE.test(id)) {
       return NextResponse.json(
-        { ok: false, error: 'Invalid technician id', received: rawId ?? null },
+        { ok: false, error: 'Invalid technician id', received: rawId ?? null, parsed: id || null },
         { status: 400 }
       )
     }
