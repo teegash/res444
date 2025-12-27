@@ -38,6 +38,7 @@ export async function GET(request: NextRequest) {
   try {
     const { orgId, admin } = await assertManager()
     const propertyId = request.nextUrl.searchParams.get('propertyId') || null
+    const source = request.nextUrl.searchParams.get('source') || null
 
     const query = admin
       .from('expenses')
@@ -49,6 +50,7 @@ export async function GET(request: NextRequest) {
         category,
         notes,
         property_id,
+        maintenance_request_id,
         apartment_buildings ( id, name, location )
       `
       )
@@ -57,6 +59,9 @@ export async function GET(request: NextRequest) {
 
     if (propertyId && propertyId !== 'all') {
       query.eq('property_id', propertyId)
+    }
+    if (source === 'maintenance') {
+      query.not('maintenance_request_id', 'is', null)
     }
 
     const { data, error } = await query

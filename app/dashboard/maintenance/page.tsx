@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -59,6 +60,9 @@ type MaintenanceRequest = {
   assigned_to?: string | null
   assigned_to_name?: string | null
   assigned_technician_phone?: string | null
+  maintenance_cost?: number | null
+  maintenance_cost_paid_by?: 'tenant' | 'landlord' | null
+  maintenance_cost_notes?: string | null
 }
 
 type ProfessionOption = {
@@ -144,6 +148,9 @@ export default function MaintenancePage() {
   const [loadingTechnicians, setLoadingTechnicians] = useState(false)
   const [assignSubmitting, setAssignSubmitting] = useState(false)
   const [assignError, setAssignError] = useState<string | null>(null)
+  const [maintenanceCostPaidBy, setMaintenanceCostPaidBy] = useState<'tenant' | 'landlord'>('tenant')
+  const [maintenanceCostAmount, setMaintenanceCostAmount] = useState('0')
+  const [maintenanceCostNotes, setMaintenanceCostNotes] = useState('')
   const [completeSubmitting, setCompleteSubmitting] = useState(false)
   const { toast } = useToast()
   const applyScope = useCallback(
@@ -375,6 +382,18 @@ export default function MaintenancePage() {
     setAssignSubmitting(true)
     setAssignError(null)
     try {
+      const costPaidBy = maintenanceCostPaidBy
+      const parsedCost = Number(maintenanceCostAmount)
+      if (costPaidBy === 'landlord') {
+        if (!Number.isFinite(parsedCost) || parsedCost <= 0) {
+          setAssignError(
+            'Enter a valid maintenance cost greater than 0 (KES) when paid by landlord.'
+          )
+          setAssignSubmitting(false)
+          return
+        }
+      }
+
       const response = await fetch(
         `/api/maintenance-requests/${selectedRequest.id}/assign-technician`,
         {
@@ -383,6 +402,9 @@ export default function MaintenancePage() {
           body: JSON.stringify({
             technician_id: assignTechnicianId,
             profession_id: assignProfessionId,
+            maintenance_cost_paid_by: costPaidBy,
+            maintenance_cost: costPaidBy === 'landlord' ? parsedCost : 0,
+            maintenance_cost_notes: maintenanceCostNotes.trim() || null,
           }),
         }
       )
@@ -399,6 +421,9 @@ export default function MaintenancePage() {
         assigned_technician_phone?: string | null
         technician_id?: string | null
         assigned_profession_id?: string | null
+        maintenance_cost?: number | null
+        maintenance_cost_paid_by?: 'tenant' | 'landlord' | null
+        maintenance_cost_notes?: string | null
       }
 
       setRequests((current) =>
@@ -410,6 +435,12 @@ export default function MaintenancePage() {
                   assigned_to_name: updated.assigned_technician_name || request.assigned_to_name,
                   assigned_technician_phone:
                     updated.assigned_technician_phone || request.assigned_technician_phone || null,
+                  maintenance_cost:
+                    updated.maintenance_cost ?? request.maintenance_cost ?? null,
+                  maintenance_cost_paid_by:
+                    updated.maintenance_cost_paid_by ?? request.maintenance_cost_paid_by ?? null,
+                  maintenance_cost_notes:
+                    updated.maintenance_cost_notes ?? request.maintenance_cost_notes ?? null,
                   status: updated.status || request.status,
                 }
               : request
@@ -424,6 +455,12 @@ export default function MaintenancePage() {
               assigned_to_name: updated.assigned_technician_name || current.assigned_to_name,
               assigned_technician_phone:
                 updated.assigned_technician_phone || current.assigned_technician_phone || null,
+              maintenance_cost:
+                updated.maintenance_cost ?? current.maintenance_cost ?? null,
+              maintenance_cost_paid_by:
+                updated.maintenance_cost_paid_by ?? current.maintenance_cost_paid_by ?? null,
+              maintenance_cost_notes:
+                updated.maintenance_cost_notes ?? current.maintenance_cost_notes ?? null,
               status: updated.status || current.status,
             }
           : current
@@ -790,13 +827,16 @@ export default function MaintenancePage() {
                             className="rounded-full bg-amber-500 hover:bg-amber-600"
                             onClick={() => {
                               setSelectedRequest(request)
-                              setAssignProfessionId('')
-                              setAssignTechnicianId('')
-                              setTechnicianOptions([])
-                              setAssignError(null)
-                              setAssignModalOpen(true)
-                            }}
-                          >
+              setAssignProfessionId('')
+              setAssignTechnicianId('')
+              setTechnicianOptions([])
+              setMaintenanceCostPaidBy('tenant')
+              setMaintenanceCostAmount('0')
+              setMaintenanceCostNotes('')
+              setAssignError(null)
+              setAssignModalOpen(true)
+            }}
+          >
                             <UserPlus className="w-4 h-4 mr-1" />
                             Assign technician
                           </Button>
@@ -944,6 +984,9 @@ export default function MaintenancePage() {
             setAssignProfessionId('')
             setAssignTechnicianId('')
             setTechnicianOptions([])
+            setMaintenanceCostPaidBy('tenant')
+            setMaintenanceCostAmount('0')
+            setMaintenanceCostNotes('')
           }
         }}
       >
@@ -1029,6 +1072,62 @@ export default function MaintenancePage() {
                   No active technicians found for this profession.
                 </p>
               )}
+            </div>
+            <div className="space-y-2">
+              <Label>Maintenance Cost</Label>
+              <div className="rounded-lg border p-3 space-y-3">
+                <div className="space-y-2">
+                  <Label className="text-xs text-muted-foreground">Who pays?</Label>
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      variant={maintenanceCostPaidBy === 'tenant' ? 'default' : 'outline'}
+                      onClick={() => {
+                        setMaintenanceCostPaidBy('tenant')
+                        setMaintenanceCostAmount('0')
+                      }}
+                      className="flex-1"
+                    >
+                      Tenant paid (KES 0)
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={maintenanceCostPaidBy === 'landlord' ? 'default' : 'outline'}
+                      onClick={() => {
+                        setMaintenanceCostPaidBy('landlord')
+                        if (maintenanceCostAmount === '0') setMaintenanceCostAmount('')
+                      }}
+                      className="flex-1"
+                    >
+                      Landlord paid
+                    </Button>
+                  </div>
+                </div>
+                {maintenanceCostPaidBy === 'landlord' && (
+                  <div className="space-y-2">
+                    <Label htmlFor="maintenance-cost-amount">Amount (KES)</Label>
+                    <Input
+                      id="maintenance-cost-amount"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={maintenanceCostAmount}
+                      onChange={(event) => setMaintenanceCostAmount(event.target.value)}
+                      placeholder="e.g. 1500"
+                    />
+                  </div>
+                )}
+                <div className="space-y-2">
+                  <Label htmlFor="maintenance-cost-notes">Notes (optional)</Label>
+                  <Textarea
+                    id="maintenance-cost-notes"
+                    value={maintenanceCostNotes}
+                    onChange={(event) => setMaintenanceCostNotes(event.target.value)}
+                    placeholder="e.g. Replaced tap + labor"
+                    rows={3}
+                  />
+                </div>
+              </div>
             </div>
             {selectedTechnician && (
               <div className="rounded-lg border bg-slate-50 px-3 py-2 text-xs text-muted-foreground space-y-1">

@@ -41,6 +41,7 @@ type Expense = {
   category: string
   notes?: string | null
   property_id: string
+  maintenance_request_id?: string | null
   apartment_buildings?: { id: string; name: string | null; location: string | null } | null
 }
 
@@ -74,6 +75,7 @@ export default function ExpensesPage() {
   const [expenses, setExpenses] = useState<Expense[]>([])
   const [properties, setProperties] = useState<PropertyOption[]>([])
   const [propertyFilter, setPropertyFilter] = useState('all')
+  const [sourceFilter, setSourceFilter] = useState('all')
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -120,8 +122,16 @@ export default function ExpensesPage() {
     try {
       setLoading(true)
       setError(null)
+      const params = new URLSearchParams()
+      if (propertyFilter && propertyFilter !== 'all') {
+        params.set('propertyId', propertyFilter)
+      }
+      if (sourceFilter === 'maintenance') {
+        params.set('source', 'maintenance')
+      }
+      const queryString = params.toString()
       const response = await fetch(
-        `/api/manager/expenses${propertyFilter && propertyFilter !== 'all' ? `?propertyId=${propertyFilter}` : ''}`,
+        `/api/manager/expenses${queryString ? `?${queryString}` : ''}`,
         { cache: 'no-store' }
       )
       const payload = await response.json()
@@ -148,7 +158,7 @@ export default function ExpensesPage() {
 
   useEffect(() => {
     loadExpenses()
-  }, [propertyFilter])
+  }, [propertyFilter, sourceFilter])
 
   const loadRecurring = async () => {
     try {
@@ -409,7 +419,7 @@ export default function ExpensesPage() {
   }
 
   const handleExport = (format: 'pdf' | 'excel' | 'csv') => {
-    const filename = `expenses-${propertyFilter}-${new Date().toISOString().slice(0, 10)}`
+    const filename = `expenses-${propertyFilter}-${sourceFilter}-${new Date().toISOString().slice(0, 10)}`
     const generatedAtISO = new Date().toISOString()
     const letterhead = { documentTitle: 'Expenses', generatedAtISO }
     const columns = [
@@ -425,7 +435,7 @@ export default function ExpensesPage() {
     if (format === 'pdf') {
       exportRowsAsPDF(filename, columns, filteredOneTimeExpenses, {
         title: 'Expenses',
-        subtitle: `Property: ${propertyFilter}`,
+        subtitle: `Property: ${propertyFilter} · Source: ${sourceFilter}`,
         summaryRows,
         letterhead,
       })
@@ -467,6 +477,15 @@ export default function ExpensesPage() {
                       {p.name}
                     </SelectItem>
                   ))}
+                </SelectContent>
+              </Select>
+              <Select value={sourceFilter} onValueChange={setSourceFilter}>
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="Source" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All sources</SelectItem>
+                  <SelectItem value="maintenance">Maintenance</SelectItem>
                 </SelectContent>
               </Select>
               <Button variant="outline" onClick={() => handleExport('pdf')} className="gap-2">

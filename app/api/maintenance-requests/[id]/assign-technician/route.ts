@@ -32,6 +32,9 @@ function extractRequestId(request: Request, params?: { id?: string }) {
 type Body = {
   technician_id: string
   profession_id: string
+  maintenance_cost_paid_by?: 'tenant' | 'landlord'
+  maintenance_cost?: number
+  maintenance_cost_notes?: string | null
 }
 
 export async function POST(request: Request, { params }: { params: { id: string } }) {
@@ -82,6 +85,34 @@ export async function POST(request: Request, { params }: { params: { id: string 
 
     const technicianId = body.technician_id.trim()
     const professionId = body.profession_id.trim()
+    const paidBy = body.maintenance_cost_paid_by ?? 'tenant'
+    const rawCost = body.maintenance_cost ?? 0
+    const normalizedCost =
+      typeof rawCost === 'number' && Number.isFinite(rawCost) ? rawCost : Number(rawCost)
+
+    if (!Number.isFinite(normalizedCost) || normalizedCost < 0) {
+      return NextResponse.json(
+        { ok: false, error: 'Invalid maintenance cost amount' },
+        { status: 400 }
+      )
+    }
+
+    let maintenance_cost_paid_by: 'tenant' | 'landlord' =
+      paidBy === 'landlord' ? 'landlord' : 'tenant'
+    let maintenance_cost = 0
+
+    if (maintenance_cost_paid_by === 'landlord') {
+      if (normalizedCost <= 0) {
+        return NextResponse.json(
+          { ok: false, error: 'Maintenance cost must be greater than 0 when paid by landlord' },
+          { status: 400 }
+        )
+      }
+      maintenance_cost = Math.round(normalizedCost * 100) / 100
+    }
+
+    const maintenance_cost_notes =
+      typeof body.maintenance_cost_notes === 'string' ? body.maintenance_cost_notes.trim() : null
 
     const { data: tech, error: techErr } = await supabase
       .from('technicians')
@@ -121,12 +152,15 @@ export async function POST(request: Request, { params }: { params: { id: string 
         assigned_technician_name: tech.full_name,
         assigned_technician_phone: tech.phone ?? null,
         status: 'assigned',
+        maintenance_cost_paid_by,
+        maintenance_cost,
+        maintenance_cost_notes,
         updated_at: new Date().toISOString(),
       })
       .eq('id', requestId)
       .eq('organization_id', ctx.organizationId)
       .select(
-        'id, status, assigned_technician_name, assigned_technician_phone, technician_id, assigned_profession_id, tenant_user_id, title'
+        'id, status, assigned_technician_name, assigned_technician_phone, technician_id, assigned_profession_id, tenant_user_id, title, maintenance_cost, maintenance_cost_paid_by, maintenance_cost_notes'
       )
       .single()
 
