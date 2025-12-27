@@ -29,7 +29,8 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { useToast } from '@/components/ui/use-toast'
-import { Plus, Pencil, Trash2 } from 'lucide-react'
+import Link from 'next/link'
+import { ArrowLeft, Plus, Pencil, Trash2 } from 'lucide-react'
 
 type Profession = {
   id: string
@@ -279,6 +280,18 @@ export default function TechniciansPage() {
       <div className="flex-1 flex flex-col">
         <Header />
         <main className="flex-1 p-8 bg-slate-50">
+          <div className="mb-4">
+            <Button
+              asChild
+              variant="outline"
+              className="gap-2 border-slate-200 bg-white/80 shadow-sm hover:shadow-md"
+            >
+              <Link href="/dashboard/maintenance">
+                <ArrowLeft className="w-4 h-4" />
+                Back to Maintenance
+              </Link>
+            </Button>
+          </div>
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between mb-6">
             <div>
               <h1 className="text-3xl font-bold">Technicians</h1>
