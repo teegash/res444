@@ -857,7 +857,8 @@ export default function MaintenancePage() {
                       <div className="flex flex-wrap gap-2">
                         <Button
                           asChild
-                          className="rounded-full bg-slate-900 text-white shadow-sm hover:bg-slate-800"
+                          variant="outline"
+                          className="rounded-full border-slate-200 bg-white/80 shadow-sm transition-transform duration-200 ease-out hover:-translate-y-0.5 hover:scale-[1.02] hover:shadow-md active:scale-[0.98]"
                         >
                           <Link href="/dashboard/manager/expenses?source=maintenance">
                             View Maintenance Expenses
@@ -866,7 +867,7 @@ export default function MaintenancePage() {
                         <Button
                           asChild
                           variant="outline"
-                          className="rounded-full border-slate-200 bg-white/80 shadow-sm hover:shadow-md"
+                          className="rounded-full border-slate-200 bg-white/80 shadow-sm transition-transform duration-200 ease-out hover:-translate-y-0.5 hover:scale-[1.02] hover:shadow-md active:scale-[0.98]"
                         >
                           <Link href="/dashboard/manager/reports/maintenance-performance">
                             View Maintenance Performance
@@ -875,7 +876,7 @@ export default function MaintenancePage() {
                         <Button
                           asChild
                           variant="outline"
-                          className="rounded-full border-slate-200 bg-white/80 shadow-sm hover:shadow-md"
+                          className="rounded-full border-slate-200 bg-white/80 shadow-sm transition-transform duration-200 ease-out hover:-translate-y-0.5 hover:scale-[1.02] hover:shadow-md active:scale-[0.98]"
                         >
                           <Link href="/dashboard/maintenance/technicians">Manage Technicians</Link>
                         </Button>
