@@ -716,7 +716,7 @@ export default function MaintenancePage() {
                     const locationValue = meta.metadata.location || meta.metadata['specific location'] || 'Not specified'
                     const isAssigned =
                       Boolean(request.assigned_to_name) && request.assigned_to_name !== 'Unassigned'
-                    const hasExpense =
+                    const isLandlordPaid =
                       request.maintenance_cost_paid_by === 'landlord' &&
                       Number(request.maintenance_cost || 0) > 0
 
@@ -802,7 +802,9 @@ export default function MaintenancePage() {
                         </div>
                         <div
                           className={`rounded-xl px-3 py-2 ${
-                            hasExpense ? 'bg-rose-50 border border-rose-200 text-rose-700' : 'bg-slate-50'
+                            isLandlordPaid
+                              ? 'bg-rose-50 border border-rose-200 text-rose-700'
+                              : 'bg-blue-50 border border-blue-200 text-blue-700'
                           }`}
                         >
                           <p className="text-xs uppercase tracking-wide text-slate-500">Expense</p>

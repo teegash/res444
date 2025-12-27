@@ -212,8 +212,8 @@ export default function TenantMaintenancePage() {
                       className={`rounded-lg p-3 ${
                         request.maintenance_cost_paid_by === 'landlord' &&
                         Number(request.maintenance_cost || 0) > 0
-                          ? 'bg-rose-50 text-rose-700 border border-rose-200'
-                          : 'bg-slate-50'
+                          ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                          : 'bg-rose-50 text-rose-700 border border-rose-200'
                       }`}
                     >
                       <p className="text-xs uppercase tracking-wide text-slate-500">Cost</p>
