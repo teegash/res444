@@ -19,6 +19,7 @@ import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Switch } from '@/components/ui/switch'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import {
   Table,
   TableBody,
@@ -341,10 +342,11 @@ export default function TechniciansPage() {
                         <TableHeader>
                           <TableRow>
                             <TableHead>Name</TableHead>
-                            <TableHead>Professions</TableHead>
-                            <TableHead>Contact</TableHead>
-                            <TableHead>Status</TableHead>
-                            <TableHead className="text-right">Actions</TableHead>
+                        <TableHead>Professions</TableHead>
+                        <TableHead>Contact</TableHead>
+                        <TableHead>Notes</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -372,6 +374,22 @@ export default function TechniciansPage() {
                               <TableCell className="text-sm">
                                 <div>{tech.phone || '—'}</div>
                                 <div className="text-xs text-muted-foreground">{tech.email || 'No email'}</div>
+                              </TableCell>
+                              <TableCell className="text-sm text-muted-foreground">
+                                {tech.notes ? (
+                                  <TooltipProvider>
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <span className="line-clamp-2 cursor-help">{tech.notes}</span>
+                                      </TooltipTrigger>
+                                      <TooltipContent className="max-w-xs whitespace-pre-line">
+                                        {tech.notes}
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  </TooltipProvider>
+                                ) : (
+                                  '—'
+                                )}
                               </TableCell>
                               <TableCell>{activeBadge(Boolean(tech.is_active))}</TableCell>
                               <TableCell className="text-right">
