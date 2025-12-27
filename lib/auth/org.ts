@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 
 export type OrgContext = {
   userId: string
@@ -22,15 +23,22 @@ export async function getOrgContext(): Promise<OrgContext> {
     throw new Error('Unauthenticated')
   }
 
-  const { data: membership, error: memErr } = await supabase
+  const adminSupabase = createAdminClient()
+  if (!adminSupabase) {
+    throw new Error('Server configuration error')
+  }
+
+  const { data: membership, error: memErr } = await adminSupabase
     .from('organization_members')
     .select('organization_id, role')
     .eq('user_id', user.id)
-    .order('created_at', { ascending: true })
-    .limit(1)
     .maybeSingle()
 
-  if (memErr || !membership?.organization_id || !membership?.role) {
+  if (memErr) {
+    throw new Error(memErr.message || 'Failed to load organization membership')
+  }
+
+  if (!membership?.organization_id || !membership?.role) {
     throw new Error('No organization membership found')
   }
 
