@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { ChronoSelect } from '@/components/ui/chrono-select'
 import { Loader2, ArrowLeft } from 'lucide-react'
 
 interface TenantForm {
@@ -59,6 +60,21 @@ export default function NewTenantPage() {
   const [profileFile, setProfileFile] = useState<File | null>(null)
   const [profilePreview, setProfilePreview] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
+
+  const toDateString = (date?: Date) => {
+    if (!date) return ''
+    const year = date.getFullYear()
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const day = String(date.getDate()).padStart(2, '0')
+    return `${year}-${month}-${day}`
+  }
+
+  const fromDateString = (value: string) => {
+    if (!value) return undefined
+    const [year, month, day] = value.split('-').map(Number)
+    if (!year || !month || !day) return undefined
+    return new Date(year, month - 1, day)
+  }
 
   const handleChange = (field: keyof TenantForm, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }))
@@ -370,11 +386,11 @@ export default function NewTenantPage() {
                   <div className="grid gap-4 md:grid-cols-2">
                     <div>
                       <Label htmlFor="dob">Date of birth</Label>
-                      <Input
-                        id="dob"
-                        type="date"
-                        value={form.dateOfBirth}
-                        onChange={(e) => handleChange('dateOfBirth', e.target.value)}
+                      <ChronoSelect
+                        value={fromDateString(form.dateOfBirth)}
+                        onChange={(date) => handleChange('dateOfBirth', toDateString(date))}
+                        placeholder="Select date of birth"
+                        className="w-full justify-start"
                       />
                     </div>
                     <div>
