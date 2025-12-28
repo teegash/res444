@@ -66,6 +66,9 @@ export function Header() {
     const type = (n.related_entity_type || '').toLowerCase()
     return type === 'lease_expired' || !n.read
   }).length
+  const expiredCount = notifications.filter(
+    (n) => (n.related_entity_type || '').toLowerCase() === 'lease_expired'
+  ).length
   const router = useRouter()
 
   // Fetch user's first name from profile
@@ -275,7 +278,14 @@ export function Header() {
               <div className="px-6 pt-6 pb-4 border-b border-border/60 bg-gradient-to-r from-[#f4f6fb] to-white sticky top-0 z-10">
                 <div className="flex items-center justify-between gap-4">
                   <div className="flex-1">
-                    <SheetTitle className="text-lg">Notifications</SheetTitle>
+                    <SheetTitle className="text-lg flex items-center gap-2">
+                      Notifications
+                      {expiredCount > 0 && (
+                        <Badge className="bg-rose-500/80 text-white rounded-full px-2 py-0.5 text-xs">
+                          Lease expired ({expiredCount})
+                        </Badge>
+                      )}
+                    </SheetTitle>
                     <p className="text-xs text-muted-foreground mt-1">
                       Stay updated on tenant activity and billing alerts
                     </p>
