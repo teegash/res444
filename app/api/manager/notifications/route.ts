@@ -35,7 +35,7 @@ export async function GET() {
     const orgId = membership.organization_id
 
     try {
-      const nowIso = new Date().toISOString()
+      const todayIso = new Date().toISOString().slice(0, 10)
       const { data: expiredLeases } = await adminSupabase
         .from('leases')
         .select(
@@ -52,7 +52,7 @@ export async function GET() {
         `
         )
         .eq('organization_id', orgId)
-        .or(`end_date.lt.${nowIso},status.eq.expired`)
+        .or(`end_date.lt.${todayIso},status.eq.expired`)
 
       const expiredLeaseIds = new Set<string>(
         (expiredLeases || []).map((lease: any) => lease?.id).filter(Boolean)

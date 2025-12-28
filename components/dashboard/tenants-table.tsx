@@ -36,7 +36,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { useToast } from '@/components/ui/use-toast'
-import { Loader2, MoreVertical, Copy, Phone } from 'lucide-react'
+import { Loader2, MoreVertical, Copy, Phone, ChevronDown, Check } from 'lucide-react'
 import { Separator } from '@/components/ui/separator'
 import Link from 'next/link'
 import { SkeletonTable } from '@/components/ui/skeletons'
@@ -67,9 +67,6 @@ interface TenantsTableProps {
   searchQuery?: string
   viewMode?: 'grid' | 'list'
   propertyId?: string | null
-  highlightFilter?: 'all' | 'rating_red'
-  leaseStatusFilter?: 'all' | 'valid' | 'active' | 'renewed' | 'pending' | 'expired' | 'unassigned'
-  paymentFilter?: 'all' | 'unpaid'
 }
 
 const getInitials = (value: string) => {
@@ -130,6 +127,14 @@ const isLeaseExpired = (tenant: TenantRecord) => {
   const endDay = new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate())
   const currentDay = new Date(today.getFullYear(), today.getMonth(), today.getDate())
   return currentDay > endDay
+}
+
+const ratingBucket = (rate?: number | null) => {
+  if (rate === undefined || rate === null) return 'none'
+  if (rate >= 95) return 'green'
+  if (rate >= 87) return 'yellow'
+  if (rate >= 80) return 'orange'
+  return 'red'
 }
 
 const paymentBadgeVariant = (status: string) => {
@@ -202,20 +207,18 @@ function TenantActions({
   )
 }
 
-export function TenantsTable({
-  searchQuery = '',
-  viewMode = 'list',
-  propertyId,
-  highlightFilter = 'all',
-  leaseStatusFilter = 'all',
-  paymentFilter = 'all',
-}: TenantsTableProps) {
+export function TenantsTable({ searchQuery = '', viewMode = 'list', propertyId }: TenantsTableProps) {
   const { toast } = useToast()
   const [tenants, setTenants] = useState<TenantRecord[]>([])
   const [ratingsMap, setRatingsMap] = useState<Record<string, { on_time_rate: number; payments: number }>>({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [refreshIndex, setRefreshIndex] = useState(0)
+  const [ratingFilter, setRatingFilter] = useState<'all' | 'red' | 'orange' | 'yellow' | 'green' | 'none'>('all')
+  const [leaseStatusFilter, setLeaseStatusFilter] = useState<
+    'all' | 'valid' | 'renewed' | 'pending' | 'expired' | 'unassigned'
+  >('all')
+  const [paymentFilter, setPaymentFilter] = useState<'all' | 'paid' | 'unpaid'>('all')
 
   const [editTenant, setEditTenant] = useState<TenantRecord | null>(null)
   const [editForm, setEditForm] = useState({
@@ -321,11 +324,10 @@ export function TenantsTable({
       })
     }
 
-    if (highlightFilter === 'rating_red') {
+    if (ratingFilter !== 'all') {
       list = list.filter((tenant) => {
         const rating = ratingsMap[tenant.tenant_user_id]
-        if (!rating) return false
-        return rating.on_time_rate < 80
+        return ratingBucket(rating?.on_time_rate) === ratingFilter
       })
     }
 
@@ -333,12 +335,14 @@ export function TenantsTable({
       list = list.filter((tenant) => (tenant.lease_status || '').toLowerCase() === leaseStatusFilter)
     }
 
-    if (paymentFilter === 'unpaid') {
+    if (paymentFilter === 'paid') {
+      list = list.filter((tenant) => (tenant.payment_status || '').toLowerCase() === 'paid')
+    } else if (paymentFilter === 'unpaid') {
       list = list.filter((tenant) => (tenant.payment_status || '').toLowerCase() !== 'paid')
     }
 
     return list
-  }, [highlightFilter, leaseStatusFilter, paymentFilter, ratingsMap, searchQuery, tenants])
+  }, [leaseStatusFilter, paymentFilter, ratingFilter, ratingsMap, searchQuery, tenants])
 
   const viewTenants = useMemo(() => {
     if (loading) {
@@ -346,6 +350,94 @@ export function TenantsTable({
     }
     return filteredTenants
   }, [filteredTenants, loading])
+
+  const ratingFilterLabel = (() => {
+    switch (ratingFilter) {
+      case 'red':
+        return 'Red rating'
+      case 'orange':
+        return 'Orange rating'
+      case 'yellow':
+        return 'Yellow rating'
+      case 'green':
+        return 'Green rating'
+      case 'none':
+        return 'No rating'
+      default:
+        return 'All ratings'
+    }
+  })()
+
+  const leaseFilterLabel = (() => {
+    switch (leaseStatusFilter) {
+      case 'valid':
+        return 'Valid'
+      case 'renewed':
+        return 'Renewed'
+      case 'pending':
+        return 'Pending'
+      case 'expired':
+        return 'Expired'
+      case 'unassigned':
+        return 'Unassigned'
+      default:
+        return 'All statuses'
+    }
+  })()
+
+  const paymentFilterLabel =
+    paymentFilter === 'paid' ? 'Paid' : paymentFilter === 'unpaid' ? 'Unpaid' : 'All'
+
+  const renderFilterMenu = (
+    options: Array<{ value: string; label: string }>,
+    value: string,
+    onChange: (value: string) => void,
+    align: 'start' | 'end' = 'start'
+  ) => (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          className="inline-flex items-center justify-center rounded-md p-1 text-muted-foreground transition hover:text-foreground"
+          aria-label="Open filter menu"
+        >
+          <ChevronDown className="h-4 w-4" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align={align}>
+        {options.map((option) => (
+          <DropdownMenuItem key={option.value} onClick={() => onChange(option.value)}>
+            <span className="flex items-center gap-2">
+              {value === option.value ? <Check className="h-4 w-4 text-primary" /> : <span className="h-4 w-4" />}
+              {option.label}
+            </span>
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+
+  const ratingOptions = [
+    { value: 'all', label: 'All ratings' },
+    { value: 'red', label: 'Red rating' },
+    { value: 'orange', label: 'Orange rating' },
+    { value: 'yellow', label: 'Yellow rating' },
+    { value: 'green', label: 'Green rating' },
+    { value: 'none', label: 'No rating' },
+  ]
+  const leaseOptions = [
+    { value: 'all', label: 'All statuses' },
+    { value: 'valid', label: 'Valid' },
+    { value: 'renewed', label: 'Renewed' },
+    { value: 'pending', label: 'Pending' },
+    { value: 'expired', label: 'Expired' },
+    { value: 'unassigned', label: 'Unassigned' },
+  ]
+  const paymentOptions = [
+    { value: 'all', label: 'All payments' },
+    { value: 'paid', label: 'Paid' },
+    { value: 'unpaid', label: 'Unpaid' },
+  ]
 
   const handleCopy = (value: string, label: string) => {
     if (!value) return
@@ -448,6 +540,32 @@ export function TenantsTable({
           </Alert>
         )}
 
+        {viewMode === 'grid' && (
+          <div className="flex flex-wrap items-center gap-4 border-b bg-slate-50/60 px-4 py-3 text-xs text-slate-600">
+            <div className="flex items-center gap-1">
+              <span className="font-semibold">Tenant rating</span>
+              <span className="text-slate-500">{ratingFilterLabel}</span>
+              {renderFilterMenu(ratingOptions, ratingFilter, (value) =>
+                setRatingFilter(value as typeof ratingFilter)
+              )}
+            </div>
+            <div className="flex items-center gap-1">
+              <span className="font-semibold">Lease status</span>
+              <span className="text-slate-500">{leaseFilterLabel}</span>
+              {renderFilterMenu(leaseOptions, leaseStatusFilter, (value) =>
+                setLeaseStatusFilter(value as typeof leaseStatusFilter)
+              )}
+            </div>
+            <div className="flex items-center gap-1">
+              <span className="font-semibold">Payment</span>
+              <span className="text-slate-500">{paymentFilterLabel}</span>
+              {renderFilterMenu(paymentOptions, paymentFilter, (value) =>
+                setPaymentFilter(value as typeof paymentFilter)
+              )}
+            </div>
+          </div>
+        )}
+
         {viewMode === 'grid' ? (
           <div className="p-4">
             <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
@@ -534,12 +652,33 @@ export function TenantsTable({
             <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Tenant Name</TableHead>
+                <TableHead>
+                  <div className="flex items-center gap-1">
+                    <span>Tenant Name</span>
+                    {renderFilterMenu(ratingOptions, ratingFilter, (value) =>
+                      setRatingFilter(value as typeof ratingFilter)
+                    )}
+                  </div>
+                </TableHead>
                 <TableHead>Email</TableHead>
                 <TableHead>Phone</TableHead>
                 <TableHead>Unit</TableHead>
-                <TableHead>Lease Status</TableHead>
-                <TableHead>Payment Status</TableHead>
+                <TableHead>
+                  <div className="flex items-center gap-1">
+                    <span>Lease Status</span>
+                    {renderFilterMenu(leaseOptions, leaseStatusFilter, (value) =>
+                      setLeaseStatusFilter(value as typeof leaseStatusFilter)
+                    )}
+                  </div>
+                </TableHead>
+                <TableHead>
+                  <div className="flex items-center gap-1">
+                    <span>Payment Status</span>
+                    {renderFilterMenu(paymentOptions, paymentFilter, (value) =>
+                      setPaymentFilter(value as typeof paymentFilter)
+                    )}
+                  </div>
+                </TableHead>
                 <TableHead>Lease Start</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>

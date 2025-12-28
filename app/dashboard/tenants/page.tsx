@@ -9,7 +9,6 @@ import { Sidebar } from '@/components/dashboard/sidebar'
 import { Header } from '@/components/dashboard/header'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/lib/auth/context'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
 export default function TenantsPage() {
   const router = useRouter()
@@ -17,11 +16,6 @@ export default function TenantsPage() {
   const [searchTerm, setSearchTerm] = useState('')
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('list')
   const [viewModeLocked, setViewModeLocked] = useState(false)
-  const [highlightFilter, setHighlightFilter] = useState<'all' | 'rating_red'>('all')
-  const [leaseStatusFilter, setLeaseStatusFilter] = useState<
-    'all' | 'valid' | 'active' | 'renewed' | 'pending' | 'expired' | 'unassigned'
-  >('all')
-  const [paymentFilter, setPaymentFilter] = useState<'all' | 'unpaid'>('all')
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -86,40 +80,6 @@ export default function TenantsPage() {
                       <Rows4 className="h-4 w-4" />
                     </Button>
                   </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Select value={highlightFilter} onValueChange={(value) => setHighlightFilter(value as any)}>
-                      <SelectTrigger className="h-9 w-[160px]">
-                        <SelectValue placeholder="Highlight" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All highlights</SelectItem>
-                        <SelectItem value="rating_red">Red rating</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <Select value={leaseStatusFilter} onValueChange={(value) => setLeaseStatusFilter(value as any)}>
-                      <SelectTrigger className="h-9 w-[170px]">
-                        <SelectValue placeholder="Lease status" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All lease statuses</SelectItem>
-                        <SelectItem value="valid">Valid</SelectItem>
-                        <SelectItem value="active">Active</SelectItem>
-                        <SelectItem value="renewed">Renewed</SelectItem>
-                        <SelectItem value="pending">Pending</SelectItem>
-                        <SelectItem value="expired">Expired</SelectItem>
-                        <SelectItem value="unassigned">Unassigned</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <Select value={paymentFilter} onValueChange={(value) => setPaymentFilter(value as any)}>
-                      <SelectTrigger className="h-9 w-[150px]">
-                        <SelectValue placeholder="Payment" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All payments</SelectItem>
-                        <SelectItem value="unpaid">Unpaid rent</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
                   <Button
                     onClick={() => router.push('/dashboard/tenants/new')}
                     className="gap-2 bg-[#4682B4] hover:bg-[#4682B4]/90"
@@ -131,14 +91,7 @@ export default function TenantsPage() {
               </div>
             </div>
 
-            <TenantsTable
-              searchQuery={searchTerm}
-              viewMode={viewMode}
-              propertyId={propertyScope}
-              highlightFilter={highlightFilter}
-              leaseStatusFilter={leaseStatusFilter}
-              paymentFilter={paymentFilter}
-            />
+            <TenantsTable searchQuery={searchTerm} viewMode={viewMode} propertyId={propertyScope} />
           </div>
         </main>
       </div>
