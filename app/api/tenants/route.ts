@@ -439,13 +439,13 @@ export async function GET() {
       )
 
       const { data: managers } = await adminSupabase
-        .from('user_profiles')
-        .select('id')
+        .from('organization_members')
+        .select('user_id')
         .eq('organization_id', membership.organization_id)
         .in('role', ['admin', 'manager', 'caretaker'])
 
       const managerIds =
-        managers?.map((profile: any) => profile.id).filter((id: string | null) => Boolean(id)) || []
+        managers?.map((profile: any) => profile.user_id).filter((id: string | null) => Boolean(id)) || []
 
       if (managerIds.length > 0) {
         const { data: existingNotifs } = await adminSupabase
@@ -487,6 +487,23 @@ export async function GET() {
 
         if (rowsToInsert.length > 0) {
           await adminSupabase.from('communications').insert(rowsToInsert)
+        }
+
+        const reopenIds =
+          (existingNotifs || [])
+            .filter(
+              (row: any) =>
+                row?.related_entity_id &&
+                expiredLeaseIds.has(row.related_entity_id) &&
+                row.read === true
+            )
+            .map((row: any) => row.id) || []
+
+        if (reopenIds.length > 0) {
+          await adminSupabase
+            .from('communications')
+            .update({ read: false })
+            .in('id', reopenIds)
         }
 
         const clearIds =
