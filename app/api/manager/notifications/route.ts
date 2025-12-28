@@ -33,6 +33,18 @@ export async function GET() {
       return NextResponse.json({ success: false, error: 'Access denied.' }, { status: 403 })
     }
 
+    let leaseExpiredNotifications: Array<{
+      id: string
+      sender_user_id: string | null
+      recipient_user_id: string
+      message_text: string
+      read: boolean
+      created_at: string
+      related_entity_type: string
+      related_entity_id: string
+      message_type: string
+    }> = []
+
     try {
       const { data: tenantProfiles } = await adminSupabase
         .from('user_profiles')
@@ -56,6 +68,7 @@ export async function GET() {
             id,
             tenant_user_id,
             status,
+            start_date,
             end_date,
             unit:apartment_units (
               unit_number,
@@ -67,7 +80,8 @@ export async function GET() {
           )
           .eq('organization_id', orgId)
           .in('tenant_user_id', tenantIds)
-          .order('end_date', { ascending: false })
+          .in('status', ['active', 'pending', 'renewed'])
+          .order('start_date', { ascending: false })
 
         leases = leaseRows || []
       }
@@ -96,30 +110,10 @@ export async function GET() {
         .map(([tenantId, lease]) => ({ tenantId, lease }))
         .filter((entry) => isExpiredLease(entry.lease))
 
-      const expiredLeaseIds = new Set<string>(
-        expiredLeases.map((entry) => entry.lease?.id).filter(Boolean)
-      )
-
-      const managerIds = [user.id]
-
-      if (managerIds.length > 0) {
-        const { data: existingNotifs } = await adminSupabase
-          .from('communications')
-          .select('id, recipient_user_id, related_entity_id, read')
-          .eq('organization_id', orgId)
-          .eq('related_entity_type', 'lease_expired')
-          .eq('recipient_user_id', user.id)
-
-        const existingMap = new Set<string>()
-        ;(existingNotifs || []).forEach((row: any) => {
-          if (row?.recipient_user_id && row?.related_entity_id) {
-            existingMap.add(`${row.recipient_user_id}:${row.related_entity_id}`)
-          }
-        })
-
-        const rowsToInsert = expiredLeases.flatMap((entry) => {
+      leaseExpiredNotifications = expiredLeases
+        .map((entry) => {
           const lease = entry.lease
-          if (!lease?.id) return []
+          if (!lease?.id) return null
           const tenantId = entry.tenantId
           const tenantName = tenantId ? tenantMap.get(tenantId) || 'Tenant' : 'Tenant'
           const unitNumber = lease?.unit?.unit_number
@@ -133,58 +127,21 @@ export async function GET() {
               })
             : 'Unknown'
           const messageText = `Lease expired: ${tenantName} • ${unitLabel} (ended ${endDate}).`
-          return managerIds
-            .filter((managerId: string) => !existingMap.has(`${managerId}:${lease.id}`))
-            .map((managerId: string) => ({
-              sender_user_id: tenantId || null,
-              recipient_user_id: managerId,
-              related_entity_type: 'lease_expired',
-              related_entity_id: lease.id,
-              message_text: messageText,
-              message_type: 'in_app',
-              read: false,
-              organization_id: orgId,
-            }))
+          return {
+            id: `lease-expired-${lease.id}`,
+            sender_user_id: tenantId || null,
+            recipient_user_id: user.id,
+            related_entity_type: 'lease_expired',
+            related_entity_id: lease.id,
+            message_text: messageText,
+            message_type: 'in_app',
+            read: false,
+            created_at: lease?.end_date
+              ? new Date(lease.end_date).toISOString()
+              : new Date().toISOString(),
+          }
         })
-
-        if (rowsToInsert.length > 0) {
-          await adminSupabase.from('communications').insert(rowsToInsert)
-        }
-
-        const reopenIds =
-          (existingNotifs || [])
-            .filter(
-              (row: any) =>
-                row?.related_entity_id &&
-                expiredLeaseIds.has(row.related_entity_id) &&
-                row.read === true
-            )
-            .map((row: any) => row.id) || []
-
-        if (reopenIds.length > 0) {
-          await adminSupabase
-            .from('communications')
-            .update({ read: false })
-            .in('id', reopenIds)
-        }
-
-        const clearIds =
-          (existingNotifs || [])
-            .filter(
-              (row: any) =>
-                row?.related_entity_id &&
-                !expiredLeaseIds.has(row.related_entity_id) &&
-                row.read === false
-            )
-            .map((row: any) => row.id) || []
-
-        if (clearIds.length > 0) {
-          await adminSupabase
-            .from('communications')
-            .update({ read: true })
-            .in('id', clearIds)
-        }
-      }
+        .filter(Boolean) as typeof leaseExpiredNotifications
     } catch (notifyError) {
       console.error('[ManagerNotifications.GET] Lease-expired notification sync failed', notifyError)
     }
@@ -194,6 +151,7 @@ export async function GET() {
       .select('id, sender_user_id, recipient_user_id, message_text, read, created_at, related_entity_type, related_entity_id, message_type')
       .eq('recipient_user_id', user.id)
       .eq('organization_id', orgId)
+      .neq('related_entity_type', 'lease_expired')
       .order('created_at', { ascending: false })
       .limit(50)
 
@@ -201,29 +159,7 @@ export async function GET() {
       throw error
     }
 
-    let rows = data || []
-    try {
-      const { data: leaseExpiredRows } = await adminSupabase
-        .from('communications')
-        .select('id, sender_user_id, recipient_user_id, message_text, read, created_at, related_entity_type, related_entity_id, message_type')
-        .eq('recipient_user_id', user.id)
-        .eq('organization_id', orgId)
-        .eq('related_entity_type', 'lease_expired')
-        .eq('read', false)
-
-      if (leaseExpiredRows?.length) {
-        const byId = new Map<string, any>()
-        rows.forEach((row) => byId.set(row.id, row))
-        leaseExpiredRows.forEach((row: any) => byId.set(row.id, row))
-        rows = Array.from(byId.values()).sort((a, b) => {
-          const aTime = a?.created_at ? new Date(a.created_at).getTime() : 0
-          const bTime = b?.created_at ? new Date(b.created_at).getTime() : 0
-          return bTime - aTime
-        })
-      }
-    } catch (mergeError) {
-      console.error('[ManagerNotifications.GET] Lease-expired merge failed', mergeError)
-    }
+    const rows = [...leaseExpiredNotifications, ...(data || [])]
 
     const unreadCount = rows.filter((item) => item.read === false).length
 
