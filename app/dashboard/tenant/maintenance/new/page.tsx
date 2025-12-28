@@ -158,19 +158,19 @@ export default function NewMaintenanceRequestPage() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-orange-50/30 via-white to-white">
       <div className="max-w-3xl mx-auto p-4 md:p-6 lg:p-8 space-y-6">
-        <div className="flex items-center gap-4 mb-6">
-          <Link href="/dashboard/tenant/maintenance">
+        <div className="flex flex-wrap items-center gap-4 mb-6">
+          <Link href="/dashboard/tenant/maintenance" className="order-1 md:order-1">
             <Button variant="ghost" size="sm">
               <ArrowLeft className="h-4 w-4 mr-2" />
               Back
             </Button>
           </Link>
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-orange-100 rounded-lg">
-              <Wrench className="h-5 w-5 text-orange-600" />
-            </div>
-            <h1 className="text-2xl font-bold">Report Maintenance Issue</h1>
+          <div className="order-2 md:order-2 p-2 bg-orange-100 rounded-lg">
+            <Wrench className="h-5 w-5 text-orange-600" />
           </div>
+          <h1 className="order-3 w-full text-2xl font-bold md:order-3 md:w-auto">
+            Report Maintenance Issue
+          </h1>
         </div>
 
         {successRequest ? (

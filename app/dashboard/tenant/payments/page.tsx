@@ -478,22 +478,21 @@ export default function PaymentHistoryPage() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-green-50/30 via-white to-white">
       <div className="max-w-6xl mx-auto p-4 md:p-6 lg:p-8 space-y-6">
-        <div className="flex items-center gap-4 mb-6">
-          <Link href="/dashboard/tenant">
+        <div className="flex flex-wrap items-center gap-4 mb-6">
+          <Link href="/dashboard/tenant" className="order-1 md:order-1">
             <Button variant="ghost" size="sm">
               <ArrowLeft className="h-4 w-4 mr-2" />
               Back
             </Button>
           </Link>
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-green-100 rounded-lg">
-              <FileText className="h-5 w-5 text-green-600" />
-            </div>
-            <h1 className="text-2xl font-bold">Payment History</h1>
-          </div>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button className="ml-auto" variant="outline" size="sm" disabled={exporting}>
+              <Button
+                className="order-2 ml-auto md:order-3 md:ml-auto"
+                variant="outline"
+                size="sm"
+                disabled={exporting}
+              >
                 <Download className="h-4 w-4 mr-2" />
                 {exporting ? 'Exporting…' : 'Export'}
               </Button>
@@ -510,6 +509,12 @@ export default function PaymentHistoryPage() {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+          <div className="order-3 w-full md:order-2 md:w-auto flex items-center gap-3">
+            <div className="p-2 bg-green-100 rounded-lg">
+              <FileText className="h-5 w-5 text-green-600" />
+            </div>
+            <h1 className="text-2xl font-bold">Payment History</h1>
+          </div>
         </div>
 
         {error && (
@@ -686,25 +691,28 @@ export default function PaymentHistoryPage() {
                       : 'Pending'
 
                 return (
-                  <div key={payment.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-100 transition-colors">
-                    <div className="flex items-center gap-4">
+                  <div
+                    key={payment.id}
+                    className="flex flex-col gap-4 p-4 border rounded-lg hover:bg-gray-100 transition-colors sm:flex-row sm:items-center sm:justify-between"
+                  >
+                    <div className="flex items-start gap-4 sm:items-center min-w-0">
                       <div className="p-2 bg-green-100 rounded">
                         <FileText className="h-5 w-5 text-green-600" />
                       </div>
-                      <div>
+                      <div className="min-w-0">
                         <p className="font-medium">{labelDate}</p>
-                        <p className="text-sm text-muted-foreground">
+                        <p className="text-sm text-muted-foreground break-words">
                           {(payment.payment_method || 'Unknown').replace('_', ' ').toUpperCase()} • Ref:{' '}
                           {reference || '—'}
                         </p>
-                        <p className="text-xs text-muted-foreground capitalize">
+                        <p className="text-xs text-muted-foreground capitalize break-words">
                           {payment.property_name || 'Property'} {payment.unit_label ? `· ${payment.unit_label}` : ''} •{' '}
                           {(payment.payment_type || payment.invoice_type || 'rent').replace('_', ' ')}
                         </p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-4">
-                      <div className="text-right">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
+                      <div className="text-left sm:text-right">
                         <p className="font-bold">KES {payment.amount_paid.toLocaleString()}</p>
                         <p className="text-xs text-muted-foreground">
                           {payment.posted_at ? new Date(payment.posted_at).toLocaleDateString() : ''}

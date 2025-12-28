@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { TenantsTable } from '@/components/dashboard/tenants-table'
@@ -15,6 +15,19 @@ export default function TenantsPage() {
   const { user } = useAuth()
   const [searchTerm, setSearchTerm] = useState('')
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('list')
+  const [viewModeLocked, setViewModeLocked] = useState(false)
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const media = window.matchMedia('(max-width: 767px)')
+    const applyDefault = () => {
+      if (viewModeLocked) return
+      setViewMode(media.matches ? 'grid' : 'list')
+    }
+    applyDefault()
+    media.addEventListener('change', applyDefault)
+    return () => media.removeEventListener('change', applyDefault)
+  }, [viewModeLocked])
 
   const propertyScope =
     (user?.user_metadata as any)?.property_id ||
@@ -46,7 +59,10 @@ export default function TenantsPage() {
                       variant={viewMode === 'grid' ? 'default' : 'ghost'}
                       size="icon"
                       className="rounded-full"
-                      onClick={() => setViewMode('grid')}
+                      onClick={() => {
+                        setViewMode('grid')
+                        setViewModeLocked(true)
+                      }}
                       aria-label="Grid view"
                     >
                       <LayoutGrid className="h-4 w-4" />
@@ -55,7 +71,10 @@ export default function TenantsPage() {
                       variant={viewMode === 'list' ? 'default' : 'ghost'}
                       size="icon"
                       className="rounded-full"
-                      onClick={() => setViewMode('list')}
+                      onClick={() => {
+                        setViewMode('list')
+                        setViewModeLocked(true)
+                      }}
                       aria-label="List view"
                     >
                       <Rows4 className="h-4 w-4" />

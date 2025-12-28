@@ -405,36 +405,51 @@ export default function LeasePage() {
     }
   }
 
+  const downloadActions = (
+    <>
+      {agreementUrl && (
+        <Button variant="outline" size="sm" asChild>
+          <a href={agreementUrl} target="_blank" rel="noreferrer" className="flex items-center">
+            <Download className="h-4 w-4 mr-2" />
+            Original File
+          </a>
+        </Button>
+      )}
+      <Button variant="default" size="sm" onClick={handleDownload} disabled={downloading || loading}>
+        <Download className="h-4 w-4 mr-2" />
+        {downloading ? 'Generating…' : 'Download Lease PDF'}
+      </Button>
+    </>
+  )
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-purple-50/30 via-white to-white">
       <div className="max-w-5xl mx-auto p-4 md:p-6 lg:p-8 space-y-6">
-        <div className="flex items-center gap-4 mb-6">
-          <Link href="/dashboard/tenant">
-            <Button variant="ghost" size="sm">
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Back
-            </Button>
-          </Link>
-          <div className="flex items-center gap-3">
+        <div className="flex flex-col gap-4 mb-6 md:flex-row md:items-center">
+          <div className="flex flex-wrap items-center justify-between gap-3 md:hidden">
+            <Link href="/dashboard/tenant">
+              <Button variant="ghost" size="sm">
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                Back
+              </Button>
+            </Link>
+            <div className="flex flex-wrap items-center gap-2">{downloadActions}</div>
+          </div>
+
+          <div className="flex items-center gap-3 md:flex-1">
+            <Link href="/dashboard/tenant" className="hidden md:inline-flex">
+              <Button variant="ghost" size="sm">
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                Back
+              </Button>
+            </Link>
             <div className="p-2 bg-purple-100 rounded-lg">
               <FileText className="h-5 w-5 text-purple-600" />
             </div>
             <h1 className="text-2xl font-bold">Lease Agreement</h1>
           </div>
-          <div className="ml-auto flex gap-2">
-            {agreementUrl && (
-              <Button variant="outline" size="sm" asChild>
-                <a href={agreementUrl} target="_blank" rel="noreferrer" className="flex items-center">
-                  <Download className="h-4 w-4 mr-2" />
-                  Original File
-                </a>
-              </Button>
-            )}
-            <Button variant="default" size="sm" onClick={handleDownload} disabled={downloading || loading}>
-              <Download className="h-4 w-4 mr-2" />
-              {downloading ? 'Generating…' : 'Download Lease PDF'}
-            </Button>
-          </div>
+
+          <div className="hidden md:flex md:ml-auto gap-2">{downloadActions}</div>
         </div>
 
         {error && (

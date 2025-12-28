@@ -214,8 +214,8 @@ export function TenantHeader({ summary, loading }: TenantHeaderProps) {
   return (
     <Card className="border border-white/60 shadow-sm bg-white/70 backdrop-blur-md supports-[backdrop-filter]:bg-white/50 sticky top-0 z-10">
       <div className="px-6 py-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
+        <div className="flex flex-wrap items-center gap-4">
+          <div className="order-1">
             <div className="relative w-20 h-20 rounded-2xl border border-slate-200 overflow-hidden bg-slate-50">
               {profileImage ? (
                 <img src={profileImage} alt={fullName} className="w-full h-full object-cover" />
@@ -225,17 +225,9 @@ export function TenantHeader({ summary, loading }: TenantHeaderProps) {
                 </div>
               )}
             </div>
-            <div>
-              <h1 className="text-2xl font-bold text-foreground">
-                {loading ? 'Loading...' : `Welcome home, ${fullName}`}
-              </h1>
-              <p className="text-sm text-muted-foreground">
-                {loading ? 'Fetching your details…' : `${propertyName} • ${unitLabel}`}
-              </p>
-            </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="order-2 ml-auto md:order-3 md:ml-auto flex items-center gap-2">
             <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
               <SheetTrigger asChild>
                 <Button variant="ghost" size="icon" className="relative">
@@ -323,6 +315,15 @@ export function TenantHeader({ summary, loading }: TenantHeaderProps) {
             >
               <LogOut className="w-5 h-5" />
             </Button>
+          </div>
+
+          <div className="order-3 w-full md:order-2 md:w-auto">
+            <h1 className="text-2xl font-bold text-foreground">
+              {loading ? 'Loading...' : `Welcome home, ${fullName}`}
+            </h1>
+            <p className="text-sm text-muted-foreground">
+              {loading ? 'Fetching your details…' : `${propertyName} • ${unitLabel}`}
+            </p>
           </div>
         </div>
       </div>
