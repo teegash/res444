@@ -390,6 +390,23 @@ export async function POST(req: Request, ctx?: { params?: { renewalId?: string; 
       user_agent: req.headers.get("user-agent"),
     });
 
+    try {
+      await admin
+        .from("communications")
+        .update({ read: true })
+        .eq("organization_id", r.organization_id)
+        .eq("related_entity_type", "lease_renewal")
+        .eq("related_entity_id", renewalId);
+      await admin
+        .from("communications")
+        .update({ read: true })
+        .eq("organization_id", r.organization_id)
+        .eq("related_entity_type", "lease_expired")
+        .eq("related_entity_id", r.lease_id);
+    } catch (notifyErr) {
+      console.error("[LeaseRenewal] Failed to clear countersign notifications", notifyErr);
+    }
+
     return json({ ok: true, fullySignedPath });
   } catch (e: any) {
     const msg = e?.message || String(e);

@@ -60,8 +60,23 @@ export function TenantHeader({ summary, loading }: TenantHeaderProps) {
   const { user, signOut } = useAuth()
   const supabase = useMemo(() => createClient(), [])
   const [notifications, setNotifications] = useState<NotificationItem[]>([])
-  const [unreadCount, setUnreadCount] = useState(0)
   const [sheetOpen, setSheetOpen] = useState(false)
+  const leaseExpired = useMemo(() => {
+    const endDate = summary?.lease?.end_date
+    if (!endDate || loading) return false
+    const parsed = new Date(endDate)
+    if (Number.isNaN(parsed.getTime())) return false
+    const today = new Date()
+    const endDay = new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate())
+    const currentDay = new Date(today.getFullYear(), today.getMonth(), today.getDate())
+    return currentDay > endDay
+  }, [loading, summary?.lease?.end_date])
+  const leaseExpiryDateLabel = useMemo(() => {
+    if (!summary?.lease?.end_date) return null
+    const parsed = new Date(summary.lease.end_date)
+    if (Number.isNaN(parsed.getTime())) return null
+    return parsed.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
+  }, [summary?.lease?.end_date])
 
   const sortNotifications = useCallback((items: NotificationItem[]) => {
     return [...items].sort((a, b) => {
@@ -81,10 +96,10 @@ export function TenantHeader({ summary, loading }: TenantHeaderProps) {
       const unreadItems = items.filter((item) => !item.read)
       const sorted = sortNotifications(unreadItems)
       setNotifications(sorted)
-      setUnreadCount(sorted.length)
     },
     [sortNotifications]
   )
+  const unreadCount = notifications.filter((item) => !item.read).length
 
   const fetchNotifications = useCallback(async () => {
     try {
@@ -111,7 +126,6 @@ export function TenantHeader({ summary, loading }: TenantHeaderProps) {
         const withoutDuplicate = current.filter((item) => item.id !== record.id)
         return sortNotifications([record, ...withoutDuplicate])
       })
-      setUnreadCount((prev) => prev + 1)
     },
     [fetchNotifications, sortNotifications]
   )
@@ -160,7 +174,6 @@ export function TenantHeader({ summary, loading }: TenantHeaderProps) {
         body: JSON.stringify({ ids: unreadIds }),
       })
       setNotifications([])
-      setUnreadCount(0)
     } catch (error) {
       console.error('[TenantHeader] mark all as read failed', error)
     }
@@ -176,9 +189,6 @@ export function TenantHeader({ summary, loading }: TenantHeaderProps) {
         })
       }
       setNotifications((current) => current.filter((item) => item.id !== notification.id))
-      if (!notification.read) {
-        setUnreadCount((prev) => Math.max(0, prev - 1))
-      }
       setSheetOpen(false)
       const relatedType = (notification.related_entity_type || '').toLowerCase()
       if (relatedType === 'payment') {
@@ -228,6 +238,11 @@ export function TenantHeader({ summary, loading }: TenantHeaderProps) {
           </div>
 
           <div className="order-2 ml-auto md:order-3 md:ml-auto flex items-center gap-2">
+            {leaseExpired && (
+              <Badge className="bg-rose-600 text-white text-[10px] px-2 py-1">
+                Lease expired
+              </Badge>
+            )}
             <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
               <SheetTrigger asChild>
                 <Button variant="ghost" size="icon" className="relative">
@@ -263,7 +278,31 @@ export function TenantHeader({ summary, loading }: TenantHeaderProps) {
                   </div>
                 </SheetHeader>
                 <div className="space-y-3 px-6 py-4 max-h-[70vh] overflow-y-auto">
-                  {notifications.length === 0 ? (
+                  {leaseExpired && (
+                    <div className="rounded-lg border border-rose-200 bg-rose-50 p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-semibold text-rose-800">Lease expired</p>
+                          <p className="text-xs text-rose-700 mt-1">
+                            Your lease ended{leaseExpiryDateLabel ? ` on ${leaseExpiryDateLabel}` : ''}. Please renew to
+                            avoid interruptions.
+                          </p>
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="border-rose-200 text-rose-700 hover:bg-rose-100"
+                          onClick={() => {
+                            setSheetOpen(false)
+                            router.push('/dashboard/tenant/lease')
+                          }}
+                        >
+                          Review
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                  {notifications.length === 0 && !leaseExpired ? (
                     <p className="text-center text-muted-foreground py-6">No notifications yet.</p>
                   ) : (
                     notifications.map((notification) => {

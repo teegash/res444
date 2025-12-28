@@ -106,6 +106,8 @@ const leaseBadgeClass = (status: string) => {
       return 'bg-green-100 text-green-800 border-green-200'
     case 'renewed':
       return 'bg-sky-100 text-sky-700 border-sky-200'
+    case 'expired':
+      return 'bg-rose-100 text-rose-700 border-rose-200'
     case 'pending':
       return 'bg-amber-50 text-amber-700 border-amber-200'
     case 'unassigned':
@@ -113,6 +115,18 @@ const leaseBadgeClass = (status: string) => {
     default:
       return 'bg-slate-50 text-slate-700 border-slate-200'
   }
+}
+
+const isLeaseExpired = (tenant: TenantRecord) => {
+  const status = (tenant.lease_status || '').toLowerCase()
+  if (status === 'expired') return true
+  if (!tenant.lease_end_date) return false
+  const parsed = new Date(tenant.lease_end_date)
+  if (Number.isNaN(parsed.getTime())) return false
+  const today = new Date()
+  const endDay = new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate())
+  const currentDay = new Date(today.getFullYear(), today.getMonth(), today.getDate())
+  return currentDay > endDay
 }
 
 const paymentBadgeVariant = (status: string) => {
@@ -410,7 +424,11 @@ export function TenantsTable({ searchQuery = '', viewMode = 'list', propertyId }
               {viewTenants.map((tenant) => (
                 <div
                   key={`card-${tenant.tenant_user_id}`}
-                  className="rounded-xl border bg-white shadow-sm hover:shadow-md transition-shadow"
+                  className={`rounded-xl border shadow-sm transition-shadow ${
+                    isLeaseExpired(tenant)
+                      ? 'border-rose-200 bg-rose-50/70'
+                      : 'bg-white hover:shadow-md'
+                  }`}
                 >
                   <div className="p-4 border-b flex items-center gap-3">
                     <Avatar className="h-12 w-12 border">
@@ -519,8 +537,9 @@ export function TenantsTable({ searchQuery = '', viewMode = 'list', propertyId }
                 filteredTenants.map((tenant) => {
                   const rating = ratingsMap[tenant.tenant_user_id]
                   const meta = ratingMeta(rating?.on_time_rate)
+                  const expired = isLeaseExpired(tenant)
                   return (
-                  <TableRow key={tenant.lease_id}>
+                  <TableRow key={tenant.lease_id} className={expired ? 'bg-rose-50/70' : undefined}>
                     <TableCell>
                       <div className="flex items-center gap-3">
                         <Avatar className="h-10 w-10">

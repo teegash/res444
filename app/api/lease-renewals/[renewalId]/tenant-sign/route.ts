@@ -269,6 +269,42 @@ export async function POST(
       user_agent: req.headers.get("user-agent"),
     });
 
+    try {
+      const { data: tenantProfile } = await admin
+        .from("user_profiles")
+        .select("full_name")
+        .eq("id", r.tenant_user_id)
+        .maybeSingle();
+
+      const tenantName = tenantProfile?.full_name || "Tenant";
+      const { data: managers } = await admin
+        .from("user_profiles")
+        .select("id")
+        .eq("organization_id", r.organization_id)
+        .in("role", ["admin", "manager", "caretaker"]);
+
+      const managerIds =
+        managers
+          ?.map((profile: any) => profile.id)
+          .filter((id: string | null) => Boolean(id) && id !== actorUserId) || [];
+
+      if (managerIds.length > 0) {
+        const rows = managerIds.map((managerId: string) => ({
+          sender_user_id: actorUserId,
+          recipient_user_id: managerId,
+          related_entity_type: "lease_renewal",
+          related_entity_id: renewalId,
+          message_text: `Lease renewal signed by ${tenantName}. Countersign required.`,
+          message_type: "in_app",
+          read: false,
+          organization_id: r.organization_id,
+        }));
+        await admin.from("communications").insert(rows);
+      }
+    } catch (notifyErr) {
+      console.error("[LeaseRenewal] Failed to notify managers", notifyErr);
+    }
+
     return json({ ok: true, tenantSignedPath });
   } catch (e: any) {
     const msg = e?.message || String(e);

@@ -430,6 +430,86 @@ export async function GET() {
         ? payload.filter((tenant: any) => tenant?.unit?.building_id === propertyScope)
         : payload
 
+    try {
+      const expiredTenants = scopedPayload.filter(
+        (tenant: any) => tenant?.lease_status === 'expired' && tenant?.lease_id
+      )
+      const expiredLeaseIds = new Set<string>(
+        expiredTenants.map((tenant: any) => tenant.lease_id).filter(Boolean)
+      )
+
+      const { data: managers } = await adminSupabase
+        .from('user_profiles')
+        .select('id')
+        .eq('organization_id', membership.organization_id)
+        .in('role', ['admin', 'manager', 'caretaker'])
+
+      const managerIds =
+        managers?.map((profile: any) => profile.id).filter((id: string | null) => Boolean(id)) || []
+
+      if (managerIds.length > 0) {
+        const { data: existingNotifs } = await adminSupabase
+          .from('communications')
+          .select('id, recipient_user_id, related_entity_id, read')
+          .eq('organization_id', membership.organization_id)
+          .eq('related_entity_type', 'lease_expired')
+          .in('recipient_user_id', managerIds)
+
+        const existingMap = new Set<string>()
+        ;(existingNotifs || []).forEach((row: any) => {
+          if (row?.recipient_user_id && row?.related_entity_id) {
+            existingMap.add(`${row.recipient_user_id}:${row.related_entity_id}`)
+          }
+        })
+
+        const rowsToInsert = expiredTenants.flatMap((tenant: any) => {
+          const endDate = tenant.lease_end_date
+            ? new Date(tenant.lease_end_date).toLocaleDateString(undefined, {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric',
+              })
+            : 'Unknown'
+          const messageText = `Lease expired: ${tenant.full_name} • ${tenant.unit_label} (ended ${endDate}).`
+          return managerIds
+            .filter((managerId: string) => !existingMap.has(`${managerId}:${tenant.lease_id}`))
+            .map((managerId: string) => ({
+              sender_user_id: tenant.tenant_user_id,
+              recipient_user_id: managerId,
+              related_entity_type: 'lease_expired',
+              related_entity_id: tenant.lease_id,
+              message_text: messageText,
+              message_type: 'in_app',
+              read: false,
+              organization_id: membership.organization_id,
+            }))
+        })
+
+        if (rowsToInsert.length > 0) {
+          await adminSupabase.from('communications').insert(rowsToInsert)
+        }
+
+        const clearIds =
+          (existingNotifs || [])
+            .filter(
+              (row: any) =>
+                row?.related_entity_id &&
+                !expiredLeaseIds.has(row.related_entity_id) &&
+                row.read === false
+            )
+            .map((row: any) => row.id) || []
+
+        if (clearIds.length > 0) {
+          await adminSupabase
+            .from('communications')
+            .update({ read: true })
+            .in('id', clearIds)
+        }
+      }
+    } catch (notifyErr) {
+      console.error('[Tenants.GET] lease-expired notifications failed', notifyErr)
+    }
+
     return NextResponse.json({ success: true, data: scopedPayload })
   } catch (error) {
     console.error('[Tenants.GET] Failed to fetch tenants', error)

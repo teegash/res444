@@ -89,6 +89,16 @@ export default function TenantDashboardClient() {
     total: 0,
     oldest_due_date: null,
   })
+  const leaseExpired = useMemo(() => {
+    const endDate = summary?.lease?.end_date
+    if (!endDate) return false
+    const parsed = new Date(endDate)
+    if (Number.isNaN(parsed.getTime())) return false
+    const today = new Date()
+    const endDay = new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate())
+    const currentDay = new Date(today.getFullYear(), today.getMonth(), today.getDate())
+    return currentDay > endDay
+  }, [summary?.lease?.end_date])
 
   const fetchSummary = useCallback(async () => {
     try {
@@ -463,9 +473,19 @@ export default function TenantDashboardClient() {
   }, [onTimeRate])
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-50/60 via-white to-orange-50/30">
+    <div
+      className={`min-h-screen ${
+        leaseExpired
+          ? 'bg-gradient-to-b from-rose-50/80 via-white to-rose-50/40'
+          : 'bg-gradient-to-b from-slate-50/60 via-white to-orange-50/30'
+      }`}
+    >
       <div className="max-w-7xl mx-auto p-4 md:p-6 lg:p-8">
-        <div className="rounded-3xl bg-white/80 ring-1 ring-slate-200/60 shadow-sm backdrop-blur p-4 md:p-6 lg:p-8 space-y-6">
+        <div
+          className={`rounded-3xl bg-white/80 ring-1 shadow-sm backdrop-blur p-4 md:p-6 lg:p-8 space-y-6 ${
+            leaseExpired ? 'ring-rose-200/70' : 'ring-slate-200/60'
+          }`}
+        >
         {error && (
           <Alert variant="destructive">
             <AlertDescription>{error}</AlertDescription>

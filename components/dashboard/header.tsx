@@ -164,22 +164,38 @@ export function Header() {
 
   const handleNotificationClick = async (notification: NotificationItem) => {
     try {
-      if (!notification.read) {
+      const type = (notification.related_entity_type || '').toLowerCase()
+      if (type !== 'lease_expired' && !notification.read) {
         await fetch('/api/manager/notifications', {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ ids: [notification.id] }),
         })
         setNotifications((current) => current.filter((item) => item.id !== notification.id))
-      } else {
+      } else if (type !== 'lease_expired') {
         setNotifications((current) => current.filter((item) => item.id !== notification.id))
       }
       setNotificationsOpen(false)
-      const type = (notification.related_entity_type || '').toLowerCase()
       if (type === 'maintenance_request' && notification.related_entity_id) {
         router.push(`/dashboard/maintenance?requestId=${notification.related_entity_id}`)
       } else if (type === 'payment') {
         router.push('/dashboard/payments?tab=deposits')
+      } else if (type === 'lease_expired') {
+        const tenantId = notification.sender_user_id
+        if (tenantId) {
+          router.push(`/dashboard/tenants/${tenantId}/lease`)
+        } else {
+          router.push('/dashboard/tenants')
+        }
+      } else if (type === 'lease_renewal') {
+        const tenantId = notification.sender_user_id
+        const renewalId = notification.related_entity_id
+        if (tenantId) {
+          const qs = renewalId ? `?renewalId=${renewalId}` : ''
+          router.push(`/dashboard/tenants/${tenantId}/lease${qs}`)
+        } else {
+          router.push('/dashboard/tenants')
+        }
       } else {
         router.push(
           `/dashboard/tenants/${notification.sender_user_id}/messages?tenantId=${notification.sender_user_id}`
@@ -191,7 +207,9 @@ export function Header() {
   }
 
   const handleMarkAllAsRead = async () => {
-    const unreadIds = notifications.filter((n) => !n.read).map((n) => n.id)
+    const unreadIds = notifications
+      .filter((n) => (n.related_entity_type || '').toLowerCase() !== 'lease_expired')
+      .map((n) => n.id)
     if (unreadIds.length === 0) return
     try {
       await fetch('/api/manager/notifications', {
@@ -199,7 +217,9 @@ export function Header() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ids: unreadIds }),
       })
-      setNotifications([])
+      setNotifications((current) =>
+        current.filter((item) => (item.related_entity_type || '').toLowerCase() === 'lease_expired')
+      )
     } catch (error) {
       console.error('[Header] mark all notifications failed', error)
     }
@@ -278,13 +298,19 @@ export function Header() {
                     const type = (notification.related_entity_type || '').toLowerCase()
                     const isPayment = type === 'payment'
                     const isMaintenance = type === 'maintenance_request'
+                    const isLeaseRenewal = type === 'lease_renewal'
+                    const isLeaseExpired = type === 'lease_expired'
                     const rowClasses = isPayment
                       ? 'bg-red-500/10 border-red-200'
                       : isMaintenance
                         ? 'bg-orange-500/10 border-orange-200'
-                        : notification.read
-                          ? 'bg-background border-border'
-                          : 'bg-primary/5 border-primary/20'
+                        : isLeaseRenewal
+                          ? 'bg-violet-500/10 border-violet-200'
+                          : isLeaseExpired
+                            ? 'bg-rose-500/10 border-rose-200'
+                          : notification.read
+                            ? 'bg-background border-border'
+                            : 'bg-primary/5 border-primary/20'
 
                     return (
                     <button
@@ -304,16 +330,32 @@ export function Header() {
                               <Badge className="bg-orange-500/80 text-white rounded-full px-2 py-0.5">
                                 Maintenance request
                               </Badge>
+                            ) : isLeaseRenewal ? (
+                              <Badge className="bg-violet-500/80 text-white rounded-full px-2 py-0.5">
+                                Lease renewal
+                              </Badge>
+                            ) : isLeaseExpired ? (
+                              <Badge className="bg-rose-500/80 text-white rounded-full px-2 py-0.5">
+                                Lease expired
+                              </Badge>
                             ) : null}
                             <span>
                               {isPayment
                                 ? 'Payment notice'
                                 : isMaintenance
                                   ? 'Maintenance update'
-                                  : 'New tenant message'}
+                                  : isLeaseRenewal
+                                    ? 'Countersign required'
+                                    : isLeaseExpired
+                                      ? 'Lease expired'
+                                    : 'New tenant message'}
                             </span>
                           </p>
-                          <p className="text-xs text-muted-foreground mt-2 leading-relaxed">
+                          <p
+                            className={`text-xs mt-2 leading-relaxed ${
+                              isLeaseExpired ? 'text-rose-700' : 'text-muted-foreground'
+                            }`}
+                          >
                             {notification.message_text}
                           </p>
                         </div>

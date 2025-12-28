@@ -54,6 +54,16 @@ export function TenantInfoCards({ summary, loading }: TenantInfoCardsProps) {
   const unitLabel = summary?.lease?.unit_label
   const prepaidMonths = summary?.lease?.prepaid_months || 0
   const prepaidThrough = summary?.lease?.paid_up_to_date || summary?.lease?.rent_paid_until || null
+  const leaseExpired = (() => {
+    const endDate = summary?.lease?.end_date
+    if (!endDate) return false
+    const parsed = new Date(endDate)
+    if (Number.isNaN(parsed.getTime())) return false
+    const today = new Date()
+    const endDay = new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate())
+    const currentDay = new Date(today.getFullYear(), today.getMonth(), today.getDate())
+    return currentDay > endDay
+  })()
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -118,7 +128,11 @@ export function TenantInfoCards({ summary, loading }: TenantInfoCardsProps) {
         </CardContent>
       </Card>
 
-      <Card className="bg-white border shadow-sm hover:shadow-md transition-shadow">
+      <Card
+        className={`border shadow-sm transition-shadow ${
+          leaseExpired ? 'bg-rose-50/70 border-rose-200/70' : 'bg-white hover:shadow-md'
+        }`}
+      >
         <CardContent className="p-6 space-y-4">
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 bg-orange-500/10 rounded-xl flex items-center justify-center shrink-0">
@@ -131,6 +145,11 @@ export function TenantInfoCards({ summary, loading }: TenantInfoCardsProps) {
               </p>
             </div>
           </div>
+          {!loading && leaseExpired && (
+            <div className="rounded-lg border border-rose-200 bg-rose-100/70 px-3 py-2 text-xs font-semibold text-rose-700">
+              Lease expired. Please renew to avoid interruptions.
+            </div>
+          )}
           {!loading && (
             <Link href="/dashboard/tenant/lease" className="block">
               <Button variant="outline" className="w-full">
