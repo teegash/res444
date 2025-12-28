@@ -29,7 +29,7 @@ export async function GET() {
 
     const orgId = membership.organization_id
     const role = String(membership.role || user.user_metadata?.role || '').toLowerCase()
-    if (!role || !MANAGER_ROLES.has(role)) {
+    if (role && !MANAGER_ROLES.has(role)) {
       return NextResponse.json({ success: false, error: 'Access denied.' }, { status: 403 })
     }
 
