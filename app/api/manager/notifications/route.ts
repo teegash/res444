@@ -4,90 +4,6 @@ import { createAdminClient } from '@/lib/supabase/admin'
 
 const MANAGER_ROLES = new Set(['admin', 'manager', 'caretaker'])
 
-function parseDateOnly(value?: string | null) {
-  if (!value) return null
-  const raw = value.trim()
-  const base = raw.includes('T') ? raw.split('T')[0] : raw.split(' ')[0]
-  const [y, m, d] = base.split('-').map((part) => Number(part))
-  if (y && m && d) {
-    return new Date(Date.UTC(y, m - 1, d))
-  }
-  const parsed = new Date(raw)
-  if (Number.isNaN(parsed.getTime())) return null
-  return new Date(Date.UTC(parsed.getUTCFullYear(), parsed.getUTCMonth(), parsed.getUTCDate()))
-}
-
-function addDaysUtc(date: Date, days: number) {
-  const next = new Date(date.getTime())
-  next.setUTCDate(next.getUTCDate() + days)
-  return next
-}
-
-function summarizeLeaseState(
-  lease: any,
-  renewalStartDate: Date | null,
-  hasCompletedRenewal: boolean
-) {
-  if (!lease) {
-    return {
-      status: 'unassigned',
-      detail: 'Lease has not been assigned.',
-    }
-  }
-
-  const today = new Date()
-  const start = lease.start_date ? new Date(lease.start_date) : null
-  const end = lease.end_date ? new Date(lease.end_date) : null
-
-  if (hasCompletedRenewal && renewalStartDate && renewalStartDate > today) {
-    return {
-      status: 'renewed',
-      detail: `Renewed lease starts on ${renewalStartDate.toLocaleDateString()}.`,
-    }
-  }
-
-  if (start && start <= today) {
-    if (!end) {
-      return {
-        status: 'invalid',
-        detail: 'Lease end date is missing and must be configured.',
-      }
-    }
-    if (end >= today) {
-      return {
-        status: 'valid',
-        detail: 'Lease is currently active.',
-      }
-    }
-  }
-
-  if (end && end < today) {
-    return {
-      status: 'expired',
-      detail: `Lease ended on ${end.toLocaleDateString()}.`,
-    }
-  }
-
-  if (start && start > today) {
-    const leaseStatus = (lease.status || '').toLowerCase()
-    if (leaseStatus === 'renewed' || hasCompletedRenewal) {
-      return {
-        status: 'renewed',
-        detail: `Renewed lease starts on ${start.toLocaleDateString()}.`,
-      }
-    }
-    return {
-      status: 'pending',
-      detail: `Lease becomes active on ${start.toLocaleDateString()}.`,
-    }
-  }
-
-  return {
-    status: lease.status || 'pending',
-    detail: 'Lease status pending verification.',
-  }
-}
-
 export async function GET() {
   try {
     const supabase = await createClient()
@@ -140,7 +56,6 @@ export async function GET() {
             id,
             tenant_user_id,
             status,
-            start_date,
             end_date,
             unit:apartment_units (
               unit_number,
@@ -152,7 +67,7 @@ export async function GET() {
           )
           .eq('organization_id', orgId)
           .in('tenant_user_id', tenantIds)
-          .order('start_date', { ascending: false })
+          .order('end_date', { ascending: false })
 
         leases = leaseRows || []
       }
@@ -165,48 +80,21 @@ export async function GET() {
         }
       }
 
-      const leaseIds = Array.from(
-        new Set(Array.from(leaseMap.values()).map((lease: any) => lease?.id).filter(Boolean) as string[])
-      )
-
-      const completedRenewalLeaseIds = new Set<string>()
-      const completedRenewalStartMap = new Map<string, string | null>()
-      if (leaseIds.length > 0) {
-        const { data: completedRenewals } = await adminSupabase
-          .from('lease_renewals')
-          .select('lease_id, proposed_start_date, created_at')
-          .eq('organization_id', orgId)
-          .in('lease_id', leaseIds)
-          .eq('status', 'completed')
-          .order('created_at', { ascending: false })
-
-        for (const renewal of completedRenewals || []) {
-          if (!renewal?.lease_id) continue
-          completedRenewalLeaseIds.add(renewal.lease_id)
-          if (!completedRenewalStartMap.has(renewal.lease_id)) {
-            completedRenewalStartMap.set(renewal.lease_id, renewal.proposed_start_date || null)
-          }
-        }
+      const isExpiredLease = (lease: any) => {
+        const status = String(lease?.status || '').toLowerCase()
+        if (status === 'expired') return true
+        if (!lease?.end_date) return false
+        const parsed = new Date(lease.end_date)
+        if (Number.isNaN(parsed.getTime())) return false
+        const today = new Date()
+        const endDay = new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate())
+        const currentDay = new Date(today.getFullYear(), today.getMonth(), today.getDate())
+        return currentDay > endDay
       }
 
       const expiredLeases = Array.from(leaseMap.entries())
-        .map(([tenantId, lease]) => {
-          const hasCompletedRenewal = lease?.id ? completedRenewalLeaseIds.has(lease.id) : false
-          const renewalStartRaw =
-            hasCompletedRenewal && lease?.id ? completedRenewalStartMap.get(lease.id) ?? null : null
-          const renewalStartParsed = renewalStartRaw ? parseDateOnly(renewalStartRaw) : null
-          const leaseEndParsed = hasCompletedRenewal && lease?.end_date ? parseDateOnly(lease.end_date) : null
-          const renewalStartFallback =
-            hasCompletedRenewal && !renewalStartParsed && leaseEndParsed ? addDaysUtc(leaseEndParsed, 1) : null
-          const renewalStartDate = renewalStartParsed || renewalStartFallback
-          const leaseSummary = summarizeLeaseState(lease, renewalStartDate, hasCompletedRenewal)
-          if (leaseSummary.status !== 'expired') return null
-          return {
-            lease,
-            tenantId,
-          }
-        })
-        .filter(Boolean) as Array<{ lease: any; tenantId: string }>
+        .map(([tenantId, lease]) => ({ tenantId, lease }))
+        .filter((entry) => isExpiredLease(entry.lease))
 
       const expiredLeaseIds = new Set<string>(
         expiredLeases.map((entry) => entry.lease?.id).filter(Boolean)
