@@ -212,14 +212,7 @@ export async function GET() {
         expiredLeases.map((entry) => entry.lease?.id).filter(Boolean)
       )
 
-      const { data: managers } = await adminSupabase
-        .from('organization_members')
-        .select('user_id')
-        .eq('organization_id', orgId)
-        .in('role', ['admin', 'manager', 'caretaker'])
-
-      const managerIds =
-        managers?.map((profile: any) => profile.user_id).filter((id: string | null) => Boolean(id)) || []
+      const managerIds = [user.id]
 
       if (managerIds.length > 0) {
         const { data: existingNotifs } = await adminSupabase
@@ -227,7 +220,7 @@ export async function GET() {
           .select('id, recipient_user_id, related_entity_id, read')
           .eq('organization_id', orgId)
           .eq('related_entity_type', 'lease_expired')
-          .in('recipient_user_id', managerIds)
+          .eq('recipient_user_id', user.id)
 
         const existingMap = new Set<string>()
         ;(existingNotifs || []).forEach((row: any) => {
