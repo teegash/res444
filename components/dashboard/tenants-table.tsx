@@ -107,7 +107,7 @@ const leaseBadgeClass = (status: string) => {
     case 'renewed':
       return 'bg-sky-100 text-sky-700 border-sky-200'
     case 'expired':
-      return 'bg-rose-100 text-rose-700 border-rose-200'
+      return 'bg-rose-200 text-rose-900 border-rose-300'
     case 'pending':
       return 'bg-amber-50 text-amber-700 border-amber-200'
     case 'unassigned':
@@ -426,7 +426,7 @@ export function TenantsTable({ searchQuery = '', viewMode = 'list', propertyId }
                   key={`card-${tenant.tenant_user_id}`}
                   className={`rounded-xl border shadow-sm transition-shadow ${
                     isLeaseExpired(tenant)
-                      ? 'border-rose-200 bg-rose-50/70'
+                      ? 'border-rose-300 bg-rose-100/80'
                       : 'bg-white hover:shadow-md'
                   }`}
                 >
@@ -539,7 +539,7 @@ export function TenantsTable({ searchQuery = '', viewMode = 'list', propertyId }
                   const meta = ratingMeta(rating?.on_time_rate)
                   const expired = isLeaseExpired(tenant)
                   return (
-                  <TableRow key={tenant.lease_id} className={expired ? 'bg-rose-50/70' : undefined}>
+                  <TableRow key={tenant.lease_id} className={expired ? 'bg-rose-100/80' : undefined}>
                     <TableCell>
                       <div className="flex items-center gap-3">
                         <Avatar className="h-10 w-10">

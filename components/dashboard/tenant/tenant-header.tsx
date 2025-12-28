@@ -165,7 +165,9 @@ export function TenantHeader({ summary, loading }: TenantHeaderProps) {
   }, [handleNewNotification, supabase, user?.id])
 
   const markAllAsRead = async () => {
-    const unreadIds = notifications.filter((n) => !n.read).map((n) => n.id)
+    const unreadIds = notifications
+      .filter((n) => (n.related_entity_type || '').toLowerCase() !== 'lease_expired')
+      .map((n) => n.id)
     if (unreadIds.length === 0) return
     try {
       await fetch('/api/tenant/notifications', {
@@ -181,6 +183,12 @@ export function TenantHeader({ summary, loading }: TenantHeaderProps) {
 
   const handleNotificationClick = async (notification: NotificationItem) => {
     try {
+      const relatedType = (notification.related_entity_type || '').toLowerCase()
+      if (relatedType === 'lease_expired') {
+        setSheetOpen(false)
+        router.push('/dashboard/tenant/lease')
+        return
+      }
       if (!notification.read) {
         await fetch('/api/tenant/notifications', {
           method: 'PATCH',
@@ -190,7 +198,6 @@ export function TenantHeader({ summary, loading }: TenantHeaderProps) {
       }
       setNotifications((current) => current.filter((item) => item.id !== notification.id))
       setSheetOpen(false)
-      const relatedType = (notification.related_entity_type || '').toLowerCase()
       if (relatedType === 'payment') {
         // Payment-related notifications should take the tenant to payment history (incl. deposit slip outcomes).
         // We intentionally do not force an invoice detail route because many notifications are payment-centric.
@@ -308,8 +315,12 @@ export function TenantHeader({ summary, loading }: TenantHeaderProps) {
                     notifications.map((notification) => {
                       const isPayment =
                         (notification.related_entity_type || '').toLowerCase() === 'payment'
+                      const isLeaseExpired =
+                        (notification.related_entity_type || '').toLowerCase() === 'lease_expired'
                       const rowClasses = isPayment
                         ? 'bg-red-50 border-red-200'
+                        : isLeaseExpired
+                          ? 'bg-rose-50 border-rose-200'
                         : notification.read
                           ? 'bg-white border-gray-200'
                           : 'bg-blue-50 border-blue-200'
@@ -327,11 +338,22 @@ export function TenantHeader({ summary, loading }: TenantHeaderProps) {
                                   Payment
                                 </Badge>
                               )}
-                              <span>{isPayment ? 'Payment notice' : 'New message'}</span>
+                              {isLeaseExpired && (
+                                <Badge className="bg-rose-600 text-white rounded-full px-2 py-0.5 text-[10px]">
+                                  Lease expired
+                                </Badge>
+                              )}
+                              <span>
+                                {isPayment ? 'Payment notice' : isLeaseExpired ? 'Lease expired' : 'New message'}
+                              </span>
                             </h4>
                             {!notification.read && <Badge className="bg-[#4682B4]">New</Badge>}
                           </div>
-                          <p className={`text-sm mb-2 ${isPayment ? 'text-red-700' : 'text-gray-600'}`}>
+                          <p
+                            className={`text-sm mb-2 ${
+                              isPayment ? 'text-red-700' : isLeaseExpired ? 'text-rose-700' : 'text-gray-600'
+                            }`}
+                          >
                             {notification.message_text}
                           </p>
                           <p className="text-xs text-gray-500">

@@ -119,7 +119,7 @@ export async function GET() {
       `
       )
       .eq('tenant_user_id', user.id)
-      .in('status', ['active', 'pending', 'renewed'])
+      .in('status', ['active', 'pending', 'renewed', 'expired'])
       .order('start_date', { ascending: false })
       .limit(1)
       .maybeSingle()

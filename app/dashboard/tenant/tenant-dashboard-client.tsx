@@ -476,7 +476,7 @@ export default function TenantDashboardClient() {
     <div
       className={`min-h-screen ${
         leaseExpired
-          ? 'bg-gradient-to-b from-rose-50/80 via-white to-rose-50/40'
+          ? 'bg-gradient-to-b from-rose-200/90 via-rose-50/70 to-rose-200/60'
           : 'bg-gradient-to-b from-slate-50/60 via-white to-orange-50/30'
       }`}
     >
