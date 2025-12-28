@@ -57,6 +57,7 @@
     "embla-carousel-react": "latest",
     "exceljs": "^4.4.0",
     "file-saver": "^2.0.5",
+    "framer-motion": "^11.11.17",
     "input-otp": "latest",
     "jspdf": "^3.0.3",
     "jspdf-autotable": "^5.0.2",

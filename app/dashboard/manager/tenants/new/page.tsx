@@ -8,10 +8,28 @@ import { Label } from '@/components/ui/label'
 import { Card } from '@/components/ui/card'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { UserPlus, ArrowLeft, Calendar } from 'lucide-react'
+import { ChronoSelect } from '@/components/ui/chrono-select'
+import { UserPlus, ArrowLeft } from 'lucide-react'
 
 export default function AddTenantPage() {
   const router = useRouter()
+  const [moveInDate, setMoveInDate] = useState('')
+  const [leaseEndDate, setLeaseEndDate] = useState('')
+
+  const toDateString = (date?: Date) => {
+    if (!date) return ''
+    const year = date.getFullYear()
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const day = String(date.getDate()).padStart(2, '0')
+    return `${year}-${month}-${day}`
+  }
+
+  const fromDateString = (value: string) => {
+    if (!value) return undefined
+    const [year, month, day] = value.split('-').map(Number)
+    if (!year || !month || !day) return undefined
+    return new Date(year, month - 1, day)
+  }
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -154,17 +172,23 @@ export default function AddTenantPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="moveIn">Move-in Date</Label>
-                  <div className="relative">
-                    <Input id="moveIn" type="date" required />
-                    <Calendar className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-                  </div>
+                  <ChronoSelect
+                    value={fromDateString(moveInDate)}
+                    onChange={(date) => setMoveInDate(toDateString(date))}
+                    placeholder="Select move-in date"
+                    className="w-full justify-start"
+                  />
+                  <input type="hidden" id="moveIn" name="moveIn" value={moveInDate} />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="leaseEnd">Lease End Date</Label>
-                  <div className="relative">
-                    <Input id="leaseEnd" type="date" required />
-                    <Calendar className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-                  </div>
+                  <ChronoSelect
+                    value={fromDateString(leaseEndDate)}
+                    onChange={(date) => setLeaseEndDate(toDateString(date))}
+                    placeholder="Select lease end date"
+                    className="w-full justify-start"
+                  />
+                  <input type="hidden" id="leaseEnd" name="leaseEnd" value={leaseEndDate} />
                 </div>
               </div>
 

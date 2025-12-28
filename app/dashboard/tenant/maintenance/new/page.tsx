@@ -11,6 +11,7 @@ import { Label } from '@/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useToast } from '@/components/ui/use-toast'
+import { TimePicker } from '@/components/ui/time-picker'
 
 const CATEGORY_OPTIONS = [
   'Plumbing',
@@ -323,13 +324,12 @@ export default function NewMaintenanceRequestPage() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="contact-time">Best Time to Contact/Visit</Label>
-                <Textarea
-                  id="contact-time"
+                <Label>Best Time to Contact/Visit</Label>
+                <TimePicker
                   value={contactTime}
-                  onChange={(event) => setContactTime(event.target.value)}
-                  placeholder="Let us know when you're typically available for us to contact you or schedule a visit."
-                  rows={2}
+                  onChange={setContactTime}
+                  className="items-start"
+                  showCurrentTimeButton={true}
                 />
               </div>
 
