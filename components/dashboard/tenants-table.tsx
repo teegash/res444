@@ -67,6 +67,9 @@ interface TenantsTableProps {
   searchQuery?: string
   viewMode?: 'grid' | 'list'
   propertyId?: string | null
+  highlightFilter?: 'all' | 'rating_red'
+  leaseStatusFilter?: 'all' | 'valid' | 'active' | 'renewed' | 'pending' | 'expired' | 'unassigned'
+  paymentFilter?: 'all' | 'unpaid'
 }
 
 const getInitials = (value: string) => {
@@ -107,7 +110,7 @@ const leaseBadgeClass = (status: string) => {
     case 'renewed':
       return 'bg-sky-100 text-sky-700 border-sky-200'
     case 'expired':
-      return 'bg-rose-200 text-rose-900 border-rose-300'
+      return 'bg-rose-300 text-rose-950 border-rose-400'
     case 'pending':
       return 'bg-amber-50 text-amber-700 border-amber-200'
     case 'unassigned':
@@ -199,7 +202,14 @@ function TenantActions({
   )
 }
 
-export function TenantsTable({ searchQuery = '', viewMode = 'list', propertyId }: TenantsTableProps) {
+export function TenantsTable({
+  searchQuery = '',
+  viewMode = 'list',
+  propertyId,
+  highlightFilter = 'all',
+  leaseStatusFilter = 'all',
+  paymentFilter = 'all',
+}: TenantsTableProps) {
   const { toast } = useToast()
   const [tenants, setTenants] = useState<TenantRecord[]>([])
   const [ratingsMap, setRatingsMap] = useState<Record<string, { on_time_rate: number; payments: number }>>({})
@@ -296,19 +306,39 @@ export function TenantsTable({ searchQuery = '', viewMode = 'list', propertyId }
 
   const filteredTenants = useMemo(() => {
     const query = searchQuery.trim().toLowerCase()
-    if (!query) return tenants
-    return tenants.filter((tenant) => {
-      return [
-        tenant.full_name,
-        tenant.email,
-        tenant.phone_number,
-        tenant.unit_label,
-        tenant.national_id,
-      ]
-        .filter(Boolean)
-        .some((value) => value!.toLowerCase().startsWith(query))
-    })
-  }, [searchQuery, tenants])
+    let list = tenants
+    if (query) {
+      list = list.filter((tenant) => {
+        return [
+          tenant.full_name,
+          tenant.email,
+          tenant.phone_number,
+          tenant.unit_label,
+          tenant.national_id,
+        ]
+          .filter(Boolean)
+          .some((value) => value!.toLowerCase().startsWith(query))
+      })
+    }
+
+    if (highlightFilter === 'rating_red') {
+      list = list.filter((tenant) => {
+        const rating = ratingsMap[tenant.tenant_user_id]
+        if (!rating) return false
+        return rating.on_time_rate < 80
+      })
+    }
+
+    if (leaseStatusFilter !== 'all') {
+      list = list.filter((tenant) => (tenant.lease_status || '').toLowerCase() === leaseStatusFilter)
+    }
+
+    if (paymentFilter === 'unpaid') {
+      list = list.filter((tenant) => (tenant.payment_status || '').toLowerCase() !== 'paid')
+    }
+
+    return list
+  }, [highlightFilter, leaseStatusFilter, paymentFilter, ratingsMap, searchQuery, tenants])
 
   const viewTenants = useMemo(() => {
     if (loading) {
@@ -426,7 +456,7 @@ export function TenantsTable({ searchQuery = '', viewMode = 'list', propertyId }
                   key={`card-${tenant.tenant_user_id}`}
                   className={`rounded-xl border shadow-sm transition-shadow ${
                     isLeaseExpired(tenant)
-                      ? 'border-rose-300 bg-rose-100/80'
+                      ? 'border-rose-400 bg-rose-200/90'
                       : 'bg-white hover:shadow-md'
                   }`}
                 >
@@ -539,7 +569,7 @@ export function TenantsTable({ searchQuery = '', viewMode = 'list', propertyId }
                   const meta = ratingMeta(rating?.on_time_rate)
                   const expired = isLeaseExpired(tenant)
                   return (
-                  <TableRow key={tenant.lease_id} className={expired ? 'bg-rose-100/80' : undefined}>
+                  <TableRow key={tenant.lease_id} className={expired ? 'bg-rose-200/90' : undefined}>
                     <TableCell>
                       <div className="flex items-center gap-3">
                         <Avatar className="h-10 w-10">

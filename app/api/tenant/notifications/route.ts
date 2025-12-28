@@ -18,15 +18,14 @@ export async function GET() {
     try {
       const { data: lease } = await adminSupabase
         .from('leases')
-        .select('id, organization_id, end_date')
+        .select('id, organization_id, end_date, status')
         .eq('tenant_user_id', user.id)
-        .not('end_date', 'is', null)
         .order('end_date', { ascending: false })
         .limit(1)
         .maybeSingle()
 
       const leaseEnd = lease?.end_date ? new Date(lease.end_date) : null
-      const leaseExpired =
+      const leaseExpiredByDate =
         leaseEnd && !Number.isNaN(leaseEnd.getTime())
           ? new Date(
               leaseEnd.getFullYear(),
@@ -34,6 +33,7 @@ export async function GET() {
               leaseEnd.getDate()
             ) < new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate())
           : false
+      const leaseExpired = leaseExpiredByDate || String(lease?.status || '').toLowerCase() === 'expired'
 
       if (leaseExpired && lease?.id) {
         const { data: existing } = await adminSupabase

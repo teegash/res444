@@ -35,7 +35,7 @@ export async function GET() {
     const orgId = membership.organization_id
 
     try {
-      const todayIso = new Date().toISOString().slice(0, 10)
+      const nowIso = new Date().toISOString()
       const { data: expiredLeases } = await adminSupabase
         .from('leases')
         .select(
@@ -52,8 +52,7 @@ export async function GET() {
         `
         )
         .eq('organization_id', orgId)
-        .not('end_date', 'is', null)
-        .lt('end_date', todayIso)
+        .or(`end_date.lt.${nowIso},status.eq.expired`)
 
       const expiredLeaseIds = new Set<string>(
         (expiredLeases || []).map((lease: any) => lease?.id).filter(Boolean)
@@ -76,13 +75,13 @@ export async function GET() {
       })
 
       const { data: managers } = await adminSupabase
-        .from('user_profiles')
-        .select('id')
+        .from('organization_members')
+        .select('user_id')
         .eq('organization_id', orgId)
         .in('role', ['admin', 'manager', 'caretaker'])
 
       const managerIds =
-        managers?.map((profile: any) => profile.id).filter((id: string | null) => Boolean(id)) || []
+        managers?.map((profile: any) => profile.user_id).filter((id: string | null) => Boolean(id)) || []
 
       if (managerIds.length > 0) {
         const { data: existingNotifs } = await adminSupabase

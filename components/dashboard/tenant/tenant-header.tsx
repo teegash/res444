@@ -298,7 +298,7 @@ export function TenantHeader({ summary, loading }: TenantHeaderProps) {
                         <Button
                           variant="outline"
                           size="sm"
-                          className="border-rose-200 text-rose-700 hover:bg-rose-100"
+                          className="border-rose-200 text-rose-700 hover:bg-rose-100 hover:text-black"
                           onClick={() => {
                             setSheetOpen(false)
                             router.push('/dashboard/tenant/lease')
