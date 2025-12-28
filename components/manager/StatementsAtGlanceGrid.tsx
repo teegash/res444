@@ -188,6 +188,7 @@ export function StatementsAtGlanceGrid() {
         valueFormatter: (p) => kes(p.value),
         sortable: true,
         filter: "agNumberColumnFilter",
+        cellClass: (p) => (Number(p.value || 0) > 0 ? "text-rose-700 font-semibold" : ""),
       },
       {
         headerName: "Open Invoices",

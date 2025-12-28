@@ -16,15 +16,10 @@ export async function GET() {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
     }
 
-    const userRole = (user.user_metadata?.role as string | undefined)?.toLowerCase()
-    if (!userRole || !MANAGER_ROLES.has(userRole)) {
-      return NextResponse.json({ success: false, error: 'Access denied.' }, { status: 403 })
-    }
-
     const adminSupabase = createAdminClient()
     const { data: membership, error: membershipError } = await adminSupabase
       .from('organization_members')
-      .select('organization_id')
+      .select('organization_id, role')
       .eq('user_id', user.id)
       .maybeSingle()
 
@@ -33,16 +28,20 @@ export async function GET() {
     }
 
     const orgId = membership.organization_id
+    const role = String(membership.role || user.user_metadata?.role || '').toLowerCase()
+    if (!role || !MANAGER_ROLES.has(role)) {
+      return NextResponse.json({ success: false, error: 'Access denied.' }, { status: 403 })
+    }
 
     try {
-      const todayIso = new Date().toISOString().slice(0, 10)
-      const { data: expiredLeases } = await adminSupabase
+      const { data: leaseRows } = await adminSupabase
         .from('leases')
         .select(
           `
           id,
           tenant_user_id,
           end_date,
+          status,
           unit:apartment_units (
             unit_number,
             building:apartment_buildings (
@@ -52,14 +51,25 @@ export async function GET() {
         `
         )
         .eq('organization_id', orgId)
-        .or(`end_date.lt.${todayIso},status.eq.expired`)
+        .order('end_date', { ascending: false })
 
-      const expiredLeaseIds = new Set<string>(
-        (expiredLeases || []).map((lease: any) => lease?.id).filter(Boolean)
-      )
+      const isExpired = (lease: any) => {
+        const status = String(lease?.status || '').toLowerCase()
+        if (status === 'expired') return true
+        if (!lease?.end_date) return false
+        const parsed = new Date(lease.end_date)
+        if (Number.isNaN(parsed.getTime())) return false
+        const today = new Date()
+        const endDay = new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate())
+        const currentDay = new Date(today.getFullYear(), today.getMonth(), today.getDate())
+        return currentDay > endDay
+      }
+
+      const expiredLeases = (leaseRows || []).filter(isExpired)
+      const expiredLeaseIds = new Set<string>(expiredLeases.map((lease: any) => lease?.id).filter(Boolean))
 
       const tenantIds = Array.from(
-        new Set((expiredLeases || []).map((lease: any) => lease?.tenant_user_id).filter(Boolean))
+        new Set(expiredLeases.map((lease: any) => lease?.tenant_user_id).filter(Boolean))
       )
 
       const { data: tenantProfiles } = tenantIds.length
@@ -175,15 +185,39 @@ export async function GET() {
       .eq('recipient_user_id', user.id)
       .eq('organization_id', orgId)
       .order('created_at', { ascending: false })
-      .limit(30)
+      .limit(50)
 
     if (error) {
       throw error
     }
 
-    const unreadCount = (data || []).filter((item) => item.read === false).length
+    let rows = data || []
+    try {
+      const { data: leaseExpiredRows } = await adminSupabase
+        .from('communications')
+        .select('id, sender_user_id, recipient_user_id, message_text, read, created_at, related_entity_type, related_entity_id, message_type')
+        .eq('recipient_user_id', user.id)
+        .eq('organization_id', orgId)
+        .eq('related_entity_type', 'lease_expired')
+        .eq('read', false)
 
-    return NextResponse.json({ success: true, data: data || [], unreadCount })
+      if (leaseExpiredRows?.length) {
+        const byId = new Map<string, any>()
+        rows.forEach((row) => byId.set(row.id, row))
+        leaseExpiredRows.forEach((row: any) => byId.set(row.id, row))
+        rows = Array.from(byId.values()).sort((a, b) => {
+          const aTime = a?.created_at ? new Date(a.created_at).getTime() : 0
+          const bTime = b?.created_at ? new Date(b.created_at).getTime() : 0
+          return bTime - aTime
+        })
+      }
+    } catch (mergeError) {
+      console.error('[ManagerNotifications.GET] Lease-expired merge failed', mergeError)
+    }
+
+    const unreadCount = rows.filter((item) => item.read === false).length
+
+    return NextResponse.json({ success: true, data: rows, unreadCount })
   } catch (error) {
     console.error('[ManagerNotifications.GET] Failed to fetch notifications', error)
     return NextResponse.json(
