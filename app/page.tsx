@@ -10,7 +10,7 @@ export default function Home() {
       <Header />
       <BackgroundPaths
         title="Premium Rental Management"
-        subtitle="Royal blue clarity for maintenance, payments, and tenant care."
+        subtitle="A clear view of maintenance, payments, and tenant care in one place"
       />
       <FeaturesSection />
       <BenefitsSection />

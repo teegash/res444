@@ -48,7 +48,7 @@ function FloatingPaths({ position }: { position: number }) {
 
 export function BackgroundPaths({
   title = "Premium Rental Management",
-  subtitle = "Royal blue clarity for maintenance, payments, and tenant care.",
+  subtitle = "A clear view of maintenance, payments, and tenant care in one place",
 }: {
   title?: string;
   subtitle?: string;
@@ -69,7 +69,7 @@ export function BackgroundPaths({
           transition={{ duration: 1.6 }}
           className="max-w-4xl"
         >
-          <h1 className="mb-6 text-4xl font-bold tracking-tight text-white sm:text-6xl md:text-7xl">
+          <h1 className="mb-6 pb-1 text-4xl font-bold leading-[1.1] tracking-tight text-white sm:text-6xl md:text-7xl">
             {words.map((word, wordIndex) => (
               <span key={wordIndex} className="mr-3 inline-block last:mr-0">
                 {word.split("").map((letter, letterIndex) => (
