@@ -62,7 +62,10 @@ export function Header() {
   const [userRole, setUserRole] = useState<string | null>(null)
   const [notificationsOpen, setNotificationsOpen] = useState(false)
   const [notifications, setNotifications] = useState<NotificationItem[]>([])
-  const unreadCount = notifications.filter((n) => !n.read).length
+  const unreadCount = notifications.filter((n) => {
+    const type = (n.related_entity_type || '').toLowerCase()
+    return type === 'lease_expired' || !n.read
+  }).length
   const router = useRouter()
 
   // Fetch user's first name from profile
@@ -97,12 +100,17 @@ export function Header() {
   }, [user])
 
   const sortNotifications = useCallback((items: NotificationItem[]) => {
+    const rank = (item: NotificationItem) => {
+      const type = (item.related_entity_type || '').toLowerCase()
+      if (type === 'lease_expired') return 0
+      if (type === 'payment') return 1
+      if (type === 'maintenance_request') return 2
+      return 3
+    }
+
     return [...items].sort((a, b) => {
-      const aPayment = (a.related_entity_type || '').toLowerCase() === 'payment'
-      const bPayment = (b.related_entity_type || '').toLowerCase() === 'payment'
-      if (aPayment !== bPayment) {
-        return aPayment ? -1 : 1
-      }
+      const rankDiff = rank(a) - rank(b)
+      if (rankDiff !== 0) return rankDiff
       const aTime = new Date(a.created_at).getTime()
       const bTime = new Date(b.created_at).getTime()
       return bTime - aTime
@@ -116,8 +124,11 @@ export function Header() {
         throw new Error('Failed to fetch notifications.')
       }
       const payload = await response.json()
-      const unread = (payload.data || []).filter((item: NotificationItem) => !item.read)
-      setNotifications(sortNotifications(unread))
+      const visible = (payload.data || []).filter((item: NotificationItem) => {
+        const type = (item.related_entity_type || '').toLowerCase()
+        return type === 'lease_expired' || !item.read
+      })
+      setNotifications(sortNotifications(visible))
     } catch (error) {
       console.error('[Header] notifications fetch failed', error)
     }
@@ -359,7 +370,7 @@ export function Header() {
                             {notification.message_text}
                           </p>
                         </div>
-                        {!notification.read && (
+                        {(!notification.read || isLeaseExpired) && (
                           <div className="w-2 h-2 bg-primary rounded-full mt-1 flex-shrink-0" />
                         )}
                       </div>
