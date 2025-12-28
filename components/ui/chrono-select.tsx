@@ -65,7 +65,7 @@ export function ChronoSelect({
         <Button
           variant="outline"
           className={cn(
-            "w-[280px] justify-start text-left font-normal",
+            "w-[280px] justify-start text-left font-normal hover:bg-slate-100 hover:text-foreground",
             !selected && "text-muted-foreground",
             className
           )}

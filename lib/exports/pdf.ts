@@ -56,12 +56,12 @@ export function drawLetterhead(
 
   // Org name
   doc.setTextColor('#ffffff')
-  doc.setFont('times', 'bold')
+  doc.setFont('helvetica', 'bold')
   doc.setFontSize(18)
   doc.text(meta.organizationName || 'Organization', PAGE_MARGIN_X, 30, {
     maxWidth: pageWidth - PAGE_MARGIN_X * 2,
   })
-  doc.setFont('times', 'italic')
+  doc.setFont('helvetica', 'italic')
   doc.setFontSize(11)
   doc.text('Property Management', PAGE_MARGIN_X, 44, {
     maxWidth: pageWidth - PAGE_MARGIN_X * 2,
