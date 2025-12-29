@@ -602,36 +602,21 @@ export async function createTenantWithLease(
         console.warn('Error creating organization member:', memberError)
       }
 
-      // 15. Send invitation email
+      // 15. Send credentials email
       let invitationSent = false
       try {
-        const { sendTenantInvitation } = await import('./emailInvitation')
-        const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
-        const loginUrl = `${siteUrl}/auth/login`
-        
-        const dueDate = new Date(startDate)
-        dueDate.setDate(dueDate.getDate() + 5)
-        const firstPaymentDue = dueDate.toISOString().split('T')[0]
-
-        const emailResult = await sendTenantInvitation(request.tenant.email, {
+        const { sendTenantCredentialsEmail } = await import('@/lib/email/sendTenantCredentials')
+        await sendTenantCredentialsEmail({
           tenantName: request.tenant.full_name.trim(),
-          email: request.tenant.email.toLowerCase().trim(),
-          unitNumber: unitInfo.unit_number,
-          buildingName: unitInfo.building_name,
-          monthlyRent: monthlyRent,
-          startDate: startDate,
-          endDate: endDate,
-          depositAmount: monthlyRent,
-          firstPaymentDue: firstPaymentDue,
-          loginUrl: loginUrl,
+          tenantEmail: request.tenant.email.toLowerCase().trim(),
+          generatedPassword: tempPassword,
+          loginPath: '/auth/login',
         })
-
-        invitationSent = emailResult.success
+        invitationSent = true
       } catch (emailError) {
-        console.error('Error sending invitation email:', emailError)
-        // Don't fail the operation if email fails
-        // Supabase will still send verification email automatically
-        invitationSent = true // Mark as sent since Supabase handles it
+        const err = emailError as Error
+        console.error('Error sending tenant credentials email:', err)
+        throw new Error(err?.message || 'Failed to send tenant credentials email')
       }
 
       // 16. Format response

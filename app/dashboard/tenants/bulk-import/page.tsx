@@ -48,22 +48,32 @@ type ImportRow = {
 function OverflowCell(props: ICellRendererParams) {
   const value = props.value == null ? '' : String(props.value)
   const spanRef = useRef<HTMLSpanElement | null>(null)
-  const [showTitle, setShowTitle] = useState(false)
+  const [showBubble, setShowBubble] = useState(false)
 
   useEffect(() => {
     const node = spanRef.current
     if (!node) return
-    setShowTitle(node.scrollWidth > node.clientWidth)
+    const measure = () => {
+      setShowBubble(node.scrollWidth > node.clientWidth)
+    }
+    measure()
+    window.addEventListener('resize', measure)
+    return () => {
+      window.removeEventListener('resize', measure)
+    }
   }, [value])
 
   return (
-    <span
-      ref={spanRef}
-      className="block truncate"
-      title={showTitle ? value : undefined}
-    >
-      {value}
-    </span>
+    <div className="relative group w-full">
+      <span ref={spanRef} className="block truncate">
+        {value}
+      </span>
+      {showBubble && value && (
+        <div className="pointer-events-none absolute left-0 top-full z-50 mt-1 max-w-[320px] rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-800 shadow-lg opacity-0 translate-y-1 transition group-hover:opacity-100 group-hover:translate-y-0">
+          {value}
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -781,6 +791,7 @@ export default function BulkImportTenantsPage() {
                       filter: true,
                       floatingFilter: true,
                       cellRenderer: OverflowCell,
+                      cellStyle: { overflow: 'visible' },
                     }}
                     rowSelection={{ mode: 'multiRow' }}
                     pagination
