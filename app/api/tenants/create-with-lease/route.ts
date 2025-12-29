@@ -67,7 +67,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 5. Call tenant creation function
-    const result = await createTenantWithLease(body, userId)
+    const result = await createTenantWithLease(body, userId, { useAdmin: true })
 
     // 6. Return appropriate status code
     if (result.success) {
@@ -114,4 +114,3 @@ export async function GET() {
     { status: 405 }
   )
 }
-

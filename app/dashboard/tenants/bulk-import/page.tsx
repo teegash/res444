@@ -728,9 +728,9 @@ export default function BulkImportTenantsPage() {
                   >
                     Choose file
                   </label>
-                </div>
-                <div className="text-sm text-muted-foreground truncate max-w-full md:max-w-[420px]">
-                  {fileName ? `Loaded: ${fileName}` : 'No file uploaded yet.'}
+                  <div className="text-sm text-muted-foreground truncate max-w-full md:max-w-[420px]">
+                    {fileName ? `Loaded: ${fileName}` : 'No file uploaded yet.'}
+                  </div>
                 </div>
               </CardContent>
             </Card>

@@ -343,10 +343,11 @@ function calculateEndDate(startDate: string): string {
  */
 export async function createTenantWithLease(
   request: CreateTenantWithLeaseRequest,
-  createdByUserId: string
+  createdByUserId: string,
+  options?: { useAdmin?: boolean }
 ): Promise<CreateTenantWithLeaseResult> {
   try {
-    const supabase = await createClient()
+    const supabase = options?.useAdmin ? createAdminClient() : await createClient()
     const validationErrors: Array<{ field: string; error: string }> = []
 
     // 1. Validate tenant data

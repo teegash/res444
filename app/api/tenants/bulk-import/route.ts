@@ -117,7 +117,8 @@ export async function POST(req: NextRequest) {
             },
             lease: { start_date: startDate },
           },
-          userId
+          userId,
+          { useAdmin: true }
         )
 
         if (!createRes.success) {
