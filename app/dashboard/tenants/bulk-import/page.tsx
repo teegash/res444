@@ -385,7 +385,6 @@ export default function BulkImportTenantsPage() {
 
     setError(null)
     setBusy(true)
-    setFileName(file.name)
 
     try {
       const data = await file.arrayBuffer()
@@ -650,7 +649,15 @@ export default function BulkImportTenantsPage() {
                   disabled={!propertyId || busy}
                   onChange={(e) => {
                     const f = e.target.files?.[0]
-                    if (f) handleUpload(f)
+                    if (!f) {
+                      setFileName('')
+                      return
+                    }
+                    setFileName(f.name)
+                    handleUpload(f)
+                  }}
+                  onClick={(e) => {
+                    ;(e.currentTarget as HTMLInputElement).value = ''
                   }}
                 />
                 <div className="text-sm text-muted-foreground">
