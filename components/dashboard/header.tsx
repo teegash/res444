@@ -106,9 +106,10 @@ export function Header() {
     const rank = (item: NotificationItem) => {
       const type = (item.related_entity_type || '').toLowerCase()
       if (type === 'lease_expired') return 0
-      if (type === 'payment') return 1
-      if (type === 'maintenance_request') return 2
-      return 3
+      if (type === 'vacate_notice') return 1
+      if (type === 'payment') return 2
+      if (type === 'maintenance_request') return 3
+      return 4
     }
 
     return [...items].sort((a, b) => {
@@ -194,6 +195,13 @@ export function Header() {
         router.push(`/dashboard/maintenance?requestId=${notification.related_entity_id}`)
       } else if (type === 'payment') {
         router.push('/dashboard/payments?tab=deposits')
+      } else if (type === 'vacate_notice') {
+        const tenantId = notification.sender_user_id
+        const noticeId = notification.related_entity_id
+        const qs = new URLSearchParams()
+        if (noticeId) qs.set('noticeId', noticeId)
+        qs.set('tab', 'vacate_notice')
+        router.push(tenantId ? `/dashboard/tenants/${tenantId}/lease?${qs.toString()}` : '/dashboard/tenants')
       } else if (type === 'lease_expired') {
         const tenantId = notification.sender_user_id
         if (tenantId) {
@@ -321,6 +329,7 @@ export function Header() {
                     const isMaintenance = type === 'maintenance_request'
                     const isLeaseRenewal = type === 'lease_renewal'
                     const isLeaseExpired = type === 'lease_expired'
+                    const isVacateNotice = type === 'vacate_notice'
                     const rowClasses = isPayment
                       ? 'bg-red-500/10 border-red-200'
                       : isMaintenance
@@ -329,6 +338,8 @@ export function Header() {
                           ? 'bg-violet-500/10 border-violet-200'
                           : isLeaseExpired
                             ? 'bg-rose-500/10 border-rose-200'
+                            : isVacateNotice
+                              ? 'bg-amber-500/10 border-amber-200'
                           : notification.read
                             ? 'bg-background border-border'
                             : 'bg-primary/5 border-primary/20'
@@ -359,6 +370,10 @@ export function Header() {
                               <Badge className="bg-rose-500/80 text-white rounded-full px-2 py-0.5">
                                 Lease expired
                               </Badge>
+                            ) : isVacateNotice ? (
+                              <Badge className="bg-amber-500/80 text-white rounded-full px-2 py-0.5">
+                                Vacate notice
+                              </Badge>
                             ) : null}
                             <span>
                               {isPayment
@@ -369,12 +384,18 @@ export function Header() {
                                     ? 'Countersign required'
                                     : isLeaseExpired
                                       ? 'Lease expired'
+                                      : isVacateNotice
+                                        ? 'Vacate notice'
                                     : 'New tenant message'}
                             </span>
                           </p>
                           <p
                             className={`text-xs mt-2 leading-relaxed ${
-                              isLeaseExpired ? 'text-rose-700' : 'text-muted-foreground'
+                              isLeaseExpired
+                                ? 'text-rose-700'
+                                : isVacateNotice
+                                  ? 'text-amber-700'
+                                  : 'text-muted-foreground'
                             }`}
                           >
                             {notification.message_text}

@@ -202,6 +202,9 @@ export function TenantHeader({ summary, loading }: TenantHeaderProps) {
         // Payment-related notifications should take the tenant to payment history (incl. deposit slip outcomes).
         // We intentionally do not force an invoice detail route because many notifications are payment-centric.
         router.push('/dashboard/tenant/payments')
+      } else if (relatedType === 'vacate_notice') {
+        const qs = notification.related_entity_id ? `?noticeId=${notification.related_entity_id}` : ''
+        router.push(`/dashboard/tenant/lease${qs}`)
       } else if (relatedType === 'maintenance_request') {
         const qs = notification.related_entity_id
           ? `?requestId=${notification.related_entity_id}`
@@ -317,13 +320,17 @@ export function TenantHeader({ summary, loading }: TenantHeaderProps) {
                         (notification.related_entity_type || '').toLowerCase() === 'payment'
                       const isLeaseExpired =
                         (notification.related_entity_type || '').toLowerCase() === 'lease_expired'
+                      const isVacateNotice =
+                        (notification.related_entity_type || '').toLowerCase() === 'vacate_notice'
                       const rowClasses = isPayment
                         ? 'bg-red-50 border-red-200'
                         : isLeaseExpired
                           ? 'bg-rose-50 border-rose-200'
-                        : notification.read
-                          ? 'bg-white border-gray-200'
-                          : 'bg-blue-50 border-blue-200'
+                          : isVacateNotice
+                            ? 'bg-amber-50 border-amber-200'
+                          : notification.read
+                            ? 'bg-white border-gray-200'
+                            : 'bg-blue-50 border-blue-200'
                       return (
                         <button
                           key={notification.id}
@@ -343,15 +350,32 @@ export function TenantHeader({ summary, loading }: TenantHeaderProps) {
                                   Lease expired
                                 </Badge>
                               )}
+                              {isVacateNotice && (
+                                <Badge className="bg-amber-500 text-white rounded-full px-2 py-0.5 text-[10px]">
+                                  Vacate
+                                </Badge>
+                              )}
                               <span>
-                                {isPayment ? 'Payment notice' : isLeaseExpired ? 'Lease expired' : 'New message'}
+                                {isPayment
+                                  ? 'Payment notice'
+                                  : isLeaseExpired
+                                    ? 'Lease expired'
+                                    : isVacateNotice
+                                      ? 'Vacate notice'
+                                      : 'New message'}
                               </span>
                             </h4>
                             {!notification.read && <Badge className="bg-[#4682B4]">New</Badge>}
                           </div>
                           <p
                             className={`text-sm mb-2 ${
-                              isPayment ? 'text-red-700' : isLeaseExpired ? 'text-rose-700' : 'text-gray-600'
+                              isPayment
+                                ? 'text-red-700'
+                                : isLeaseExpired
+                                  ? 'text-rose-700'
+                                  : isVacateNotice
+                                    ? 'text-amber-700'
+                                    : 'text-gray-600'
                             }`}
                           >
                             {notification.message_text}

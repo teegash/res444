@@ -1,10 +1,11 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import {
   Select,
   SelectContent,
@@ -68,6 +69,28 @@ type LeaseRenewal = {
   proposed_end_date?: string | null
 }
 
+type VacateNotice = {
+  id: string
+  status: string | null
+  requested_vacate_date: string | null
+  notice_document_url?: string | null
+  notice_submitted_at?: string | null
+  acknowledged_at?: string | null
+  approved_at?: string | null
+  rejected_at?: string | null
+  completed_at?: string | null
+  manager_notes?: string | null
+  created_at?: string | null
+  tenant_user_id?: string | null
+}
+
+type VacateEvent = {
+  id: string
+  action?: string | null
+  created_at?: string | null
+  metadata?: any
+}
+
 const durationOptions = Array.from({ length: 10 }, (_, index) => (index + 1) * 6)
 
 const currencyFormatter = new Intl.NumberFormat('en-KE', {
@@ -89,6 +112,23 @@ const statusBadgeClasses = (status?: string | null) => {
       return 'bg-amber-100 text-amber-700'
     default:
       return 'bg-slate-100 text-slate-700'
+  }
+}
+
+const vacateStatusClasses = (status?: string | null) => {
+  switch ((status || '').toLowerCase()) {
+    case 'submitted':
+      return 'bg-slate-100 text-slate-700'
+    case 'acknowledged':
+      return 'bg-blue-100 text-blue-700'
+    case 'approved':
+      return 'bg-emerald-100 text-emerald-700'
+    case 'rejected':
+      return 'bg-rose-100 text-rose-700'
+    case 'completed':
+      return 'bg-purple-100 text-purple-700'
+    default:
+      return 'bg-gray-100 text-gray-700'
   }
 }
 
@@ -157,6 +197,13 @@ function addMonthsPreserveDayUtc(date: Date, months: number) {
   return new Date(Date.UTC(year, monthIndex, day))
 }
 
+function formatDateLabel(value?: string | null) {
+  if (!value) return '—'
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) return value
+  return parsed.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
+}
+
 function deriveRenewalDates(start?: string | null, end?: string | null) {
   const leaseStart = parseDateOnly(start)
   const leaseEnd = parseDateOnly(end)
@@ -176,6 +223,8 @@ export default function TenantLeaseManagementPage() {
   const tenantIdParam = params?.tenantId
   const tenantId = Array.isArray(tenantIdParam) ? tenantIdParam[0] : tenantIdParam
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const vacateNoticeRef = useRef<HTMLDivElement | null>(null)
   const { toast } = useToast()
 
   const [loading, setLoading] = useState(true)
@@ -188,6 +237,12 @@ export default function TenantLeaseManagementPage() {
   const [renewal, setRenewal] = useState<LeaseRenewal | null>(null)
   const [renewalLoading, setRenewalLoading] = useState(false)
   const [renewalBusy, setRenewalBusy] = useState<null | 'create' | 'managerSign' | 'download'>(null)
+  const [vacateNotice, setVacateNotice] = useState<VacateNotice | null>(null)
+  const [vacateEvents, setVacateEvents] = useState<VacateEvent[]>([])
+  const [vacateLoading, setVacateLoading] = useState(false)
+  const [vacateError, setVacateError] = useState<string | null>(null)
+  const [vacateActionBusy, setVacateActionBusy] = useState<null | 'ack' | 'approve' | 'reject' | 'complete' | 'download'>(null)
+  const [rejectReason, setRejectReason] = useState('')
 
   const [startDate, setStartDate] = useState('')
   const [durationMonths, setDurationMonths] = useState('12')
@@ -274,6 +329,30 @@ export default function TenantLeaseManagementPage() {
     return leaseSummary?.detail || 'Lease status pending verification.'
   }, [effectiveEndDate, effectiveStartDate, lease, leaseSummary?.detail, renewal?.status])
 
+  const refreshVacateNotice = useCallback(async (leaseId?: string | null) => {
+    if (!leaseId) {
+      setVacateNotice(null)
+      setVacateEvents([])
+      return
+    }
+    setVacateLoading(true)
+    setVacateError(null)
+    try {
+      const response = await fetch(`/api/vacate-notices/by-lease/${leaseId}`, { cache: 'no-store' })
+      const payload = await response.json()
+      if (!response.ok) {
+        throw new Error(payload.error || 'Failed to load vacate notice.')
+      }
+      setVacateNotice(payload.notice || null)
+      setVacateEvents(payload.events || [])
+    } catch (err) {
+      console.error('[TenantLease] vacate notice fetch failed', err)
+      setVacateError(err instanceof Error ? err.message : 'Unable to load vacate notice.')
+    } finally {
+      setVacateLoading(false)
+    }
+  }, [])
+
   const refreshRenewal = useCallback(async (leaseId?: string | null) => {
     if (!leaseId || leaseId === 'undefined') {
       setRenewal(null)
@@ -349,6 +428,87 @@ export default function TenantLeaseManagementPage() {
     }
   }
 
+  const vacateTimeline = useMemo(() => {
+    if (!vacateNotice) return []
+    if (vacateEvents.length > 0) {
+      return vacateEvents.map((event) => ({
+        label: event.action || (event as any).event_type || (event as any).type || 'update',
+        date: event.created_at || null,
+      }))
+    }
+    return [
+      { label: 'submitted', date: vacateNotice.notice_submitted_at || vacateNotice.created_at || null },
+      { label: 'acknowledged', date: vacateNotice.acknowledged_at || null },
+      { label: 'approved', date: vacateNotice.approved_at || null },
+      { label: 'rejected', date: vacateNotice.rejected_at || null },
+      { label: 'completed', date: vacateNotice.completed_at || null },
+    ].filter((step) => step.date)
+  }, [vacateEvents, vacateNotice])
+
+  const handleVacateDownload = async () => {
+    if (!vacateNotice?.id) return
+    setVacateActionBusy('download')
+    try {
+      const res = await fetch(`/api/vacate-notices/${vacateNotice.id}/document`, { cache: 'no-store' })
+      const json = await res.json()
+      if (!res.ok || !json.url) {
+        throw new Error(json.error || 'Download unavailable.')
+      }
+      window.open(json.url, '_blank')
+    } catch (err: any) {
+      toast({
+        title: 'Download failed',
+        description: err?.message ?? 'Unable to download notice document.',
+        variant: 'destructive',
+      })
+    } finally {
+      setVacateActionBusy(null)
+    }
+  }
+
+  const handleVacateAction = async (action: 'ack' | 'approve' | 'reject' | 'complete') => {
+    if (!vacateNotice?.id) return
+    if (action === 'reject' && !rejectReason.trim()) {
+      setVacateError('Please add a rejection reason before rejecting.')
+      return
+    }
+    setVacateActionBusy(action)
+    setVacateError(null)
+    try {
+      const endpointMap: Record<typeof action, string> = {
+        ack: 'acknowledge',
+        approve: 'approve',
+        reject: 'reject',
+        complete: 'complete',
+      }
+      const body =
+        action === 'reject'
+          ? JSON.stringify({ manager_notes: rejectReason.trim() })
+          : undefined
+      const res = await fetch(`/api/vacate-notices/${vacateNotice.id}/${endpointMap[action]}`, {
+        method: 'POST',
+        headers: body ? { 'Content-Type': 'application/json' } : undefined,
+        body,
+      })
+      const payload = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        throw new Error(payload.error || 'Failed to update vacate notice.')
+      }
+      toast({
+        title: 'Vacate notice updated',
+        description: 'The tenant has been notified.',
+      })
+      if (action === 'reject') {
+        setRejectReason('')
+      }
+      await refreshVacateNotice(lease?.id || '')
+    } catch (err: any) {
+      setVacateError(err?.message ?? 'Failed to update vacate notice.')
+    } finally {
+      setVacateActionBusy(null)
+    }
+  }
+
   const loadLease = useCallback(async () => {
     if (!tenantId) return
     setLoading(true)
@@ -385,6 +545,18 @@ export default function TenantLeaseManagementPage() {
   useEffect(() => {
     void loadLease()
   }, [loadLease])
+
+  useEffect(() => {
+    if (data?.lease?.id) {
+      refreshVacateNotice(data.lease.id)
+    }
+  }, [data?.lease?.id, refreshVacateNotice])
+
+  useEffect(() => {
+    if (searchParams.get('tab') === 'vacate_notice') {
+      vacateNoticeRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
+  }, [searchParams])
 
   const handleSave = async () => {
     if (!tenantId) return
@@ -1011,6 +1183,136 @@ export default function TenantLeaseManagementPage() {
                 )}
               </CardContent>
             </Card>
+
+            <div ref={vacateNoticeRef} id="vacate-notice">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Vacate Notice</CardTitle>
+                  <CardDescription>Review and action tenant vacation requests.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4 text-sm">
+                {vacateLoading ? (
+                  <div className="text-sm text-muted-foreground">Loading vacate notice…</div>
+                ) : !vacateNotice ? (
+                  <div className="text-sm text-muted-foreground">No vacate notice submitted.</div>
+                ) : (
+                  <>
+                    <div className="flex flex-wrap items-center gap-3">
+                      <span className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold ${vacateStatusClasses(vacateNotice.status)}`}>
+                        {(vacateNotice.status || 'submitted').toString()}
+                      </span>
+                      <div className="text-xs text-muted-foreground">
+                        Requested move-out: {formatDateLabel(vacateNotice.requested_vacate_date)}
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={vacateActionBusy === 'download'}
+                        onClick={handleVacateDownload}
+                      >
+                        <Download className="h-4 w-4 mr-2" />
+                        Download notice
+                      </Button>
+                    </div>
+
+                    {vacateNotice.manager_notes ? (
+                      <div className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700">
+                        <p className="font-semibold">Manager notes</p>
+                        <p className="mt-1">{vacateNotice.manager_notes}</p>
+                      </div>
+                    ) : null}
+
+                    {vacateTimeline.length > 0 ? (
+                      <div className="grid gap-2">
+                        {vacateTimeline.map((step) => (
+                          <div
+                            key={`${step.label}-${step.date}`}
+                            className="flex items-center justify-between rounded-md border p-2"
+                          >
+                            <span className="capitalize">{step.label.replace(/_/g, ' ')}</span>
+                            <span className="text-muted-foreground">
+                              {step.date ? new Date(step.date).toLocaleDateString() : '—'}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
+
+                    {vacateError && (
+                      <div className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700">
+                        {vacateError}
+                      </div>
+                    )}
+
+                    {['submitted', 'acknowledged'].includes(
+                      String(vacateNotice.status || '').toLowerCase()
+                    ) && (
+                      <div className="space-y-3">
+                        <div className="flex flex-wrap gap-2">
+                          {String(vacateNotice.status || '').toLowerCase() === 'submitted' && (
+                            <Button
+                              size="sm"
+                              onClick={() => handleVacateAction('ack')}
+                              disabled={vacateActionBusy !== null}
+                            >
+                              Acknowledge
+                            </Button>
+                          )}
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            onClick={() => handleVacateAction('approve')}
+                            disabled={vacateActionBusy !== null}
+                          >
+                            Approve
+                          </Button>
+                        </div>
+
+                        <div className="space-y-2">
+                          <label className="text-xs uppercase tracking-wide text-muted-foreground">
+                            Rejection reason
+                          </label>
+                          <Textarea
+                            value={rejectReason}
+                            onChange={(e) => setRejectReason(e.target.value)}
+                            placeholder="Add reason (required to reject)"
+                            rows={3}
+                          />
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            onClick={() => handleVacateAction('reject')}
+                            disabled={vacateActionBusy !== null}
+                          >
+                            Reject notice
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+
+                    {String(vacateNotice.status || '').toLowerCase() === 'approved' && (
+                      <Button
+                        size="sm"
+                        onClick={() => handleVacateAction('complete')}
+                        disabled={vacateActionBusy !== null}
+                      >
+                        Complete notice
+                      </Button>
+                    )}
+
+                    {String(vacateNotice.status || '').toLowerCase() === 'completed' && (
+                      <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-700">
+                        Vacate notice completed. Lease and unit status have been updated.
+                      </div>
+                    )}
+                  </>
+                )}
+                </CardContent>
+              </Card>
+            </div>
 
             <Card>
               <CardHeader>
