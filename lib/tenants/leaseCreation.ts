@@ -244,7 +244,7 @@ async function getUnitInfo(unitId: string): Promise<UnitInfo | null> {
   try {
     const supabase = await createClient()
 
-    const { data: unit, error } = await supabase
+    let { data: unit, error } = await supabase
       .from('apartment_units')
       .select(
         `
@@ -263,7 +263,30 @@ async function getUnitInfo(unitId: string): Promise<UnitInfo | null> {
       .single()
 
     if (error || !unit) {
-      return null
+      const admin = createAdminClient()
+      const { data: adminUnit, error: adminError } = await admin
+        .from('apartment_units')
+        .select(
+          `
+          id,
+          unit_number,
+          building_id,
+          status,
+          unit_price_category,
+          apartment_buildings (
+            id,
+            name
+          )
+        `
+        )
+        .eq('id', unitId)
+        .single()
+
+      if (adminError || !adminUnit) {
+        return null
+      }
+
+      unit = adminUnit as typeof unit
     }
 
     const building = unit.apartment_buildings as { id: string; name: string } | null
@@ -378,13 +401,31 @@ export async function createTenantWithLease(
     }
 
     // Resolve organization from the unit's building (required by org-scoped schema)
-    const { data: building, error: buildingError } = await supabase
+    let { data: building, error: buildingError } = await supabase
       .from('apartment_buildings')
       .select('organization_id')
       .eq('id', unitInfo.building_id)
       .single()
 
     if (buildingError || !building?.organization_id) {
+      const admin = createAdminClient()
+      const { data: adminBuilding, error: adminError } = await admin
+        .from('apartment_buildings')
+        .select('organization_id')
+        .eq('id', unitInfo.building_id)
+        .single()
+
+      if (adminError || !adminBuilding?.organization_id) {
+        return {
+          success: false,
+          error: 'Unable to resolve organization for this building. Please contact support.',
+        }
+      }
+
+      building = adminBuilding as typeof building
+    }
+
+    if (!building?.organization_id) {
       return {
         success: false,
         error: 'Unable to resolve organization for this building. Please contact support.',

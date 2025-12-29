@@ -700,24 +700,36 @@ export default function BulkImportTenantsPage() {
                 <CardDescription>Upload .xlsx or .csv. Rows are validated before import.</CardDescription>
               </CardHeader>
               <CardContent className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                <Input
-                  type="file"
-                  accept=".xlsx,.csv"
-                  disabled={!propertyId || busy}
-                  onChange={(e) => {
-                    const f = e.target.files?.[0]
-                    if (!f) {
-                      setFileName('')
-                      return
-                    }
-                    setFileName(f.name)
-                    handleUpload(f)
-                  }}
-                  onClick={(e) => {
-                    ;(e.currentTarget as HTMLInputElement).value = ''
-                  }}
-                />
-                <div className="text-sm text-muted-foreground">
+                <div className="flex items-center gap-3">
+                  <input
+                    id="bulk-import-file"
+                    type="file"
+                    accept=".xlsx,.csv"
+                    className="sr-only"
+                    disabled={!propertyId || busy}
+                    onChange={(e) => {
+                      const f = e.target.files?.[0]
+                      if (!f) {
+                        setFileName('')
+                        return
+                      }
+                      setFileName(f.name)
+                      handleUpload(f)
+                    }}
+                    onClick={(e) => {
+                      ;(e.currentTarget as HTMLInputElement).value = ''
+                    }}
+                  />
+                  <label
+                    htmlFor="bulk-import-file"
+                    className={`inline-flex h-9 items-center gap-2 rounded-full border px-4 text-sm font-medium shadow-sm transition
+                      ${busy || !propertyId ? 'cursor-not-allowed opacity-60' : 'cursor-pointer hover:-translate-y-0.5 hover:shadow-md active:translate-y-0'}
+                      bg-white text-slate-800 border-slate-200 hover:border-slate-300`}
+                  >
+                    Choose file
+                  </label>
+                </div>
+                <div className="text-sm text-muted-foreground truncate max-w-full md:max-w-[420px]">
                   {fileName ? `Loaded: ${fileName}` : 'No file uploaded yet.'}
                 </div>
               </CardContent>
