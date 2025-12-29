@@ -699,7 +699,7 @@ export default function BulkImportTenantsPage() {
                   </div>
                 </div>
 
-                <div className="ag-theme-quartz w-full min-h-[520px]" style={{ height: 520 }}>
+                <div className="ag-theme-quartz w-full min-h-[520px] rounded-lg border border-slate-200 bg-white" style={{ height: 520 }}>
                   <AgGridReact<ImportRow>
                     rowData={rows}
                     columnDefs={colDefs}
@@ -716,6 +716,9 @@ export default function BulkImportTenantsPage() {
                     onGridReady={(p) => {
                       gridApiRef.current = p.api
                       p.api.setGridOption('quickFilterText', quickFilter)
+                    }}
+                    onFirstDataRendered={() => {
+                      gridApiRef.current?.sizeColumnsToFit()
                     }}
                   />
                 </div>
