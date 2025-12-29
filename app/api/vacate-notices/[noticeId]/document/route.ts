@@ -6,8 +6,8 @@ import { normalizeUuid } from '../../_helpers'
 const BUCKET = 'tenant-notices'
 const MANAGER_ROLES = new Set(['admin', 'manager', 'caretaker'])
 
-export async function GET(request: Request, { params }: { params: { noticeId: string } }) {
-  const rawParam = params?.noticeId || ''
+export async function GET(request: Request, { params }: { params: { noticeId?: string; id?: string } }) {
+  const rawParam = params?.noticeId || params?.id || ''
   const url = new URL(request.url)
   const noticeId =
     normalizeUuid(`${rawParam} ${url.pathname} ${url.searchParams.get('noticeId') || ''}`) ||

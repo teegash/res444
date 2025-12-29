@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server'
 import { fetchNoticeById, notifyTenant, requireManagerContext, normalizeUuid } from '../../_helpers'
 
-export async function POST(request: Request, { params }: { params: { noticeId: string } }) {
-  const rawParam = params?.noticeId || ''
+export async function POST(request: Request, { params }: { params: { noticeId?: string; id?: string } }) {
+  const rawParam = params?.noticeId || params?.id || ''
   const url = new URL(request.url)
   const noticeId =
     normalizeUuid(`${rawParam} ${url.pathname} ${url.searchParams.get('noticeId') || ''}`) ||
