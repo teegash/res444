@@ -6,7 +6,7 @@ import ExcelJS from 'exceljs'
 import { saveAs } from 'file-saver'
 import * as XLSX from 'xlsx'
 import { AgGridReact } from 'ag-grid-react'
-import type { ColDef, GridApi } from 'ag-grid-community'
+import type { ColDef, GridApi, ICellRendererParams } from 'ag-grid-community'
 import { AllCommunityModule, ModuleRegistry } from 'ag-grid-community'
 import 'ag-grid-community/styles/ag-grid.css'
 import 'ag-grid-community/styles/ag-theme-quartz.css'
@@ -44,6 +44,28 @@ type ImportRow = {
   message?: string
 }
 
+function OverflowCell(props: ICellRendererParams) {
+  const value = props.value == null ? '' : String(props.value)
+  const spanRef = useRef<HTMLSpanElement | null>(null)
+  const [showTitle, setShowTitle] = useState(false)
+
+  useEffect(() => {
+    const node = spanRef.current
+    if (!node) return
+    setShowTitle(node.scrollWidth > node.clientWidth)
+  }, [value])
+
+  return (
+    <span
+      ref={spanRef}
+      className="block truncate"
+      title={showTitle ? value : undefined}
+    >
+      {value}
+    </span>
+  )
+}
+
 const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const phoneRe = /^\+254\d{9}$/
 const natIdRe = /^\d{8}$/
@@ -60,6 +82,27 @@ function normalizeHeader(h: unknown) {
 
 function asStr(v: unknown) {
   return String(v ?? '').trim()
+}
+
+function excelSerialToIso(serial: number) {
+  const utc = new Date(Date.UTC(1899, 11, 30) + serial * 86400000)
+  return utc.toISOString().slice(0, 10)
+}
+
+function normalizeDateCell(value: unknown) {
+  if (value === null || value === undefined || value === '') return ''
+  if (value instanceof Date) return value.toISOString().slice(0, 10)
+  if (typeof value === 'number' && Number.isFinite(value)) return excelSerialToIso(value)
+
+  const raw = String(value).trim()
+  if (!raw) return ''
+
+  const parsed = new Date(raw)
+  if (!Number.isNaN(parsed.getTime())) {
+    return parsed.toISOString().slice(0, 10)
+  }
+
+  return raw
 }
 
 function chunk<T>(arr: T[], size: number) {
@@ -207,9 +250,9 @@ export default function BulkImportTenantsPage() {
     const phone_number = asStr(raw.phone_number)
     const national_id = asStr(raw.national_id)
 
-    const start_date = asStr(raw.start_date) || todayIso()
+    const start_date = normalizeDateCell(raw.start_date) || todayIso()
     const address = asStr(raw.address) || ''
-    const date_of_birth = asStr(raw.date_of_birth) || ''
+    const date_of_birth = normalizeDateCell(raw.date_of_birth) || ''
 
     const errors: string[] = []
 
@@ -409,11 +452,11 @@ export default function BulkImportTenantsPage() {
         const out: any = {}
         for (const k of Object.keys(row)) {
           const key = normalizeHeader(k)
-          if (key.startsWith('start_date')) {
+          if (key.startsWith('start_date') || key === 'startdate') {
             out.start_date = row[k]
             continue
           }
-          if (key.startsWith('date_of_birth')) {
+          if (key.startsWith('date_of_birth') || key === 'dob' || key === 'dateofbirth') {
             out.date_of_birth = row[k]
             continue
           }
@@ -716,15 +759,13 @@ export default function BulkImportTenantsPage() {
                       resizable: true,
                       filter: true,
                       floatingFilter: true,
-                      tooltipValueGetter: (p) => (p.value == null ? '' : String(p.value)),
-                      cellClass: 'truncate',
+                      cellRenderer: OverflowCell,
                     }}
                     rowSelection={{ mode: 'multiRow' }}
                     pagination
                     paginationPageSize={25}
                     paginationPageSizeSelector={[10, 25, 50, 100]}
                     animateRows
-                    tooltipShowDelay={200}
                     onGridReady={(p) => {
                       gridApiRef.current = p.api
                       p.api.setGridOption('quickFilterText', quickFilter)
