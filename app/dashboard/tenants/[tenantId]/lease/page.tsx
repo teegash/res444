@@ -338,7 +338,9 @@ export default function TenantLeaseManagementPage() {
     setVacateLoading(true)
     setVacateError(null)
     try {
-      const response = await fetch(`/api/vacate-notices/by-lease/${leaseId}`, { cache: 'no-store' })
+      const response = await fetch(`/api/vacate-notices/by-lease?leaseId=${encodeURIComponent(leaseId)}`, {
+        cache: 'no-store',
+      })
       const payload = await response.json()
       if (!response.ok) {
         throw new Error(payload.error || 'Failed to load vacate notice.')
