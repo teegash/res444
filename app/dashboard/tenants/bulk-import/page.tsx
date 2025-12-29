@@ -706,18 +706,25 @@ export default function BulkImportTenantsPage() {
 
                 <div className="ag-theme-quartz w-full h-[520px] rounded-lg border border-slate-200 bg-white overflow-auto">
                   <AgGridReact<ImportRow>
+                    theme="legacy"
                     rowData={rows}
                     columnDefs={colDefs}
                     defaultColDef={{
+                      flex: 1,
+                      minWidth: 120,
                       sortable: true,
                       resizable: true,
                       filter: true,
                       floatingFilter: true,
+                      tooltipValueGetter: (p) => (p.value == null ? '' : String(p.value)),
+                      cellClass: 'truncate',
                     }}
-                    rowSelection="multiple"
+                    rowSelection={{ mode: 'multiRow' }}
                     pagination
                     paginationPageSize={25}
+                    paginationPageSizeSelector={[10, 25, 50, 100]}
                     animateRows
+                    tooltipShowDelay={200}
                     onGridReady={(p) => {
                       gridApiRef.current = p.api
                       p.api.setGridOption('quickFilterText', quickFilter)
