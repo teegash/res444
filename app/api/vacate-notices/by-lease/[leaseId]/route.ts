@@ -1,9 +1,15 @@
 import { NextResponse } from 'next/server'
 import { requireManagerContext, UUID_RE } from '../../_helpers'
 
-export async function GET(_: Request, { params }: { params: { leaseId: string } }) {
-  const leaseId = params?.leaseId || ''
-  if (!UUID_RE.test(leaseId)) {
+export async function GET(request: Request, { params }: { params: { leaseId: string } }) {
+  const rawParam = params?.leaseId || ''
+  const url = new URL(request.url)
+  const fromPath = url.pathname.split('/').filter(Boolean).pop() || ''
+  const decoded = decodeURIComponent(rawParam || fromPath).trim()
+  const match = decoded.match(UUID_RE)
+  const leaseId = match ? match[0] : ''
+
+  if (!leaseId) {
     return NextResponse.json({ success: false, error: 'Invalid lease id.' }, { status: 400 })
   }
 

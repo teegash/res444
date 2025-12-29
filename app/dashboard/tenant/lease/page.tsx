@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
+import { ChronoSelect } from '@/components/ui/chrono-select'
 import { useToast } from '@/components/ui/use-toast'
 import { exportLeasePdf } from '@/lib/pdf/leaseDocument'
 import { createRenewalByLease, getRenewalByLease, getRenewalDownloadUrl, tenantSignRenewal } from '@/src/actions/leaseRenewals'
@@ -108,6 +109,36 @@ const toIsoDate = (value: Date | null) => {
   return value.toISOString().slice(0, 10)
 }
 
+const MAX_VACATE_FILE_BYTES = 10 * 1024 * 1024
+const VACATE_FILE_TYPES = new Set(['application/pdf', 'image/png', 'image/jpeg'])
+
+const formatBytes = (bytes: number) => {
+  if (!Number.isFinite(bytes) || bytes <= 0) return '0 B'
+  const units = ['B', 'KB', 'MB', 'GB']
+  let idx = 0
+  let size = bytes
+  while (size >= 1024 && idx < units.length - 1) {
+    size /= 1024
+    idx += 1
+  }
+  return `${size.toFixed(idx === 0 ? 0 : 1)} ${units[idx]}`
+}
+
+const toDateString = (date?: Date) => {
+  if (!date) return ''
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+const fromDateString = (value: string) => {
+  if (!value) return undefined
+  const [year, month, day] = value.split('-').map(Number)
+  if (!year || !month || !day) return undefined
+  return new Date(year, month - 1, day)
+}
+
 const addDaysUtc = (date: Date, days: number) => {
   const next = new Date(date.getTime())
   next.setUTCDate(next.getUTCDate() + days)
@@ -185,6 +216,7 @@ const vacateStatusClasses = (status?: string | null) => {
 export default function LeasePage() {
   const searchParams = useSearchParams()
   const vacateNoticeRef = useRef<HTMLDivElement | null>(null)
+  const vacateFileInputRef = useRef<HTMLInputElement | null>(null)
   const [lease, setLease] = useState<LeaseDetails | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -196,6 +228,7 @@ export default function LeasePage() {
   const [vacateEvents, setVacateEvents] = useState<VacateEvent[]>([])
   const [vacateLoading, setVacateLoading] = useState(false)
   const [vacateError, setVacateError] = useState<string | null>(null)
+  const [vacateDragActive, setVacateDragActive] = useState(false)
   const [vacateDate, setVacateDate] = useState('')
   const [vacateFile, setVacateFile] = useState<File | null>(null)
   const [vacateSubmitting, setVacateSubmitting] = useState(false)
@@ -383,9 +416,62 @@ export default function LeasePage() {
     ].filter((step) => step.date)
   }, [vacateEvents, vacateNotice])
 
+  const vacateProgress = useMemo(() => {
+    if (!vacateNotice || !vacateNotice.requested_vacate_date) return null
+    const status = String(vacateNotice.status || '').toLowerCase()
+    if (status === 'rejected') return null
+
+    const end = parseDateOnly(vacateNotice.requested_vacate_date)
+    const startRaw = vacateNotice.notice_submitted_at || vacateNotice.created_at || null
+    const start = startRaw ? parseDateOnly(startRaw) : null
+    if (!end) return null
+
+    const safeStart = start || new Date()
+    const startDay = new Date(Date.UTC(safeStart.getUTCFullYear(), safeStart.getUTCMonth(), safeStart.getUTCDate()))
+    const endDay = new Date(Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), end.getUTCDate()))
+
+    const totalMs = Math.max(1, endDay.getTime() - startDay.getTime())
+    const today = new Date()
+    const todayDay = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()))
+    const elapsedMs = Math.min(Math.max(todayDay.getTime() - startDay.getTime(), 0), totalMs)
+    const progress = status === 'completed' ? 1 : elapsedMs / totalMs
+    const daysRemaining = Math.max(0, Math.ceil((endDay.getTime() - todayDay.getTime()) / (1000 * 60 * 60 * 24)))
+    const totalDays = Math.max(1, Math.round(totalMs / (1000 * 60 * 60 * 24)))
+
+    return {
+      progress,
+      daysRemaining,
+      totalDays,
+      endLabel: formatDate(vacateNotice.requested_vacate_date),
+    }
+  }, [vacateNotice])
+
+  const handleVacateFile = useCallback((file: File | null) => {
+    if (!file) {
+      setVacateFile(null)
+      return
+    }
+    if (!VACATE_FILE_TYPES.has(file.type)) {
+      setVacateFile(null)
+      setVacateError('Only PDF, PNG, or JPG files are allowed.')
+      return
+    }
+    if (file.size > MAX_VACATE_FILE_BYTES) {
+      setVacateFile(null)
+      setVacateError('File is too large. Max size is 10MB.')
+      return
+    }
+    setVacateFile(file)
+    setVacateError(null)
+  }, [])
+
   const handleVacateSubmit = useCallback(async () => {
     if (!vacateDate) {
       setVacateError('Select a vacate date at least 30 days from today.')
+      return
+    }
+    if (minVacateDate && vacateDate < minVacateDate) {
+      setVacateError('Vacate date must be at least 30 days from today.')
       return
     }
     if (!vacateFile) {
@@ -1058,6 +1144,31 @@ export default function LeasePage() {
                   </div>
                 ) : null}
 
+                {vacateProgress ? (
+                  <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                    <div className="flex items-center justify-between text-xs text-muted-foreground mb-2">
+                      <span>Submitted</span>
+                      <span>{vacateProgress.endLabel}</span>
+                    </div>
+                    <div className="h-3 w-full rounded-full bg-slate-200 overflow-hidden">
+                      <div
+                        className="h-full rounded-full transition-all duration-700"
+                        style={{
+                          width: `${Math.round(vacateProgress.progress * 100)}%`,
+                          backgroundImage:
+                            'linear-gradient(90deg, #3b82f6 0%, #22c55e 30%, #eab308 55%, #f97316 75%, #ef4444 100%)',
+                        }}
+                      />
+                    </div>
+                    <div className="mt-2 flex items-center justify-between text-xs text-slate-600">
+                      <span>{Math.round(vacateProgress.progress * 100)}% complete</span>
+                      <span>
+                        {vacateProgress.daysRemaining} days left of {vacateProgress.totalDays}
+                      </span>
+                    </div>
+                  </div>
+                ) : null}
+
                 {vacateTimeline.length > 0 ? (
                   <div className="grid gap-2 text-sm">
                     {vacateTimeline.map((step) => (
@@ -1102,22 +1213,75 @@ export default function LeasePage() {
                 <div className="grid gap-4 md:grid-cols-2">
                   <div>
                     <label className="text-xs uppercase tracking-wide text-muted-foreground">Vacate date</label>
-                    <Input
-                      type="date"
-                      min={minVacateDate}
-                      value={vacateDate}
-                      onChange={(e) => setVacateDate(e.target.value)}
+                    <ChronoSelect
+                      value={fromDateString(vacateDate)}
+                      onChange={(date) => setVacateDate(toDateString(date))}
+                      placeholder="Select vacate date"
+                      className="w-full justify-start"
                     />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Earliest allowed: {formatDate(minVacateDate)}
+                    </p>
                   </div>
                   <div>
                     <label className="text-xs uppercase tracking-wide text-muted-foreground">Notice document</label>
+                    <div
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => vacateFileInputRef.current?.click()}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault()
+                          vacateFileInputRef.current?.click()
+                        }
+                      }}
+                      onDragEnter={(e) => {
+                        e.preventDefault()
+                        setVacateDragActive(true)
+                      }}
+                      onDragOver={(e) => {
+                        e.preventDefault()
+                        setVacateDragActive(true)
+                      }}
+                      onDragLeave={(e) => {
+                        e.preventDefault()
+                        setVacateDragActive(false)
+                      }}
+                      onDrop={(e) => {
+                        e.preventDefault()
+                        setVacateDragActive(false)
+                        const file = e.dataTransfer.files?.[0] || null
+                        handleVacateFile(file)
+                      }}
+                      className={`mt-1 w-full rounded-xl border border-dashed p-3 text-left transition ${
+                        vacateDragActive
+                          ? 'border-blue-400 bg-blue-50/70 shadow-[0_0_0_1px_rgba(59,130,246,0.25)]'
+                          : 'border-slate-300 bg-white/80 hover:border-slate-400 hover:bg-slate-50'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={`flex h-10 w-10 items-center justify-center rounded-lg ${vacateDragActive ? 'bg-blue-100' : 'bg-slate-100'}`}>
+                          <UploadCloud className={`h-5 w-5 ${vacateDragActive ? 'text-blue-600' : 'text-slate-500'}`} />
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-slate-900">
+                            {vacateDragActive ? 'Drop file to upload' : 'Choose or drop a file'}
+                          </p>
+                          <p className="text-xs text-muted-foreground">PDF, JPG, or PNG up to 10MB</p>
+                        </div>
+                      </div>
+                    </div>
                     <Input
+                      ref={vacateFileInputRef}
                       type="file"
                       accept=".pdf,image/*"
-                      onChange={(e) => setVacateFile(e.target.files?.[0] || null)}
+                      className="hidden"
+                      onChange={(e) => handleVacateFile(e.target.files?.[0] || null)}
                     />
                     {vacateFile ? (
-                      <p className="text-xs text-muted-foreground mt-1">{vacateFile.name}</p>
+                      <div className="mt-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
+                        Selected: <span className="font-medium">{vacateFile.name}</span> • {formatBytes(vacateFile.size)}
+                      </div>
                     ) : null}
                   </div>
                 </div>
