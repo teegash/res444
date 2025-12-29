@@ -692,7 +692,7 @@ export default function BulkImportTenantsPage() {
                   </div>
                 </div>
 
-                <div className="ag-theme-quartz" style={{ height: 520, width: '100%' }}>
+                <div className="ag-theme-quartz w-full min-h-[520px]" style={{ height: 520 }}>
                   <AgGridReact<ImportRow>
                     rowData={rows}
                     columnDefs={colDefs}
