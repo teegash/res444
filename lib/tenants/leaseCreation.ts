@@ -308,25 +308,13 @@ async function getUnitInfo(unitId: string): Promise<UnitInfo | null> {
 /**
  * Generate temporary password for new tenant
  */
-function generateTempPassword(): string {
-  // Generate a secure random password
-  const length = 12
-  const charset = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*'
-  let password = ''
-  
-  // Ensure at least one of each type
-  password += 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'[Math.floor(Math.random() * 26)]
-  password += 'abcdefghijklmnopqrstuvwxyz'[Math.floor(Math.random() * 26)]
-  password += '0123456789'[Math.floor(Math.random() * 10)]
-  password += '!@#$%^&*'[Math.floor(Math.random() * 8)]
-  
-  // Fill the rest randomly
-  for (let i = password.length; i < length; i++) {
-    password += charset[Math.floor(Math.random() * charset.length)]
-  }
-  
-  // Shuffle
-  return password.split('').sort(() => Math.random() - 0.5).join('')
+function generateTenantPassword(fullName: string): string {
+  const firstName = String(fullName || '')
+    .trim()
+    .split(/\s+/)[0]
+    .replace(/[^A-Za-z0-9]/g, '')
+  const safeName = firstName || 'Tenant'
+  return `${safeName}Pass@123`
 }
 
 /**
@@ -464,15 +452,15 @@ export async function createTenantWithLease(
       }
     }
 
-    // 7. Generate temporary password
-    const tempPassword = generateTempPassword()
+    // 7. Generate password template (FirstNamePass@123)
+    const tempPassword = generateTenantPassword(request.tenant.full_name)
 
     // 8. Create auth user using admin client
     const adminClient = createAdminClient()
     const { data: authData, error: authError } = await adminClient.auth.admin.createUser({
       email: request.tenant.email.toLowerCase().trim(),
       password: tempPassword,
-      email_confirm: false, // Will be confirmed via email
+      email_confirm: true,
       user_metadata: {
         full_name: request.tenant.full_name.trim(),
         phone_number: request.tenant.phone_number.trim(),
@@ -616,7 +604,8 @@ export async function createTenantWithLease(
       } catch (emailError) {
         const err = emailError as Error
         console.error('Error sending tenant credentials email:', err)
-        throw new Error(err?.message || 'Failed to send tenant credentials email')
+        const message = err?.message ? `Email not sent: ${err.message}` : 'Email not sent: Failed to send tenant credentials email'
+        throw new Error(message)
       }
 
       // 16. Format response
