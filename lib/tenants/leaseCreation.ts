@@ -498,21 +498,9 @@ export async function createTenantWithLease(
     const userId = authData.user.id
 
     try {
-      // 9. Create tenant profile
-      const { error: profileError } = await supabase.from('user_profiles').update({
-        full_name: request.tenant.full_name.trim(),
-        phone_number: request.tenant.phone_number.trim(),
-        national_id: request.tenant.national_id.trim(),
-        date_of_birth: request.tenant.date_of_birth || null,
-        address: request.tenant.address || null,
-        organization_id: organizationId,
-        role: 'tenant',
-        updated_at: new Date().toISOString(),
-      }).eq('id', userId)
-
-      if (profileError) {
-        // Profile might have been created by trigger, try insert
-        const { error: insertError } = await supabase.from('user_profiles').insert({
+      // 9. Create tenant profile (upsert to handle missing row)
+      const { error: profileError } = await supabase.from('user_profiles').upsert(
+        {
           id: userId,
           full_name: request.tenant.full_name.trim(),
           phone_number: request.tenant.phone_number.trim(),
@@ -521,12 +509,13 @@ export async function createTenantWithLease(
           address: request.tenant.address || null,
           organization_id: organizationId,
           role: 'tenant',
-        })
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: 'id' }
+      )
 
-        if (insertError && insertError.code !== '23505') {
-          // If not a duplicate error, throw
-          throw new Error(`Failed to create profile: ${insertError.message}`)
-        }
+      if (profileError) {
+        throw new Error(`Failed to create profile: ${profileError.message}`)
       }
 
       // 10. Calculate lease dates

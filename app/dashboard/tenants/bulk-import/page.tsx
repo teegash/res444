@@ -666,7 +666,7 @@ export default function BulkImportTenantsPage() {
                   </Select>
                 </div>
 
-                <div className="flex items-center gap-3">
+                <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:gap-3">
                   <div className="flex items-center gap-2">
                     <Switch checked={vacantOnly} onCheckedChange={setVacantOnly} />
                     <Label>Vacant units only</Label>
@@ -728,7 +728,7 @@ export default function BulkImportTenantsPage() {
                   >
                     Choose file
                   </label>
-                  <div className="text-sm text-muted-foreground truncate max-w-full md:max-w-[420px]">
+                  <div className="text-sm text-muted-foreground truncate max-w-full md:max-w-[420px] sm:mt-0">
                     {fileName ? `Loaded: ${fileName}` : 'No file uploaded yet.'}
                   </div>
                 </div>
