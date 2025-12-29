@@ -28,14 +28,10 @@ export function Header() {
           </Link>
           <div className="relative">
             <span
-              className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-emerald-500 ping"
+              className="pointer-events-none absolute -inset-3 rounded-full ping-ring"
               aria-hidden="true"
             />
-            <span
-              className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-emerald-500"
-              aria-hidden="true"
-            />
-            <Link href="/auth/signup">
+            <Link href="/auth/signup" className="relative z-10">
               <Button className="bg-primary hover:bg-primary/90 font-medium">Get Started</Button>
             </Link>
           </div>

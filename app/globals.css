@@ -131,43 +131,44 @@
 }
 
 /* Animista - ping */
-.ping {
-  -webkit-animation: ping 0.8s ease-in-out infinite both;
-  animation: ping 0.8s ease-in-out infinite both;
+.ping-ring {
+  background: rgba(255, 255, 255, 0.4);
+  -webkit-animation: ping-ring 1.8s ease-out infinite both;
+  animation: ping-ring 1.8s ease-out infinite both;
 }
 
-@-webkit-keyframes ping {
+@-webkit-keyframes ping-ring {
   0% {
-    -webkit-transform: scale(0.2);
-    transform: scale(0.2);
-    opacity: 0.8;
+    -webkit-transform: scale(0.7);
+    transform: scale(0.7);
+    opacity: 0.4;
   }
-  80% {
-    -webkit-transform: scale(1.2);
-    transform: scale(1.2);
-    opacity: 0;
+  70% {
+    -webkit-transform: scale(1.3);
+    transform: scale(1.3);
+    opacity: 0.12;
   }
   100% {
-    -webkit-transform: scale(2.2);
-    transform: scale(2.2);
+    -webkit-transform: scale(1.8);
+    transform: scale(1.8);
     opacity: 0;
   }
 }
 
-@keyframes ping {
+@keyframes ping-ring {
   0% {
-    -webkit-transform: scale(0.2);
-    transform: scale(0.2);
-    opacity: 0.8;
+    -webkit-transform: scale(0.7);
+    transform: scale(0.7);
+    opacity: 0.4;
   }
-  80% {
-    -webkit-transform: scale(1.2);
-    transform: scale(1.2);
-    opacity: 0;
+  70% {
+    -webkit-transform: scale(1.3);
+    transform: scale(1.3);
+    opacity: 0.12;
   }
   100% {
-    -webkit-transform: scale(2.2);
-    transform: scale(2.2);
+    -webkit-transform: scale(1.8);
+    transform: scale(1.8);
     opacity: 0;
   }
 }
