@@ -398,6 +398,7 @@ export default function LeasePage() {
     base.setUTCDate(base.getUTCDate() + 30)
     return toIsoDate(base) || ''
   }, [])
+  const minVacateDateObj = useMemo(() => parseDateOnly(minVacateDate) || undefined, [minVacateDate])
 
   const vacateTimeline = useMemo(() => {
     if (!vacateNotice) return []
@@ -1218,6 +1219,7 @@ export default function LeasePage() {
                       onChange={(date) => setVacateDate(toDateString(date))}
                       placeholder="Select vacate date"
                       className="w-full justify-start"
+                      minDate={minVacateDateObj}
                     />
                     <p className="text-xs text-muted-foreground mt-1">
                       Earliest allowed: {formatDate(minVacateDate)}

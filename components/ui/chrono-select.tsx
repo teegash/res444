@@ -21,6 +21,8 @@ interface ChronoSelectProps {
   placeholder?: string
   className?: string
   yearRange?: [number, number]
+  minDate?: Date
+  maxDate?: Date
 }
 
 export function ChronoSelect({
@@ -29,10 +31,20 @@ export function ChronoSelect({
   placeholder = "Pick a date",
   className,
   yearRange = [1970, 2050],
+  minDate,
+  maxDate,
 }: ChronoSelectProps) {
   const [open, setOpen] = React.useState(false)
   const [selected, setSelected] = React.useState<Date | undefined>(value)
-  const [month, setMonth] = React.useState<Date>(selected ?? new Date())
+
+  const normalizeDate = React.useCallback((date?: Date) => {
+    if (!date) return undefined
+    return new Date(date.getFullYear(), date.getMonth(), date.getDate())
+  }, [])
+
+  const normalizedMin = React.useMemo(() => normalizeDate(minDate), [minDate, normalizeDate])
+  const normalizedMax = React.useMemo(() => normalizeDate(maxDate), [maxDate, normalizeDate])
+  const [month, setMonth] = React.useState<Date>(selected ?? normalizedMin ?? new Date())
 
   const years = React.useMemo(() => {
     const [start, end] = yearRange
@@ -56,8 +68,18 @@ export function ChronoSelect({
     setSelected(value)
     if (value) {
       setMonth(value)
+    } else if (normalizedMin) {
+      setMonth(normalizedMin)
     }
-  }, [value])
+  }, [value, normalizedMin])
+
+  const disabledRange = React.useMemo(() => {
+    if (!normalizedMin && !normalizedMax) return undefined
+    const range: { before?: Date; after?: Date } = {}
+    if (normalizedMin) range.before = normalizedMin
+    if (normalizedMax) range.after = normalizedMax
+    return range
+  }, [normalizedMin, normalizedMax])
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -96,6 +118,7 @@ export function ChronoSelect({
           onSelect={handleSelect}
           month={month}
           onMonthChange={setMonth}
+          disabled={disabledRange}
           className="rounded-md border"
         />
       </PopoverContent>

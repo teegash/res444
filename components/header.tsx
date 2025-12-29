@@ -26,9 +26,19 @@ export function Header() {
           <Link href="/auth/login">
             <Button variant="ghost" className="text-primary font-medium">Login</Button>
           </Link>
-          <Link href="/auth/signup">
-            <Button className="bg-primary hover:bg-primary/90 font-medium">Get Started</Button>
-          </Link>
+          <div className="relative">
+            <span
+              className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-emerald-500 ping"
+              aria-hidden="true"
+            />
+            <span
+              className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-emerald-500"
+              aria-hidden="true"
+            />
+            <Link href="/auth/signup">
+              <Button className="bg-primary hover:bg-primary/90 font-medium">Get Started</Button>
+            </Link>
+          </div>
         </div>
       </div>
     </header>
