@@ -165,7 +165,10 @@ export default function BulkImportTenantsPage() {
     setLoadingUnits(true)
     setError(null)
     try {
-      const res = await fetch(`/api/properties/${buildingId}/units`, { cache: 'no-store' })
+      const res = await fetch(
+        `/api/properties/${buildingId}/units?buildingId=${encodeURIComponent(buildingId)}`,
+        { cache: 'no-store' }
+      )
       const payload = await res.json()
       if (!res.ok) throw new Error(payload.error || 'Failed to load units.')
       const list: Unit[] = (payload.data?.units || []).map((u: any) => ({
