@@ -7,8 +7,11 @@ import { saveAs } from 'file-saver'
 import * as XLSX from 'xlsx'
 import { AgGridReact } from 'ag-grid-react'
 import type { ColDef, GridApi } from 'ag-grid-community'
+import { AllCommunityModule, ModuleRegistry } from 'ag-grid-community'
 import 'ag-grid-community/styles/ag-grid.css'
 import 'ag-grid-community/styles/ag-theme-quartz.css'
+
+ModuleRegistry.registerModules([AllCommunityModule])
 
 import { Sidebar } from '@/components/dashboard/sidebar'
 import { Header } from '@/components/dashboard/header'
@@ -701,7 +704,7 @@ export default function BulkImportTenantsPage() {
                   </div>
                 </div>
 
-                <div className="ag-theme-quartz w-full h-[520px] rounded-lg border border-slate-200 bg-white">
+                <div className="ag-theme-quartz w-full h-[520px] rounded-lg border border-slate-200 bg-white overflow-auto">
                   <AgGridReact<ImportRow>
                     rowData={rows}
                     columnDefs={colDefs}
