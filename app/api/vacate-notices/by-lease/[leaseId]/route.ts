@@ -1,13 +1,12 @@
 import { NextResponse } from 'next/server'
-import { requireManagerContext, UUID_RE } from '../../_helpers'
+import { requireManagerContext, normalizeUuid } from '../../_helpers'
 
 export async function GET(request: Request, { params }: { params: { leaseId: string } }) {
   const rawParam = params?.leaseId || ''
   const url = new URL(request.url)
-  const fromPath = url.pathname.split('/').filter(Boolean).pop() || ''
-  const decoded = decodeURIComponent(rawParam || fromPath).trim()
-  const match = decoded.match(UUID_RE)
-  const leaseId = match ? match[0] : ''
+  const leaseId = normalizeUuid(
+    `${rawParam} ${url.pathname} ${url.searchParams.get('leaseId') || ''}`
+  )
 
   if (!leaseId) {
     return NextResponse.json({ success: false, error: 'Invalid lease id.' }, { status: 400 })

@@ -6,9 +6,12 @@ import { normalizeUuid } from '../../_helpers'
 const BUCKET = 'tenant-notices'
 const MANAGER_ROLES = new Set(['admin', 'manager', 'caretaker'])
 
-export async function GET(_: Request, { params }: { params: { noticeId: string } }) {
+export async function GET(request: Request, { params }: { params: { noticeId: string } }) {
   const rawParam = params?.noticeId || ''
-  const noticeId = normalizeUuid(rawParam)
+  const url = new URL(request.url)
+  const noticeId = normalizeUuid(
+    `${rawParam} ${url.pathname} ${url.searchParams.get('noticeId') || ''}`
+  )
   if (!noticeId) {
     return NextResponse.json({ success: false, error: 'Invalid notice id.' }, { status: 400 })
   }
