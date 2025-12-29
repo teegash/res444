@@ -4,11 +4,22 @@ import { fetchNoticeById, logNoticeEvent, notifyTenant, requireManagerContext, n
 export async function POST(request: Request, { params }: { params: { noticeId: string } }) {
   const rawParam = params?.noticeId || ''
   const url = new URL(request.url)
-  const noticeId = normalizeUuid(
-    `${rawParam} ${url.pathname} ${url.searchParams.get('noticeId') || ''}`
-  )
+  const noticeId =
+    normalizeUuid(`${rawParam} ${url.pathname} ${url.searchParams.get('noticeId') || ''}`) ||
+    normalizeUuid(rawParam)
   if (!noticeId) {
-    return NextResponse.json({ success: false, error: 'Invalid notice id.' }, { status: 400 })
+    return NextResponse.json(
+      {
+        success: false,
+        error: 'Invalid notice id.',
+        received: {
+          param: rawParam || null,
+          path: url.pathname,
+          query: url.searchParams.get('noticeId') || null,
+        },
+      },
+      { status: 400 }
+    )
   }
 
   const auth = await requireManagerContext()
