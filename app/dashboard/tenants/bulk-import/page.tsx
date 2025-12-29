@@ -25,11 +25,12 @@ import { Badge } from '@/components/ui/badge'
 import { exportRowsAsCSV, exportRowsAsExcel, ExportColumn } from '@/lib/export/download'
 
 type Property = { id: string; name: string; location?: string | null; total_units?: number | null }
-type Unit = { id: string; unit_number: string; status: string }
+type Unit = { id: string; unit_number: string; status: string; unit_price_category?: string | null }
 
 type ImportRow = {
   rowIndex: number
   unit_number: string
+  unit_id?: string
   full_name: string
   email: string
   phone_number: string
@@ -223,6 +224,7 @@ export default function BulkImportTenantsPage() {
         id: u.id,
         unit_number: u.unit_number,
         status: u.status,
+        unit_price_category: u.unit_price_category ?? null,
       }))
       setUnits(list)
     } catch (e: any) {
@@ -265,10 +267,15 @@ export default function BulkImportTenantsPage() {
     if (start_date && !isoDateRe.test(start_date)) errors.push('start_date must be YYYY-MM-DD')
     if (date_of_birth && !isoDateRe.test(date_of_birth)) errors.push('date_of_birth must be YYYY-MM-DD')
 
+    let unit_id: string | undefined
     if (unit_number) {
       const u = unitMap.get(unit_number)
-      if (!u) errors.push(`unit_number not found in selected property: ${unit_number}`)
-      else if (vacantOnly && u.status !== 'vacant') errors.push(`unit is not vacant (${u.status})`)
+      if (!u) {
+        errors.push(`unit_number not found in selected property: ${unit_number}`)
+      } else {
+        unit_id = u.id
+        if (vacantOnly && u.status !== 'vacant') errors.push(`unit is not vacant (${u.status})`)
+      }
     }
 
     const valid = errors.length === 0
@@ -276,6 +283,7 @@ export default function BulkImportTenantsPage() {
     return {
       rowIndex: idx + 1,
       unit_number,
+      unit_id,
       full_name,
       email,
       phone_number,
@@ -553,6 +561,7 @@ export default function BulkImportTenantsPage() {
 
         const payloadRows = batch.map((r) => ({
           unit_number: r.unit_number,
+          unit_id: r.unit_id,
           full_name: r.full_name,
           email: r.email,
           phone_number: r.phone_number,

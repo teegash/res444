@@ -6,6 +6,7 @@ import { createTenantWithLease } from '@/lib/tenants/leaseCreation'
 
 type ImportRow = {
   unit_number: string
+  unit_id?: string
   full_name: string
   email: string
   phone_number: string
@@ -75,20 +76,24 @@ export async function POST(req: NextRequest) {
 
       try {
         const unitNumber = String(r.unit_number || '').trim()
-        if (!unitNumber) {
+        const unitId = String(r.unit_id || '').trim()
+        if (!unitNumber && !unitId) {
           results.push({ rowIndex: i, ok: false, error: 'unit_number is required' })
           continue
         }
 
-        const { data: unit, error: uErr } = await admin
+        const unitQuery = admin
           .from('apartment_units')
           .select('id, status')
           .eq('building_id', propertyId)
-          .eq('unit_number', unitNumber)
-          .maybeSingle()
+
+        const { data: unit, error: uErr } = unitId
+          ? await unitQuery.eq('id', unitId).maybeSingle()
+          : await unitQuery.eq('unit_number', unitNumber).maybeSingle()
 
         if (uErr || !unit) {
-          results.push({ rowIndex: i, ok: false, error: `Unit not found: ${unitNumber}` })
+          const label = unitId ? `id ${unitId}` : unitNumber
+          results.push({ rowIndex: i, ok: false, error: `Unit not found: ${label}` })
           continue
         }
 
