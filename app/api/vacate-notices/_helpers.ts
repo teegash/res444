@@ -6,6 +6,8 @@ const MANAGER_ROLES = new Set(['admin', 'manager', 'caretaker'])
 
 export const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+const UUID_LOOSE_RE =
+  /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i
 
 export function normalizeUuid(input: string) {
   let decoded = String(input || '').trim()
@@ -14,8 +16,10 @@ export function normalizeUuid(input: string) {
   } catch {
     // keep raw input if decoding fails
   }
-  const match = decoded.match(UUID_RE)
-  return match ? match[0] : ''
+  const strict = decoded.match(UUID_RE)
+  if (strict?.[0]) return strict[0]
+  const loose = decoded.match(UUID_LOOSE_RE)
+  return loose?.[0] || ''
 }
 
 export async function requireManagerContext() {

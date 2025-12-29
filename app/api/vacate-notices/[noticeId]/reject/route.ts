@@ -5,8 +5,9 @@ export async function POST(request: Request, { params }: { params: { noticeId?: 
   const rawParam = params?.noticeId || params?.id || ''
   const url = new URL(request.url)
   const noticeId =
-    normalizeUuid(`${rawParam} ${url.pathname} ${url.searchParams.get('noticeId') || ''}`) ||
-    normalizeUuid(rawParam)
+    normalizeUuid(
+      `${rawParam} ${url.pathname} ${url.searchParams.get('noticeId') || ''} ${url.searchParams.get('id') || ''}`
+    ) || normalizeUuid(rawParam)
   if (!noticeId) {
     return NextResponse.json(
       {

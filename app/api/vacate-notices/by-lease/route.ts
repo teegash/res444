@@ -4,7 +4,7 @@ import { requireManagerContext, normalizeUuid } from '../_helpers'
 export async function GET(request: Request) {
   const url = new URL(request.url)
   const leaseId = normalizeUuid(
-    `${url.searchParams.get('leaseId') || ''} ${url.searchParams.get('lease_id') || ''}`
+    `${url.searchParams.get('leaseId') || ''} ${url.searchParams.get('lease_id') || ''} ${url.pathname}`
   )
 
   if (!leaseId) {
