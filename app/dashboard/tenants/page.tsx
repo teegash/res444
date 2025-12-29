@@ -87,6 +87,12 @@ export default function TenantsPage() {
                     <Plus className="w-4 h-4" />
                     Add New Tenant
                   </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => router.push('/dashboard/tenants/bulk-import')}
+                  >
+                    Bulk Import
+                  </Button>
                 </div>
               </div>
             </div>
