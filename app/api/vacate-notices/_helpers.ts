@@ -7,6 +7,12 @@ const MANAGER_ROLES = new Set(['admin', 'manager', 'caretaker'])
 export const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
+export function normalizeUuid(input: string) {
+  const decoded = decodeURIComponent(String(input || '').trim())
+  const match = decoded.match(UUID_RE)
+  return match ? match[0] : ''
+}
+
 export async function requireManagerContext() {
   const supabase = await createClient()
   const {

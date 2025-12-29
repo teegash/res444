@@ -1,14 +1,15 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { UUID_RE } from '../../_helpers'
+import { normalizeUuid } from '../../_helpers'
 
 const BUCKET = 'tenant-notices'
 const MANAGER_ROLES = new Set(['admin', 'manager', 'caretaker'])
 
 export async function GET(_: Request, { params }: { params: { noticeId: string } }) {
-  const noticeId = params?.noticeId || ''
-  if (!UUID_RE.test(noticeId)) {
+  const rawParam = params?.noticeId || ''
+  const noticeId = normalizeUuid(rawParam)
+  if (!noticeId) {
     return NextResponse.json({ success: false, error: 'Invalid notice id.' }, { status: 400 })
   }
 

@@ -1,9 +1,12 @@
 import { NextResponse } from 'next/server'
-import { fetchNoticeById, logNoticeEvent, notifyTenant, requireManagerContext, UUID_RE } from '../../_helpers'
+import { fetchNoticeById, logNoticeEvent, notifyTenant, requireManagerContext, normalizeUuid } from '../../_helpers'
 
 export async function POST(request: Request, { params }: { params: { noticeId: string } }) {
-  const noticeId = params?.noticeId || ''
-  if (!UUID_RE.test(noticeId)) {
+  const rawParam = params?.noticeId || ''
+  const url = new URL(request.url)
+  const fromPath = url.pathname.split('/').filter(Boolean).slice(-2, -1)[0] || ''
+  const noticeId = normalizeUuid(rawParam || fromPath)
+  if (!noticeId) {
     return NextResponse.json({ success: false, error: 'Invalid notice id.' }, { status: 400 })
   }
 
