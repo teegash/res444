@@ -367,10 +367,9 @@ export async function GET(request: NextRequest) {
         arrears_amount: number
         open_invoices_count: number
         oldest_due_date: string | null
-        rating_percentage: number | null
-        scored_items_count: number
       }
     >()
+    const ratingMap = new Map<string, { rating_percentage: number | null; scored_items_count: number }>()
     const kickoutMap = new Map<
       string,
       { kick_out_candidate: boolean; monthly_rent: number | null }
@@ -378,7 +377,7 @@ export async function GET(request: NextRequest) {
 
     const { data: riskRows } = await adminSupabase
       .from('vw_tenant_risk_summary')
-      .select('tenant_user_id, arrears_amount, open_invoices_count, oldest_due_date, rating_percentage, scored_items_count')
+      .select('tenant_user_id, arrears_amount, open_invoices_count, oldest_due_date')
       .eq('organization_id', membership.organization_id)
 
     ;(riskRows || []).forEach((row: any) => {
@@ -386,6 +385,16 @@ export async function GET(request: NextRequest) {
         arrears_amount: Number(row.arrears_amount || 0),
         open_invoices_count: Number(row.open_invoices_count || 0),
         oldest_due_date: row.oldest_due_date || null,
+      })
+    })
+
+    const { data: ratingRows } = await adminSupabase
+      .from('vw_tenant_payment_timeliness')
+      .select('tenant_user_id, rating_percentage, scored_items_count')
+      .eq('organization_id', membership.organization_id)
+
+    ;(ratingRows || []).forEach((row: any) => {
+      ratingMap.set(row.tenant_user_id, {
         rating_percentage:
           row.rating_percentage === null || row.rating_percentage === undefined
             ? null
@@ -440,6 +449,7 @@ export async function GET(request: NextRequest) {
           }
 
       const risk = riskMap.get(profile.id)
+      const rating = ratingMap.get(profile.id)
       const kickout = kickoutMap.get(profile.id)
 
       return {
@@ -478,8 +488,8 @@ export async function GET(request: NextRequest) {
         arrears_amount: risk?.arrears_amount ?? 0,
         open_invoices_count: risk?.open_invoices_count ?? 0,
         oldest_due_date: risk?.oldest_due_date ?? null,
-        rating_percentage: risk?.rating_percentage ?? null,
-        scored_items_count: risk?.scored_items_count ?? 0,
+        rating_percentage: rating?.rating_percentage ?? null,
+        scored_items_count: rating?.scored_items_count ?? 0,
         kick_out_candidate: kickout?.kick_out_candidate ?? false,
         kickout_monthly_rent: kickout?.monthly_rent ?? null,
       }
