@@ -2,7 +2,7 @@
 
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Wrench, MessageSquare, FileText, CreditCard, History } from 'lucide-react'
+import { Wrench, MessageSquare, FileText, CreditCard, History, ArrowLeftRight } from 'lucide-react'
 import Link from 'next/link'
 
 export function TenantQuickActions() {
@@ -41,6 +41,13 @@ export function TenantQuickActions() {
       color: 'text-purple-600', 
       bgColor: 'bg-purple-50 hover:bg-purple-100',
       href: '/dashboard/tenant/lease'
+    },
+    {
+      icon: ArrowLeftRight,
+      label: 'Transition',
+      color: 'text-indigo-600',
+      bgColor: 'bg-indigo-50 hover:bg-indigo-100',
+      href: '/dashboard/tenant/transition'
     },
   ]
 
