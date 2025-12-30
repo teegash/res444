@@ -32,8 +32,17 @@ const parseDataUrl = (value: string) => {
   return { mimeType, buffer, extension }
 }
 
-export async function GET(_: NextRequest, { params }: RouteParams) {
-  const tenantId = params?.id
+export async function GET(request: NextRequest, { params }: RouteParams) {
+  let tenantId =
+    params?.id ||
+    request.nextUrl.searchParams.get('tenantId') ||
+    request.nextUrl.searchParams.get('id') ||
+    null
+
+  if (!tenantId) {
+    const segments = request.nextUrl.pathname.split('/').filter(Boolean)
+    tenantId = segments[segments.length - 1] || null
+  }
 
   if (!tenantId) {
     return NextResponse.json({ success: false, error: 'Tenant id is required.' }, { status: 400 })
