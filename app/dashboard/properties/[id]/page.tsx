@@ -419,23 +419,23 @@ export default function PropertyDetailPage() {
             <section className="space-y-4">
               {snapshotLoading ? (
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                  <div className="lg:col-span-1">
+                  <div className="lg:col-span-2">
                     <SkeletonChart bars={6} />
                   </div>
-                  <div className="lg:col-span-2">
+                  <div className="lg:col-span-1">
                     <SkeletonChart bars={8} />
                   </div>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                  <div className="lg:col-span-1">
+                  <div className="lg:col-span-2">
                     <PropertyIncomeVsExpensesChart
                       months={monthsRange}
                       onToggleMonths={() => setMonthsRange((m) => (m === 6 ? 12 : 6))}
                       data={incomeSeries}
                     />
                   </div>
-                  <div className="lg:col-span-2">
+                  <div className="lg:col-span-1">
                     <OrgPeerIncomeChart
                       monthLabel={snapshot?.charts?.peerMonthLabel}
                       data={snapshot?.charts?.peerMonthlyIncome || []}
