@@ -12,9 +12,18 @@ export async function POST(req: NextRequest, ctx: { params: { caseId: string } }
     const { admin, organizationId, user } = auth as any
     const body = await req.json().catch(() => ({}))
 
+    const requestedStatus = String(body.status || '').toLowerCase()
+    let requestedStage = body.stage
+    if (requestedStatus === 'completed') {
+      const stageValue = String(body.stage || '').toLowerCase()
+      if (stageValue !== 'unit_turned_over' && stageValue !== 'onboarded_new_tenant') {
+        requestedStage = 'unit_turned_over'
+      }
+    }
+
     const { data: row, error: rErr } = await admin
       .from('tenant_transition_cases')
-      .select('id, tenant_user_id')
+      .select('id, tenant_user_id, vacate_notice_id, lease_id')
       .eq('organization_id', organizationId)
       .eq('id', caseId)
       .maybeSingle()
@@ -25,7 +34,7 @@ export async function POST(req: NextRequest, ctx: { params: { caseId: string } }
     const { error: rpcErr } = await admin.rpc('update_transition_case', {
       p_case_id: caseId,
       p_status: body.status ?? null,
-      p_stage: body.stage ?? null,
+      p_stage: requestedStage ?? null,
       p_expected_vacate_date: body.expected_vacate_date ?? null,
       p_handover_date: body.handover_date ?? null,
       p_actual_vacate_date: body.actual_vacate_date ?? null,
@@ -42,19 +51,62 @@ export async function POST(req: NextRequest, ctx: { params: { caseId: string } }
 
     if (rpcErr) throw rpcErr
 
-    const notifyMessage = body.notify_message ? String(body.notify_message).trim() : ''
-    if (notifyMessage) {
-      try {
-        await notifyTenant(admin, {
-          tenantUserId: row.tenant_user_id,
-          organizationId,
-          caseId,
-          senderUserId: user?.id || null,
-          message: notifyMessage,
-        })
-      } catch {
-        // ignore notification errors
+    if (
+      ['submitted', 'acknowledged', 'approved', 'rejected', 'completed'].includes(requestedStatus)
+    ) {
+      let vacateNoticeId = row.vacate_notice_id ? String(row.vacate_notice_id) : ''
+
+      if (!vacateNoticeId && row.lease_id) {
+        const { data: notice } = await admin
+          .from('tenant_vacate_notices')
+          .select('id')
+          .eq('organization_id', organizationId)
+          .eq('lease_id', row.lease_id)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+        if (notice?.id) vacateNoticeId = String(notice.id)
       }
+
+      if (vacateNoticeId) {
+        const updatePayload: Record<string, any> = { status: requestedStatus }
+        const nowIso = new Date().toISOString()
+        if (requestedStatus === 'acknowledged') updatePayload.acknowledged_at = nowIso
+        if (requestedStatus === 'approved') updatePayload.approved_at = nowIso
+        if (requestedStatus === 'rejected') updatePayload.rejected_at = nowIso
+        if (requestedStatus === 'completed') updatePayload.completed_at = nowIso
+
+        await admin
+          .from('tenant_vacate_notices')
+          .update(updatePayload)
+          .eq('organization_id', organizationId)
+          .eq('id', vacateNoticeId)
+
+        await admin.from('tenant_vacate_notice_events').insert({
+          notice_id: vacateNoticeId,
+          organization_id: organizationId,
+          actor_user_id: user?.id || null,
+          action: requestedStatus,
+          metadata: { source: 'transition_case', case_id: caseId },
+        })
+      }
+    }
+
+    const notifyMessage = body.notify_message ? String(body.notify_message).trim() : ''
+    const message =
+      notifyMessage ||
+      'Your move-out case has been updated. Please review the latest details in your portal.'
+
+    try {
+      await notifyTenant(admin, {
+        tenantUserId: row.tenant_user_id,
+        organizationId,
+        caseId,
+        senderUserId: user?.id || null,
+        message,
+      })
+    } catch {
+      // ignore notification errors
     }
 
     return NextResponse.json({ success: true })

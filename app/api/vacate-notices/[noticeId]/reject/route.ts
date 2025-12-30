@@ -77,6 +77,53 @@ export async function POST(request: Request, { params }: { params: { noticeId?: 
       message: `Your vacate notice was rejected: ${managerNotes}`,
     })
 
+    let transition =
+      (
+        await admin
+          .from('tenant_transition_cases')
+          .select('id')
+          .eq('organization_id', organizationId)
+          .eq('vacate_notice_id', noticeId)
+          .maybeSingle()
+      ).data || null
+
+    if (!transition && notice.lease_id) {
+      transition =
+        (
+          await admin
+            .from('tenant_transition_cases')
+            .select('id')
+            .eq('organization_id', organizationId)
+            .eq('lease_id', notice.lease_id)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle()
+        ).data || null
+    }
+
+    if (transition?.id) {
+      const { error: transitionErr } = await admin.rpc('update_transition_case', {
+        p_case_id: transition.id,
+        p_status: 'rejected',
+      })
+
+      if (transitionErr) {
+        await admin
+          .from('tenant_transition_cases')
+          .update({ status: 'rejected' })
+          .eq('organization_id', organizationId)
+          .eq('id', transition.id)
+
+        await admin.from('tenant_transition_events').insert({
+          organization_id: organizationId,
+          case_id: transition.id,
+          actor_user_id: user?.id || null,
+          action: 'rejected',
+          metadata: { source: 'vacate_notice', notice_id: noticeId, reason: managerNotes },
+        })
+      }
+    }
+
     return NextResponse.json({ success: true })
   } catch (error) {
     console.error('[VacateNotice.Reject] Failed', error)

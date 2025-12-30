@@ -587,6 +587,23 @@ export default function TenantLeaseManagementPage() {
   }, [data?.lease?.id, refreshVacateNotice])
 
   useEffect(() => {
+    if (!lease?.id) return
+    const refresh = () => refreshVacateNotice(lease.id)
+
+    if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+      const channel = new BroadcastChannel('vacate_notice_refresh')
+      channel.onmessage = refresh
+      return () => channel.close()
+    }
+
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === 'vacate_notice_refresh') refresh()
+    }
+    window.addEventListener('storage', onStorage)
+    return () => window.removeEventListener('storage', onStorage)
+  }, [lease?.id, refreshVacateNotice])
+
+  useEffect(() => {
     if (searchParams.get('tab') === 'vacate_notice') {
       vacateNoticeRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
     }

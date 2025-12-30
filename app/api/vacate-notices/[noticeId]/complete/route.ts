@@ -42,16 +42,67 @@ export async function POST(request: Request, { params }: { params: { noticeId?: 
       )
     }
 
-    let rpcError: any = null
-    const primary = await admin.rpc('complete_vacate_notice', { notice_id: noticeId })
-    rpcError = primary.error
-    if (rpcError) {
-      const fallback = await admin.rpc('complete_vacate_notice', { p_notice_id: noticeId })
-      rpcError = fallback.error
+    const { error: rpcError } = await admin.rpc('complete_vacate_notice', {
+      p_notice_id: noticeId,
+      p_completed_by: user?.id || null,
+    })
+
+    if (rpcError) throw rpcError
+
+    let transition =
+      (
+        await admin
+          .from('tenant_transition_cases')
+          .select('id, status')
+          .eq('organization_id', organizationId)
+          .eq('vacate_notice_id', noticeId)
+          .maybeSingle()
+      ).data || null
+
+    if (!transition && notice.lease_id) {
+      transition =
+        (
+          await admin
+            .from('tenant_transition_cases')
+            .select('id, status')
+            .eq('organization_id', organizationId)
+            .eq('lease_id', notice.lease_id)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle()
+        ).data || null
     }
 
-    if (rpcError) {
-      throw rpcError
+    if (transition && transition.status !== 'completed') {
+      const { error: transitionErr } = await admin.rpc('complete_transition_case', {
+        p_case_id: transition.id,
+        p_unit_next_status: 'vacant',
+        p_actual_vacate_date: notice.requested_vacate_date || null,
+      })
+
+      if (transitionErr) {
+        await admin
+          .from('tenant_transition_cases')
+          .update({
+            status: 'completed',
+            stage: 'unit_turned_over',
+            actual_vacate_date: notice.requested_vacate_date || null,
+          })
+          .eq('organization_id', organizationId)
+          .eq('id', transition.id)
+
+        await admin.from('tenant_transition_events').insert({
+          organization_id: organizationId,
+          case_id: transition.id,
+          actor_user_id: user?.id || null,
+          action: 'completed',
+          metadata: {
+            source: 'vacate_notice',
+            notice_id: noticeId,
+            note: transitionErr.message || 'complete_transition_case failed; status updated directly',
+          },
+        })
+      }
     }
 
     await notifyTenant(admin, {

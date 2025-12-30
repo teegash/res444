@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { Sidebar } from '@/components/dashboard/sidebar'
 import { Header } from '@/components/dashboard/header'
@@ -40,6 +40,21 @@ export default function TransitionDetailPage() {
   const [notifyMessage, setNotifyMessage] = useState('')
 
   const signed = data?.signed_urls || {}
+
+  const broadcastVacateRefresh = useCallback(() => {
+    if (typeof window === 'undefined') return
+    if ('BroadcastChannel' in window) {
+      const channel = new BroadcastChannel('vacate_notice_refresh')
+      channel.postMessage({ ts: Date.now() })
+      channel.close()
+    } else {
+      try {
+        localStorage.setItem('vacate_notice_refresh', String(Date.now()))
+      } catch {
+        // ignore storage errors
+      }
+    }
+  }, [])
 
   const handoverDateValue = useMemo(() => {
     if (!handoverDate) return undefined
@@ -112,6 +127,7 @@ export default function TransitionDetailPage() {
       toast({ title: 'Saved', description: 'Transition case updated.' })
       setNotifyMessage('')
       await load()
+      broadcastVacateRefresh()
     } catch (e) {
       toast({
         title: 'Update failed',
@@ -137,6 +153,7 @@ export default function TransitionDetailPage() {
       if (!res.ok) throw new Error(payload.error || 'Failed to complete case.')
       toast({ title: 'Completed', description: 'Transition case marked completed.' })
       await load()
+      broadcastVacateRefresh()
     } catch (e) {
       toast({
         title: 'Completion failed',
@@ -194,7 +211,19 @@ export default function TransitionDetailPage() {
                 <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
                     <div className="text-xs text-muted-foreground mb-1">Status</div>
-                    <Select value={status} onValueChange={setStatus}>
+                    <Select
+                      value={status}
+                      onValueChange={(value) => {
+                        setStatus(value)
+                        if (
+                          value === 'completed' &&
+                          stage !== 'unit_turned_over' &&
+                          stage !== 'onboarded_new_tenant'
+                        ) {
+                          setStage('unit_turned_over')
+                        }
+                      }}
+                    >
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="submitted">submitted</SelectItem>

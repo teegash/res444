@@ -17,7 +17,7 @@ export async function POST(req: NextRequest, ctx: { params: { caseId: string } }
 
     const { data: row, error: rErr } = await admin
       .from('tenant_transition_cases')
-      .select('id, tenant_user_id')
+      .select('id, tenant_user_id, vacate_notice_id, lease_id')
       .eq('organization_id', organizationId)
       .eq('id', caseId)
       .maybeSingle()
@@ -32,6 +32,50 @@ export async function POST(req: NextRequest, ctx: { params: { caseId: string } }
     })
 
     if (rpcErr) throw rpcErr
+
+    let vacateNoticeId = row.vacate_notice_id ? String(row.vacate_notice_id) : ''
+
+    if (!vacateNoticeId && row.lease_id) {
+      const { data: notice } = await admin
+        .from('tenant_vacate_notices')
+        .select('id')
+        .eq('organization_id', organizationId)
+        .eq('lease_id', row.lease_id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      if (notice?.id) vacateNoticeId = String(notice.id)
+    }
+
+    if (vacateNoticeId) {
+      const { error: noticeErr } = await admin.rpc('complete_vacate_notice', {
+        p_notice_id: vacateNoticeId,
+        p_completed_by: user?.id || null,
+      })
+
+      if (noticeErr) {
+        await admin
+          .from('tenant_vacate_notices')
+          .update({
+            status: 'completed',
+            completed_at: new Date().toISOString(),
+          })
+          .eq('organization_id', organizationId)
+          .eq('id', vacateNoticeId)
+
+        await admin.from('tenant_vacate_notice_events').insert({
+          notice_id: vacateNoticeId,
+          organization_id: organizationId,
+          actor_user_id: user?.id || null,
+          action: 'completed',
+          metadata: {
+            source: 'transition_case',
+            case_id: caseId,
+            note: noticeErr.message || 'complete_vacate_notice failed; status updated directly',
+          },
+        })
+      }
+    }
 
     try {
       await notifyTenant(admin, {

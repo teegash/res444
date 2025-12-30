@@ -1188,6 +1188,9 @@ export default function LeasePage() {
                     <Download className="h-4 w-4 mr-2" />
                     Download notice
                   </Button>
+                  <Link href="/dashboard/tenant/transition">
+                    <Button variant="secondary">View transition</Button>
+                  </Link>
                   {String(vacateNotice.status || '').toLowerCase() === 'rejected' && (
                     <Button
                       variant="secondary"

@@ -46,14 +46,25 @@ export default function TenantTransitionPage() {
 
   const statusClasses = (value?: string | null) => {
     const status = String(value || '').toLowerCase()
-    if (status === 'completed') return 'bg-emerald-100 text-emerald-800'
-    if (status === 'approved') return 'bg-blue-100 text-blue-700'
-    if (status === 'acknowledged') return 'bg-amber-100 text-amber-700'
-    if (status === 'rejected' || status === 'cancelled') return 'bg-slate-200 text-slate-700'
-    return 'bg-purple-100 text-purple-700'
+    if (status === 'completed') return 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+    if (status === 'approved') return 'bg-blue-100 text-blue-700 border border-blue-200'
+    if (status === 'acknowledged') return 'bg-amber-100 text-amber-700 border border-amber-200'
+    if (status === 'rejected' || status === 'cancelled') return 'bg-slate-200 text-slate-700 border border-slate-300'
+    return 'bg-purple-100 text-purple-700 border border-purple-200'
   }
 
   const stageLabel = (value?: string | null) => String(value || 'opened').replace(/_/g, ' ')
+
+  const stageClasses = (value?: string | null) => {
+    const stage = String(value || '').toLowerCase()
+    if (stage === 'handover_scheduled') return 'bg-sky-50 text-sky-700 border border-sky-200'
+    if (stage === 'inspected') return 'bg-violet-50 text-violet-700 border border-violet-200'
+    if (stage === 'deposit_settled') return 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+    if (stage === 'vacated') return 'bg-amber-50 text-amber-700 border border-amber-200'
+    if (stage === 'unit_turned_over') return 'bg-indigo-50 text-indigo-700 border border-indigo-200'
+    if (stage === 'onboarded_new_tenant') return 'bg-teal-50 text-teal-700 border border-teal-200'
+    return 'bg-slate-50 text-slate-600 border border-slate-200'
+  }
 
   const refundPanel = useMemo(() => {
     const status = String(data?.refund_status || '').toLowerCase()
@@ -61,6 +72,7 @@ export default function TenantTransitionPage() {
     return {
       status,
       amount: Number(data?.deposit_refund_amount || 0),
+      paid: status === 'paid',
     }
   }, [data])
 
@@ -145,10 +157,22 @@ export default function TenantTransitionPage() {
                   Unit {data.unit?.unit_number || '—'} • {data.unit?.building?.name || 'Property'}
                 </CardTitle>
                 <CardDescription>
-                  <span className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold ${statusClasses(data.status)}`}>
-                    {String(data.status || 'submitted')}
-                  </span>
-                  <span className="ml-3 text-xs text-muted-foreground">Stage: {stageLabel(data.stage)}</span>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span
+                      className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold capitalize ${statusClasses(
+                        data.status
+                      )}`}
+                    >
+                      {String(data.status || 'submitted')}
+                    </span>
+                    <span
+                      className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold capitalize ${stageClasses(
+                        data.stage
+                      )}`}
+                    >
+                      {stageLabel(data.stage)}
+                    </span>
+                  </div>
                 </CardDescription>
               </CardHeader>
               <CardContent className="grid gap-4 md:grid-cols-3 text-sm">
@@ -208,9 +232,23 @@ export default function TenantTransitionPage() {
                   <CardDescription>Summary of your refund status.</CardDescription>
                 </CardHeader>
                 <CardContent className="grid gap-4 md:grid-cols-2 text-sm">
-                  <div className="rounded-xl bg-emerald-50 p-4">
-                    <p className="text-xs uppercase tracking-wide text-emerald-600">Refund status</p>
-                    <p className="mt-1 text-base font-semibold text-emerald-900">
+                  <div
+                    className={`rounded-xl p-4 ${
+                      refundPanel.paid ? 'bg-emerald-50' : 'bg-rose-50'
+                    }`}
+                  >
+                    <p
+                      className={`text-xs uppercase tracking-wide ${
+                        refundPanel.paid ? 'text-emerald-600' : 'text-rose-600'
+                      }`}
+                    >
+                      Refund status
+                    </p>
+                    <p
+                      className={`mt-1 text-base font-semibold ${
+                        refundPanel.paid ? 'text-emerald-900' : 'text-rose-900'
+                      }`}
+                    >
                       {refundPanel.status.replace(/_/g, ' ')}
                     </p>
                   </div>
