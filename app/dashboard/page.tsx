@@ -340,7 +340,8 @@ function DashboardContent() {
         }>
         const rated = list.filter((tenant) => tenant.on_time_rate !== null)
         const worstCandidates = rated.filter((tenant) => (tenant.on_time_rate || 0) < 90)
-        const sortedDesc = [...rated].sort(
+        const topCandidates = rated.filter((tenant) => (tenant.on_time_rate || 0) >= 90)
+        const sortedDesc = [...topCandidates].sort(
           (a, b) => (b.on_time_rate || 0) - (a.on_time_rate || 0) || b.payments - a.payments
         )
         const sortedAsc = [...worstCandidates].sort(

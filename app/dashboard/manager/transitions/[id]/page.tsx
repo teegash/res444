@@ -42,6 +42,22 @@ export default function TransitionDetailPage() {
   const signed = data?.signed_urls || {}
   const isCompleted = (data?.status || '').toLowerCase() === 'completed'
 
+  const formatDateLocal = (date: Date) => {
+    const year = date.getFullYear()
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const day = String(date.getDate()).padStart(2, '0')
+    return `${year}-${month}-${day}`
+  }
+
+  const parseDateLocal = (value: string) => {
+    const parts = value.split('-').map((v) => Number(v))
+    if (parts.length !== 3) return undefined
+    const [year, month, day] = parts
+    if (!year || !month || !day) return undefined
+    const date = new Date(year, month - 1, day)
+    return Number.isNaN(date.getTime()) ? undefined : date
+  }
+
   const broadcastVacateRefresh = useCallback(() => {
     if (typeof window === 'undefined') return
     if ('BroadcastChannel' in window) {
@@ -59,9 +75,7 @@ export default function TransitionDetailPage() {
 
   const handoverDateValue = useMemo(() => {
     if (!handoverDate) return undefined
-    const parsed = new Date(handoverDate)
-    if (Number.isNaN(parsed.getTime())) return undefined
-    return parsed
+    return parseDateLocal(handoverDate)
   }, [handoverDate])
 
   const load = async () => {
@@ -258,7 +272,7 @@ export default function TransitionDetailPage() {
                     <ChronoSelect
                       value={handoverDateValue}
                       onChange={(date) =>
-                        setHandoverDate(date ? date.toISOString().slice(0, 10) : '')
+                        setHandoverDate(date ? formatDateLocal(date) : '')
                       }
                       placeholder="Select handover date"
                       className="w-full justify-start"
