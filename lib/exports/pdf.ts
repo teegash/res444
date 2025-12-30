@@ -19,6 +19,12 @@ export type PdfExportTableOptions = {
   summaryRows?: Array<Array<string | number>>
   footerNote?: string
   orientation?: 'portrait' | 'landscape' | 'auto'
+  tableStyles?: Partial<{
+    fontSize: number
+    cellPadding: number | { top?: number; right?: number; bottom?: number; left?: number }
+    lineHeightFactor: number
+    overflow: 'linebreak' | 'ellipsize' | 'visible' | 'hidden'
+  }>
 }
 
 // Brand primary: elegant blend of previous blue + #606975.
@@ -172,11 +178,13 @@ export function exportTablePdf(options: PdfExportTableOptions) {
       textColor: BRAND_DARK_RGB as any,
       lineColor: BORDER_RGB as any,
       lineWidth: 0.5,
+      ...(options.tableStyles || {}),
     },
     headStyles: {
       fillColor: BRAND_PRIMARY_RGB as any,
       textColor: [255, 255, 255],
       fontStyle: 'bold',
+      ...(options.tableStyles?.fontSize ? { fontSize: options.tableStyles.fontSize } : {}),
     },
     alternateRowStyles: {
       fillColor: [248, 250, 252],

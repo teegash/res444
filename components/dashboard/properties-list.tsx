@@ -26,12 +26,18 @@ export function PropertiesList({ onEdit, onManageUnits, onView, searchTerm }: Pr
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
+  const searchQuery = searchTerm.trim()
   const fetchProperties = useMemo(
     () => async () => {
       try {
         setLoading(true)
         setError(null)
-        const response = await fetch('/api/properties', {
+        const params = new URLSearchParams()
+        if (searchQuery) {
+          params.set('q', searchQuery)
+        }
+        const url = params.toString() ? `/api/properties?${params.toString()}` : '/api/properties'
+        const response = await fetch(url, {
           credentials: 'include',
           cache: 'no-store',
         })
@@ -50,7 +56,7 @@ export function PropertiesList({ onEdit, onManageUnits, onView, searchTerm }: Pr
         setLoading(false)
       }
     },
-    []
+    [searchQuery]
   )
 
   useEffect(() => {
@@ -63,7 +69,12 @@ export function PropertiesList({ onEdit, onManageUnits, onView, searchTerm }: Pr
     return properties.filter((property) => {
       const name = String(property?.name || '').toLowerCase()
       const location = String(property?.location || '').toLowerCase()
-      return name.includes(normalizedSearch) || location.includes(normalizedSearch)
+      const description = String(property?.description || '').toLowerCase()
+      return (
+        name.includes(normalizedSearch) ||
+        location.includes(normalizedSearch) ||
+        description.includes(normalizedSearch)
+      )
     })
   }, [properties, normalizedSearch])
 

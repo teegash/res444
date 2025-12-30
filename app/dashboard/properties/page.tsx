@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { PropertiesList } from '@/components/dashboard/properties-list'
 import { PropertiesGrid } from '@/components/dashboard/properties-grid'
 import { PropertiesHeader } from '@/components/dashboard/properties-header'
@@ -11,7 +11,15 @@ import { useRouter } from 'next/navigation'
 export default function PropertiesPage() {
   const [viewType, setViewType] = useState<'grid' | 'list'>('grid')
   const [searchTerm, setSearchTerm] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
   const router = useRouter()
+
+  useEffect(() => {
+    const handle = window.setTimeout(() => {
+      setDebouncedSearch(searchTerm)
+    }, 300)
+    return () => window.clearTimeout(handle)
+  }, [searchTerm])
 
   const handleAddProperty = () => {
     router.push('/dashboard/properties/new')
@@ -86,14 +94,14 @@ export default function PropertiesPage() {
                 onEdit={handleEditProperty}
                 onManageUnits={handleManageUnits}
                 onView={handleViewProperty}
-                searchTerm={searchTerm}
+                searchTerm={debouncedSearch}
               />
             ) : (
               <PropertiesList
                 onEdit={handleEditProperty}
                 onManageUnits={handleManageUnits}
                 onView={handleViewProperty}
-                searchTerm={searchTerm}
+                searchTerm={debouncedSearch}
               />
             )}
 

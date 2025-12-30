@@ -129,10 +129,16 @@ export function PropertiesGrid({ onEdit, onManageUnits, onView, searchTerm }: Pr
     })
   }
 
+  const searchQuery = searchTerm.trim()
   const fetchProperties = useCallback(async () => {
     try {
       setLoading(true)
-      const response = await fetch('/api/properties', {
+      const params = new URLSearchParams()
+      if (searchQuery) {
+        params.set('q', searchQuery)
+      }
+      const url = params.toString() ? `/api/properties?${params.toString()}` : '/api/properties'
+      const response = await fetch(url, {
         credentials: 'include',
         cache: 'no-store',
       })
@@ -148,7 +154,7 @@ export function PropertiesGrid({ onEdit, onManageUnits, onView, searchTerm }: Pr
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [searchQuery])
 
   useEffect(() => {
     fetchProperties()
@@ -273,7 +279,12 @@ export function PropertiesGrid({ onEdit, onManageUnits, onView, searchTerm }: Pr
     return properties.filter((property) => {
       const name = String(property?.name || '').toLowerCase()
       const location = String(property?.location || '').toLowerCase()
-      return name.includes(normalizedSearch) || location.includes(normalizedSearch)
+      const description = String(property?.description || '').toLowerCase()
+      return (
+        name.includes(normalizedSearch) ||
+        location.includes(normalizedSearch) ||
+        description.includes(normalizedSearch)
+      )
     })
   }, [properties, normalizedSearch])
 

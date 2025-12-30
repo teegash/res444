@@ -83,7 +83,7 @@ export default function TenantTransitionPage() {
   return (
     <div className="min-h-screen bg-white">
       <div className="max-w-5xl mx-auto p-4 md:p-6 lg:p-8 space-y-6">
-        <div className="flex flex-col gap-4 md:flex-row md:items-center">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div className="flex items-center justify-between gap-3 md:hidden">
             <Link href="/dashboard/tenant">
               <Button variant="outline" size="sm" className="gap-2">
@@ -99,7 +99,7 @@ export default function TenantTransitionPage() {
             </Link>
           </div>
 
-          <div className="flex items-center gap-3 md:flex-1">
+          <div className="flex items-start gap-3 md:flex-1 md:items-center">
             <Link href="/dashboard/tenant" className="hidden md:inline-flex">
               <Button variant="outline" size="sm" className="gap-2">
                 <ArrowLeft className="h-4 w-4" />

@@ -34,7 +34,10 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: true, data: [] })
     }
 
-    const { data: buildings, error: buildingError } = await adminSupabase
+    const search = request.nextUrl.searchParams.get('q')?.trim()
+    const searchLike = search ? search.replace(/[%_]/g, '\\$&') : ''
+
+    let query = adminSupabase
       .from('apartment_buildings')
       .select(
         `
@@ -49,7 +52,16 @@ export async function GET(request: NextRequest) {
         `
       )
       .eq('organization_id', membership.organization_id)
-      .order('created_at', { ascending: false })
+
+    if (searchLike) {
+      query = query.or(
+        `name.ilike.%${searchLike}%,location.ilike.%${searchLike}%,description.ilike.%${searchLike}%`
+      )
+    }
+
+    const { data: buildings, error: buildingError } = await query.order('created_at', {
+      ascending: false,
+    })
 
     if (buildingError) {
       throw buildingError

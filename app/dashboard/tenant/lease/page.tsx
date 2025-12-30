@@ -1147,6 +1147,17 @@ export default function LeasePage() {
 
                 {vacateProgress ? (
                   <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                    {(() => {
+                      const progressPct = Math.round(vacateProgress.progress * 100)
+                      const progressColor =
+                        progressPct <= 25
+                          ? '#22c55e'
+                          : progressPct <= 50
+                            ? '#eab308'
+                            : progressPct <= 75
+                              ? '#f97316'
+                              : '#ef4444'
+                      return (
                     <div className="flex items-center justify-between text-xs text-muted-foreground mb-2">
                       <span>Submitted</span>
                       <span>{vacateProgress.endLabel}</span>
@@ -1155,18 +1166,19 @@ export default function LeasePage() {
                       <div
                         className="h-full rounded-full transition-all duration-700"
                         style={{
-                          width: `${Math.round(vacateProgress.progress * 100)}%`,
-                          backgroundImage:
-                            'linear-gradient(90deg, #3b82f6 0%, #22c55e 30%, #eab308 55%, #f97316 75%, #ef4444 100%)',
+                          width: `${progressPct}%`,
+                          backgroundColor: progressColor,
                         }}
                       />
                     </div>
                     <div className="mt-2 flex items-center justify-between text-xs text-slate-600">
-                      <span>{Math.round(vacateProgress.progress * 100)}% complete</span>
+                      <span>{progressPct}% complete</span>
                       <span>
                         {vacateProgress.daysRemaining} days left of {vacateProgress.totalDays}
                       </span>
                     </div>
+                      )
+                    })()}
                   </div>
                 ) : null}
 

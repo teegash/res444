@@ -20,6 +20,12 @@ type PdfOptions = {
   summaryRows?: Array<Array<string | number>>
   letterhead?: Partial<LetterheadMeta>
   orientation?: 'portrait' | 'landscape' | 'auto'
+  tableStyles?: Partial<{
+    fontSize: number
+    cellPadding: number | { top?: number; right?: number; bottom?: number; left?: number }
+    lineHeightFactor: number
+    overflow: 'linebreak' | 'ellipsize' | 'visible' | 'hidden'
+  }>
 }
 
 type ExportMetaOptions = {
@@ -165,5 +171,6 @@ export async function exportRowsAsPDF<T>(
     summaryRows: options?.summaryRows,
     footerNote: options?.footerNote,
     orientation: options?.orientation,
+    tableStyles: options?.tableStyles,
   })
 }

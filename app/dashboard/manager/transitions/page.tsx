@@ -104,6 +104,11 @@ export default function ManagerTransitionsPage() {
         title: 'Tenant Transitions',
         subtitle,
         orientation: 'landscape',
+        tableStyles: {
+          fontSize: 7.25,
+          cellPadding: 3,
+          lineHeightFactor: 1.1,
+        },
       })
     } else if (format === 'excel') {
       await exportRowsAsExcel(filename, exportColumns, visible, undefined, { letterhead })
@@ -159,11 +164,11 @@ export default function ManagerTransitionsPage() {
                   </Button>
                 </div>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+              <div className="flex flex-wrap items-center gap-2">
                 <div className="relative">
                   <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                   <Input
-                    className="pl-9"
+                    className="pl-9 w-full md:w-[280px]"
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
                     placeholder="Search tenant / unit / property..."
@@ -171,7 +176,9 @@ export default function ManagerTransitionsPage() {
                 </div>
 
                 <Select value={status} onValueChange={setStatus}>
-                  <SelectTrigger><SelectValue placeholder="Status" /></SelectTrigger>
+                  <SelectTrigger className="w-full md:w-[170px]">
+                    <SelectValue placeholder="Status" />
+                  </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All statuses</SelectItem>
                     <SelectItem value="submitted">submitted</SelectItem>
@@ -184,7 +191,9 @@ export default function ManagerTransitionsPage() {
                 </Select>
 
                 <Select value={stage} onValueChange={setStage}>
-                  <SelectTrigger><SelectValue placeholder="Stage" /></SelectTrigger>
+                  <SelectTrigger className="w-full md:w-[190px]">
+                    <SelectValue placeholder="Stage" />
+                  </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All stages</SelectItem>
                     <SelectItem value="opened">opened</SelectItem>
@@ -197,9 +206,11 @@ export default function ManagerTransitionsPage() {
                   </SelectContent>
                 </Select>
 
-                <div className="flex gap-2">
+                <div className="flex items-center gap-2">
                   <Select value={caseType} onValueChange={setCaseType}>
-                    <SelectTrigger><SelectValue placeholder="Case type" /></SelectTrigger>
+                    <SelectTrigger className="w-full md:w-[170px]">
+                      <SelectValue placeholder="Case type" />
+                    </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">All types</SelectItem>
                       <SelectItem value="vacate_notice">vacate_notice</SelectItem>
@@ -208,7 +219,7 @@ export default function ManagerTransitionsPage() {
                     </SelectContent>
                   </Select>
                   <Button onClick={fetchRows} disabled={loading}>
-                    {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Apply'}
+                    {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Filter'}
                   </Button>
                 </div>
               </div>
