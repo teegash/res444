@@ -145,7 +145,8 @@
   right: -30px;
 }
 
-.isActive .aiBtn {
+.isActive .aiBtn,
+.isHover .aiBtn {
   box-shadow:
     0 0 10px var(--light-1),
     inset -1px -1px 1px 1px #061021,

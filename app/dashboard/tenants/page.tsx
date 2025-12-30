@@ -59,9 +59,9 @@ export default function TenantsPage() {
                     label="Tenant Archive"
                     thinkingLabel="Opening"
                     onClick={() => router.push('/dashboard/tenants/archive')}
-                    className="scale-[0.9] origin-right"
+                    className="scale-[0.9] origin-right z-0"
                   />
-                  <div className="inline-flex rounded-full border bg-white p-1 shadow-sm">
+                  <div className="inline-flex rounded-full border bg-white p-1 shadow-sm relative z-10">
                     <Button
                       variant={viewMode === 'grid' ? 'default' : 'ghost'}
                       size="icon"
@@ -104,7 +104,9 @@ export default function TenantsPage() {
               </div>
             </div>
 
-            <TenantsTable searchQuery={searchTerm} viewMode={viewMode} propertyId={propertyScope} />
+            <div className="relative z-10">
+              <TenantsTable searchQuery={searchTerm} viewMode={viewMode} propertyId={propertyScope} />
+            </div>
           </div>
         </main>
       </div>
