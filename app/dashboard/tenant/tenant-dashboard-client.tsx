@@ -11,6 +11,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Calendar, TrendingUp, Clock, CheckCircle2, Droplet } from 'lucide-react'
 import Link from 'next/link'
 import { SkeletonLoader, SkeletonPropertyCard, SkeletonTable } from '@/components/ui/skeletons'
+import { AiGlowButton } from '@/components/ui/AiGlowButton'
 
 type TenantSummary = {
   profile: {
@@ -99,6 +100,14 @@ export default function TenantDashboardClient() {
     const currentDay = new Date(today.getFullYear(), today.getMonth(), today.getDate())
     return currentDay > endDay
   }, [summary?.lease?.end_date])
+
+  const hasAssignedUnit = useMemo(() => {
+    if (!summary?.lease) return false
+    const unitLabel = (summary.lease.unit_label || '').toLowerCase()
+    const unitNumber = (summary.lease.unit_number || '').toLowerCase()
+    if (!unitNumber && (!unitLabel || unitLabel.includes('unassigned'))) return false
+    return true
+  }, [summary?.lease])
 
   const fetchSummary = useCallback(async () => {
     try {
@@ -487,6 +496,21 @@ export default function TenantDashboardClient() {
       progress: 'from-rose-500 via-red-500 to-orange-500',
     }
   }, [onTimeRate])
+
+  if (!loading && !error && !hasAssignedUnit) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-slate-50 via-white to-blue-50 flex items-center justify-center">
+        <AiGlowButton
+          label="Contact manager"
+          thinkingLabel="Dialing"
+          onClick={() => {
+            window.location.href = 'tel:+254707694388'
+          }}
+          className="scale-[1.4] md:scale-[1.6]"
+        />
+      </div>
+    )
+  }
 
   return (
     <div

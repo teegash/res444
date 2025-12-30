@@ -10,6 +10,7 @@
   --transition: 0.5s;
 
   position: relative;
+  z-index: 0;
   display: flex;
   justify-content: center;
   align-items: center;
@@ -33,7 +34,7 @@
     opacity var(--transition) ease,
     top var(--transition) ease,
     left var(--transition) ease;
-  opacity: 0.4;
+  opacity: 0.55;
 }
 
 .light2 {
@@ -46,19 +47,19 @@
   background-color: var(--light-2);
   transition-duration: calc(var(--transition) * 2);
   z-index: -1;
-  opacity: 0.25;
+  opacity: 0.4;
 }
 
 .aiBg {
   position: absolute;
-  z-index: -1;
+  z-index: -2;
   fill: none;
   transition: filter var(--transition) ease;
 }
 
 .lineBg {
-  stroke: #3b82f61a;
-  stroke-width: 0.5;
+  stroke: #60a5fa55;
+  stroke-width: 0.7;
 }
 
 .line {
@@ -69,8 +70,8 @@
 }
 
 .dot {
-  fill: #3b82f6;
-  opacity: 0.25;
+  fill: #93c5fd;
+  opacity: 0.45;
   transition: fill var(--transition) ease;
 }
 
@@ -83,10 +84,10 @@
   min-width: 140px;
   min-height: 44px;
   border-radius: 9px;
-  background-color: #0b1b33;
-  background-image: linear-gradient(to bottom, #1d4ed80d, transparent);
-  color: #e2e8f0;
-  border: 1px solid #274c8a;
+  background-color: #0f2350;
+  background-image: linear-gradient(to bottom, #3b82f620, transparent);
+  color: #f1f5f9;
+  border: 1px solid #3b82f6;
   font-size: 13px;
   font-weight: 600;
   font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
@@ -94,11 +95,11 @@
   cursor: pointer;
   transition: all var(--transition) ease;
   box-shadow:
-    0 0 28px -12px var(--light-1),
-    inset -1px -1px 1px 1px #061021,
-    inset -2px -2px 2px 1px #22427c,
-    inset 1px 1px 1px 1px #050d1b,
-    inset 2px 2px 2px 1px #1d4ed833;
+    0 0 40px -10px var(--light-1),
+    inset -1px -1px 1px 1px #09162e,
+    inset -2px -2px 2px 1px #2a4f95,
+    inset 1px 1px 1px 1px #061021,
+    inset 2px 2px 2px 1px #3b82f644;
   position: relative;
 }
 
@@ -120,9 +121,9 @@
 }
 
 .isHover .aiBtn {
-  color: #f8fafc;
-  border: 1px solid #3b82f6;
-  text-shadow: 0 0 10px var(--light-1);
+  color: #ffffff;
+  border: 1px solid #60a5fa;
+  text-shadow: 0 0 16px var(--light-1);
 }
 
 .isHover .dot {
@@ -131,7 +132,7 @@
 
 .isHover .light1,
 .isHover .light2 {
-  opacity: 0.7;
+  opacity: 0.9;
 }
 
 .isHover .light1 {
@@ -184,7 +185,7 @@
 
 .isFocus .aiBg,
 .isThinking .aiBg {
-  filter: drop-shadow(0px 0px 4px var(--accent-3));
+  filter: drop-shadow(0px 0px 8px var(--accent-3));
 }
 
 .isFocus .line,
