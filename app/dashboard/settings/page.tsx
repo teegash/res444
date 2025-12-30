@@ -19,6 +19,8 @@ import {
 import { useToast } from '@/components/ui/use-toast'
 import { useTheme } from 'next-themes'
 import { createClient } from '@/lib/supabase/client'
+import { useRole } from '@/lib/rbac/useRole'
+import { cn } from '@/lib/utils'
 
 type TeamMember = {
   id: string
@@ -47,6 +49,8 @@ export default function SettingsPage() {
   const [confirmPassword, setConfirmPassword] = useState('')
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([])
   const [teamError, setTeamError] = useState<string | null>(null)
+  const [roleFilterDraft, setRoleFilterDraft] = useState('all')
+  const [roleFilter, setRoleFilter] = useState('all')
   const [inviteOpen, setInviteOpen] = useState(false)
   const [inviteRole, setInviteRole] = useState<'manager' | 'caretaker'>('manager')
   const [inviteEmail, setInviteEmail] = useState('')
@@ -60,6 +64,21 @@ export default function SettingsPage() {
   const [propertiesError, setPropertiesError] = useState<string | null>(null)
   const { setTheme, theme } = useTheme()
   const { toast } = useToast()
+  const { role } = useRole()
+  const isCaretaker = role === 'caretaker'
+  const tabColumns = isCaretaker ? 'grid-cols-2' : 'grid-cols-3'
+  const filteredTeamMembers = useMemo(() => {
+    if (roleFilter === 'all') return teamMembers
+    return teamMembers.filter(
+      (member) => String(member.role || '').toLowerCase() === roleFilter
+    )
+  }, [roleFilter, teamMembers])
+
+  useEffect(() => {
+    if (isCaretaker && activeTab === 'team') {
+      setActiveTab('account')
+    }
+  }, [activeTab, isCaretaker])
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -281,7 +300,7 @@ export default function SettingsPage() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className={cn('grid w-full', tabColumns)}>
           <TabsTrigger value="account" className="gap-2">
             <Lock className="w-4 h-4" />
             <span className="hidden sm:inline">Account</span>
@@ -290,10 +309,12 @@ export default function SettingsPage() {
             <Palette className="w-4 h-4" />
             <span className="hidden sm:inline">Appearance</span>
           </TabsTrigger>
-          <TabsTrigger value="team" className="gap-2">
-            <Users className="w-4 h-4" />
-            <span className="hidden sm:inline">Team</span>
-          </TabsTrigger>
+          {!isCaretaker && (
+            <TabsTrigger value="team" className="gap-2">
+              <Users className="w-4 h-4" />
+              <span className="hidden sm:inline">Team</span>
+            </TabsTrigger>
+          )}
         </TabsList>
 
         {/* Account Settings */}
@@ -309,7 +330,7 @@ export default function SettingsPage() {
                   id="fullName"
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
-                  disabled={profileLoading || savingProfile}
+                  disabled={profileLoading || savingProfile || isCaretaker}
                 />
               </div>
               <div className="grid gap-2">
@@ -407,124 +428,153 @@ export default function SettingsPage() {
         </TabsContent>
 
         {/* Team */}
-        <TabsContent value="team" className="space-y-4">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle>Team Members</CardTitle>
-              <Button size="sm" onClick={() => setInviteOpen((prev) => !prev)}>
-                {inviteOpen ? 'Cancel' : 'Invite Team Member'}
-              </Button>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {inviteOpen && (
-                <div className="grid gap-3 rounded-lg border p-4">
-                  <div className="grid gap-2">
-                    <Label>Email</Label>
-                    <Input placeholder="manager@example.com" value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} />
+        {!isCaretaker && (
+          <TabsContent value="team" className="space-y-4">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <CardTitle>Team Members</CardTitle>
+                <Button size="sm" onClick={() => setInviteOpen((prev) => !prev)}>
+                  {inviteOpen ? 'Cancel' : 'Invite Team Member'}
+                </Button>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {inviteOpen && (
+                  <div className="grid gap-3 rounded-lg border p-4">
+                    <div className="grid gap-2">
+                      <Label>Email</Label>
+                      <Input placeholder="manager@example.com" value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label>Full Name</Label>
+                      <Input placeholder="Full name" value={inviteName} onChange={(e) => setInviteName(e.target.value)} />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label>Password</Label>
+                      <Input
+                        type="password"
+                        placeholder="Minimum 8 characters"
+                        value={invitePassword}
+                        onChange={(e) => setInvitePassword(e.target.value)}
+                      />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label>Confirm Password</Label>
+                      <Input
+                        type="password"
+                        placeholder="Re-enter password"
+                        value={inviteConfirmPassword}
+                        onChange={(e) => setInviteConfirmPassword(e.target.value)}
+                      />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label>Role</Label>
+                      <Select
+                        value={inviteRole}
+                        onValueChange={(val) => {
+                          setInviteRole(val as 'manager' | 'caretaker')
+                          if (val !== 'caretaker') {
+                            setInvitePropertyId('')
+                          }
+                        }}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select role" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="manager">Manager</SelectItem>
+                          <SelectItem value="caretaker">Caretaker</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    {inviteRole === 'caretaker' && (
+                      <div className="grid gap-2">
+                        <Label>Property (scope)</Label>
+                        <Select
+                          value={invitePropertyId}
+                          onValueChange={setInvitePropertyId}
+                          disabled={propertiesLoading || properties.length === 0}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder={propertiesLoading ? 'Loading properties...' : 'Select property'} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {properties.map((property) => (
+                              <SelectItem key={property.id} value={property.id}>
+                                {property.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {propertiesError && (
+                          <p className="text-xs text-destructive">
+                            {propertiesError}
+                          </p>
+                        )}
+                        {properties.length === 0 && !propertiesLoading && (
+                          <p className="text-xs text-muted-foreground">
+                            No properties found in this organization.
+                          </p>
+                        )}
+                      </div>
+                    )}
+                    <Button className="w-full" onClick={handleInvite} disabled={inviteSaving}>
+                      {inviteSaving ? 'Sending…' : 'Send Invite'}
+                    </Button>
                   </div>
-                  <div className="grid gap-2">
-                    <Label>Full Name</Label>
-                    <Input placeholder="Full name" value={inviteName} onChange={(e) => setInviteName(e.target.value)} />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label>Password</Label>
-                    <Input
-                      type="password"
-                      placeholder="Minimum 8 characters"
-                      value={invitePassword}
-                      onChange={(e) => setInvitePassword(e.target.value)}
-                    />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label>Confirm Password</Label>
-                    <Input
-                      type="password"
-                      placeholder="Re-enter password"
-                      value={inviteConfirmPassword}
-                      onChange={(e) => setInviteConfirmPassword(e.target.value)}
-                    />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label>Role</Label>
-                    <Select
-                      value={inviteRole}
-                      onValueChange={(val) => {
-                        setInviteRole(val as 'manager' | 'caretaker')
-                        if (val !== 'caretaker') {
-                          setInvitePropertyId('')
-                        }
-                      }}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select role" />
+                )}
+
+                <div className="flex flex-wrap items-end gap-2">
+                  <div className="grid gap-1">
+                    <Label className="text-xs uppercase text-muted-foreground">Filter by role</Label>
+                    <Select value={roleFilterDraft} onValueChange={setRoleFilterDraft}>
+                      <SelectTrigger className="w-[180px]">
+                        <SelectValue placeholder="All roles" />
                       </SelectTrigger>
                       <SelectContent>
+                        <SelectItem value="all">All roles</SelectItem>
+                        <SelectItem value="admin">Admin</SelectItem>
                         <SelectItem value="manager">Manager</SelectItem>
                         <SelectItem value="caretaker">Caretaker</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
-                  {inviteRole === 'caretaker' && (
-                    <div className="grid gap-2">
-                      <Label>Property (scope)</Label>
-                      <Select
-                        value={invitePropertyId}
-                        onValueChange={setInvitePropertyId}
-                        disabled={propertiesLoading || properties.length === 0}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder={propertiesLoading ? 'Loading properties...' : 'Select property'} />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {properties.map((property) => (
-                            <SelectItem key={property.id} value={property.id}>
-                              {property.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      {propertiesError && (
-                        <p className="text-xs text-destructive">
-                          {propertiesError}
-                        </p>
-                      )}
-                      {properties.length === 0 && !propertiesLoading && (
-                        <p className="text-xs text-muted-foreground">
-                          No properties found in this organization.
-                        </p>
-                      )}
-                    </div>
-                  )}
-                  <Button className="w-full" onClick={handleInvite} disabled={inviteSaving}>
-                    {inviteSaving ? 'Sending…' : 'Send Invite'}
+                  <Button
+                    variant="outline"
+                    onClick={() => setRoleFilter(roleFilterDraft)}
+                  >
+                    Filter
                   </Button>
                 </div>
-              )}
 
-              <div className="space-y-2">
-                {teamMembers.length === 0 && <p className="text-sm text-muted-foreground">No team members yet.</p>}
-                {teamMembers.map((member) => (
-                  <div key={member.id} className="flex items-center justify-between rounded-lg border p-3">
-                    <div>
-                      <p className="font-semibold">{member.full_name || member.email || 'Unnamed'}</p>
-                      <p className="text-sm text-muted-foreground">{member.email || 'No email'}</p>
-                      {member.property_name && (
-                        <p className="text-xs text-muted-foreground">
-                          Property: {member.property_name}
-                          {member.property_location ? ` • ${member.property_location}` : ''}
-                        </p>
-                      )}
+                <div className="space-y-2">
+                  {teamMembers.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">No team members yet.</p>
+                  ) : filteredTeamMembers.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">No team members match this role.</p>
+                  ) : null}
+                  {filteredTeamMembers.map((member) => (
+                    <div key={member.id} className="flex items-center justify-between rounded-lg border p-3">
+                      <div>
+                        <p className="font-semibold">{member.full_name || member.email || 'Unnamed'}</p>
+                        <p className="text-sm text-muted-foreground">{member.email || 'No email'}</p>
+                        {member.property_name && (
+                          <p className="text-xs text-muted-foreground">
+                            Property: {member.property_name}
+                            {member.property_location ? ` • ${member.property_location}` : ''}
+                          </p>
+                        )}
+                      </div>
+                      <Badge variant="secondary" className="capitalize">
+                        {member.role}
+                      </Badge>
                     </div>
-                    <Badge variant="secondary" className="capitalize">
-                      {member.role}
-                    </Badge>
-                  </div>
-                ))}
-                {teamError && <p className="text-sm text-destructive">{teamError}</p>}
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
+                  ))}
+                  {teamError && <p className="text-sm text-destructive">{teamError}</p>}
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        )}
       </Tabs>
     </div>
   )

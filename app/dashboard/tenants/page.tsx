@@ -10,10 +10,13 @@ import { Sidebar } from '@/components/dashboard/sidebar'
 import { Header } from '@/components/dashboard/header'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/lib/auth/context'
+import { useRole } from '@/lib/rbac/useRole'
 
 export default function TenantsPage() {
   const router = useRouter()
   const { user } = useAuth()
+  const { role } = useRole()
+  const isCaretaker = role === 'caretaker'
   const [searchTerm, setSearchTerm] = useState('')
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('list')
   const [viewModeLocked, setViewModeLocked] = useState(false)
@@ -55,13 +58,15 @@ export default function TenantsPage() {
                   />
                 </div>
                 <div className="flex items-center gap-3 justify-end w-full md:w-auto flex-wrap">
-                  <AiGlowButton
-                    label="Tenant Archive"
-                    thinkingLabel="Opening"
-                    onClick={() => router.push('/dashboard/tenants/archive')}
-                    className="scale-[0.9] origin-right z-0"
-                    hideTentacles={true}
-                  />
+                  {!isCaretaker && (
+                    <AiGlowButton
+                      label="Tenant Archive"
+                      thinkingLabel="Opening"
+                      onClick={() => router.push('/dashboard/tenants/archive')}
+                      className="scale-[0.9] origin-right z-0"
+                      hideTentacles={true}
+                    />
+                  )}
                   <div className="inline-flex rounded-full border bg-white p-1 shadow-sm relative z-10">
                     <Button
                       variant={viewMode === 'grid' ? 'default' : 'ghost'}

@@ -32,6 +32,7 @@ import { Header } from '@/components/dashboard/header'
 import { useToast } from '@/components/ui/use-toast'
 import { SkeletonLoader, SkeletonTable } from '@/components/ui/skeletons'
 import { useAuth } from '@/lib/auth/context'
+import { useRole } from '@/lib/rbac/useRole'
 
 type MaintenanceRequest = {
   id: string
@@ -130,6 +131,8 @@ export default function MaintenancePage() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { user } = useAuth()
+  const { role } = useRole()
+  const isCaretaker = role === 'caretaker'
   const propertyScope =
     (user?.user_metadata as any)?.property_id ||
     (user?.user_metadata as any)?.building_id ||
@@ -872,43 +875,45 @@ export default function MaintenancePage() {
                   </Card>
                     )})
                   )}
-                  <div className="rounded-xl border border-slate-200 bg-white/90 p-4 shadow-sm">
-                    <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                      <div>
-                        <h3 className="text-sm font-semibold text-slate-900">Maintenance actions</h3>
-                        <p className="text-xs text-muted-foreground">
-                          Quick access to maintenance tools and reports.
-                        </p>
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        <Button
-                          asChild
-                          variant="outline"
-                          className="rounded-full border-slate-200 bg-white/80 shadow-sm transition-transform duration-200 ease-out hover:-translate-y-0.5 hover:scale-[1.02] hover:shadow-md active:scale-[0.98]"
-                        >
-                          <Link href="/dashboard/manager/expenses?source=maintenance">
-                            View Maintenance Expenses
-                          </Link>
-                        </Button>
-                        <Button
-                          asChild
-                          variant="outline"
-                          className="rounded-full border-slate-200 bg-white/80 shadow-sm transition-transform duration-200 ease-out hover:-translate-y-0.5 hover:scale-[1.02] hover:shadow-md active:scale-[0.98]"
-                        >
-                          <Link href="/dashboard/manager/reports/maintenance-performance">
-                            View Maintenance Performance
-                          </Link>
-                        </Button>
-                        <Button
-                          asChild
-                          variant="outline"
-                          className="rounded-full border-slate-200 bg-white/80 shadow-sm transition-transform duration-200 ease-out hover:-translate-y-0.5 hover:scale-[1.02] hover:shadow-md active:scale-[0.98]"
-                        >
-                          <Link href="/dashboard/maintenance/technicians">Manage Technicians</Link>
-                        </Button>
+                  {!isCaretaker && (
+                    <div className="rounded-xl border border-slate-200 bg-white/90 p-4 shadow-sm">
+                      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                        <div>
+                          <h3 className="text-sm font-semibold text-slate-900">Maintenance actions</h3>
+                          <p className="text-xs text-muted-foreground">
+                            Quick access to maintenance tools and reports.
+                          </p>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          <Button
+                            asChild
+                            variant="outline"
+                            className="rounded-full border-slate-200 bg-white/80 shadow-sm transition-transform duration-200 ease-out hover:-translate-y-0.5 hover:scale-[1.02] hover:shadow-md active:scale-[0.98]"
+                          >
+                            <Link href="/dashboard/manager/expenses?source=maintenance">
+                              View Maintenance Expenses
+                            </Link>
+                          </Button>
+                          <Button
+                            asChild
+                            variant="outline"
+                            className="rounded-full border-slate-200 bg-white/80 shadow-sm transition-transform duration-200 ease-out hover:-translate-y-0.5 hover:scale-[1.02] hover:shadow-md active:scale-[0.98]"
+                          >
+                            <Link href="/dashboard/manager/reports/maintenance-performance">
+                              View Maintenance Performance
+                            </Link>
+                          </Button>
+                          <Button
+                            asChild
+                            variant="outline"
+                            className="rounded-full border-slate-200 bg-white/80 shadow-sm transition-transform duration-200 ease-out hover:-translate-y-0.5 hover:scale-[1.02] hover:shadow-md active:scale-[0.98]"
+                          >
+                            <Link href="/dashboard/maintenance/technicians">Manage Technicians</Link>
+                          </Button>
+                        </div>
                       </div>
                     </div>
-                  </div>
+                  )}
                 </div>
               )}
             </div>

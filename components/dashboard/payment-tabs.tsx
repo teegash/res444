@@ -12,6 +12,7 @@ import { ConfirmDepositsTab } from '@/components/dashboard/payment-tabs/confirm-
 import { PaymentRecord, PaymentStats, IntegrationSummary, FailureBreakdown } from '@/components/dashboard/payment-tabs/types'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { useRole } from '@/lib/rbac/useRole'
 
 type PaymentsDashboardData = {
   pending: PaymentRecord[]
@@ -35,29 +36,37 @@ interface PaymentTabsProps {
 
 const ALLOWED_TABS = ['pending', 'deposits', 'verified', 'failed', 'status'] as const
 type AllowedTab = (typeof ALLOWED_TABS)[number]
-const ALLOWED_TAB_SET = new Set<string>(ALLOWED_TABS)
 
-function normalizeTab(raw: string | null | undefined): AllowedTab {
+function normalizeTab(raw: string | null | undefined, allowedSet: Set<string>): AllowedTab {
   const value = String(raw || '').toLowerCase()
-  return ALLOWED_TAB_SET.has(value) ? (value as AllowedTab) : 'pending'
+  return allowedSet.has(value) ? (value as AllowedTab) : 'pending'
 }
 
 export function PaymentTabs({ refreshKey, onIntegrationUpdate, propertyId }: PaymentTabsProps) {
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
+  const { role } = useRole()
+  const isCaretaker = role === 'caretaker'
+  const allowedTabs = useMemo(
+    () => (isCaretaker ? (['pending', 'deposits', 'verified', 'failed'] as const) : ALLOWED_TABS),
+    [isCaretaker]
+  )
+  const allowedSet = useMemo(() => new Set<string>(allowedTabs), [allowedTabs])
 
-  const [activeTab, setActiveTab] = useState<AllowedTab>(() => normalizeTab(searchParams.get('tab')))
+  const [activeTab, setActiveTab] = useState<AllowedTab>(() =>
+    normalizeTab(searchParams.get('tab'), allowedSet)
+  )
   const [data, setData] = useState<PaymentsDashboardData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    const nextTab = normalizeTab(searchParams.get('tab'))
+    const nextTab = normalizeTab(searchParams.get('tab'), allowedSet)
     if (nextTab !== activeTab) {
       setActiveTab(nextTab)
     }
-  }, [activeTab, searchParams])
+  }, [activeTab, allowedSet, searchParams])
 
   const fetchData = useCallback(async () => {
     try {
@@ -145,7 +154,7 @@ export function PaymentTabs({ refreshKey, onIntegrationUpdate, propertyId }: Pay
     <Tabs
       value={activeTab}
       onValueChange={(next) => {
-        const nextTab = normalizeTab(next)
+        const nextTab = normalizeTab(next, allowedSet)
         setActiveTab(nextTab)
 
         const params = new URLSearchParams(searchParams.toString())
@@ -160,12 +169,12 @@ export function PaymentTabs({ refreshKey, onIntegrationUpdate, propertyId }: Pay
       }}
       className="w-full"
     >
-      <TabsList className="grid w-full max-w-2xl grid-cols-5">
+      <TabsList className={`grid w-full max-w-2xl ${isCaretaker ? 'grid-cols-4' : 'grid-cols-5'}`}>
         <TabsTrigger value="pending">Pending</TabsTrigger>
         <TabsTrigger value="deposits">Deposits</TabsTrigger>
         <TabsTrigger value="verified">Verified</TabsTrigger>
         <TabsTrigger value="failed">Failed</TabsTrigger>
-        <TabsTrigger value="status">Status</TabsTrigger>
+        {!isCaretaker && <TabsTrigger value="status">Status</TabsTrigger>}
       </TabsList>
 
       <TabsContent value="pending" className="mt-6">
@@ -198,14 +207,16 @@ export function PaymentTabs({ refreshKey, onIntegrationUpdate, propertyId }: Pay
         />
       </TabsContent>
 
-      <TabsContent value="status" className="mt-6">
-        <IntegrationStatusTab
-          stats={data?.stats}
-          integration={data?.integration}
-          loading={loading}
-          onSettingsUpdated={fetchData}
-        />
-      </TabsContent>
+      {!isCaretaker && (
+        <TabsContent value="status" className="mt-6">
+          <IntegrationStatusTab
+            stats={data?.stats}
+            integration={data?.integration}
+            loading={loading}
+            onSettingsUpdated={fetchData}
+          />
+        </TabsContent>
+      )}
     </Tabs>
   )
 }
