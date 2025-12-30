@@ -509,7 +509,7 @@ function DashboardContent() {
                 aria-label="View properties"
               >
                 <Card className="h-full rounded-md cursor-pointer transition-shadow hover:shadow-md">
-                  <CardContent className="pt-1 pb-2 h-full">
+                  <CardContent className="pt-0.5 pb-2 h-full">
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-base text-gray-700 font-bold">Total Properties</p>
@@ -530,7 +530,7 @@ function DashboardContent() {
                 aria-label="View tenants"
               >
                 <Card className="h-full rounded-md cursor-pointer transition-shadow hover:shadow-md">
-                  <CardContent className="pt-1 pb-2 h-full">
+                  <CardContent className="pt-0.5 pb-2 h-full">
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-base text-gray-700 font-bold">Active Tenants</p>
@@ -551,7 +551,7 @@ function DashboardContent() {
                 aria-label="View reports"
               >
                 <Card className="h-full rounded-md cursor-pointer transition-shadow hover:shadow-md">
-                  <CardContent className="pt-1 pb-2 h-full">
+                  <CardContent className="pt-0.5 pb-2 h-full">
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-base text-gray-700 font-bold">Monthly Revenue</p>
@@ -589,7 +589,7 @@ function DashboardContent() {
                 aria-label="View maintenance requests"
               >
                 <Card className="h-full rounded-md cursor-pointer transition-shadow hover:shadow-md">
-                  <CardContent className="pt-1 pb-2 h-full">
+                  <CardContent className="pt-0.5 pb-2 h-full">
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-base text-gray-700 font-bold">Pending Requests</p>
@@ -610,7 +610,7 @@ function DashboardContent() {
                 aria-label="View arrears"
               >
                 <Card className="h-full rounded-md cursor-pointer transition-shadow hover:shadow-md">
-                  <CardContent className="pt-1 pb-2 h-full">
+                  <CardContent className="pt-0.5 pb-2 h-full">
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-base text-gray-700 font-bold">Arrears</p>
@@ -618,9 +618,7 @@ function DashboardContent() {
                           {defaultersSummary?.defaulters ?? '—'}{' '}
                           <span className="text-xs font-medium text-gray-500">Tenants</span>
                         </p>
-                        <p className="text-sm text-red-600 mt-1">
-                          {defaultersSummary ? 'Arrears snapshot' : 'Arrears snapshot'}
-                        </p>
+                        <div className="mt-1 h-4" aria-hidden />
                         <p className="text-xs text-gray-500 mt-1">
                           {defaultersSummary ? formatCurrency(defaultersSummary.total_arrears_amount || 0, 'KES') : '—'}
                         </p>
