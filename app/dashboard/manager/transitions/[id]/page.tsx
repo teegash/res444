@@ -40,6 +40,7 @@ export default function TransitionDetailPage() {
   const [notifyMessage, setNotifyMessage] = useState('')
 
   const signed = data?.signed_urls || {}
+  const isCompleted = (data?.status || '').toLowerCase() === 'completed'
 
   const broadcastVacateRefresh = useCallback(() => {
     if (typeof window === 'undefined') return
@@ -348,27 +349,33 @@ export default function TransitionDetailPage() {
                       placeholder="Example: Handover scheduled for 2026-01-15 at 10:00 AM. Please be present with keys."
                       rows={3}
                     />
-                    <div className="flex gap-2">
-                      <Button onClick={saveUpdates} disabled={saving}>
-                        {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Save updates'}
-                      </Button>
+                    {!isCompleted ? (
+                      <div className="flex gap-2">
+                        <Button onClick={saveUpdates} disabled={saving}>
+                          {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Save updates'}
+                        </Button>
 
-                      <Button
-                        variant="outline"
-                        onClick={() => completeCase('vacant')}
-                        disabled={completing}
-                      >
-                        {completing ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Complete - Unit Vacant'}
-                      </Button>
+                        <Button
+                          variant="outline"
+                          onClick={() => completeCase('vacant')}
+                          disabled={completing}
+                        >
+                          {completing ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Complete - Unit Vacant'}
+                        </Button>
 
-                      <Button
-                        variant="outline"
-                        onClick={() => completeCase('maintenance')}
-                        disabled={completing}
-                      >
-                        {completing ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Complete - Unit Maintenance'}
-                      </Button>
-                    </div>
+                        <Button
+                          variant="outline"
+                          onClick={() => completeCase('maintenance')}
+                          disabled={completing}
+                        >
+                          {completing ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Complete - Unit Maintenance'}
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="text-sm text-muted-foreground">
+                        This transition case is completed. No further updates are allowed.
+                      </div>
+                    )}
                   </div>
                 </CardContent>
               </Card>

@@ -5,6 +5,17 @@ import { sendVacancyAlert } from '@/lib/communications/vacancyAlerts'
 
 const MANAGER_ROLES = new Set(['admin', 'manager', 'caretaker'])
 
+const extractStoragePath = (raw: string | null | undefined, bucket: string) => {
+  if (!raw) return null
+  const value = String(raw).trim()
+  if (!value) return null
+  const marker = `/storage/v1/object/public/${bucket}/`
+  const idx = value.indexOf(marker)
+  if (idx >= 0) return value.slice(idx + marker.length)
+  if (value.startsWith(`${bucket}/`)) return value.slice(bucket.length + 1)
+  return value
+}
+
 interface RouteParams {
   params: {
     id: string
@@ -174,7 +185,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     // Validate tenant record exists and is a tenant (user_profiles role)
     const { data: tenantProfile, error: tenantProfileError } = await adminSupabase
       .from('user_profiles')
-      .select('id, role, organization_id')
+      .select('id, role, organization_id, profile_picture_url')
       .eq('id', tenantId)
       .maybeSingle()
 
@@ -198,13 +209,66 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     const unitIds: string[] = []
     const { data: leases } = await adminSupabase
       .from('leases')
-      .select('id, unit_id')
+      .select('id, unit_id, lease_agreement_url')
       .eq('tenant_user_id', tenantId)
       .eq('organization_id', membership?.organization_id || '')
     leases?.forEach((row) => {
       if (row.id) leaseIds.push(row.id)
       if ((row as any).unit_id) unitIds.push((row as any).unit_id)
     })
+
+    const leaseDocPaths = (leases || [])
+      .map((row: any) => extractStoragePath(row.lease_agreement_url, 'lease-documents'))
+      .filter(Boolean) as string[]
+
+    const { data: maintenanceRows } = await adminSupabase
+      .from('maintenance_requests')
+      .select('id, attachment_urls')
+      .eq('tenant_user_id', tenantId)
+      .eq('organization_id', membership?.organization_id || '')
+
+    const maintenanceRequestIds = (maintenanceRows || [])
+      .map((row: any) => row.id)
+      .filter(Boolean) as string[]
+    const maintenanceAttachmentPaths = (maintenanceRows || [])
+      .flatMap((row: any) => row.attachment_urls || [])
+      .map((path: string) => extractStoragePath(path, 'maintenance-attachments'))
+      .filter(Boolean) as string[]
+
+    const { data: transitionCases } = await adminSupabase
+      .from('tenant_transition_cases')
+      .select('id, notice_document_url, inspection_report_url, settlement_statement_url')
+      .eq('tenant_user_id', tenantId)
+      .eq('organization_id', membership?.organization_id || '')
+
+    const transitionCaseIds = (transitionCases || []).map((row: any) => row.id).filter(Boolean) as string[]
+    const transitionDocPaths = (transitionCases || [])
+      .flatMap((row: any) => [
+        row.notice_document_url,
+        row.inspection_report_url,
+        row.settlement_statement_url,
+      ])
+      .map((path: string) => extractStoragePath(path, 'tenant-transitions'))
+      .filter(Boolean) as string[]
+
+    const { data: vacateNotices } = await adminSupabase
+      .from('tenant_vacate_notices')
+      .select('id, notice_document_url')
+      .eq('tenant_user_id', tenantId)
+      .eq('organization_id', membership?.organization_id || '')
+
+    const vacateNoticeIds = (vacateNotices || []).map((row: any) => row.id).filter(Boolean) as string[]
+    const vacateNoticePaths = (vacateNotices || [])
+      .map((row: any) => extractStoragePath(row.notice_document_url, 'tenant-notices'))
+      .filter(Boolean) as string[]
+
+    const { data: invoiceRows } = leaseIds.length
+      ? await adminSupabase
+          .from('invoices')
+          .select('id')
+          .in('lease_id', leaseIds)
+      : { data: [] }
+    const invoiceIds = (invoiceRows || []).map((row: any) => row.id).filter(Boolean) as string[]
 
     const { data: renewalRows } = await adminSupabase
       .from('lease_renewals')
@@ -242,6 +306,80 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       if (renewalsError) throw renewalsError
     }
 
+    if (leaseDocPaths.length) {
+      const { error: leaseDocError } = await adminSupabase.storage
+        .from('lease-documents')
+        .remove(leaseDocPaths)
+      if (leaseDocError) {
+        console.warn('[Tenants.DELETE] Failed to remove lease documents:', leaseDocError.message)
+      }
+    }
+
+    if (maintenanceAttachmentPaths.length) {
+      const { error: attachError } = await adminSupabase.storage
+        .from('maintenance-attachments')
+        .remove(maintenanceAttachmentPaths)
+      if (attachError) {
+        console.warn('[Tenants.DELETE] Failed to remove maintenance attachments:', attachError.message)
+      }
+    }
+
+    if (transitionDocPaths.length) {
+      const { error: transitionDocError } = await adminSupabase.storage
+        .from('tenant-transitions')
+        .remove(transitionDocPaths)
+      if (transitionDocError) {
+        console.warn('[Tenants.DELETE] Failed to remove transition docs:', transitionDocError.message)
+      }
+    }
+
+    if (vacateNoticePaths.length) {
+      const { error: noticeDocError } = await adminSupabase.storage
+        .from('tenant-notices')
+        .remove(vacateNoticePaths)
+      if (noticeDocError) {
+        console.warn('[Tenants.DELETE] Failed to remove vacate notice docs:', noticeDocError.message)
+      }
+    }
+
+    const profilePicturePath = extractStoragePath(tenantProfile?.profile_picture_url, 'profile-pictures')
+    if (profilePicturePath) {
+      const { error: profilePicError } = await adminSupabase.storage
+        .from('profile-pictures')
+        .remove([profilePicturePath])
+      if (profilePicError) {
+        console.warn('[Tenants.DELETE] Failed to remove profile picture:', profilePicError.message)
+      }
+    }
+
+    if (transitionCaseIds.length) {
+      const { error: transitionEventsError } = await adminSupabase
+        .from('tenant_transition_events')
+        .delete()
+        .in('case_id', transitionCaseIds)
+      if (transitionEventsError) throw transitionEventsError
+
+      const { error: transitionDeleteError } = await adminSupabase
+        .from('tenant_transition_cases')
+        .delete()
+        .in('id', transitionCaseIds)
+      if (transitionDeleteError) throw transitionDeleteError
+    }
+
+    if (vacateNoticeIds.length) {
+      const { error: vacateEventsError } = await adminSupabase
+        .from('tenant_vacate_notice_events')
+        .delete()
+        .in('notice_id', vacateNoticeIds)
+      if (vacateEventsError) throw vacateEventsError
+
+      const { error: vacateDeleteError } = await adminSupabase
+        .from('tenant_vacate_notices')
+        .delete()
+        .in('id', vacateNoticeIds)
+      if (vacateDeleteError) throw vacateDeleteError
+    }
+
     if (leaseIds.length) {
       const { error: reminderError } = await adminSupabase
         .from('reminders')
@@ -250,6 +388,32 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
         .eq('related_entity_type', 'lease')
         .in('related_entity_id', leaseIds)
       if (reminderError) throw reminderError
+    }
+
+    if (maintenanceRequestIds.length) {
+      const { error: maintExpenseError } = await adminSupabase
+        .from('expenses')
+        .delete()
+        .in('maintenance_request_id', maintenanceRequestIds)
+      if (maintExpenseError) throw maintExpenseError
+    }
+
+    if (unitIds.length) {
+      const { error: waterBillUnitError } = await adminSupabase
+        .from('water_bills')
+        .delete()
+        .in('unit_id', unitIds)
+        .eq('organization_id', membership?.organization_id || '')
+      if (waterBillUnitError) throw waterBillUnitError
+    }
+
+    if (invoiceIds.length) {
+      const { error: waterBillInvoiceError } = await adminSupabase
+        .from('water_bills')
+        .delete()
+        .in('added_to_invoice_id', invoiceIds)
+        .eq('organization_id', membership?.organization_id || '')
+      if (waterBillInvoiceError) throw waterBillInvoiceError
     }
 
     // Hard-delete dependent financial data first to remove revenue traces

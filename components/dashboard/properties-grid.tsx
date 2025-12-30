@@ -311,7 +311,7 @@ export function PropertiesGrid({ onEdit, onManageUnits, onView, searchTerm }: Pr
             className="overflow-hidden hover:shadow-md transition-shadow"
           >
             <div
-              className="relative h-32 group cursor-pointer"
+              className="relative h-28 group cursor-pointer"
               onClick={(e) => {
                 // Don't navigate if clicking the edit button
                 if ((e.target as HTMLElement).closest('.image-edit-button')) {
@@ -347,7 +347,7 @@ export function PropertiesGrid({ onEdit, onManageUnits, onView, searchTerm }: Pr
                 </Button>
               </div>
             </div>
-            <CardHeader className="pb-1 pt-3">
+            <CardHeader className="pb-1 pt-1.5">
               <div className="flex items-start justify-between">
                 <div>
                   <h3 className="font-semibold text-base">{property.name}</h3>
@@ -355,7 +355,7 @@ export function PropertiesGrid({ onEdit, onManageUnits, onView, searchTerm }: Pr
                 </div>
               </div>
             </CardHeader>
-            <CardContent className="space-y-1.5 pt-0">
+            <CardContent className="space-y-1 pt-0 pb-1.5">
               <Badge className="bg-green-600 text-[11px]">Active</Badge>
               <div>
                 <div className="flex justify-between text-[11px] mb-1.5">
@@ -367,11 +367,11 @@ export function PropertiesGrid({ onEdit, onManageUnits, onView, searchTerm }: Pr
                 <Progress value={totalUnits > 0 ? (occupiedUnits / totalUnits) * 100 : 0} />
                 <p className="text-[11px] text-muted-foreground mt-1">{occupancyPercent}% occupied</p>
               </div>
-              <div className="flex gap-2 pt-0.5">
+              <div className="flex gap-2 pt-0">
                 <Button
                   variant="outline"
                   size="sm"
-                  className="flex-1 gap-2 text-[11px]"
+                  className="flex-1 gap-2 text-[11px] h-7"
                   onClick={() => onEdit({ ...property, id: buildingId })}
                 >
                   <Edit2 className="w-4 h-4" />
@@ -380,7 +380,7 @@ export function PropertiesGrid({ onEdit, onManageUnits, onView, searchTerm }: Pr
                 <Button
                   variant="outline"
                   size="sm"
-                  className="flex-1 gap-2 text-[11px]"
+                  className="flex-1 gap-2 text-[11px] h-7"
                   onClick={() => onManageUnits({ ...property, id: buildingId })}
                 >
                   <Users className="w-4 h-4" />
@@ -390,7 +390,7 @@ export function PropertiesGrid({ onEdit, onManageUnits, onView, searchTerm }: Pr
               <Button
                 variant="ghost"
                 size="sm"
-                className="w-full gap-2 text-[11px]"
+                className="w-full gap-2 text-[11px] h-7"
                 onClick={() => onView(buildingId)}
               >
                 <Eye className="w-4 h-4" />
