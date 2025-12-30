@@ -13,7 +13,8 @@ export async function POST(req: NextRequest, ctx: { params: { caseId: string } }
     const body = await req.json().catch(() => ({}))
 
     const unitNextStatus = String(body.unit_next_status || 'vacant')
-    const actualVacateDate = body.actual_vacate_date || null
+    const actualVacateDate =
+      body.actual_vacate_date || new Date().toISOString().slice(0, 10)
 
     const { data: row, error: rErr } = await admin
       .from('tenant_transition_cases')

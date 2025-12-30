@@ -4,16 +4,13 @@ import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { TenantsTable } from '@/components/dashboard/tenants-table'
-import { AiGlowButton } from '@/components/ui/AiGlowButton'
 import { LayoutGrid, Plus, Rows4 } from 'lucide-react'
 import { Sidebar } from '@/components/dashboard/sidebar'
 import { Header } from '@/components/dashboard/header'
 import { useRouter } from 'next/navigation'
-import { useAuth } from '@/lib/auth/context'
 
-export default function TenantsPage() {
+export default function TenantArchivePage() {
   const router = useRouter()
-  const { user } = useAuth()
   const [searchTerm, setSearchTerm] = useState('')
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('list')
   const [viewModeLocked, setViewModeLocked] = useState(false)
@@ -30,12 +27,6 @@ export default function TenantsPage() {
     return () => media.removeEventListener('change', applyDefault)
   }, [viewModeLocked])
 
-  const propertyScope =
-    (user?.user_metadata as any)?.property_id ||
-    (user?.user_metadata as any)?.building_id ||
-    (user as any)?.property_id ||
-    null
-
   return (
     <div className="flex min-h-screen bg-gray-50">
       <Sidebar />
@@ -44,7 +35,7 @@ export default function TenantsPage() {
         <main className="flex-1 p-6 overflow-auto">
           <div className="max-w-7xl mx-auto">
             <div className="mb-6 space-y-4">
-              <h1 className="text-3xl font-bold">Tenant Management</h1>
+              <h1 className="text-3xl font-bold">Tenant Archive</h1>
 
               <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                 <div className="relative w-full md:flex-[0_0_50%]">
@@ -55,12 +46,6 @@ export default function TenantsPage() {
                   />
                 </div>
                 <div className="flex items-center gap-3 justify-end w-full md:w-auto flex-wrap">
-                  <AiGlowButton
-                    label="Tenant Archive"
-                    thinkingLabel="Opening"
-                    onClick={() => router.push('/dashboard/tenants/archive')}
-                    className="scale-[0.9] origin-right"
-                  />
                   <div className="inline-flex rounded-full border bg-white p-1 shadow-sm">
                     <Button
                       variant={viewMode === 'grid' ? 'default' : 'ghost'}
@@ -104,7 +89,12 @@ export default function TenantsPage() {
               </div>
             </div>
 
-            <TenantsTable searchQuery={searchTerm} viewMode={viewMode} propertyId={propertyScope} />
+            <TenantsTable
+              searchQuery={searchTerm}
+              viewMode={viewMode}
+              propertyId={null}
+              archiveMode={true}
+            />
           </div>
         </main>
       </div>

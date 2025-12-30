@@ -74,6 +74,7 @@ interface TenantsTableProps {
   searchQuery?: string
   viewMode?: 'grid' | 'list'
   propertyId?: string | null
+  archiveMode?: boolean
 }
 
 const getInitials = (value: string) => {
@@ -214,7 +215,12 @@ function TenantActions({
   )
 }
 
-export function TenantsTable({ searchQuery = '', viewMode = 'list', propertyId }: TenantsTableProps) {
+export function TenantsTable({
+  searchQuery = '',
+  viewMode = 'list',
+  propertyId,
+  archiveMode = false,
+}: TenantsTableProps) {
   const { toast } = useToast()
   const [tenants, setTenants] = useState<TenantRecord[]>([])
   const [loading, setLoading] = useState(true)
@@ -289,6 +295,14 @@ export function TenantsTable({ searchQuery = '', viewMode = 'list', propertyId }
   const filteredTenants = useMemo(() => {
     const query = searchQuery.trim().toLowerCase()
     let list = tenants
+
+    if (archiveMode) {
+      list = list.filter((tenant) => {
+        const leaseStatus = (tenant.lease_status || '').toLowerCase()
+        const unitLabel = (tenant.unit_label || '').toLowerCase()
+        return leaseStatus === 'unassigned' || unitLabel.includes('unassigned')
+      })
+    }
     if (query) {
       list = list.filter((tenant) => {
         return [
@@ -321,7 +335,7 @@ export function TenantsTable({ searchQuery = '', viewMode = 'list', propertyId }
     }
 
     return list
-  }, [leaseStatusFilter, paymentFilter, ratingFilter, searchQuery, tenants])
+  }, [archiveMode, leaseStatusFilter, paymentFilter, ratingFilter, searchQuery, tenants])
 
   const viewTenants = useMemo(() => {
     if (loading) {
@@ -555,14 +569,14 @@ export function TenantsTable({ searchQuery = '', viewMode = 'list', propertyId }
                 const hasRating = ratingValue !== null && ratingValue !== undefined
                 const arrearsAmount = Number(tenant.arrears_amount || 0)
                 const hasArrears = arrearsAmount > 0
+                const archiveStyle = archiveMode ? 'bg-slate-100/70 border-slate-200' : ''
+                const expiredStyle = !archiveMode && isLeaseExpired(tenant)
+                  ? 'border-rose-400 bg-rose-200/90'
+                  : 'bg-white hover:shadow-md'
                 return (
                 <div
                   key={`card-${tenant.tenant_user_id}`}
-                  className={`rounded-xl border shadow-sm transition-shadow ${
-                    isLeaseExpired(tenant)
-                      ? 'border-rose-400 bg-rose-200/90'
-                      : 'bg-white hover:shadow-md'
-                  }`}
+                  className={`rounded-xl border shadow-sm transition-shadow ${archiveStyle} ${expiredStyle}`}
                 >
                   <div className="p-4 border-b flex items-center gap-3">
                     <Avatar className="h-12 w-12 border">
@@ -705,6 +719,8 @@ export function TenantsTable({ searchQuery = '', viewMode = 'list', propertyId }
                   <TableCell colSpan={9} className="py-10 text-center text-muted-foreground">
                     {searchQuery
                       ? 'No tenants match your search.'
+                      : archiveMode
+                      ? 'No archived tenants yet.'
                       : 'No active tenants yet. Add a tenant to get started.'}
                   </TableCell>
                 </TableRow>
@@ -717,8 +733,12 @@ export function TenantsTable({ searchQuery = '', viewMode = 'list', propertyId }
                   const hasRating = ratingValue !== null && ratingValue !== undefined
                   const meta = ratingMeta(ratingValue ?? undefined)
                   const expired = isLeaseExpired(tenant)
+                  const archiveRowClass = archiveMode ? 'bg-slate-100/70' : undefined
                   return (
-                  <TableRow key={tenant.lease_id} className={expired ? 'bg-rose-200/90' : undefined}>
+                  <TableRow
+                    key={tenant.lease_id || tenant.tenant_user_id}
+                    className={archiveMode ? archiveRowClass : expired ? 'bg-rose-200/90' : undefined}
+                  >
                     <TableCell>
                       <div className="flex items-center gap-3">
                         <Avatar className="h-10 w-10">

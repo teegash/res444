@@ -38,7 +38,30 @@ export async function GET(req: Request) {
       return NextResponse.json({ success: true, data: [] })
     }
 
-    const tenantIds = tenants.map((t: any) => t.id).filter(Boolean)
+    const { data: leaseRows, error: leaseErr } = await admin
+      .from('leases')
+      .select('tenant_user_id, unit_id, status')
+      .eq('organization_id', ctx.organizationId)
+      .not('tenant_user_id', 'is', null)
+      .not('unit_id', 'is', null)
+      .in('status', ['active', 'pending', 'renewed', 'valid'])
+
+    if (leaseErr) {
+      console.warn('[TenantRatings] leases lookup failed', leaseErr)
+      return NextResponse.json({ success: false, error: 'Failed to load tenant leases' }, { status: 500 })
+    }
+
+    const assignedTenantIds = new Set(
+      (leaseRows || []).map((row: any) => row.tenant_user_id).filter(Boolean)
+    )
+
+    const tenantIds = tenants
+      .map((t: any) => t.id)
+      .filter((id: string) => id && assignedTenantIds.has(id))
+
+    if (tenantIds.length === 0) {
+      return NextResponse.json({ success: true, data: [] })
+    }
     const nameMap = new Map<string, string>()
     tenants.forEach((p: any) => {
       if (p?.id) nameMap.set(p.id, p.full_name || 'Tenant')

@@ -1,0 +1,255 @@
+.wrapper {
+  --accent-1: #60a5fa;
+  --accent-2: #3b82f6;
+  --accent-3: #93c5fd;
+  --accent-4: #60a5fa66;
+  --light-1: #dbeafe55;
+  --light-2: #93c5fd44;
+
+  --duration: 3s;
+  --transition: 0.5s;
+
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: max-content;
+  height: max-content;
+}
+
+.light1,
+.light2 {
+  pointer-events: none;
+  position: absolute;
+  top: -20px;
+  left: -30px;
+  width: 100px;
+  height: 70px;
+  border-radius: 50%;
+  background-color: var(--light-1);
+  filter: blur(24px);
+  z-index: 1;
+  transition:
+    opacity var(--transition) ease,
+    top var(--transition) ease,
+    left var(--transition) ease;
+  opacity: 0.4;
+}
+
+.light2 {
+  top: auto;
+  bottom: -20px;
+  left: auto;
+  right: -20px;
+  width: 80px;
+  height: 40px;
+  background-color: var(--light-2);
+  transition-duration: calc(var(--transition) * 2);
+  z-index: -1;
+  opacity: 0.25;
+}
+
+.aiBg {
+  position: absolute;
+  z-index: -1;
+  fill: none;
+  transition: filter var(--transition) ease;
+}
+
+.lineBg {
+  stroke: #3b82f61a;
+  stroke-width: 0.5;
+}
+
+.line {
+  stroke: none;
+  stroke-width: 0;
+  stroke-dasharray: 16 56;
+  transition: stroke var(--transition) ease-in-out;
+}
+
+.dot {
+  fill: #3b82f6;
+  opacity: 0.25;
+  transition: fill var(--transition) ease;
+}
+
+.aiBtn {
+  width: max-content;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 140px;
+  min-height: 44px;
+  border-radius: 9px;
+  background-color: #0b1b33;
+  background-image: linear-gradient(to bottom, #1d4ed80d, transparent);
+  color: #e2e8f0;
+  border: 1px solid #274c8a;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  letter-spacing: -0.2px;
+  cursor: pointer;
+  transition: all var(--transition) ease;
+  box-shadow:
+    0 0 28px -12px var(--light-1),
+    inset -1px -1px 1px 1px #061021,
+    inset -2px -2px 2px 1px #22427c,
+    inset 1px 1px 1px 1px #050d1b,
+    inset 2px 2px 2px 1px #1d4ed833;
+  position: relative;
+}
+
+.aiBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.txt1 {
+  position: absolute;
+  opacity: 1;
+  transition: opacity 0.4s ease;
+}
+
+.txt2 {
+  position: absolute;
+  opacity: 0;
+  transition: opacity 0.4s ease;
+}
+
+.isHover .aiBtn {
+  color: #f8fafc;
+  border: 1px solid #3b82f6;
+  text-shadow: 0 0 10px var(--light-1);
+}
+
+.isHover .dot {
+  fill: #dbeafe;
+}
+
+.isHover .light1,
+.isHover .light2 {
+  opacity: 0.7;
+}
+
+.isHover .light1 {
+  top: -30px;
+  left: -40px;
+}
+
+.isHover .light2 {
+  bottom: -30px;
+  right: -30px;
+}
+
+.isActive .aiBtn {
+  box-shadow:
+    0 0 10px var(--light-1),
+    inset -1px -1px 1px 1px #061021,
+    inset -2px -2px 2px 1px #22427c,
+    inset 1px 1px 1px 1px #050d1b,
+    inset 2px 2px 2px 1px #1d4ed833;
+}
+
+.isActive .light1,
+.isActive .light2 {
+  opacity: 1;
+}
+
+.isFocus .aiBtn,
+.isThinking .aiBtn {
+  background-color: #102440;
+  border-color: var(--accent-2);
+  animation: pulse var(--duration) ease-in-out infinite;
+}
+
+.isFocus .txt1,
+.isThinking .txt1 {
+  opacity: 0;
+}
+
+.isFocus .txt2,
+.isThinking .txt2 {
+  opacity: 1;
+  animation: pulse-text var(--duration) ease-in-out infinite;
+}
+
+.isFocus .dot,
+.isThinking .dot {
+  animation: dot-opac calc(var(--duration) * 0.5) linear infinite;
+  fill: var(--accent-1);
+}
+
+.isFocus .aiBg,
+.isThinking .aiBg {
+  filter: drop-shadow(0px 0px 4px var(--accent-3));
+}
+
+.isFocus .line,
+.isThinking .line {
+  animation: dash var(--duration) ease-out infinite;
+}
+
+@keyframes pulse-text {
+  0%,
+  100% {
+    text-shadow: 0 0 2px #0000;
+  }
+  50% {
+    text-shadow: 0 0 28px var(--accent-3);
+  }
+}
+
+@keyframes dot-opac {
+  0%,
+  100% {
+    opacity: 0.1;
+  }
+  20% {
+    opacity: 1;
+  }
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    box-shadow:
+      0 0 20px var(--light-2),
+      inset -1px -1px 1px 1px #061021,
+      inset -2px -2px 2px 1px #22427c,
+      inset 1px 1px 1px 1px #050d1b,
+      inset 2px 2px 2px 1px #1d4ed833;
+    border-color: #0000;
+  }
+  50% {
+    box-shadow:
+      0 0 60px 0px var(--light-1),
+      inset -1px -1px 1px 1px #061021,
+      inset -2px -2px 2px 1px #22427c,
+      inset 1px 1px 1px 1px #050d1b,
+      inset 2px 2px 2px 1px #1d4ed833;
+  }
+  85% {
+    border-color: var(--accent-2);
+  }
+}
+
+@keyframes dash {
+  0% {
+    stroke-width: 0;
+    stroke-dashoffset: 10;
+    stroke: var(--accent-4);
+  }
+  50% {
+    stroke-width: 0.5;
+    stroke-dashoffset: 88;
+    stroke: var(--accent-2);
+  }
+  100% {
+    stroke-width: 0;
+    stroke-dashoffset: 166;
+    stroke: var(--accent-4);
+  }
+}

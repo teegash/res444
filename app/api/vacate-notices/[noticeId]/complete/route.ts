@@ -74,10 +74,11 @@ export async function POST(request: Request, { params }: { params: { noticeId?: 
     }
 
     if (transition && transition.status !== 'completed') {
+      const actualVacateDate = new Date().toISOString().slice(0, 10)
       const { error: transitionErr } = await admin.rpc('complete_transition_case', {
         p_case_id: transition.id,
         p_unit_next_status: 'vacant',
-        p_actual_vacate_date: notice.requested_vacate_date || null,
+        p_actual_vacate_date: actualVacateDate,
       })
 
       if (transitionErr) {
@@ -86,7 +87,7 @@ export async function POST(request: Request, { params }: { params: { noticeId?: 
           .update({
             status: 'completed',
             stage: 'unit_turned_over',
-            actual_vacate_date: notice.requested_vacate_date || null,
+            actual_vacate_date: actualVacateDate,
           })
           .eq('organization_id', organizationId)
           .eq('id', transition.id)
