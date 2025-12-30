@@ -613,13 +613,13 @@ function DashboardContent() {
                   <CardContent className="pt-4 pb-4 h-full">
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-base text-gray-700 font-bold">Defaulters</p>
+                        <p className="text-base text-gray-700 font-bold">Arrears</p>
                         <p className="text-3xl font-bold">{defaultersSummary?.defaulters ?? '—'}</p>
                         <p className="text-sm text-red-600 mt-1">
-                          {defaultersSummary ? `${defaultersSummary.defaulters_pct}% of active tenants` : 'Arrears snapshot'}
+                          {defaultersSummary ? `${defaultersSummary.defaulters_pct}%` : 'Arrears snapshot'}
                         </p>
                         <p className="text-xs text-gray-500 mt-1">
-                          Total arrears {defaultersSummary ? formatCurrency(defaultersSummary.total_arrears_amount || 0, 'KES') : '—'}
+                          {defaultersSummary ? formatCurrency(defaultersSummary.total_arrears_amount || 0, 'KES') : '—'}
                         </p>
                       </div>
                       <ProgressCircle value={defaultersSummary?.defaulters_pct || 0} className="text-red-600">
