@@ -19,7 +19,8 @@ interface UnitRecord {
   number_of_bathrooms: number | null
   size_sqft: number | null
   unit_price_category: string | null
-  status: 'vacant' | 'occupied' | 'maintenance' | null
+  status: 'vacant' | 'occupied' | 'maintenance' | 'notice' | null
+  notice_vacate_date?: string | null
 }
 
 interface BulkLogRecord {
@@ -37,7 +38,7 @@ interface UnitFormState {
   bathrooms: string
   size_sqft: string
   price_category: string
-  status: 'vacant' | 'occupied' | 'maintenance'
+  status: 'vacant' | 'occupied' | 'maintenance' | 'notice'
 }
 
 const STATUS_OPTIONS: UnitFormState['status'][] = ['vacant', 'occupied', 'maintenance']
@@ -100,6 +101,7 @@ const statusBadgeMap: Record<string, string> = {
   occupied: 'px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700',
   vacant: 'px-3 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-700',
   maintenance: 'px-3 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700',
+  notice: 'px-3 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-700',
 }
 
 const cnStatus = (status: string | null | undefined) =>
@@ -179,6 +181,7 @@ export default function UnitManagementPage() {
   const occupiedUnits = units.filter((u) => (u.status || '').toLowerCase() === 'occupied').length
   const vacantUnits = units.filter((u) => (u.status || '').toLowerCase() === 'vacant').length
   const maintenanceUnits = units.filter((u) => (u.status || '').toLowerCase() === 'maintenance').length
+  const noticeUnits = units.filter((u) => (u.status || '').toLowerCase() === 'notice').length
   const remainingCapacity = Math.max(0, totalUnits - units.length)
 
 const convertUnitToForm = (unit: UnitRecord): UnitFormState => ({
@@ -236,7 +239,7 @@ const convertUnitToForm = (unit: UnitRecord): UnitFormState => ({
             number_of_bathrooms: payload.bathrooms,
             size_sqft: payload.size_sqft,
             unit_price_category: payload.price_category,
-            status: payload.status,
+            status: payload.status === 'notice' ? undefined : payload.status,
           },
           }),
         }
@@ -420,7 +423,7 @@ const convertUnitToForm = (unit: UnitRecord): UnitFormState => ({
               </div>
             )}
 
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
               <Card className="p-6">
                 <p className="text-sm text-gray-600 mb-1">Total Units</p>
                 <p className="text-3xl font-bold">{totalUnits}</p>
@@ -436,6 +439,10 @@ const convertUnitToForm = (unit: UnitRecord): UnitFormState => ({
               <Card className="p-6">
                 <p className="text-sm text-gray-600 mb-1">Maintenance</p>
                 <p className="text-3xl font-bold text-red-500">{maintenanceUnits}</p>
+              </Card>
+              <Card className="p-6">
+                <p className="text-sm text-gray-600 mb-1">Notice</p>
+                <p className="text-3xl font-bold text-purple-600">{noticeUnits}</p>
               </Card>
             </div>
 
@@ -552,27 +559,48 @@ const convertUnitToForm = (unit: UnitRecord): UnitFormState => ({
                           <div>
                             <p className="text-xs text-gray-500 mb-1">Status</p>
                             {isEditing ? (
-                              <Select
-                                value={displayState.status}
-                                onValueChange={(value: UnitFormState['status']) =>
-                                  handleEditChange(unit.id, 'status', value)
-                                }
-                              >
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Status" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {STATUS_OPTIONS.map((status) => (
-                                    <SelectItem key={status} value={status}>
-                                      {status.charAt(0).toUpperCase() + status.slice(1)}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
+                              (displayState.status || '').toLowerCase() === 'notice' ? (
+                                <div className="space-y-1">
+                                  <span className={cnStatus('notice')}>Notice</span>
+                                  <p className="text-xs text-muted-foreground">
+                                    Unit is in Notice state. This is controlled by the vacate workflow.
+                                  </p>
+                                  {unit.notice_vacate_date ? (
+                                    <p className="text-xs text-muted-foreground">
+                                      Vacating: {unit.notice_vacate_date}
+                                    </p>
+                                  ) : null}
+                                </div>
+                              ) : (
+                                <Select
+                                  value={displayState.status}
+                                  onValueChange={(value: UnitFormState['status']) =>
+                                    handleEditChange(unit.id, 'status', value)
+                                  }
+                                >
+                                  <SelectTrigger>
+                                    <SelectValue placeholder="Status" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {STATUS_OPTIONS.map((status) => (
+                                      <SelectItem key={status} value={status}>
+                                        {status.charAt(0).toUpperCase() + status.slice(1)}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              )
                             ) : (
-                              <p className={cnStatus(unit.status)}>
-                                {unit.status?.charAt(0).toUpperCase() + unit.status?.slice(1)}
-                              </p>
+                              <div className="flex flex-col gap-1">
+                                <span className={cnStatus(unit.status)}>
+                                  {unit.status?.charAt(0).toUpperCase() + unit.status?.slice(1)}
+                                </span>
+                                {(unit.status || '').toLowerCase() === 'notice' && unit.notice_vacate_date ? (
+                                  <span className="text-xs text-muted-foreground">
+                                    Vacating: {unit.notice_vacate_date}
+                                  </span>
+                                ) : null}
+                              </div>
                             )}
                           </div>
                         </div>

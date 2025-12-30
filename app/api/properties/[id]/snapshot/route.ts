@@ -75,16 +75,17 @@ export async function GET(req: Request, ctx: { params: { id: string } }) {
 
   const unitIds = (units || []).map((u: any) => u.id)
 
-  const counts = { occupied: 0, vacant: 0, maintenance: 0, unknown: 0 }
+  const counts = { occupied: 0, vacant: 0, maintenance: 0, notice: 0, unknown: 0 }
   for (const u of units || []) {
     const s = String((u as any).status || '').toLowerCase()
     if (s === 'occupied') counts.occupied++
     else if (s === 'vacant') counts.vacant++
     else if (s === 'maintenance') counts.maintenance++
+    else if (s === 'notice') counts.notice++
     else counts.unknown++
   }
   const totalUnits = (units || []).length
-  const occupancyRate = totalUnits ? Math.round((counts.occupied / totalUnits) * 100) : 0
+  const occupancyRate = totalUnits ? Math.round(((counts.occupied + counts.notice) / totalUnits) * 100) : 0
 
   let expenseRows: any[] = []
   try {
@@ -256,6 +257,7 @@ export async function GET(req: Request, ctx: { params: { id: string } }) {
           occupied: counts.occupied,
           vacant: counts.vacant,
           maintenance: counts.maintenance,
+          notice: counts.notice,
           occupancy_rate: occupancyRate,
         },
       },

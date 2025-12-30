@@ -91,7 +91,7 @@ export async function GET(
 
   const { data: units, error: unitsError } = await adminSupabase
     .from('apartment_units')
-    .select('id, unit_number, floor, number_of_bedrooms, number_of_bathrooms, size_sqft, unit_price_category, status, created_at')
+    .select('id, unit_number, floor, number_of_bedrooms, number_of_bathrooms, size_sqft, unit_price_category, status, notice_vacate_date, created_at')
     .eq('building_id', building.id)
     .order('unit_number')
 
@@ -158,6 +158,16 @@ export async function POST(
   if (units.length === 0) {
     return NextResponse.json(
       { success: false, error: 'Please provide at least one unit.' },
+      { status: 400 }
+    )
+  }
+
+  const hasNoticeStatus = units.some(
+    (unit) => String(unit?.status || '').toLowerCase() === 'notice'
+  )
+  if (hasNoticeStatus) {
+    return NextResponse.json(
+      { success: false, error: 'Unit status "notice" is managed by the vacate workflow.' },
       { status: 400 }
     )
   }
@@ -304,6 +314,12 @@ export async function PATCH(
   }
   if (updates.size_sqft !== undefined) {
     allowed.size_sqft = updates.size_sqft === '' ? null : Number(updates.size_sqft)
+  }
+  if (typeof updates.status === 'string' && updates.status.toLowerCase() === 'notice') {
+    return NextResponse.json(
+      { success: false, error: 'Unit status "notice" is managed by the vacate workflow.' },
+      { status: 400 }
+    )
   }
   if (updates.status && UNIT_STATUSES.includes(updates.status)) {
     allowed.status = updates.status
