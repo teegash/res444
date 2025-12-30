@@ -508,8 +508,8 @@ function DashboardContent() {
                 className="block h-full rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4682B4]/40"
                 aria-label="View properties"
               >
-                <Card className="h-full cursor-pointer transition-shadow hover:shadow-md">
-                  <CardContent className="pt-4 pb-4 h-full">
+                <Card className="h-full rounded-md cursor-pointer transition-shadow hover:shadow-md">
+                  <CardContent className="pt-3 pb-3 h-full">
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-base text-gray-700 font-bold">Total Properties</p>
@@ -529,8 +529,8 @@ function DashboardContent() {
                 className="block h-full rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4682B4]/40"
                 aria-label="View tenants"
               >
-                <Card className="h-full cursor-pointer transition-shadow hover:shadow-md">
-                  <CardContent className="pt-4 pb-4 h-full">
+                <Card className="h-full rounded-md cursor-pointer transition-shadow hover:shadow-md">
+                  <CardContent className="pt-3 pb-3 h-full">
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-base text-gray-700 font-bold">Active Tenants</p>
@@ -550,8 +550,8 @@ function DashboardContent() {
                 className="block h-full rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4682B4]/40"
                 aria-label="View reports"
               >
-                <Card className="h-full cursor-pointer transition-shadow hover:shadow-md">
-                  <CardContent className="pt-4 pb-4 h-full">
+                <Card className="h-full rounded-md cursor-pointer transition-shadow hover:shadow-md">
+                  <CardContent className="pt-3 pb-3 h-full">
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-base text-gray-700 font-bold">Monthly Revenue</p>
@@ -588,8 +588,8 @@ function DashboardContent() {
                 className="block h-full rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4682B4]/40"
                 aria-label="View maintenance requests"
               >
-                <Card className="h-full cursor-pointer transition-shadow hover:shadow-md">
-                  <CardContent className="pt-4 pb-4 h-full">
+                <Card className="h-full rounded-md cursor-pointer transition-shadow hover:shadow-md">
+                  <CardContent className="pt-3 pb-3 h-full">
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-base text-gray-700 font-bold">Pending Requests</p>
@@ -609,12 +609,14 @@ function DashboardContent() {
                 className="block h-full rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4682B4]/40"
                 aria-label="View arrears"
               >
-                <Card className="h-full cursor-pointer transition-shadow hover:shadow-md">
-                  <CardContent className="pt-4 pb-4 h-full">
+                <Card className="h-full rounded-md cursor-pointer transition-shadow hover:shadow-md">
+                  <CardContent className="pt-3 pb-3 h-full">
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-base text-gray-700 font-bold">Arrears</p>
-                        <p className="text-3xl font-bold">{defaultersSummary?.defaulters ?? '—'}</p>
+                        <p className="text-3xl font-bold">
+                          {defaultersSummary?.defaulters ?? '—'} Tenants
+                        </p>
                         <p className="text-sm text-red-600 mt-1">
                           {defaultersSummary ? `${defaultersSummary.defaulters_pct}%` : 'Arrears snapshot'}
                         </p>
