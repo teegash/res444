@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { TenantsTable } from '@/components/dashboard/tenants-table'
-import { LayoutGrid, Plus, Rows4 } from 'lucide-react'
+import { ArrowLeft, LayoutGrid, Plus, Rows4 } from 'lucide-react'
 import { Sidebar } from '@/components/dashboard/sidebar'
 import { Header } from '@/components/dashboard/header'
 import { useRouter } from 'next/navigation'
@@ -28,13 +28,21 @@ export default function TenantArchivePage() {
   }, [viewModeLocked])
 
   return (
-    <div className="flex min-h-screen bg-gray-50">
+    <div className="flex min-h-screen bg-gray-100">
       <Sidebar />
       <div className="flex-1 flex flex-col">
         <Header />
         <main className="flex-1 p-6 overflow-auto">
           <div className="max-w-7xl mx-auto">
             <div className="mb-6 space-y-4">
+              <Button
+                variant="ghost"
+                className="px-0 text-slate-700 hover:text-slate-900"
+                onClick={() => router.push('/dashboard/tenants')}
+              >
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                Back to Tenant Management
+              </Button>
               <h1 className="text-3xl font-bold">Tenant Archive</h1>
 
               <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">

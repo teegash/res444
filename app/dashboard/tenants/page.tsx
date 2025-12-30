@@ -60,6 +60,7 @@ export default function TenantsPage() {
                     thinkingLabel="Opening"
                     onClick={() => router.push('/dashboard/tenants/archive')}
                     className="scale-[0.9] origin-right z-0"
+                    hideTentacles={true}
                   />
                   <div className="inline-flex rounded-full border bg-white p-1 shadow-sm relative z-10">
                     <Button

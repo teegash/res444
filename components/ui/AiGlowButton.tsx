@@ -10,12 +10,14 @@ export type AiGlowButtonProps = {
   onClick?: (e: React.MouseEvent<HTMLButtonElement>) => void;
   disabled?: boolean;
   className?: string;
+  hideTentacles?: boolean;
 };
 
 export function AiGlowButton({
   label = "Ask AI",
   thinkingLabel = "Thinking",
   thinking = false,
+  hideTentacles = false,
   onClick,
   disabled = false,
   className,
@@ -37,8 +39,8 @@ export function AiGlowButton({
 
   return (
     <div className={wrapperClass}>
-      <div className={styles.light1} aria-hidden="true" />
-      <div className={styles.light2} aria-hidden="true" />
+      {!hideTentacles && <div className={styles.light1} aria-hidden="true" />}
+      {!hideTentacles && <div className={styles.light2} aria-hidden="true" />}
 
       <button
         type="button"
@@ -60,15 +62,16 @@ export function AiGlowButton({
         <span className={styles.txt2}>{thinkingLabel}</span>
       </button>
 
-      <svg
-        className={styles.aiBg}
-        xmlns="http://www.w3.org/2000/svg"
-        viewBox="70 70 160 160"
-        width="300"
-        height="300"
-        aria-hidden="true"
-        focusable="false"
-      >
+      {!hideTentacles && (
+        <svg
+          className={styles.aiBg}
+          xmlns="http://www.w3.org/2000/svg"
+          viewBox="70 70 160 160"
+          width="300"
+          height="300"
+          aria-hidden="true"
+          focusable="false"
+        >
         <line className={styles.lineBg} x1="150" y1="143.58" x2="150" y2="97.31" />
         <line className={styles.lineBg} x1="157.98" y1="143.58" x2="157.98" y2="112.08" />
         <line className={styles.lineBg} x1="142.02" y1="143.58" x2="142.02" y2="118.08" />
@@ -162,7 +165,8 @@ export function AiGlowButton({
         <circle className={styles.dot} cx="89.92" cy="159.86" r="1.17" />
         <circle className={styles.dot} cx="81.51" cy="150" r="1.17" />
         <circle className={styles.dot} cx="86.92" cy="140.14" r="1.17" />
-      </svg>
+        </svg>
+      )}
     </div>
   );
 }

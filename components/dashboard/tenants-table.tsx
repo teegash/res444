@@ -300,7 +300,13 @@ export function TenantsTable({
       list = list.filter((tenant) => {
         const leaseStatus = (tenant.lease_status || '').toLowerCase()
         const unitLabel = (tenant.unit_label || '').toLowerCase()
-        return leaseStatus === 'unassigned' || unitLabel.includes('unassigned')
+        return leaseStatus === 'unassigned' || unitLabel.includes('unassigned') || !unitLabel
+      })
+    } else {
+      list = list.filter((tenant) => {
+        const leaseStatus = (tenant.lease_status || '').toLowerCase()
+        const unitLabel = (tenant.unit_label || '').toLowerCase()
+        return !(leaseStatus === 'unassigned' || unitLabel.includes('unassigned') || !unitLabel)
       })
     }
     if (query) {
