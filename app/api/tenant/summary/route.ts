@@ -87,7 +87,7 @@ export async function GET() {
 
     const { data: profile, error: profileError } = await adminSupabase
       .from('user_profiles')
-      .select('id, full_name, phone_number, profile_picture_url, address')
+      .select('id, full_name, phone_number, profile_picture_url, address, organization_id')
       .eq('id', user.id)
       .maybeSingle()
 
@@ -100,6 +100,7 @@ export async function GET() {
       .select(
         `
         id,
+        organization_id,
         status,
         start_date,
         end_date,
@@ -161,11 +162,17 @@ export async function GET() {
 
     let ratingPercentage: number | null = null
     let scoredItemsCount = 0
-    const { data: ratingRow } = await adminSupabase
+    let ratingQuery = adminSupabase
       .from('vw_tenant_payment_timeliness')
       .select('rating_percentage, scored_items_count')
       .eq('tenant_user_id', user.id)
-      .maybeSingle()
+
+    const orgId = profile?.organization_id || lease?.organization_id
+    if (orgId) {
+      ratingQuery = ratingQuery.eq('organization_id', orgId)
+    }
+
+    const { data: ratingRow } = await ratingQuery.maybeSingle()
 
     if (ratingRow) {
       ratingPercentage =

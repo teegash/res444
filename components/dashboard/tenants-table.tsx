@@ -217,11 +217,12 @@ function TenantActions({
 export function TenantsTable({ searchQuery = '', viewMode = 'list', propertyId }: TenantsTableProps) {
   const { toast } = useToast()
   const [tenants, setTenants] = useState<TenantRecord[]>([])
-  const [ratingsMap, setRatingsMap] = useState<Record<string, { on_time_rate: number | null; payments: number }>>({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [refreshIndex, setRefreshIndex] = useState(0)
   const [ratingFilter, setRatingFilter] = useState<'all' | 'red' | 'orange' | 'yellow' | 'green' | 'none'>('all')
+  const [defaultersFilter, setDefaultersFilter] = useState<'all' | 'defaulters'>('all')
+  const [kickoutFilter, setKickoutFilter] = useState<'all' | 'kickout'>('all')
   const [leaseStatusFilter, setLeaseStatusFilter] = useState<
     'all' | 'valid' | 'renewed' | 'pending' | 'expired' | 'unassigned'
   >('all')
@@ -271,37 +272,6 @@ export function TenantsTable({ searchQuery = '', viewMode = 'list', propertyId }
   }, [propertyId, refreshIndex])
 
   useEffect(() => {
-    const fetchRatings = async () => {
-      try {
-        const res = await fetch('/api/dashboard/manager/tenant-ratings', { cache: 'no-store' })
-        const json = await res.json()
-        if (!res.ok || !json.success) {
-          throw new Error(json.error || 'Failed to load tenant ratings')
-        }
-        const map: Record<string, { on_time_rate: number | null; payments: number }> = {}
-        ;(json.data || []).forEach((item: any) => {
-          if (item?.tenant_id) {
-            const rate =
-              item.on_time_rate === null || item.on_time_rate === undefined
-                ? null
-                : Number(item.on_time_rate)
-            map[item.tenant_id] = {
-              on_time_rate: Number.isFinite(rate as number) ? (rate as number) : null,
-              payments: Number(item.payments || 0),
-            }
-          }
-        })
-        setRatingsMap(map)
-      } catch (err) {
-        console.warn('[TenantsTable] ratings load failed', err)
-        setRatingsMap({})
-      }
-    }
-
-    fetchRatings()
-  }, [refreshIndex])
-
-  useEffect(() => {
     if (editTenant) {
       setEditForm({
         full_name: editTenant.full_name || '',
@@ -337,10 +307,17 @@ export function TenantsTable({ searchQuery = '', viewMode = 'list', propertyId }
 
     if (ratingFilter !== 'all') {
       list = list.filter((tenant) => {
-        const ratingValue =
-          ratingsMap[tenant.tenant_user_id]?.on_time_rate ?? tenant.rating_percentage ?? null
+        const ratingValue = tenant.rating_percentage ?? null
         return ratingBucket(ratingValue) === ratingFilter
       })
+    }
+
+    if (defaultersFilter === 'defaulters') {
+      list = list.filter((tenant) => Number(tenant.arrears_amount || 0) > 0)
+    }
+
+    if (kickoutFilter === 'kickout') {
+      list = list.filter((tenant) => Boolean(tenant.kick_out_candidate))
     }
 
     if (leaseStatusFilter !== 'all') {
@@ -354,7 +331,7 @@ export function TenantsTable({ searchQuery = '', viewMode = 'list', propertyId }
     }
 
     return list
-  }, [leaseStatusFilter, paymentFilter, ratingFilter, ratingsMap, searchQuery, tenants])
+  }, [defaultersFilter, kickoutFilter, leaseStatusFilter, paymentFilter, ratingFilter, searchQuery, tenants])
 
   const viewTenants = useMemo(() => {
     if (loading) {
@@ -379,6 +356,9 @@ export function TenantsTable({ searchQuery = '', viewMode = 'list', propertyId }
         return 'All ratings'
     }
   })()
+
+  const defaultersFilterLabel = defaultersFilter === 'defaulters' ? 'Defaulters only' : 'All tenants'
+  const kickoutFilterLabel = kickoutFilter === 'kickout' ? 'Kick-out candidates' : 'All tenants'
 
   const leaseFilterLabel = (() => {
     switch (leaseStatusFilter) {
@@ -436,6 +416,14 @@ export function TenantsTable({ searchQuery = '', viewMode = 'list', propertyId }
     { value: 'yellow', label: 'Yellow rating' },
     { value: 'green', label: 'Green rating' },
     { value: 'none', label: 'No rating' },
+  ]
+  const defaultersOptions = [
+    { value: 'all', label: 'All tenants' },
+    { value: 'defaulters', label: 'Defaulters only' },
+  ]
+  const kickoutOptions = [
+    { value: 'all', label: 'All tenants' },
+    { value: 'kickout', label: 'Kick-out candidates' },
   ]
   const leaseOptions = [
     { value: 'all', label: 'All statuses' },
@@ -562,6 +550,20 @@ export function TenantsTable({ searchQuery = '', viewMode = 'list', propertyId }
               )}
             </div>
             <div className="flex items-center gap-1">
+              <span className="font-semibold">Defaulters</span>
+              <span className="text-slate-500">{defaultersFilterLabel}</span>
+              {renderFilterMenu(defaultersOptions, defaultersFilter, (value) =>
+                setDefaultersFilter(value as typeof defaultersFilter)
+              )}
+            </div>
+            <div className="flex items-center gap-1">
+              <span className="font-semibold">Kick-out</span>
+              <span className="text-slate-500">{kickoutFilterLabel}</span>
+              {renderFilterMenu(kickoutOptions, kickoutFilter, (value) =>
+                setKickoutFilter(value as typeof kickoutFilter)
+              )}
+            </div>
+            <div className="flex items-center gap-1">
               <span className="font-semibold">Lease status</span>
               <span className="text-slate-500">{leaseFilterLabel}</span>
               {renderFilterMenu(leaseOptions, leaseStatusFilter, (value) =>
@@ -583,7 +585,7 @@ export function TenantsTable({ searchQuery = '', viewMode = 'list', propertyId }
             <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {viewTenants.map((tenant) => {
                 const ratingValue =
-                  ratingsMap[tenant.tenant_user_id]?.on_time_rate ?? tenant.rating_percentage ?? null
+                  tenant.rating_percentage ?? null
                 const ratingInfo = ratingMeta(ratingValue ?? undefined)
                 const hasRating = ratingValue !== null && ratingValue !== undefined
                 const arrearsAmount = Number(tenant.arrears_amount || 0)
@@ -689,6 +691,22 @@ export function TenantsTable({ searchQuery = '', viewMode = 'list', propertyId }
           </div>
         ) : (
           <div className="overflow-x-auto">
+            <div className="flex flex-wrap items-center gap-4 border-b bg-slate-50/60 px-4 py-3 text-xs text-slate-600">
+              <div className="flex items-center gap-1">
+                <span className="font-semibold">Defaulters</span>
+                <span className="text-slate-500">{defaultersFilterLabel}</span>
+                {renderFilterMenu(defaultersOptions, defaultersFilter, (value) =>
+                  setDefaultersFilter(value as typeof defaultersFilter)
+                )}
+              </div>
+              <div className="flex items-center gap-1">
+                <span className="font-semibold">Kick-out</span>
+                <span className="text-slate-500">{kickoutFilterLabel}</span>
+                {renderFilterMenu(kickoutOptions, kickoutFilter, (value) =>
+                  setKickoutFilter(value as typeof kickoutFilter)
+                )}
+              </div>
+            </div>
             <Table>
             <TableHeader>
               <TableRow>
@@ -745,10 +763,8 @@ export function TenantsTable({ searchQuery = '', viewMode = 'list', propertyId }
 
               {!loading &&
                 filteredTenants.map((tenant) => {
-                  const ratingValue =
-                    ratingsMap[tenant.tenant_user_id]?.on_time_rate ?? tenant.rating_percentage ?? null
-                  const ratingCount =
-                    ratingsMap[tenant.tenant_user_id]?.payments ?? tenant.scored_items_count ?? 0
+                  const ratingValue = tenant.rating_percentage ?? null
+                  const ratingCount = tenant.scored_items_count ?? 0
                   const hasRating = ratingValue !== null && ratingValue !== undefined
                   const meta = ratingMeta(ratingValue ?? undefined)
                   const expired = isLeaseExpired(tenant)
