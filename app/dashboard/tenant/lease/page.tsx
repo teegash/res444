@@ -1158,25 +1158,27 @@ export default function LeasePage() {
                               ? '#f97316'
                               : '#ef4444'
                       return (
-                    <div className="flex items-center justify-between text-xs text-muted-foreground mb-2">
-                      <span>Submitted</span>
-                      <span>{vacateProgress.endLabel}</span>
-                    </div>
-                    <div className="h-3 w-full rounded-full bg-slate-200 overflow-hidden">
-                      <div
-                        className="h-full rounded-full transition-all duration-700"
-                        style={{
-                          width: `${progressPct}%`,
-                          backgroundColor: progressColor,
-                        }}
-                      />
-                    </div>
-                    <div className="mt-2 flex items-center justify-between text-xs text-slate-600">
-                      <span>{progressPct}% complete</span>
-                      <span>
-                        {vacateProgress.daysRemaining} days left of {vacateProgress.totalDays}
-                      </span>
-                    </div>
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between text-xs text-muted-foreground">
+                            <span>Submitted</span>
+                            <span>{vacateProgress.endLabel}</span>
+                          </div>
+                          <div className="h-3 w-full rounded-full bg-slate-200 overflow-hidden">
+                            <div
+                              className="h-full rounded-full transition-all duration-700"
+                              style={{
+                                width: `${progressPct}%`,
+                                backgroundColor: progressColor,
+                              }}
+                            />
+                          </div>
+                          <div className="flex items-center justify-between text-xs text-slate-600">
+                            <span>{progressPct}% complete</span>
+                            <span>
+                              {vacateProgress.daysRemaining} days left of {vacateProgress.totalDays}
+                            </span>
+                          </div>
+                        </div>
                       )
                     })()}
                   </div>
