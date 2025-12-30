@@ -246,6 +246,12 @@ export default function PropertyDetailPage() {
                   </Button>
                   <Button
                     variant="outline"
+                    onClick={() => router.push(`/dashboard/water-bills/bulk?propertyId=${propertyId}`)}
+                  >
+                    Bulk water billing
+                  </Button>
+                  <Button
+                    variant="outline"
                     onClick={() => router.push(`/dashboard/property/${propertyId}/unit_management`)}
                   >
                     Manage units

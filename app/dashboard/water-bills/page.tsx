@@ -431,9 +431,14 @@ export default function WaterBillsPage() {
                 Generate and send water bill invoices to tenants
               </p>
             </div>
-            <Button asChild variant="outline" className="w-full md:w-auto md:ml-auto">
-              <Link href="/dashboard/water-bills/statements">View water bill statements</Link>
-            </Button>
+            <div className="flex flex-wrap items-center gap-2 w-full md:w-auto md:ml-auto">
+              <Button asChild variant="default" className="w-full md:w-auto">
+                <Link href="/dashboard/water-bills/bulk">Bulk Billing</Link>
+              </Button>
+              <Button asChild variant="outline" className="w-full md:w-auto">
+                <Link href="/dashboard/water-bills/statements">View water bill statements</Link>
+              </Button>
+            </div>
           </div>
 
           <div className="max-w-6xl grid lg:grid-cols-[2fr,1fr] gap-6">

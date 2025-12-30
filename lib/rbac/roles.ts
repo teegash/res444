@@ -199,6 +199,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
 export const ROLE_ROUTES: Record<UserRole, string[]> = {
   admin: [
     '/dashboard',
+    '/dashboard/water-bills/bulk',
     '/dashboard/properties',
     '/dashboard/tenants',
     '/dashboard/finances',
@@ -213,6 +214,7 @@ export const ROLE_ROUTES: Record<UserRole, string[]> = {
 
   manager: [
     '/dashboard',
+    '/dashboard/water-bills/bulk',
     '/dashboard/properties',
     '/dashboard/tenants',
     '/dashboard/finances',
@@ -320,4 +322,3 @@ export const ROLE_DESCRIPTIONS: Record<UserRole, string> = {
   caretaker: 'Building-level access. Can manage maintenance, water bills, and communications for assigned buildings.',
   tenant: 'Personal access. Can view own lease, make payments, and submit maintenance requests.',
 }
-
