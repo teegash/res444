@@ -131,9 +131,9 @@ const isLeaseExpired = (tenant: TenantRecord) => {
 
 const ratingBucket = (rate?: number | null) => {
   if (rate === undefined || rate === null) return 'none'
-  if (rate >= 95) return 'green'
-  if (rate >= 87) return 'yellow'
-  if (rate >= 80) return 'orange'
+  if (rate >= 90) return 'green'
+  if (rate >= 80) return 'yellow'
+  if (rate >= 70) return 'orange'
   return 'red'
 }
 
@@ -159,10 +159,10 @@ const ratingMeta = (rate?: number) => {
   if (rate === undefined || rate === null) {
     return { color: 'bg-slate-300', label: 'No rating available' }
   }
-  if (rate >= 95) return { color: 'bg-green-500', label: 'Excellent (95-100%)' }
-  if (rate >= 87) return { color: 'bg-yellow-400', label: 'Good (87-94%)' }
-  if (rate >= 80) return { color: 'bg-orange-500', label: 'Fair (80-86%)' }
-  return { color: 'bg-red-500', label: 'Needs improvement (<80%)' }
+  if (rate >= 90) return { color: 'bg-green-500', label: 'Green (≥ 90%)' }
+  if (rate >= 80) return { color: 'bg-yellow-400', label: 'Yellow (80–89%)' }
+  if (rate >= 70) return { color: 'bg-orange-500', label: 'Orange (70–79%)' }
+  return { color: 'bg-red-500', label: 'Red (< 70%)' }
 }
 
 function TenantActions({

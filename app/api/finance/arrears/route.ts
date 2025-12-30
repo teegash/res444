@@ -1,15 +1,22 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/rbac/routeGuards'
 import { getUserRole } from '@/lib/rbac/userRole'
 import { createAdminClient } from '@/lib/supabase/admin'
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
     const { userId, role } = await requireAuth()
 
     if (role !== 'manager' && role !== 'admin') {
       return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })
     }
+
+    const { searchParams } = new URL(req.url)
+    const buildingId = searchParams.get('building_id')
+    const minArrearsRaw = searchParams.get('min_arrears')
+    const minArrears = minArrearsRaw ? Number(minArrearsRaw) : 0
+    const limitRaw = searchParams.get('limit')
+    const limit = limitRaw ? Math.min(2000, Math.max(1, Number(limitRaw))) : 500
 
     const userRole = await getUserRole(userId)
     if (!userRole?.organization_id) {
@@ -32,18 +39,66 @@ export async function GET() {
     const organizationId = userRole.organization_id
     const admin = createAdminClient()
 
-    const { data, error } = await admin
+    let query = admin
       .from('vw_lease_arrears_detail')
       .select(
         'organization_id, lease_id, tenant_user_id, tenant_name, tenant_phone, unit_id, unit_number, arrears_amount, open_invoices_count, oldest_due_date'
       )
       .eq('organization_id', organizationId)
       .order('arrears_amount', { ascending: false })
-      .limit(500)
+      .limit(limit)
+
+    if (Number.isFinite(minArrears) && minArrears > 0) {
+      query = query.gte('arrears_amount', minArrears)
+    }
+
+    const { data, error } = await query
 
     if (error) throw error
 
-    return NextResponse.json({ success: true, data: data ?? [] })
+    const baseRows = data ?? []
+
+    const unitIds = Array.from(new Set(baseRows.map((r: any) => r.unit_id).filter(Boolean)))
+
+    const unitToBuilding = new Map<
+      string,
+      { building_id: string | null; building_name: string | null; building_location: string | null }
+    >()
+
+    if (unitIds.length > 0) {
+      const { data: units, error: unitErr } = await admin
+        .from('apartment_units')
+        .select('id, building_id, apartment_buildings ( id, name, location )')
+        .eq('organization_id', organizationId)
+        .in('id', unitIds)
+
+      if (unitErr) throw unitErr
+
+      for (const u of (units as any[]) || []) {
+        const b = u.apartment_buildings
+        unitToBuilding.set(u.id, {
+          building_id: b?.id ?? u.building_id ?? null,
+          building_name: b?.name ?? null,
+          building_location: b?.location ?? null,
+        })
+      }
+    }
+
+    let finalRows = baseRows.map((r: any) => {
+      const extra = r.unit_id ? unitToBuilding.get(r.unit_id) : null
+      return {
+        ...r,
+        building_id: extra?.building_id ?? null,
+        building_name: extra?.building_name ?? null,
+        building_location: extra?.building_location ?? null,
+      }
+    })
+
+    if (buildingId) {
+      finalRows = finalRows.filter((r: any) => r.building_id === buildingId)
+    }
+
+    return NextResponse.json({ success: true, data: finalRows })
   } catch (error) {
     console.error('[Finance.Arrears.GET] Failed', error)
     return NextResponse.json(

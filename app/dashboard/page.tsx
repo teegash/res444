@@ -228,7 +228,16 @@ function DashboardContent() {
   } | null>(null)
   const [overviewError, setOverviewError] = useState<string | null>(null)
   const [topTenants, setTopTenants] = useState<Array<{ tenant_id: string; name: string; on_time_rate: number; payments: number }>>([])
+  const [worstTenants, setWorstTenants] = useState<
+    Array<{ tenant_id: string; name: string; on_time_rate: number; payments: number }>
+  >([])
   const [ratingsError, setRatingsError] = useState<string | null>(null)
+  const [defaultersSummary, setDefaultersSummary] = useState<{
+    active_tenants: number
+    defaulters: number
+    defaulters_pct: number
+    total_arrears_amount: number
+  } | null>(null)
   const role =
     organization?.user_role ||
     (user?.user_metadata as any)?.role ||
@@ -322,13 +331,46 @@ function DashboardContent() {
         if (!res.ok || !json.success) {
           throw new Error(json.error || 'Failed to load tenant ratings')
         }
-        setTopTenants((json.data || []).slice(0, 3))
+        const list = (json.data || []) as Array<{
+          tenant_id: string
+          name: string
+          on_time_rate: number
+          payments: number
+        }>
+        const sortedDesc = [...list].sort(
+          (a, b) => b.on_time_rate - a.on_time_rate || b.payments - a.payments
+        )
+        const sortedAsc = [...list].sort(
+          (a, b) => a.on_time_rate - b.on_time_rate || b.payments - a.payments
+        )
+        setTopTenants(sortedDesc.slice(0, 3))
+        setWorstTenants(sortedAsc.slice(0, 3))
       } catch (err) {
         setRatingsError(err instanceof Error ? err.message : 'Unable to load tenant ratings')
         setTopTenants([])
+        setWorstTenants([])
       }
     }
     loadRatings()
+  }, [role])
+
+  useEffect(() => {
+    if (role === 'caretaker') return
+    let mounted = true
+    ;(async () => {
+      try {
+        const res = await fetch('/api/dashboard/manager/defaulters-summary', { cache: 'no-store' })
+        const json = await res.json()
+        if (mounted && res.ok && json.success) {
+          setDefaultersSummary(json.data)
+        }
+      } catch {
+        if (mounted) setDefaultersSummary(null)
+      }
+    })()
+    return () => {
+      mounted = false
+    }
   }, [role])
 
   if (loadingOrg) {
@@ -558,6 +600,32 @@ function DashboardContent() {
                   </CardContent>
                 </Card>
               </Link>
+
+              <Link
+                href="/dashboard/finances/arrears"
+                className="block rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4682B4]/40"
+                aria-label="View arrears"
+              >
+                <Card className="cursor-pointer transition-shadow hover:shadow-md">
+                  <CardContent className="pt-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm text-gray-600 mb-1">Defaulters</p>
+                        <p className="text-3xl font-bold">{defaultersSummary?.defaulters ?? '—'}</p>
+                        <p className="text-sm text-red-600 mt-1">
+                          {defaultersSummary ? `${defaultersSummary.defaulters_pct}% of active tenants` : 'Arrears snapshot'}
+                        </p>
+                        <p className="text-xs text-gray-500 mt-1">
+                          Total arrears {defaultersSummary ? formatCurrency(defaultersSummary.total_arrears_amount || 0, 'KES') : '—'}
+                        </p>
+                      </div>
+                      <div className="w-12 h-12 bg-rose-100 rounded-full flex items-center justify-center">
+                        <FileText className="w-6 h-6 text-rose-600" />
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </Link>
             </div>
 
             {/* Charts Row */}
@@ -646,8 +714,8 @@ function DashboardContent() {
                       <Users className="w-6 h-6 text-orange-600" />
                     </div>
                     <div>
-                      <CardTitle className="text-xl">Top On-Time Tenants</CardTitle>
-                      <CardDescription>Based on rent payment timeliness</CardDescription>
+                      <CardTitle className="text-xl">Tenant Ratings</CardTitle>
+                      <CardDescription>Best vs worst by rent payment timeliness</CardDescription>
                     </div>
                   </div>
                 </CardHeader>
@@ -657,12 +725,13 @@ function DashboardContent() {
                     {!ratingsError && topTenants.length === 0 && (
                       <p className="text-sm text-gray-500">No tenant ratings yet.</p>
                     )}
+                    <p className="text-sm font-semibold text-gray-900">Best Tenants</p>
                     {topTenants.map((tenant) => {
                       const rate = tenant.on_time_rate || 0
                       let dot = 'bg-red-500'
-                      if (rate >= 95) dot = 'bg-green-500'
-                      else if (rate >= 87) dot = 'bg-yellow-400'
-                      else if (rate >= 80) dot = 'bg-orange-500'
+                      if (rate >= 90) dot = 'bg-green-500'
+                      else if (rate >= 80) dot = 'bg-yellow-400'
+                      else if (rate >= 70) dot = 'bg-orange-500'
                       return (
                         <div
                           key={tenant.tenant_id}
@@ -679,6 +748,44 @@ function DashboardContent() {
                         </div>
                       )
                     })}
+                    <div className="mt-6">
+                      <div className="flex items-center justify-between">
+                        <p className="text-sm font-semibold text-gray-900">Worst Tenants</p>
+                        <Link href="/dashboard/tenants" className="text-xs text-primary hover:underline">
+                          View tenants
+                        </Link>
+                      </div>
+
+                      <div className="mt-3 space-y-3">
+                        {!ratingsError && worstTenants.length === 0 && (
+                          <p className="text-sm text-gray-500">No tenant ratings yet.</p>
+                        )}
+
+                        {worstTenants.map((tenant) => {
+                          const rate = tenant.on_time_rate || 0
+                          let dot = 'bg-red-500'
+                          if (rate >= 90) dot = 'bg-green-500'
+                          else if (rate >= 80) dot = 'bg-yellow-400'
+                          else if (rate >= 70) dot = 'bg-orange-500'
+
+                          return (
+                            <div
+                              key={tenant.tenant_id}
+                              className="flex items-center justify-between rounded-lg border border-gray-100 p-3"
+                            >
+                              <div className="flex items-center gap-3">
+                                <span className={`w-3 h-3 rounded-full ${dot}`} aria-hidden />
+                                <div>
+                                  <p className="font-semibold text-gray-900">{tenant.name}</p>
+                                  <p className="text-xs text-gray-500">{tenant.payments} payments</p>
+                                </div>
+                              </div>
+                              <p className="font-semibold text-gray-900">{rate}%</p>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
                   </div>
                 </CardContent>
               </Card>

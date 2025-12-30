@@ -17,6 +17,15 @@ type ArrearsRow = {
   arrears_amount: number
   open_invoices_count: number
   oldest_due_date: string | null
+  building_id: string | null
+  building_name: string | null
+  building_location: string | null
+}
+
+type Building = {
+  id: string
+  name: string
+  location: string | null
 }
 
 function formatKES(value: number) {
@@ -25,6 +34,15 @@ function formatKES(value: number) {
 
 export default function ArrearsPage() {
   const [rows, setRows] = useState<ArrearsRow[]>([])
+  const [buildings, setBuildings] = useState<Building[]>([])
+  const [buildingId, setBuildingId] = useState<string>('all')
+  const [minArrears, setMinArrears] = useState<string>('0')
+  const [summary, setSummary] = useState<{
+    active_tenants: number
+    defaulters: number
+    defaulters_pct: number
+    total_arrears_amount: number
+  } | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [q, setQ] = useState('')
@@ -33,9 +51,33 @@ export default function ArrearsPage() {
     let mounted = true
     ;(async () => {
       try {
+        const sRes = await fetch('/api/dashboard/manager/defaulters-summary', { cache: 'no-store' })
+        const sJson = await sRes.json()
+        if (sRes.ok && sJson.success && mounted) setSummary(sJson.data)
+
+        const bRes = await fetch('/api/manager/buildings', { cache: 'no-store' })
+        const bJson = await bRes.json()
+        if (bRes.ok && bJson.success && mounted) setBuildings(bJson.data || [])
+      } catch (e) {
+        // Summary/buildings are optional; keep silent if they fail.
+      }
+    })()
+    return () => {
+      mounted = false
+    }
+  }, [])
+
+  useEffect(() => {
+    let mounted = true
+    ;(async () => {
+      try {
         setLoading(true)
         setError(null)
-        const res = await fetch('/api/finance/arrears', { cache: 'no-store' })
+        const params = new URLSearchParams()
+        if (buildingId !== 'all') params.set('building_id', buildingId)
+        const min = Number(minArrears || '0')
+        if (Number.isFinite(min) && min > 0) params.set('min_arrears', String(min))
+        const res = await fetch(`/api/finance/arrears?${params.toString()}`, { cache: 'no-store' })
         const json = await res.json()
         if (!res.ok || !json.success) throw new Error(json.error || 'Failed to load arrears')
         if (mounted) setRows(json.data || [])
@@ -48,7 +90,7 @@ export default function ArrearsPage() {
     return () => {
       mounted = false
     }
-  }, [])
+  }, [buildingId, minArrears])
 
   const filtered = useMemo(() => {
     const query = q.trim().toLowerCase()
@@ -57,7 +99,8 @@ export default function ArrearsPage() {
       const unit = (r.unit_number ?? '').toLowerCase()
       const name = (r.tenant_name ?? '').toLowerCase()
       const phone = (r.tenant_phone ?? '').toLowerCase()
-      return unit.includes(query) || name.includes(query) || phone.includes(query)
+      const building = (r.building_name ?? '').toLowerCase()
+      return unit.includes(query) || name.includes(query) || phone.includes(query) || building.includes(query)
     })
   }, [rows, q])
 
@@ -79,6 +122,65 @@ export default function ArrearsPage() {
           />
         </div>
       </div>
+
+      <div className="flex gap-3 flex-wrap items-center">
+        <div className="w-full sm:w-72">
+          <select
+            className="w-full border rounded-md h-10 px-3 text-sm bg-white"
+            value={buildingId}
+            onChange={(e) => setBuildingId(e.target.value)}
+          >
+            <option value="all">All buildings</option>
+            {buildings.map((b) => (
+              <option key={b.id} value={b.id}>
+                {b.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="w-full sm:w-56">
+          <Input
+            placeholder="Min arrears (KES)"
+            value={minArrears}
+            onChange={(e) => setMinArrears(e.target.value)}
+          />
+        </div>
+
+        <Button
+          variant="outline"
+          onClick={() => {
+            setBuildingId('all')
+            setMinArrears('0')
+            setQ('')
+          }}
+        >
+          Reset
+        </Button>
+      </div>
+
+      {summary && (
+        <Card>
+          <CardContent className="p-6 flex flex-wrap gap-6 text-sm">
+            <div>
+              <p className="text-muted-foreground">Active tenants</p>
+              <p className="text-xl font-bold">{summary.active_tenants}</p>
+            </div>
+            <div>
+              <p className="text-muted-foreground">Defaulters</p>
+              <p className="text-xl font-bold">{summary.defaulters}</p>
+            </div>
+            <div>
+              <p className="text-muted-foreground">Defaulters rate</p>
+              <p className="text-xl font-bold">{summary.defaulters_pct}%</p>
+            </div>
+            <div>
+              <p className="text-muted-foreground">Total arrears</p>
+              <p className="text-xl font-bold">{formatKES(summary.total_arrears_amount || 0)}</p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {loading && (
         <Card>
@@ -104,6 +206,7 @@ export default function ArrearsPage() {
               <thead className="text-left text-muted-foreground">
                 <tr className="border-b">
                   <th className="py-2 pr-4">Unit</th>
+                  <th className="py-2 pr-4">Building</th>
                   <th className="py-2 pr-4">Tenant</th>
                   <th className="py-2 pr-4">Phone</th>
                   <th className="py-2 pr-4">Arrears</th>
@@ -116,6 +219,12 @@ export default function ArrearsPage() {
                 {filtered.map((r) => (
                   <tr key={r.lease_id} className="border-b last:border-b-0">
                     <td className="py-2 pr-4 font-medium">{r.unit_number ?? '-'}</td>
+                    <td className="py-2 pr-4">
+                      <div className="font-medium">{r.building_name ?? '-'}</div>
+                      {r.building_location && (
+                        <div className="text-xs text-muted-foreground">{r.building_location}</div>
+                      )}
+                    </td>
                     <td className="py-2 pr-4">{r.tenant_name ?? '-'}</td>
                     <td className="py-2 pr-4">{r.tenant_phone ?? '-'}</td>
                     <td className="py-2 pr-4 font-semibold">{formatKES(r.arrears_amount || 0)}</td>
@@ -123,11 +232,17 @@ export default function ArrearsPage() {
                     <td className="py-2 pr-4">{r.open_invoices_count ?? 0}</td>
                     <td className="py-2 pr-4">
                       <div className="flex gap-2">
-                        <Button asChild variant="outline" size="sm">
-                          <Link href={`/dashboard/properties/${r.lease_id}`}>
+                        {r.tenant_user_id ? (
+                          <Button asChild variant="outline" size="sm">
+                            <Link href={`/dashboard/tenants/${r.tenant_user_id}/lease`}>
+                              View Lease
+                            </Link>
+                          </Button>
+                        ) : (
+                          <Button variant="outline" size="sm" disabled>
                             View Lease
-                          </Link>
-                        </Button>
+                          </Button>
+                        )}
                         <Button asChild variant="outline" size="sm">
                           <Link href={`/dashboard/payments?lease_id=${r.lease_id}&type=rent&status=unpaid`}>
                             View Invoices
@@ -140,7 +255,7 @@ export default function ArrearsPage() {
 
                 {filtered.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="py-8 text-center text-muted-foreground">
+                    <td colSpan={8} className="py-8 text-center text-muted-foreground">
                       No rent arrears found.
                     </td>
                   </tr>
