@@ -29,10 +29,13 @@ export async function GET(req: Request, ctx: { params: { id: string } }) {
 
   const admin = createAdminClient()
 
-  const rawId = ctx.params.id
   const url = new URL(req.url)
+  const rawId = ctx.params?.id
   const queryId = url.searchParams.get('buildingId')
-  const propertyId = (rawId ? decodeURIComponent(rawId) : queryId || '').trim()
+  const pathParts = url.pathname.split('/').filter(Boolean)
+  const propertiesIndex = pathParts.findIndex((part) => part === 'properties')
+  const pathId = propertiesIndex >= 0 ? pathParts[propertiesIndex + 1] : ''
+  const propertyId = (rawId || pathId || queryId || '').toString().trim()
   if (!propertyId) {
     return NextResponse.json({ success: false, error: 'Property ID is required.' }, { status: 400 })
   }
