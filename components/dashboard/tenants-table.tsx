@@ -1,6 +1,6 @@
 'use client'
 
-import { FormEvent, useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   Table,
   TableBody,
@@ -33,7 +33,6 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { useToast } from '@/components/ui/use-toast'
 import { Loader2, MoreVertical, Copy, Phone, ChevronDown, Check } from 'lucide-react'
@@ -175,11 +174,9 @@ const ratingMeta = (rate?: number) => {
 
 function TenantActions({
   tenant,
-  onEdit,
   onRemove,
 }: {
   tenant: TenantRecord
-  onEdit: (tenant: TenantRecord) => void
   onRemove: (tenant: TenantRecord) => void
 }) {
   return (
@@ -190,7 +187,9 @@ function TenantActions({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        <DropdownMenuItem onClick={() => onEdit(tenant)}>Edit</DropdownMenuItem>
+        <DropdownMenuItem asChild>
+          <Link href={`/dashboard/tenants/${tenant.tenant_user_id}/edit`}>Edit</Link>
+        </DropdownMenuItem>
         {tenant.tenant_user_id ? (
           <DropdownMenuItem asChild>
             <Link href={buildStatementHref(tenant.tenant_user_id)}>Stmt</Link>
@@ -232,19 +231,6 @@ export function TenantsTable({
   >('all')
   const [paymentFilter, setPaymentFilter] = useState<'all' | 'paid' | 'unpaid'>('all')
 
-  const [editTenant, setEditTenant] = useState<TenantRecord | null>(null)
-  const [editForm, setEditForm] = useState({
-    full_name: '',
-    email: '',
-    phone_number: '',
-    national_id: '',
-    address: '',
-    date_of_birth: '',
-  })
-  const [savingEdit, setSavingEdit] = useState(false)
-  const [editSuccess, setEditSuccess] = useState<string | null>(null)
-  const [editError, setEditError] = useState<string | null>(null)
-
   const [tenantToDelete, setTenantToDelete] = useState<TenantRecord | null>(null)
   const [removingTenant, setRemovingTenant] = useState(false)
 
@@ -274,23 +260,6 @@ export function TenantsTable({
 
     fetchTenants()
   }, [propertyId, refreshIndex])
-
-  useEffect(() => {
-    if (editTenant) {
-      setEditForm({
-        full_name: editTenant.full_name || '',
-        email: editTenant.email || '',
-        phone_number: editTenant.phone_number || '',
-        national_id: editTenant.national_id || '',
-        address: editTenant.address || '',
-        date_of_birth: editTenant.date_of_birth
-          ? new Date(editTenant.date_of_birth).toISOString().split('T')[0]
-          : '',
-      })
-      setEditSuccess(null)
-      setEditError(null)
-    }
-  }, [editTenant])
 
   const filteredTenants = useMemo(() => {
     const query = searchQuery.trim().toLowerCase()
@@ -448,58 +417,6 @@ export function TenantsTable({
     })
   }
 
-  const handleSaveEdit = async (event?: FormEvent) => {
-    event?.preventDefault()
-    if (!editTenant) return
-    const tenantId = editTenant.tenant_user_id
-    if (!tenantId) {
-      const message = 'Tenant record is missing an id. Please refresh and try again.'
-      setEditError(message)
-      toast({
-        title: 'Update failed',
-        description: message,
-        variant: 'destructive',
-      })
-      return
-    }
-    setSavingEdit(true)
-    setEditError(null)
-    try {
-      const payload = {
-        tenant_user_id: tenantId,
-        full_name: editForm.full_name,
-        phone_number: editForm.phone_number,
-        national_id: editForm.national_id,
-        address: editForm.address,
-        date_of_birth: editForm.date_of_birth || null,
-      }
-
-      const response = await fetch(`/api/tenants/${encodeURIComponent(tenantId)}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      })
-
-      if (!response.ok) {
-        const errorPayload = await response.json().catch(() => ({}))
-        throw new Error(errorPayload.error || 'Failed to update tenant.')
-      }
-
-      setEditSuccess('Tenant details updated successfully.')
-      setRefreshIndex((index) => index + 1)
-    } catch (saveError) {
-      const message = saveError instanceof Error ? saveError.message : 'Unable to save changes.'
-      toast({
-        title: 'Update failed',
-        description: message,
-        variant: 'destructive',
-      })
-      setEditError(message)
-    } finally {
-      setSavingEdit(false)
-    }
-  }
-
   const handleRemoveTenant = async () => {
     if (!tenantToDelete) return
     setRemovingTenant(true)
@@ -651,8 +568,8 @@ export function TenantsTable({
                       </Badge>
                     </div>
                     <div className="grid grid-cols-2 gap-2 pt-3">
-                      <Button size="sm" variant="outline" onClick={() => setEditTenant(tenant)}>
-                        Edit
+                      <Button size="sm" variant="outline" asChild>
+                        <Link href={`/dashboard/tenants/${tenant.tenant_user_id}/edit`}>Edit</Link>
                       </Button>
                       {tenant.tenant_user_id ? (
                         <Button size="sm" variant="secondary" asChild>
@@ -873,7 +790,7 @@ export function TenantsTable({
                       )}
                     </TableCell>
                     <TableCell className="text-right">
-                      <TenantActions tenant={tenant} onEdit={setEditTenant} onRemove={setTenantToDelete} />
+                      <TenantActions tenant={tenant} onRemove={setTenantToDelete} />
                     </TableCell>
                   </TableRow>
                 )})}
@@ -884,127 +801,6 @@ export function TenantsTable({
       </div>
 
       {/* Send message modal */}
-
-      {/* Edit tenant modal */}
-      <Dialog
-        open={!!editTenant}
-        onOpenChange={(open) => {
-          if (!open) {
-            setEditTenant(null)
-            setEditSuccess(null)
-            setEditError(null)
-          }
-        }}
-      >
-        <DialogContent className="max-w-2xl">
-          <form onSubmit={handleSaveEdit} className="space-y-4">
-            <DialogHeader>
-              <DialogTitle>Edit tenant details</DialogTitle>
-              <DialogDescription>
-                Update contact information or identifiers. Lease adjustments will be handled from the lease
-                module.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="full_name">Full name</Label>
-                <Input
-                  id="full_name"
-                  value={editForm.full_name}
-                  onChange={(event) =>
-                    setEditForm((state) => ({ ...state, full_name: event.target.value }))
-                  }
-                />
-              </div>
-              <div className="space-y-2">
-              <Label htmlFor="email">Email (username)</Label>
-              <Input
-                id="email"
-                type="email"
-                value={editForm.email}
-                disabled
-                readOnly
-              />
-            </div>
-              <div className="space-y-2">
-                <Label htmlFor="phone_number">Phone number</Label>
-                <Input
-                  id="phone_number"
-                  value={editForm.phone_number}
-                  onChange={(event) =>
-                    setEditForm((state) => ({ ...state, phone_number: event.target.value }))
-                  }
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="national_id">National ID</Label>
-                <Input
-                  id="national_id"
-                  value={editForm.national_id}
-                  onChange={(event) =>
-                    setEditForm((state) => ({ ...state, national_id: event.target.value }))
-                  }
-                />
-              </div>
-              <div className="space-y-2 md:col-span-2">
-                <Label htmlFor="address">Address</Label>
-                <Input
-                  id="address"
-                  value={editForm.address}
-                  onChange={(event) =>
-                    setEditForm((state) => ({ ...state, address: event.target.value }))
-                  }
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="date_of_birth">Date of birth</Label>
-                <Input
-                  id="date_of_birth"
-                  type="date"
-                  value={editForm.date_of_birth}
-                  onChange={(event) =>
-                    setEditForm((state) => ({ ...state, date_of_birth: event.target.value }))
-                  }
-                />
-              </div>
-            </div>
-            {editError && (
-              <Alert variant="destructive">
-                <AlertDescription>{editError}</AlertDescription>
-              </Alert>
-            )}
-            {editSuccess && (
-              <Alert>
-                <AlertDescription>{editSuccess}</AlertDescription>
-              </Alert>
-            )}
-            <DialogFooter>
-              {editSuccess ? (
-                <Button
-                  type="button"
-                  onClick={() => {
-                    setEditTenant(null)
-                    setEditSuccess(null)
-                    setEditError(null)
-                  }}
-                  className="bg-[#4682B4] hover:bg-[#3a6c93]"
-                >
-                  Close
-                </Button>
-              ) : (
-                <Button
-                  type="submit"
-                  disabled={savingEdit}
-                  className="bg-[#4682B4] hover:bg-[#3a6c93]"
-                >
-                  {savingEdit ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                  Save changes
-                </Button>
-              )}
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
 
       {/* Delete confirmation modal */}
       <Dialog open={!!tenantToDelete} onOpenChange={(open) => !open && setTenantToDelete(null)}>

@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { sendVacancyAlert } from '@/lib/communications/vacancyAlerts'
 
 const MANAGER_ROLES = new Set(['admin', 'manager', 'caretaker'])
+const PROFILE_BUCKET = 'profile-pictures'
 
 const extractStoragePath = (raw: string | null | undefined, bucket: string) => {
   if (!raw) return null
@@ -22,6 +23,112 @@ interface RouteParams {
   }
 }
 
+const parseDataUrl = (value: string) => {
+  const matches = value.match(/^data:(.+);base64,(.+)$/)
+  if (!matches) return null
+  const [, mimeType, base64Data] = matches
+  const buffer = Buffer.from(base64Data, 'base64')
+  const extension = mimeType.split('/')[1] || 'jpg'
+  return { mimeType, buffer, extension }
+}
+
+export async function GET(_: NextRequest, { params }: RouteParams) {
+  const tenantId = params?.id
+
+  if (!tenantId) {
+    return NextResponse.json({ success: false, error: 'Tenant id is required.' }, { status: 400 })
+  }
+
+  try {
+    const supabase = await createClient()
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser()
+
+    if (authError || !user) {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const adminSupabase = createAdminClient()
+    const { data: membership } = await adminSupabase
+      .from('organization_members')
+      .select('organization_id, role')
+      .eq('user_id', user.id)
+      .maybeSingle()
+
+    const callerRole = membership?.role ? String(membership.role).toLowerCase() : null
+
+    if (!membership?.organization_id || !callerRole || !MANAGER_ROLES.has(callerRole)) {
+      return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })
+    }
+
+    const { data: tenantProfile, error: tenantProfileError } = await adminSupabase
+      .from('user_profiles')
+      .select('id, full_name, phone_number, national_id, address, date_of_birth, profile_picture_url, role')
+      .eq('id', tenantId)
+      .maybeSingle()
+
+    if (tenantProfileError) {
+      throw tenantProfileError
+    }
+
+    if (!tenantProfile || tenantProfile.role !== 'tenant') {
+      return NextResponse.json({ success: false, error: 'Tenant not found.' }, { status: 404 })
+    }
+
+    if (tenantProfile.organization_id !== membership.organization_id) {
+      return NextResponse.json({ success: false, error: 'Tenant not found in your organization.' }, { status: 404 })
+    }
+
+    const { data: authUser } = await adminSupabase.auth.admin.getUserById(tenantId)
+    const tenantEmail = authUser?.user?.email || null
+
+    const { data: lease } = await adminSupabase
+      .from('leases')
+      .select(
+        `
+        id,
+        start_date,
+        end_date,
+        status,
+        monthly_rent,
+        deposit_amount,
+        unit:apartment_units (
+          id,
+          unit_number,
+          status,
+          building:apartment_buildings (
+            id,
+            name,
+            location
+          )
+        )
+      `
+      )
+      .eq('tenant_user_id', tenantId)
+      .eq('organization_id', membership.organization_id)
+      .order('start_date', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    return NextResponse.json({
+      success: true,
+      data: {
+        profile: tenantProfile,
+        email: tenantEmail,
+        lease: lease || null,
+      },
+    })
+  } catch (error) {
+    console.error('[Tenants.GET] Failed to load tenant', error)
+    return NextResponse.json(
+      { success: false, error: error instanceof Error ? error.message : 'Failed to load tenant.' },
+      { status: 500 }
+    )
+  }
+}
+
 export async function PUT(request: NextRequest, { params }: RouteParams) {
   const payload = await request.json().catch(() => ({}))
   const {
@@ -31,6 +138,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     address,
     date_of_birth,
     tenant_user_id,
+    profile_picture_file,
   }: Record<string, string | null | undefined> = payload || {}
 
   const tenantId = params?.id || tenant_user_id
@@ -54,6 +162,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       !full_name &&
       !phone_number &&
       !national_id &&
+      !profile_picture_file &&
       typeof address === 'undefined' &&
       typeof date_of_birth === 'undefined'
     ) {
@@ -78,7 +187,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 
     const { data: tenantProfile, error: tenantProfileError } = await adminSupabase
       .from('user_profiles')
-      .select('id, organization_id, role')
+      .select('id, organization_id, role, profile_picture_url')
       .eq('id', tenantId)
       .maybeSingle()
 
@@ -96,6 +205,32 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     if (national_id !== undefined) profileUpdate.national_id = national_id
     if (address !== undefined) profileUpdate.address = address ?? null
     if (date_of_birth !== undefined) profileUpdate.date_of_birth = date_of_birth || null
+
+    if (typeof profile_picture_file === 'string' && profile_picture_file.startsWith('data:')) {
+      const parsed = parseDataUrl(profile_picture_file)
+      if (parsed) {
+        const filePath = `tenant-profiles/${tenantId}-${Date.now()}.${parsed.extension}`
+        const { error: uploadError } = await adminSupabase.storage
+          .from(PROFILE_BUCKET)
+          .upload(filePath, parsed.buffer, {
+            contentType: parsed.mimeType,
+            cacheControl: '3600',
+            upsert: false,
+          })
+
+        if (uploadError) {
+          throw uploadError
+        }
+
+        const { data: publicUrlData } = adminSupabase.storage.from(PROFILE_BUCKET).getPublicUrl(filePath)
+        profileUpdate.profile_picture_url = publicUrlData?.publicUrl || null
+
+        const existingPath = extractStoragePath(tenantProfile?.profile_picture_url, PROFILE_BUCKET)
+        if (existingPath) {
+          await adminSupabase.storage.from(PROFILE_BUCKET).remove([existingPath])
+        }
+      }
+    }
 
     if (Object.keys(profileUpdate).length > 0) {
       const { error: profileError } = await adminSupabase

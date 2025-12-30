@@ -8,12 +8,14 @@ create table public.apartment_buildings (
   image_url text null,
   created_at timestamp with time zone null default CURRENT_TIMESTAMP,
   updated_at timestamp with time zone null default CURRENT_TIMESTAMP,
+  vacancy_alerts_enabled boolean not null default false,
   constraint apartment_buildings_pkey primary key (id),
   constraint apartment_buildings_id_org_unique unique (id, organization_id),
   constraint apartment_buildings_organization_id_fkey foreign KEY (organization_id) references organizations (id) on delete CASCADE
 ) TABLESPACE pg_default;
 
 create index IF not exists idx_buildings_org_id on public.apartment_buildings using btree (organization_id) TABLESPACE pg_default;
+
 
 
 
@@ -31,6 +33,7 @@ create table public.apartment_units (
   created_at timestamp with time zone null default CURRENT_TIMESTAMP,
   updated_at timestamp with time zone null default CURRENT_TIMESTAMP,
   organization_id uuid not null,
+  notice_vacate_date date null,
   constraint apartment_units_pkey primary key (id),
   constraint apartment_units_building_id_unit_number_key unique (building_id, unit_number),
   constraint apartment_units_id_org_unique unique (id, organization_id),
@@ -40,9 +43,10 @@ create table public.apartment_units (
     (
       status = any (
         array[
-          'occupied'::text,
           'vacant'::text,
-          'maintenance'::text
+          'occupied'::text,
+          'maintenance'::text,
+          'notice'::text
         ]
       )
     )
@@ -57,6 +61,10 @@ create index IF not exists idx_units_bulk_group on public.apartment_units using 
 
 create index IF not exists idx_units_org_id on public.apartment_units using btree (organization_id) TABLESPACE pg_default;
 
+create index IF not exists idx_apartment_units_notice on public.apartment_units using btree (organization_id, building_id, notice_vacate_date) TABLESPACE pg_default
+where
+  (status = 'notice'::text);
+
 
 
 
@@ -69,6 +77,8 @@ create table public.app_settings (
   constraint app_settings_pkey primary key (id),
   constraint app_settings_organization_id_key_key unique (organization_id, key)
 ) TABLESPACE pg_default;
+
+
 
 
 
@@ -93,6 +103,7 @@ create index IF not exists idx_bulk_building_id on public.bulk_unit_creation_log
 create index IF not exists idx_bulk_group_id on public.bulk_unit_creation_logs using btree (bulk_group_id) TABLESPACE pg_default;
 
 create index IF not exists idx_bulk_logs_org_id on public.bulk_unit_creation_logs using btree (organization_id) TABLESPACE pg_default;
+
 
 
 
@@ -127,7 +138,8 @@ create table public.communications (
           'maintenance_request'::text,
           'payment'::text,
           'lease'::text,
-          'vacate_notice'::text
+          'vacate_notice'::text,
+          'tenant_transition'::text
         ]
       )
     )
@@ -265,6 +277,29 @@ where
 
 
 
+create table public.invite_codes (
+  id uuid not null default gen_random_uuid (),
+  code text not null,
+  expires_at timestamp with time zone not null,
+  max_uses integer not null default 1,
+  used_count integer not null default 0,
+  active boolean not null default true,
+  created_at timestamp with time zone null default now(),
+  constraint invite_codes_pkey primary key (id),
+  constraint invite_codes_code_key unique (code)
+) TABLESPACE pg_default;
+
+create index IF not exists idx_invite_codes_active on public.invite_codes using btree (active) TABLESPACE pg_default;
+
+create index IF not exists idx_invite_codes_expires on public.invite_codes using btree (expires_at) TABLESPACE pg_default;
+
+create index IF not exists idx_invite_codes_usage on public.invite_codes using btree (used_count, max_uses) TABLESPACE pg_default;
+
+
+
+
+
+
 
 create table public.invoices (
   id uuid not null default gen_random_uuid (),
@@ -382,6 +417,7 @@ create index IF not exists idx_lease_renewal_events_renewal on public.lease_rene
 
 
 
+
 create table public.lease_renewals (
   id uuid not null default gen_random_uuid (),
   organization_id uuid not null,
@@ -441,6 +477,7 @@ where
 create index IF not exists idx_lease_renewals_lease on public.lease_renewals using btree (lease_id) TABLESPACE pg_default;
 
 create index IF not exists idx_lease_renewals_org on public.lease_renewals using btree (organization_id) TABLESPACE pg_default;
+
 
 
 
@@ -597,6 +634,8 @@ execute FUNCTION sync_maintenance_cost_to_expenses ();
 
 
 
+
+
 create table public.mpesa_settings (
   id uuid not null default gen_random_uuid (),
   auto_verify_enabled boolean not null default true,
@@ -639,6 +678,7 @@ create unique INDEX IF not exists mpesa_settings_one_per_org on public.mpesa_set
 
 
 
+
 create table public.mpesa_verification_audit (
   id uuid not null default gen_random_uuid (),
   payment_id uuid not null,
@@ -658,6 +698,8 @@ create index IF not exists idx_audit_payment on public.mpesa_verification_audit 
 create index IF not exists idx_audit_timestamp on public.mpesa_verification_audit using btree (query_timestamp) TABLESPACE pg_default;
 
 create index IF not exists idx_mpesa_audit_org_id on public.mpesa_verification_audit using btree (organization_id) TABLESPACE pg_default;
+
+
 
 
 
@@ -706,6 +748,9 @@ execute FUNCTION enforce_single_org_membership ();
 
 
 
+
+
+
 create table public.organizations (
   id uuid not null default gen_random_uuid (),
   name text not null,
@@ -721,6 +766,10 @@ create table public.organizations (
 ) TABLESPACE pg_default;
 
 create index IF not exists idx_organizations_id on public.organizations using btree (id) TABLESPACE pg_default;
+
+
+
+
 
 
 
@@ -842,6 +891,8 @@ execute FUNCTION apply_rent_prepayment_on_payment_verify ();
 
 
 
+
+
 create table public.recurring_expenses (
   id uuid not null default gen_random_uuid (),
   property_id uuid not null,
@@ -865,6 +916,8 @@ create index IF not exists idx_recurring_expenses_org_id on public.recurring_exp
 create index IF not exists idx_recurring_expenses_next_run on public.recurring_expenses using btree (next_run) TABLESPACE pg_default;
 
 create index IF not exists idx_recurring_expenses_property on public.recurring_expenses using btree (property_id) TABLESPACE pg_default;
+
+
 
 
 
@@ -974,6 +1027,8 @@ execute FUNCTION set_reminder_scheduled_day ();
 
 
 
+
+
 create table public.reports (
   id uuid not null default gen_random_uuid (),
   organization_id uuid not null,
@@ -1056,6 +1111,7 @@ create index IF not exists idx_tech_map_prof on public.technician_profession_map
 
 
 
+
 create table public.technician_professions (
   id uuid not null default gen_random_uuid (),
   organization_id uuid not null,
@@ -1067,8 +1123,6 @@ create table public.technician_professions (
 ) TABLESPACE pg_default;
 
 create index IF not exists idx_tech_prof_org on public.technician_professions using btree (organization_id) TABLESPACE pg_default;
-
-
 
 
 
@@ -1101,6 +1155,150 @@ execute FUNCTION touch_updated_at ();
 
 
 
+
+create table public.tenant_transition_cases (
+  id uuid not null default gen_random_uuid (),
+  organization_id uuid not null,
+  lease_id uuid not null,
+  unit_id uuid not null,
+  tenant_user_id uuid not null,
+  vacate_notice_id uuid null,
+  case_type text not null,
+  status text not null default 'submitted'::text,
+  stage text not null default 'opened'::text,
+  expected_vacate_date date null,
+  actual_vacate_date date null,
+  handover_date date null,
+  notice_document_url text null,
+  inspection_report_url text null,
+  settlement_statement_url text null,
+  inspection_notes text null,
+  damage_cost numeric(12, 2) not null default 0,
+  deposit_amount numeric(12, 2) not null default 0,
+  deposit_deductions numeric(12, 2) not null default 0,
+  deposit_refund_amount numeric(12, 2) not null default 0,
+  refund_status text not null default 'not_applicable'::text,
+  new_lease_id uuid null,
+  created_by uuid null,
+  created_at timestamp with time zone not null default now(),
+  updated_at timestamp with time zone not null default now(),
+  constraint tenant_transition_cases_pkey primary key (id),
+  constraint tenant_transition_cases_tenant_user_id_fkey foreign KEY (tenant_user_id) references auth.users (id) on delete CASCADE,
+  constraint tenant_transition_cases_unit_org_fk foreign KEY (unit_id, organization_id) references apartment_units (id, organization_id) on delete CASCADE,
+  constraint tenant_transition_cases_vacate_notice_id_fkey foreign KEY (vacate_notice_id) references tenant_vacate_notices (id) on delete set null,
+  constraint tenant_transition_cases_organization_id_fkey foreign KEY (organization_id) references organizations (id) on delete CASCADE,
+  constraint tenant_transition_cases_created_by_fkey foreign KEY (created_by) references auth.users (id) on delete set null,
+  constraint tenant_transition_cases_new_lease_org_fk foreign KEY (new_lease_id, organization_id) references leases (id, organization_id) on delete set null,
+  constraint tenant_transition_cases_lease_org_fk foreign KEY (lease_id, organization_id) references leases (id, organization_id) on delete CASCADE,
+  constraint tenant_transition_cases_refund_status_check check (
+    (
+      refund_status = any (
+        array[
+          'not_applicable'::text,
+          'pending'::text,
+          'paid'::text,
+          'waived'::text
+        ]
+      )
+    )
+  ),
+  constraint tenant_transition_cases_case_type_check check (
+    (
+      case_type = any (
+        array[
+          'vacate_notice'::text,
+          'eviction'::text,
+          'relocation'::text
+        ]
+      )
+    )
+  ),
+  constraint tenant_transition_cases_stage_check check (
+    (
+      stage = any (
+        array[
+          'opened'::text,
+          'handover_scheduled'::text,
+          'inspected'::text,
+          'deposit_settled'::text,
+          'vacated'::text,
+          'unit_turned_over'::text,
+          'onboarded_new_tenant'::text
+        ]
+      )
+    )
+  ),
+  constraint tenant_transition_cases_status_check check (
+    (
+      status = any (
+        array[
+          'submitted'::text,
+          'acknowledged'::text,
+          'approved'::text,
+          'rejected'::text,
+          'completed'::text,
+          'cancelled'::text
+        ]
+      )
+    )
+  )
+) TABLESPACE pg_default;
+
+create unique INDEX IF not exists ux_transition_one_active_per_lease on public.tenant_transition_cases using btree (organization_id, lease_id) TABLESPACE pg_default
+where
+  (
+    status <> all (
+      array[
+        'completed'::text,
+        'cancelled'::text,
+        'rejected'::text
+      ]
+    )
+  );
+
+create index IF not exists idx_transition_cases_org_status on public.tenant_transition_cases using btree (organization_id, status, stage, created_at desc) TABLESPACE pg_default;
+
+create index IF not exists idx_transition_cases_org_unit on public.tenant_transition_cases using btree (organization_id, unit_id, created_at desc) TABLESPACE pg_default;
+
+create index IF not exists idx_transition_cases_org_tenant on public.tenant_transition_cases using btree (organization_id, tenant_user_id, created_at desc) TABLESPACE pg_default;
+
+create trigger trg_transition_cases_touch_updated_at BEFORE
+update on tenant_transition_cases for EACH row
+execute FUNCTION touch_updated_at ();
+
+create trigger trg_validate_transition_case_state BEFORE INSERT
+or
+update on tenant_transition_cases for EACH row
+execute FUNCTION validate_transition_case_state ();
+
+
+
+
+
+
+create table public.tenant_transition_events (
+  id uuid not null default gen_random_uuid (),
+  organization_id uuid not null,
+  case_id uuid not null,
+  actor_user_id uuid null,
+  action text not null,
+  metadata jsonb not null default '{}'::jsonb,
+  created_at timestamp with time zone not null default now(),
+  constraint tenant_transition_events_pkey primary key (id),
+  constraint tenant_transition_events_actor_user_id_fkey foreign KEY (actor_user_id) references auth.users (id) on delete set null,
+  constraint tenant_transition_events_case_id_fkey foreign KEY (case_id) references tenant_transition_cases (id) on delete CASCADE,
+  constraint tenant_transition_events_organization_id_fkey foreign KEY (organization_id) references organizations (id) on delete CASCADE
+) TABLESPACE pg_default;
+
+create index IF not exists idx_transition_events_case on public.tenant_transition_events using btree (case_id, created_at) TABLESPACE pg_default;
+
+create index IF not exists idx_transition_events_org on public.tenant_transition_events using btree (organization_id, created_at desc) TABLESPACE pg_default;
+
+
+
+
+
+
 create table public.tenant_vacate_notice_events (
   id uuid not null default gen_random_uuid (),
   notice_id uuid not null,
@@ -1116,6 +1314,8 @@ create table public.tenant_vacate_notice_events (
 create index IF not exists idx_vacate_notice_events_notice on public.tenant_vacate_notice_events using btree (notice_id) TABLESPACE pg_default;
 
 create index IF not exists idx_vacate_notice_events_org on public.tenant_vacate_notice_events using btree (organization_id) TABLESPACE pg_default;
+
+
 
 
 
@@ -1178,6 +1378,13 @@ where
       ]
     )
   );
+
+create trigger trg_sync_unit_notice_state_from_vacate_notice
+after INSERT
+or
+update OF status,
+requested_vacate_date on tenant_vacate_notices for EACH row
+execute FUNCTION sync_unit_notice_state_from_vacate_notice ();
 
 create trigger trg_vacate_notices_touch_updated_at BEFORE
 update on tenant_vacate_notices for EACH row
@@ -1254,6 +1461,9 @@ execute FUNCTION set_tenant_org_from_creator ();
 
 
 
+
+
+
 create view public.v_technicians_with_professions as
 select
   t.id,
@@ -1283,8 +1493,6 @@ from
   and p.organization_id = t.organization_id
 group by
   t.id;
-
-
 
 
 
@@ -1334,7 +1542,6 @@ group by
   i.lease_id,
   l.tenant_user_id,
   l.unit_id;
-
 
 
 
@@ -1400,6 +1607,7 @@ where
 
 
 
+
 create view public.vw_manager_statement_summary as
 select
   d.organization_id,
@@ -1440,6 +1648,7 @@ from
 
 
 
+
 create view public.vw_tenant_arrears as
 select
   organization_id,
@@ -1452,7 +1661,6 @@ from
 group by
   organization_id,
   tenant_user_id;
-
 
 
 
@@ -1765,7 +1973,6 @@ from
 
 
 
-
 create view public.vw_unit_financial_performance_yearly_enriched as
 select
   v.organization_id,
@@ -1784,6 +1991,7 @@ from
   and u.organization_id = v.organization_id
   join apartment_buildings b on b.id = v.property_id
   and b.organization_id = v.organization_id;
+
 
 
 
@@ -1845,6 +2053,8 @@ group by
 
 
 
+
+
 create view public.vw_unit_rent_coverage_months_yearly as
 select
   l.organization_id,
@@ -1868,6 +2078,7 @@ group by
   l.unit_id,
   au.building_id,
   (date_part('year'::text, p.payment_date)::integer);
+
 
 
 

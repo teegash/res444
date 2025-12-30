@@ -431,7 +431,9 @@ const menuItems = [
             className={cn(
               "w-full transition-all duration-200 py-2 px-4",
               isExpanded ? "justify-start" : "justify-center",
-              isLocked ? "bg-blue-50 text-blue-600 hover:bg-blue-100" : "text-gray-700 hover:text-gray-900 hover:bg-gray-300/70"
+              isLocked
+                ? "bg-blue-50 text-blue-600 hover:bg-blue-100 hover:text-blue-600"
+                : "text-gray-700 hover:text-gray-900 hover:bg-gray-300/70"
             )}
             title={!isExpanded ? (isLocked ? "Unlock Sidebar" : "Lock Sidebar") : undefined}
           >
