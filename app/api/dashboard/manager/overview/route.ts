@@ -117,6 +117,7 @@ export async function GET() {
       arrearsRes,
       prepayRes,
       leasesForPrepayRes,
+      activeTenantsRes,
     ] =
       await Promise.all([
         admin.from('apartment_buildings').select('id, name').eq('organization_id', orgId),
@@ -207,6 +208,13 @@ export async function GET() {
           .select('id, tenant_user_id, unit_id, rent_paid_until, next_rent_due_date, status')
           .eq('organization_id', orgId)
           .eq('status', 'active'),
+        admin
+          .from('leases')
+          .select('tenant_user_id, unit_id, status')
+          .eq('organization_id', orgId)
+          .not('tenant_user_id', 'is', null)
+          .not('unit_id', 'is', null)
+          .in('status', ['active', 'pending', 'renewed', 'valid']),
       ])
 
     // Expenses: try to include `created_at` if present (to avoid missing rows where `incurred_at` might be null),
@@ -250,6 +258,7 @@ export async function GET() {
       arrearsRes.error,
       prepayRes.error,
       leasesForPrepayRes.error,
+      activeTenantsRes.error,
       (expensesRes as any).error,
     ].filter(Boolean)
     if (fetchErrors.length) {
@@ -655,7 +664,10 @@ export async function GET() {
       : []
 
     const totalProperties = propertiesRes.data?.length || 0
-    const totalTenants = tenantsRes.data?.length || 0
+    const activeTenantIds = new Set(
+      (activeTenantsRes.data || []).map((row: any) => row.tenant_user_id).filter(Boolean)
+    )
+    const totalTenants = activeTenantIds.size
     const totalRevenue = months.reduce((sum, m) => sum + m.revenue, 0)
     const totalPaidInvoices = invoices.filter((i) => i.status === true).length
     const openMaintenanceCount =
