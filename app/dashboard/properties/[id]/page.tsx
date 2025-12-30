@@ -163,7 +163,7 @@ export default function PropertyDetailPage() {
   const heroImage =
     property?.imageUrl && property.imageUrl.length > 4
       ? property.imageUrl
-      : '/modern-residential-building.png'
+      : '/placeholder.jpg'
 
   const prioritizedUnits = useMemo(() => {
     if (!units.length) return []

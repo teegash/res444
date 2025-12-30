@@ -29,18 +29,13 @@ export async function GET(req: Request, ctx: { params: { id: string } }) {
 
   const admin = createAdminClient()
 
-  const { data: membership, error: membershipError } = await admin
-    .from('organization_members')
-    .select('organization_id')
-    .eq('user_id', user.id)
-    .maybeSingle()
-
-  if (membershipError || !membership?.organization_id) {
-    return NextResponse.json({ success: false, error: 'Organization not found for user.' }, { status: 403 })
+  const rawId = ctx.params.id
+  const url = new URL(req.url)
+  const queryId = url.searchParams.get('buildingId')
+  const propertyId = (rawId ? decodeURIComponent(rawId) : queryId || '').trim()
+  if (!propertyId) {
+    return NextResponse.json({ success: false, error: 'Property ID is required.' }, { status: 400 })
   }
-
-  const orgId = membership.organization_id
-  const propertyId = ctx.params.id
 
   const monthsParam = new URL(req.url).searchParams.get('months')
   const months = monthsParam === '12' ? 12 : 6
@@ -54,14 +49,26 @@ export async function GET(req: Request, ctx: { params: { id: string } }) {
 
   const { data: property, error: propertyError } = await admin
     .from('apartment_buildings')
-    .select('id, name, location')
-    .eq('organization_id', orgId)
+    .select('id, organization_id, name, location')
     .eq('id', propertyId)
     .maybeSingle()
 
   if (propertyError || !property) {
     return NextResponse.json({ success: false, error: 'Property not found.' }, { status: 404 })
   }
+
+  const { data: membership, error: membershipError } = await admin
+    .from('organization_members')
+    .select('organization_id')
+    .eq('user_id', user.id)
+    .eq('organization_id', property.organization_id)
+    .maybeSingle()
+
+  if (membershipError || !membership?.organization_id) {
+    return NextResponse.json({ success: false, error: 'Access denied for this property.' }, { status: 403 })
+  }
+
+  const orgId = membership.organization_id
 
   const { data: units, error: unitsError } = await admin
     .from('apartment_units')

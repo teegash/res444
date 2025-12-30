@@ -381,7 +381,7 @@ export default function EditPropertyPage() {
                     <Label>Property image</Label>
                     <div className="relative overflow-hidden rounded-xl border bg-slate-100">
                       <img
-                        src={imagePreview || form.imageUrl || '/modern-residential-building.png'}
+                        src={imagePreview || form.imageUrl || '/placeholder.jpg'}
                         alt="Property preview"
                         className="h-48 w-full object-cover"
                       />
