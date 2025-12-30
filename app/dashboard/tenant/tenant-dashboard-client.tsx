@@ -390,12 +390,12 @@ export default function TenantDashboardClient() {
     const status = (payment?.status || '').toLowerCase()
     return type === 'rent' && status === 'verified'
   })
-  const paymentsMade = scoredItemsCount > 0 ? scoredItemsCount : rentPayments.length
   const scoredItemsCount = summary?.rating?.scored_items_count || 0
   const onTimeRate =
     summary?.rating?.rating_percentage === null || summary?.rating?.rating_percentage === undefined
       ? null
       : Number(summary.rating.rating_percentage)
+  const paymentsMade = scoredItemsCount > 0 ? scoredItemsCount : rentPayments.length
 
   const hasRating = onTimeRate !== null
 
