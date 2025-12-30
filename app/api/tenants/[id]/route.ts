@@ -152,7 +152,18 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     profile_picture_file,
   }: Record<string, string | null | undefined> = payload || {}
 
-  const tenantId = params?.id || tenant_user_id
+  let tenantId = params?.id || tenant_user_id || null
+  if (!tenantId) {
+    tenantId =
+      request.nextUrl.searchParams.get('tenantId') ||
+      request.nextUrl.searchParams.get('id') ||
+      request.nextUrl.searchParams.get('tenant_user_id') ||
+      null
+  }
+  if (!tenantId) {
+    const segments = request.nextUrl.pathname.split('/').filter(Boolean)
+    tenantId = segments[segments.length - 1] || null
+  }
 
   if (!tenantId) {
     return NextResponse.json({ success: false, error: 'Tenant id is required.' }, { status: 400 })
