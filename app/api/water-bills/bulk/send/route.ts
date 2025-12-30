@@ -48,6 +48,12 @@ export async function POST(request: NextRequest) {
     }
 
     const adminSupabase = createAdminClient()
+    if (!adminSupabase) {
+      return NextResponse.json(
+        { success: false, error: 'Admin client not configured.' },
+        { status: 500 }
+      )
+    }
     const { data: membership, error: membershipError } = await adminSupabase
       .from('organization_members')
       .select('organization_id')
@@ -165,24 +171,33 @@ export async function POST(request: NextRequest) {
         if (invoiceError) throw invoiceError
         const invoiceId = invoice?.id
 
-        await adminSupabase.from('water_bills').upsert(
-          {
-            unit_id: unitId,
-            organization_id: orgId,
-            billing_month: billingMonth,
-            meter_reading_start: prev,
-            meter_reading_end: curr,
-            units_consumed: unitsConsumed,
-            amount: totalAmount,
-            status: 'invoiced_separately',
-            added_to_invoice_id: invoiceId,
-            added_by: user.id,
-            added_at: new Date().toISOString(),
-            is_estimated: false,
-            notes: raw.notes || notes || null,
-          },
-          { onConflict: 'unit_id,billing_month,organization_id' }
-        )
+        const waterBillPayload = {
+          unit_id: unitId,
+          organization_id: orgId,
+          billing_month: billingMonth,
+          meter_reading_start: prev,
+          meter_reading_end: curr,
+          units_consumed: unitsConsumed,
+          amount: totalAmount,
+          status: 'invoiced_separately',
+          added_to_invoice_id: invoiceId,
+          added_by: user.id,
+          added_at: new Date().toISOString(),
+          is_estimated: false,
+          notes: raw.notes || notes || null,
+        }
+
+        const { error: waterBillError } = await adminSupabase
+          .from('water_bills')
+          .upsert(waterBillPayload, { onConflict: 'unit_id,billing_month' })
+
+        if (waterBillError) {
+          const { error: fallbackError } = await adminSupabase
+            .from('water_bills')
+            .upsert(waterBillPayload, { onConflict: 'unit_id,billing_month,organization_id' })
+
+          if (fallbackError) throw fallbackError
+        }
 
         await adminSupabase.from('communications').insert({
           sender_user_id: user.id,

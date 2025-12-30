@@ -25,6 +25,12 @@ export async function POST(request: NextRequest) {
       dueDate,
     } = body || {}
 
+    const toNumberOrNull = (value: unknown) => {
+      if (value === null || value === undefined || value === '') return null
+      const parsed = Number(value)
+      return Number.isFinite(parsed) ? parsed : null
+    }
+
     if (!tenantPhone) {
       return NextResponse.json(
         {
@@ -92,6 +98,12 @@ export async function POST(request: NextRequest) {
     }
 
     const adminSupabase = createAdminClient()
+    if (!adminSupabase) {
+      return NextResponse.json(
+        { success: false, error: 'Admin client not configured.' },
+        { status: 500 }
+      )
+    }
     const { data: membership, error: membershipError } = await adminSupabase
       .from('organization_members')
       .select('organization_id')
@@ -181,26 +193,33 @@ export async function POST(request: NextRequest) {
 
     const billingMonth = periodStartIso
 
-    await adminSupabase
+    const waterBillPayload = {
+      unit_id: unitId,
+      organization_id: membership.organization_id,
+      billing_month: billingMonth,
+      meter_reading_start: toNumberOrNull(previousReading),
+      meter_reading_end: toNumberOrNull(currentReading),
+      units_consumed: Number(unitsConsumed),
+      amount: Number(totalAmount),
+      status: 'invoiced_separately',
+      added_to_invoice_id: invoiceId,
+      added_by: user.id,
+      added_at: new Date().toISOString(),
+      is_estimated: false,
+      notes: notes || null,
+    }
+
+    const { error: waterBillError } = await adminSupabase
       .from('water_bills')
-      .upsert(
-        {
-          unit_id: unitId,
-          organization_id: membership.organization_id,
-          billing_month: billingMonth,
-          meter_reading_start: previousReading ? Number(previousReading) : null,
-          meter_reading_end: currentReading ? Number(currentReading) : null,
-          units_consumed: Number(unitsConsumed),
-          amount: Number(totalAmount),
-          status: 'invoiced_separately',
-          added_to_invoice_id: invoiceId,
-          added_by: user.id,
-          added_at: new Date().toISOString(),
-          is_estimated: false,
-          notes: notes || null,
-        },
-        { onConflict: 'unit_id,billing_month,organization_id' }
-      )
+      .upsert(waterBillPayload, { onConflict: 'unit_id,billing_month' })
+
+    if (waterBillError) {
+      const { error: fallbackError } = await adminSupabase
+        .from('water_bills')
+        .upsert(waterBillPayload, { onConflict: 'unit_id,billing_month,organization_id' })
+
+      if (fallbackError) throw fallbackError
+    }
 
     await adminSupabase.from('communications').insert({
       sender_user_id: user.id,

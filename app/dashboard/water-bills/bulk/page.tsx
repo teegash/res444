@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
-import { useSearchParams } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { Sidebar } from '@/components/dashboard/sidebar'
 import { Header } from '@/components/dashboard/header'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -96,8 +96,20 @@ function StatusBadge({ value }: { value: BulkRow['send_status'] }) {
   return <Badge variant={variant as any}>{value}</Badge>
 }
 
+function renderEditableCell(params: ICellRendererParams<BulkRow>, placeholder: string) {
+  const value = params.value
+  if (value === null || value === undefined || value === '') {
+    return <span className="bulk-cell-placeholder">{placeholder}</span>
+  }
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return <span>{value}</span>
+  }
+  return <span>{String(value)}</span>
+}
+
 export default function BulkWaterBillingPage() {
   const { toast } = useToast()
+  const router = useRouter()
   const { user } = useAuth()
   const gridApiRef = useRef<GridApi | null>(null)
   const searchParams = useSearchParams()
@@ -131,6 +143,7 @@ export default function BulkWaterBillingPage() {
 
   const [busy, setBusy] = useState(false)
   const [progress, setProgress] = useState({ total: 0, processed: 0, succeeded: 0, failed: 0 })
+  const [bulkComplete, setBulkComplete] = useState(false)
 
   useEffect(() => {
     ;(async () => {
@@ -173,6 +186,8 @@ export default function BulkWaterBillingPage() {
         minWidth: 110,
         editable: true,
         valueParser: (p) => toNumberOrNull(p.newValue),
+        cellClass: 'bulk-editable-cell',
+        cellRenderer: (p: ICellRendererParams<BulkRow>) => renderEditableCell(p, 'Prev reading'),
       },
       {
         headerName: 'Curr',
@@ -180,6 +195,8 @@ export default function BulkWaterBillingPage() {
         minWidth: 110,
         editable: true,
         valueParser: (p) => toNumberOrNull(p.newValue),
+        cellClass: 'bulk-editable-cell',
+        cellRenderer: (p: ICellRendererParams<BulkRow>) => renderEditableCell(p, 'Enter reading'),
       },
       {
         headerName: 'Units',
@@ -193,6 +210,8 @@ export default function BulkWaterBillingPage() {
         minWidth: 120,
         editable: true,
         valueParser: (p) => Number(p.newValue || 0),
+        cellClass: 'bulk-editable-cell',
+        cellRenderer: (p: ICellRendererParams<BulkRow>) => renderEditableCell(p, 'Enter rate'),
       },
       {
         headerName: 'Amount',
@@ -227,11 +246,18 @@ export default function BulkWaterBillingPage() {
     gridApiRef.current?.refreshCells({ force: true })
   }
 
+  function applyQuickFilter(value: string) {
+    gridApiRef.current?.setQuickFilter?.(value)
+    if (!gridApiRef.current?.setQuickFilter) {
+      gridApiRef.current?.setGridOption('quickFilterText', value)
+    }
+  }
+
   const loadRows = useCallback(
     async (propertyId: string) => {
-    try {
-      setLoadingRows(true)
-      setError(null)
+      try {
+        setLoadingRows(true)
+        setError(null)
       setRows([])
       setPropertyMeta(null)
 
@@ -364,6 +390,9 @@ export default function BulkWaterBillingPage() {
       }
 
       toast({ title: 'Bulk send complete', description: `Sent ${succeeded}, failed ${failed}.` })
+      if (failed === 0 && succeeded > 0) {
+        setBulkComplete(true)
+      }
     } catch (err: any) {
       setError(err?.message || 'Bulk send failed.')
     } finally {
@@ -410,6 +439,38 @@ export default function BulkWaterBillingPage() {
               </Alert>
             )}
 
+            {bulkComplete ? (
+              <Card className="border-0 shadow-lg bg-white">
+                <CardHeader className="bg-gradient-to-r from-[#1b4f72] via-[#2b6cb0] to-[#6ba4d9] text-white">
+                  <CardTitle>Bulk billing complete</CardTitle>
+                  <CardDescription className="text-white/90">
+                    All invoices were sent successfully. You can start a new batch or review statements.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="py-8 space-y-4">
+                  <div className="flex flex-col gap-2 text-sm text-muted-foreground">
+                    <span>Property: {propertyMeta?.name || autoLoadedProperty?.name || 'Selected property'}</span>
+                    <span>Total invoices sent: {progress.succeeded}</span>
+                  </div>
+                  <div className="flex flex-col gap-3 sm:flex-row">
+                    <Button
+                      onClick={() => {
+                        setBulkComplete(false)
+                        router.push('/dashboard/water-bills/bulk')
+                      }}
+                    >
+                      Create another bulk
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => router.push('/dashboard/water-bills/statements')}
+                    >
+                      Water bills statement
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ) : (
             <Card className="border-0 shadow bg-white">
               <CardHeader>
                 <CardTitle>1) Select property</CardTitle>
@@ -498,7 +559,7 @@ export default function BulkWaterBillingPage() {
                     onChange={(e) => {
                       const value = e.target.value
                       setQuickFilter(value)
-                      gridApiRef.current?.setGridOption('quickFilterText', value)
+                      applyQuickFilter(value)
                     }}
                     disabled={!rows.length}
                   />
@@ -509,7 +570,7 @@ export default function BulkWaterBillingPage() {
                   </div>
                 </div>
 
-                <div className="ag-theme-quartz w-full h-[560px] rounded-lg border border-slate-200 bg-white overflow-auto">
+                <div className="ag-theme-quartz w-full h-[560px] rounded-xl border border-slate-200 bg-white shadow-sm overflow-auto">
                   <AgGridReact<BulkRow>
                     theme="legacy"
                     rowData={rows}
@@ -520,15 +581,19 @@ export default function BulkWaterBillingPage() {
                       sortable: true,
                       resizable: true,
                       filter: true,
-                      floatingFilter: true,
                     }}
+                    headerHeight={44}
+                    rowHeight={46}
                     pagination
                     paginationPageSize={25}
                     paginationPageSizeSelector={[10, 25, 50, 100]}
                     animateRows
                     onGridReady={(params) => {
                       gridApiRef.current = params.api
-                      params.api.setGridOption('quickFilterText', quickFilter)
+                      applyQuickFilter(quickFilter)
+                    }}
+                    onFirstDataRendered={() => {
+                      gridApiRef.current?.sizeColumnsToFit()
                     }}
                     onCellValueChanged={(event) => {
                       if (!event.data) return
@@ -578,6 +643,7 @@ export default function BulkWaterBillingPage() {
                 </div>
               </CardContent>
             </Card>
+            )}
           </div>
         </main>
       </div>
