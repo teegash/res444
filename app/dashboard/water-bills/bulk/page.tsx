@@ -471,178 +471,182 @@ export default function BulkWaterBillingPage() {
                 </CardContent>
               </Card>
             ) : (
-            <Card className="border-0 shadow bg-white">
-              <CardHeader>
-                <CardTitle>1) Select property</CardTitle>
-                <CardDescription>Choose an apartment/property to bulk bill its occupied units.</CardDescription>
-              </CardHeader>
-              <CardContent className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-                <div className="w-full md:w-[420px] space-y-2">
-                  <Label>Property</Label>
-                  <Select
-                    value={selectedPropertyId}
-                    onValueChange={(value) => {
-                      setSelectedPropertyId(value)
-                      if (autoLoadedPropertyId && value !== autoLoadedPropertyId) {
-                        setAutoLoadedPropertyId(null)
-                      }
-                    }}
-                    disabled={loadingProps || busy}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder={loadingProps ? 'Loading...' : 'Select a property'} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {properties.map((property) => (
-                        <SelectItem key={property.id} value={property.id}>
-                          {property.name || 'Unnamed'} {property.location ? `- ${property.location}` : ''}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <Button
-                  onClick={() => selectedPropertyId && loadRows(selectedPropertyId)}
-                  disabled={!selectedPropertyId || loadingRows || busy}
-                >
-                  {loadingRows ? 'Loading...' : 'Load tenants'}
-                </Button>
-              </CardContent>
-            </Card>
-
-            <Card className="border-0 shadow bg-white">
-              <CardHeader>
-                <CardTitle>2) Configure rate and notes</CardTitle>
-                <CardDescription>Set a global rate and apply a shared note to the batch.</CardDescription>
-              </CardHeader>
-              <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="space-y-2">
-                  <Label>Global price per unit (KES)</Label>
-                  <Input
-                    type="number"
-                    value={globalRate}
-                    onChange={(e) => {
-                      const value = Number(e.target.value || 0)
-                      setGlobalRate(value)
-                      applyGlobalRate(value)
-                    }}
-                    disabled={busy}
-                  />
-                </div>
-
-                <div className="space-y-2 md:col-span-2">
-                  <Label>Notes (applies to all invoices)</Label>
-                  <Input
-                    value={notes}
-                    onChange={(e) => setNotes(e.target.value)}
-                    placeholder="Optional note to include in SMS"
-                    disabled={busy}
-                  />
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="border-0 shadow bg-white">
-              <CardHeader>
-                <CardTitle>3) Bulk billing grid</CardTitle>
-                <CardDescription>
-                  Enter current readings. Editing the Rate column in one row applies it globally.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <Input
-                    className="w-72"
-                    placeholder="Quick filter"
-                    value={quickFilter}
-                    onChange={(e) => {
-                      const value = e.target.value
-                      setQuickFilter(value)
-                      applyQuickFilter(value)
-                    }}
-                    disabled={!rows.length}
-                  />
-
-                  <div className="text-sm text-muted-foreground">
-                    Rows: {rows.length} | Valid: {rows.filter((row) => row.validation_status === 'Valid').length} |
-                    Pending: {rows.filter((row) => row.send_status === 'Pending').length}
+              <>
+                <Card className="border-0 shadow bg-white">
+                <CardHeader>
+                  <CardTitle>1) Select property</CardTitle>
+                  <CardDescription>Choose an apartment/property to bulk bill its occupied units.</CardDescription>
+                </CardHeader>
+                <CardContent className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+                  <div className="w-full md:w-[420px] space-y-2">
+                    <Label>Property</Label>
+                    <Select
+                      value={selectedPropertyId}
+                      onValueChange={(value) => {
+                        setSelectedPropertyId(value)
+                        if (autoLoadedPropertyId && value !== autoLoadedPropertyId) {
+                          setAutoLoadedPropertyId(null)
+                        }
+                      }}
+                      disabled={loadingProps || busy}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder={loadingProps ? 'Loading...' : 'Select a property'} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {properties.map((property) => (
+                          <SelectItem key={property.id} value={property.id}>
+                            {property.name || 'Unnamed'} {property.location ? `- ${property.location}` : ''}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
-                </div>
 
-                <div className="ag-theme-quartz w-full h-[560px] rounded-xl border border-slate-200 bg-white shadow-sm overflow-auto">
-                  <AgGridReact<BulkRow>
-                    theme="legacy"
-                    rowData={rows}
-                    columnDefs={colDefs}
-                    defaultColDef={{
-                      flex: 1,
-                      minWidth: 120,
-                      sortable: true,
-                      resizable: true,
-                      filter: true,
-                    }}
-                    headerHeight={44}
-                    rowHeight={46}
-                    pagination
-                    paginationPageSize={25}
-                    paginationPageSizeSelector={[10, 25, 50, 100]}
-                    animateRows
-                    onGridReady={(params) => {
-                      gridApiRef.current = params.api
-                      applyQuickFilter(quickFilter)
-                    }}
-                    onFirstDataRendered={() => {
-                      gridApiRef.current?.sizeColumnsToFit()
-                    }}
-                    onCellValueChanged={(event) => {
-                      if (!event.data) return
+                  <Button
+                    onClick={() => selectedPropertyId && loadRows(selectedPropertyId)}
+                    disabled={!selectedPropertyId || loadingRows || busy}
+                  >
+                    {loadingRows ? 'Loading...' : 'Load tenants'}
+                  </Button>
+                </CardContent>
+              </Card>
 
-                      if (event.colDef.field === 'price_per_unit') {
-                        const rate = Number(event.data.price_per_unit || 0)
-                        setGlobalRate(rate)
-                        applyGlobalRate(rate)
-                        return
-                      }
-
-                      setRows((prev) =>
-                        prev.map((row) => (row.unit_id === event.data!.unit_id ? computeRow({ ...event.data! }) : row))
-                      )
-                    }}
-                  />
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="border-0 shadow bg-white">
-              <CardHeader>
-                <CardTitle>4) Send invoices (batches of 10)</CardTitle>
-                <CardDescription>
-                  Sending runs sequentially to avoid timeouts. Each row will be marked Sent or Failed.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-                <div className="flex flex-col gap-3 w-full md:flex-row md:items-end md:w-auto">
+              <Card className="border-0 shadow bg-white">
+                <CardHeader>
+                  <CardTitle>2) Configure rate and notes</CardTitle>
+                  <CardDescription>Set a global rate and apply a shared note to the batch.</CardDescription>
+                </CardHeader>
+                <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="space-y-2">
-                    <Label>Due date</Label>
+                    <Label>Global price per unit (KES)</Label>
                     <Input
-                      type="date"
-                      value={dueDate}
-                      onChange={(e) => setDueDate(e.target.value)}
+                      type="number"
+                      value={globalRate}
+                      onChange={(e) => {
+                        const value = Number(e.target.value || 0)
+                        setGlobalRate(value)
+                        applyGlobalRate(value)
+                      }}
                       disabled={busy}
                     />
                   </div>
-                  <Button onClick={sendBatches} disabled={busy || !rows.length}>
-                    {busy ? 'Sending...' : 'Send bulk water invoices'}
-                  </Button>
-                </div>
 
-                <div className="text-sm text-muted-foreground">
-                  Total: {progress.total} | Processed: {progress.processed} | Succeeded: {progress.succeeded} | Failed:{' '}
-                  {progress.failed}
-                </div>
-              </CardContent>
-            </Card>
+                  <div className="space-y-2 md:col-span-2">
+                    <Label>Notes (applies to all invoices)</Label>
+                    <Input
+                      value={notes}
+                      onChange={(e) => setNotes(e.target.value)}
+                      placeholder="Optional note to include in SMS"
+                      disabled={busy}
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="border-0 shadow bg-white">
+                <CardHeader>
+                  <CardTitle>3) Bulk billing grid</CardTitle>
+                  <CardDescription>
+                    Enter current readings. Editing the Rate column in one row applies it globally.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <Input
+                      className="w-72"
+                      placeholder="Quick filter"
+                      value={quickFilter}
+                      onChange={(e) => {
+                        const value = e.target.value
+                        setQuickFilter(value)
+                        applyQuickFilter(value)
+                      }}
+                      disabled={!rows.length}
+                    />
+
+                    <div className="text-sm text-muted-foreground">
+                      Rows: {rows.length} | Valid: {rows.filter((row) => row.validation_status === 'Valid').length} |
+                      Pending: {rows.filter((row) => row.send_status === 'Pending').length}
+                    </div>
+                  </div>
+
+                  <div className="ag-theme-quartz w-full h-[560px] rounded-xl border border-slate-200 bg-white shadow-sm overflow-auto">
+                    <AgGridReact<BulkRow>
+                      theme="legacy"
+                      rowData={rows}
+                      columnDefs={colDefs}
+                      defaultColDef={{
+                        flex: 1,
+                        minWidth: 120,
+                        sortable: true,
+                        resizable: true,
+                        filter: true,
+                      }}
+                      headerHeight={44}
+                      rowHeight={46}
+                      pagination
+                      paginationPageSize={25}
+                      paginationPageSizeSelector={[10, 25, 50, 100]}
+                      animateRows
+                      onGridReady={(params) => {
+                        gridApiRef.current = params.api
+                        applyQuickFilter(quickFilter)
+                      }}
+                      onFirstDataRendered={() => {
+                        gridApiRef.current?.sizeColumnsToFit()
+                      }}
+                      onCellValueChanged={(event) => {
+                        if (!event.data) return
+
+                        if (event.colDef.field === 'price_per_unit') {
+                          const rate = Number(event.data.price_per_unit || 0)
+                          setGlobalRate(rate)
+                          applyGlobalRate(rate)
+                          return
+                        }
+
+                        setRows((prev) =>
+                          prev.map((row) =>
+                            row.unit_id === event.data!.unit_id ? computeRow({ ...event.data! }) : row
+                          )
+                        )
+                      }}
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="border-0 shadow bg-white">
+                <CardHeader>
+                  <CardTitle>4) Send invoices (batches of 10)</CardTitle>
+                  <CardDescription>
+                    Sending runs sequentially to avoid timeouts. Each row will be marked Sent or Failed.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+                  <div className="flex flex-col gap-3 w-full md:flex-row md:items-end md:w-auto">
+                    <div className="space-y-2">
+                      <Label>Due date</Label>
+                      <Input
+                        type="date"
+                        value={dueDate}
+                        onChange={(e) => setDueDate(e.target.value)}
+                        disabled={busy}
+                      />
+                    </div>
+                    <Button onClick={sendBatches} disabled={busy || !rows.length}>
+                      {busy ? 'Sending...' : 'Send bulk water invoices'}
+                    </Button>
+                  </div>
+
+                  <div className="text-sm text-muted-foreground">
+                    Total: {progress.total} | Processed: {progress.processed} | Succeeded: {progress.succeeded} | Failed:{' '}
+                    {progress.failed}
+                  </div>
+                </CardContent>
+              </Card>
+              </>
             )}
           </div>
         </main>
