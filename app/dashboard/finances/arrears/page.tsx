@@ -211,19 +211,25 @@ export default function ArrearsPage() {
                 <CardContent className="p-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                   <div className="rounded-xl border bg-white/90 p-4 shadow-sm">
                     <p className="text-xs text-muted-foreground">Active tenants</p>
-                    <p className="text-2xl font-bold text-slate-900">{summary.active_tenants}</p>
+                    <p className="text-[clamp(1rem,2.2vw,1.5rem)] font-bold text-slate-900 whitespace-nowrap leading-none">
+                      {summary.active_tenants} Tenants
+                    </p>
                   </div>
                   <div className="rounded-xl border bg-white/90 p-4 shadow-sm">
                     <p className="text-xs text-muted-foreground">Defaulters</p>
-                    <p className="text-2xl font-bold text-rose-700">{summary.defaulters}</p>
+                    <p className="text-[clamp(1rem,2.2vw,1.5rem)] font-bold text-rose-700 whitespace-nowrap leading-none">
+                      {summary.defaulters} Tenants
+                    </p>
                   </div>
                   <div className="rounded-xl border bg-white/90 p-4 shadow-sm">
                     <p className="text-xs text-muted-foreground">Defaulters rate</p>
-                    <p className="text-2xl font-bold text-amber-700">{summary.defaulters_pct}%</p>
+                    <p className="text-[clamp(1rem,2.2vw,1.5rem)] font-bold text-amber-700 whitespace-nowrap leading-none">
+                      {summary.defaulters_pct}%
+                    </p>
                   </div>
                   <div className="rounded-xl border bg-white/90 p-4 shadow-sm">
                     <p className="text-xs text-muted-foreground">Total arrears</p>
-                    <p className="text-2xl font-bold text-slate-900">
+                    <p className="text-[clamp(1rem,2.2vw,1.5rem)] font-bold text-slate-900 whitespace-nowrap leading-none">
                       {formatKES(summary.total_arrears_amount || 0)}
                     </p>
                   </div>

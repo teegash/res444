@@ -555,7 +555,7 @@ function DashboardContent() {
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-base text-gray-700 font-bold">Monthly Revenue</p>
-                        <p className="text-3xl font-bold">
+                        <p className="text-[clamp(1.2rem,2.4vw,1.875rem)] font-bold whitespace-nowrap">
                           {overview?.summary ? formatCurrency(overview.summary.monthlyRevenue || 0, 'KES') : '—'}
                         </p>
                         {overview?.summary?.revenueDelta !== null ? (
@@ -614,7 +614,7 @@ function DashboardContent() {
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-base text-gray-700 font-bold">Arrears</p>
-                        <p className="text-3xl font-bold">
+                        <p className="text-[clamp(1.2rem,2.4vw,1.875rem)] font-bold whitespace-nowrap">
                           {defaultersSummary?.defaulters ?? '—'} Tenants
                         </p>
                         <p className="text-sm text-red-600 mt-1">

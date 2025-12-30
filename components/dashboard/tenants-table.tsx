@@ -222,7 +222,6 @@ export function TenantsTable({ searchQuery = '', viewMode = 'list', propertyId }
   const [error, setError] = useState<string | null>(null)
   const [refreshIndex, setRefreshIndex] = useState(0)
   const [ratingFilter, setRatingFilter] = useState<'all' | 'red' | 'orange' | 'yellow' | 'green' | 'none'>('all')
-  const [defaultersFilter, setDefaultersFilter] = useState<'all' | 'defaulters'>('all')
   const [leaseStatusFilter, setLeaseStatusFilter] = useState<
     'all' | 'valid' | 'renewed' | 'pending' | 'expired' | 'unassigned'
   >('all')
@@ -249,8 +248,7 @@ export function TenantsTable({ searchQuery = '', viewMode = 'list', propertyId }
       setLoading(true)
       setError(null)
       try {
-        const qs = defaultersFilter === 'defaulters' ? '?defaulters=1' : ''
-        const response = await fetch(`/api/tenants${qs}`, { cache: 'no-store' })
+        const response = await fetch('/api/tenants', { cache: 'no-store' })
         if (!response.ok) {
           const errorPayload = await response.json().catch(() => ({}))
           throw new Error(errorPayload.error || 'Failed to fetch tenants.')
@@ -270,7 +268,7 @@ export function TenantsTable({ searchQuery = '', viewMode = 'list', propertyId }
     }
 
     fetchTenants()
-  }, [defaultersFilter, propertyId, refreshIndex])
+  }, [propertyId, refreshIndex])
 
   useEffect(() => {
     const fetchRatings = async () => {
@@ -382,8 +380,6 @@ export function TenantsTable({ searchQuery = '', viewMode = 'list', propertyId }
     }
   })()
 
-  const defaultersFilterLabel = defaultersFilter === 'defaulters' ? 'Defaulters only' : 'All tenants'
-
   const leaseFilterLabel = (() => {
     switch (leaseStatusFilter) {
       case 'valid':
@@ -440,10 +436,6 @@ export function TenantsTable({ searchQuery = '', viewMode = 'list', propertyId }
     { value: 'yellow', label: 'Yellow rating' },
     { value: 'green', label: 'Green rating' },
     { value: 'none', label: 'No rating' },
-  ]
-  const defaultersOptions = [
-    { value: 'all', label: 'All tenants' },
-    { value: 'defaulters', label: 'Defaulters only' },
   ]
   const leaseOptions = [
     { value: 'all', label: 'All statuses' },
@@ -567,13 +559,6 @@ export function TenantsTable({ searchQuery = '', viewMode = 'list', propertyId }
               <span className="text-slate-500">{ratingFilterLabel}</span>
               {renderFilterMenu(ratingOptions, ratingFilter, (value) =>
                 setRatingFilter(value as typeof ratingFilter)
-              )}
-            </div>
-            <div className="flex items-center gap-1">
-              <span className="font-semibold">Defaulters</span>
-              <span className="text-slate-500">{defaultersFilterLabel}</span>
-              {renderFilterMenu(defaultersOptions, defaultersFilter, (value) =>
-                setDefaultersFilter(value as typeof defaultersFilter)
               )}
             </div>
             <div className="flex items-center gap-1">
@@ -728,14 +713,6 @@ export function TenantsTable({ searchQuery = '', viewMode = 'list', propertyId }
                 </TableHead>
                 <TableHead>
                   <div className="flex items-center gap-1">
-                    <span>Defaulters</span>
-                    {renderFilterMenu(defaultersOptions, defaultersFilter, (value) =>
-                      setDefaultersFilter(value as typeof defaultersFilter)
-                    )}
-                  </div>
-                </TableHead>
-                <TableHead>
-                  <div className="flex items-center gap-1">
                     <span>Payment Status</span>
                     {renderFilterMenu(paymentOptions, paymentFilter, (value) =>
                       setPaymentFilter(value as typeof paymentFilter)
@@ -750,7 +727,7 @@ export function TenantsTable({ searchQuery = '', viewMode = 'list', propertyId }
             <TableBody>
               {loading && (
                 <TableRow>
-                  <TableCell colSpan={10} className="py-6">
+                  <TableCell colSpan={9} className="py-6">
                     <SkeletonTable rows={4} columns={6} />
                   </TableCell>
                 </TableRow>
@@ -758,7 +735,7 @@ export function TenantsTable({ searchQuery = '', viewMode = 'list', propertyId }
 
               {!loading && filteredTenants.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={10} className="py-10 text-center text-muted-foreground">
+                  <TableCell colSpan={9} className="py-10 text-center text-muted-foreground">
                     {searchQuery
                       ? 'No tenants match your search.'
                       : 'No active tenants yet. Add a tenant to get started.'}
@@ -875,13 +852,6 @@ export function TenantsTable({ searchQuery = '', viewMode = 'list', propertyId }
                           </p>
                         </TooltipContent>
                       </Tooltip>
-                    </TableCell>
-                    <TableCell>
-                      {Number(tenant.arrears_amount || 0) > 0 ? (
-                        <Badge variant="destructive">Yes</Badge>
-                      ) : (
-                        <Badge variant="outline">No</Badge>
-                      )}
                     </TableCell>
                     <TableCell>
                       <Tooltip>
