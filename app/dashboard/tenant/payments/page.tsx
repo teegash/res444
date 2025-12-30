@@ -252,10 +252,18 @@ export default function PaymentHistoryPage() {
   }
 
   const paymentStats = useMemo(() => {
-    const sixMonthsAgo = new Date()
-    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6)
-
+    const monthsWindow = 6
+    const now = new Date()
     const monthlyTotals = new Map<string, { total: number; onTime: boolean }>()
+
+    for (let i = 0; i < monthsWindow; i++) {
+      const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - i, 1))
+      const key = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`
+      monthlyTotals.set(key, { total: 0, onTime: false })
+    }
+
+    const rangeStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - (monthsWindow - 1), 1))
+
     payments.forEach((payment) => {
       if (!payment.verified) {
         return
@@ -263,11 +271,11 @@ export default function PaymentHistoryPage() {
       const paidBasis = payment.posted_at || payment.created_at
       if (!paidBasis) return
       const paidDate = new Date(paidBasis)
-      if (paidDate < sixMonthsAgo) {
+      if (paidDate < rangeStart) {
         return
       }
 
-      const monthKey = `${paidDate.getUTCFullYear()}-${paidDate.getUTCMonth()}`
+      const monthKey = `${paidDate.getUTCFullYear()}-${String(paidDate.getUTCMonth() + 1).padStart(2, '0')}`
       const entry = monthlyTotals.get(monthKey) || { total: 0, onTime: false }
       entry.total += payment.amount_paid
 
@@ -283,27 +291,12 @@ export default function PaymentHistoryPage() {
       monthlyTotals.set(monthKey, entry)
     })
 
-    const hasSixMonths = monthlyTotals.size >= 6
-    if (!hasSixMonths) {
-      return {
-        hasSixMonths: false,
-        totalPaid: null,
-        onTimeRate: null,
-        averageMonthly: null,
-      }
-    }
-
     const totalPaid = Array.from(monthlyTotals.values()).reduce((sum, month) => sum + month.total, 0)
-    const averageMonthly =
-      monthlyTotals.size > 0 ? Math.round(totalPaid / monthlyTotals.size) : null
-    const onTimeRate =
-      monthlyTotals.size > 0
-        ? Math.round(
-            (Array.from(monthlyTotals.values()).filter((month) => month.onTime).length /
-              monthlyTotals.size) *
-              100
-          )
-        : null
+    const averageMonthly = Math.round(totalPaid / monthsWindow)
+    const onTimeRate = Math.round(
+      (Array.from(monthlyTotals.values()).filter((month) => month.onTime).length / monthsWindow) *
+        100
+    )
 
     return {
       hasSixMonths: true,

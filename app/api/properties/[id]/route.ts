@@ -45,7 +45,9 @@ async function authorize(buildingId: string) {
 
   const { data: building, error: buildingError } = await adminSupabase
     .from('apartment_buildings')
-    .select('id, organization_id, name, location, total_units, description, image_url, created_at, updated_at')
+    .select(
+      'id, organization_id, name, location, total_units, description, image_url, created_at, updated_at, vacancy_alerts_enabled'
+    )
     .eq('id', buildingId)
     .maybeSingle()
 
@@ -116,6 +118,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
       description: building.description,
       imageUrl: building.image_url,
       organizationId: building.organization_id,
+      vacancyAlertsEnabled: Boolean(building.vacancy_alerts_enabled),
       organizationName: org?.name || null,
       county: null,
       createdAt: building.created_at,
@@ -143,6 +146,10 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
   const { adminSupabase, building } = authContext
   const updates: Record<string, any> = {}
 
+  const imageFile = typeof body.image_file === 'string' ? body.image_file.trim() : ''
+  const imageFileType = typeof body.image_file_type === 'string' ? body.image_file_type.trim() : ''
+  const imageFileName = typeof body.image_file_name === 'string' ? body.image_file_name.trim() : ''
+
   if (typeof body.name === 'string') {
     updates.name = body.name.trim()
   }
@@ -152,13 +159,61 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
   if (typeof body.description === 'string') {
     updates.description = body.description.trim()
   }
-  if (typeof body.image_url === 'string') {
+  if (body.vacancy_alerts_enabled !== undefined) {
+    updates.vacancy_alerts_enabled = Boolean(body.vacancy_alerts_enabled)
+  }
+  if (!imageFile && typeof body.image_url === 'string') {
     updates.image_url = body.image_url.trim() || null
   }
   if (body.total_units !== undefined) {
     const total = Number(body.total_units)
     if (!Number.isNaN(total) && total >= 0) {
       updates.total_units = total
+    }
+  }
+
+  if (imageFile) {
+    try {
+      const supabase = await createClient()
+      let base64 = imageFile
+      let contentType = imageFileType || 'image/jpeg'
+
+      if (imageFile.includes('base64,')) {
+        const parts = imageFile.split('base64,')
+        base64 = parts[1] || ''
+        const match = parts[0].match(/data:(.*?);/)
+        if (match?.[1]) contentType = match[1]
+      }
+
+      const ext = contentType.split('/')[1] || 'jpg'
+      const safeExt = ext.replace(/[^a-z0-9]/gi, '') || 'jpg'
+      const nameSlug = imageFileName
+        ? imageFileName.replace(/[^a-z0-9]+/gi, '_').toLowerCase()
+        : 'property'
+      const fileName = `properties/${building.id}/${Date.now()}-${nameSlug}.${safeExt}`
+      const fileBuffer = Buffer.from(base64, 'base64')
+
+      const { error: uploadError } = await supabase.storage.from('profile-pictures').upload(fileName, fileBuffer, {
+        contentType,
+        cacheControl: '3600',
+        upsert: false,
+      })
+
+      if (uploadError) {
+        return NextResponse.json(
+          { success: false, error: uploadError.message || 'Failed to upload image.' },
+          { status: 500 }
+        )
+      }
+
+      const { data: publicUrlData } = supabase.storage.from('profile-pictures').getPublicUrl(fileName)
+      updates.image_url = publicUrlData.publicUrl
+    } catch (uploadErr) {
+      console.error('[PATCH /api/properties/[id]] Image upload failed', uploadErr)
+      return NextResponse.json(
+        { success: false, error: 'Failed to upload image.' },
+        { status: 500 }
+      )
     }
   }
 

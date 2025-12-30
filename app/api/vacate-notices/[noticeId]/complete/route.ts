@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { fetchNoticeById, notifyTenant, requireManagerContext, normalizeUuid } from '../../_helpers'
+import { sendVacancyAlert } from '@/lib/communications/vacancyAlerts'
 
 export async function POST(request: Request, { params }: { params: { noticeId?: string; id?: string } }) {
   const rawParam = params?.noticeId || params?.id || ''
@@ -113,6 +114,38 @@ export async function POST(request: Request, { params }: { params: { noticeId?: 
       senderUserId: user.id,
       message: 'Move-out process completed. Unit marked vacant and lease closed.',
     })
+
+    if (notice.unit_id) {
+      const { data: unit } = await admin
+        .from('apartment_units')
+        .select(
+          `
+          id,
+          unit_number,
+          status,
+          building:apartment_buildings (
+            id,
+            name,
+            vacancy_alerts_enabled
+          )
+        `
+        )
+        .eq('id', notice.unit_id)
+        .eq('organization_id', organizationId)
+        .maybeSingle()
+
+      const priorStatus = String(unit?.status || '').toLowerCase()
+      if (priorStatus === 'occupied' && unit?.building?.vacancy_alerts_enabled && unit?.building?.id) {
+        await sendVacancyAlert({
+          adminSupabase: admin,
+          organizationId,
+          buildingId: unit.building.id,
+          buildingName: unit.building.name,
+          unitNumber: unit.unit_number,
+          actorUserId: user?.id || null,
+        })
+      }
+    }
 
     return NextResponse.json({ success: true })
   } catch (error) {

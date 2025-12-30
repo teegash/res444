@@ -58,6 +58,7 @@ export async function POST(request: NextRequest) {
       units,
       image_url,
       image_file,
+      vacancy_alerts_enabled,
     }: {
       name: string
       location: string
@@ -66,6 +67,7 @@ export async function POST(request: NextRequest) {
       units?: UnitPayload[]
       image_url?: string | null
       image_file?: string | null
+      vacancy_alerts_enabled?: boolean
     } = body
 
     if (!name || !location || !total_units || Number.isNaN(Number(total_units))) {
@@ -117,6 +119,7 @@ export async function POST(request: NextRequest) {
         total_units: Number(total_units),
         description: description?.trim() || null,
         image_url: finalImageUrl,
+        vacancy_alerts_enabled: Boolean(vacancy_alerts_enabled),
       })
       .select()
       .single()

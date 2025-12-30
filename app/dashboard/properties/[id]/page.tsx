@@ -176,6 +176,41 @@ export default function PropertyDetailPage() {
     ? Array.from({ length: 8 })
     : prioritizedUnits.slice(0, 8)
 
+  const formatCurrency = (value: number) =>
+    new Intl.NumberFormat('en-KE', { style: 'currency', currency: 'KES', maximumFractionDigits: 0 }).format(
+      Number(value || 0)
+    )
+
+  const fallbackIncomeSeries = useMemo(() => {
+    const out: Array<{ month: string; income: number; expenses: number }> = []
+    for (let i = monthsRange - 1; i >= 0; i--) {
+      const d = new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth() - i, 1))
+      const label = d.toLocaleString('en-US', { month: 'short' })
+      out.push({ month: label, income: 0, expenses: 0 })
+    }
+    return out
+  }, [monthsRange])
+
+  const incomeSeries =
+    snapshot?.charts?.incomeVsExpenses && snapshot.charts.incomeVsExpenses.length > 0
+      ? snapshot.charts.incomeVsExpenses
+      : fallbackIncomeSeries
+
+  const occupancyRate =
+    snapshot?.kpis?.units?.occupancy_rate ?? (property?.totalUnits ? occupancy : 0)
+
+  const vacantUnits =
+    snapshot?.kpis?.units?.vacant ?? ((property?.totalUnits || 0) - (property?.occupiedUnits || 0))
+
+  const arrearsRate = (() => {
+    const occupied = Number(snapshot?.kpis?.units?.occupied || 0)
+    const defaulters = Number(snapshot?.kpis?.defaulters || 0)
+    if (!occupied) return 0
+    return Math.round((defaulters / occupied) * 100)
+  })()
+
+  const ytdRevenue = Number(snapshot?.kpis?.ytd_rent_income ?? snapshot?.kpis?.rent_income ?? 0)
+
   return (
     <div className="flex min-h-screen bg-gray-50">
       <Sidebar />
@@ -217,6 +252,68 @@ export default function PropertyDetailPage() {
                   </Button>
                 </div>
               )}
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+              <Card className="rounded-md">
+                <CardContent className="py-1 h-full">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-base text-gray-700 font-bold">Revenue YTD</p>
+                      <p className="text-2xl font-bold">{formatCurrency(ytdRevenue)}</p>
+                      <p className="text-sm text-gray-500 mt-1">Rent only</p>
+                    </div>
+                    <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                      <Building2 className="w-5 h-5 text-[#4682B4]" />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="rounded-md">
+                <CardContent className="py-1 h-full">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-base text-gray-700 font-bold">Occupancy rate</p>
+                      <p className="text-2xl font-bold">{occupancyRate}%</p>
+                      <p className="text-sm text-gray-500 mt-1">Active units</p>
+                    </div>
+                    <div className="w-10 h-10 bg-emerald-100 rounded-full flex items-center justify-center">
+                      <Badge className="bg-emerald-600">Live</Badge>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="rounded-md">
+                <CardContent className="py-1 h-full">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-base text-gray-700 font-bold">Arrears rate</p>
+                      <p className="text-2xl font-bold">{arrearsRate}%</p>
+                      <p className="text-sm text-gray-500 mt-1">Occupied units</p>
+                    </div>
+                    <div className="w-10 h-10 bg-rose-100 rounded-full flex items-center justify-center">
+                      <Badge className="bg-rose-600">Risk</Badge>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="rounded-md">
+                <CardContent className="py-1 h-full">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-base text-gray-700 font-bold">Vacancy</p>
+                      <p className="text-2xl font-bold">{vacantUnits}</p>
+                      <p className="text-sm text-gray-500 mt-1">Units vacant</p>
+                    </div>
+                    <div className="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center">
+                      <Badge className="bg-amber-600">Open</Badge>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
             </div>
 
             <div className="rounded-xl border bg-muted/50 overflow-hidden">
@@ -335,7 +432,7 @@ export default function PropertyDetailPage() {
                     <PropertyIncomeVsExpensesChart
                       months={monthsRange}
                       onToggleMonths={() => setMonthsRange((m) => (m === 6 ? 12 : 6))}
-                      data={snapshot?.charts?.incomeVsExpenses || []}
+                      data={incomeSeries}
                     />
                   </div>
                   <div className="lg:col-span-2">

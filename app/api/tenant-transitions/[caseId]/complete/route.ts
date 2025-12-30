@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { normalizeUuid, requireManagerContext, notifyTenant } from '../../_helpers'
+import { sendVacancyAlert } from '@/lib/communications/vacancyAlerts'
 
 export async function POST(req: NextRequest, ctx: { params: { caseId: string } }) {
   const caseId = normalizeUuid(`${ctx.params.caseId} ${req.nextUrl.pathname}`)
@@ -18,7 +19,24 @@ export async function POST(req: NextRequest, ctx: { params: { caseId: string } }
 
     const { data: row, error: rErr } = await admin
       .from('tenant_transition_cases')
-      .select('id, tenant_user_id, vacate_notice_id, lease_id')
+      .select(
+        `
+        id,
+        tenant_user_id,
+        vacate_notice_id,
+        lease_id,
+        unit:apartment_units (
+          id,
+          unit_number,
+          status,
+          building:apartment_buildings (
+            id,
+            name,
+            vacancy_alerts_enabled
+          )
+        )
+        `
+      )
       .eq('organization_id', organizationId)
       .eq('id', caseId)
       .maybeSingle()
@@ -76,6 +94,23 @@ export async function POST(req: NextRequest, ctx: { params: { caseId: string } }
           },
         })
       }
+    }
+
+    const priorUnitStatus = String(row.unit?.status || '').toLowerCase()
+    if (
+      unitNextStatus === 'vacant' &&
+      priorUnitStatus === 'occupied' &&
+      row.unit?.building?.vacancy_alerts_enabled &&
+      row.unit?.building?.id
+    ) {
+      await sendVacancyAlert({
+        adminSupabase: admin,
+        organizationId,
+        buildingId: row.unit.building.id,
+        buildingName: row.unit.building.name,
+        unitNumber: row.unit.unit_number,
+        actorUserId: user?.id || null,
+      })
     }
 
     try {

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { Sidebar } from '@/components/dashboard/sidebar'
 import { Header } from '@/components/dashboard/header'
@@ -17,6 +17,7 @@ import {
   Building2,
   MapPin,
   Trash2,
+  Camera,
 } from 'lucide-react'
 import {
   AlertDialog,
@@ -88,6 +89,12 @@ export default function EditPropertyPage() {
     createdAt: '',
     updatedAt: '',
   })
+  const [imagePreview, setImagePreview] = useState<string>('')
+  const [imageFileData, setImageFileData] = useState<string | null>(null)
+  const [imageFileName, setImageFileName] = useState<string | null>(null)
+  const [imageFileType, setImageFileType] = useState<string | null>(null)
+  const [imageError, setImageError] = useState<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
 
   useEffect(() => {
     let isMounted = true
@@ -123,7 +130,9 @@ export default function EditPropertyPage() {
             occupiedUnits: result.data.occupiedUnits?.toString() || '',
             description: result.data.description || '',
             imageUrl: result.data.imageUrl || '',
+            autoNotify: Boolean(result.data.vacancyAlertsEnabled),
           }))
+          setImagePreview(result.data.imageUrl || '')
           setStats({
             recordedUnits: result.data.recordedUnits || result.data.totalUnits || 0,
             occupiedUnits: result.data.occupiedUnits || 0,
@@ -159,6 +168,33 @@ export default function EditPropertyPage() {
     setError(null)
   }
 
+  const handleImagePick = (file: File | null) => {
+    if (!file) return
+    setImageError(null)
+
+    if (!file.type.startsWith('image/')) {
+      setImageError('Please select a valid image file.')
+      return
+    }
+
+    const reader = new FileReader()
+    reader.onload = () => {
+      const result = typeof reader.result === 'string' ? reader.result : ''
+      if (!result) {
+        setImageError('Unable to read the selected image.')
+        return
+      }
+      setImagePreview(result)
+      setImageFileData(result)
+      setImageFileName(file.name)
+      setImageFileType(file.type)
+    }
+    reader.onerror = () => {
+      setImageError('Failed to read the selected image.')
+    }
+    reader.readAsDataURL(file)
+  }
+
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault()
 
@@ -177,6 +213,7 @@ export default function EditPropertyPage() {
         location: form.location.trim(),
         description: form.description.trim(),
         image_url: form.imageUrl.trim(),
+        vacancy_alerts_enabled: Boolean(form.autoNotify),
       }
 
       if (form.totalUnits !== '') {
@@ -184,6 +221,12 @@ export default function EditPropertyPage() {
         if (!Number.isNaN(total) && total >= 0) {
           payload.total_units = total
         }
+      }
+
+      if (imageFileData) {
+        payload.image_file = imageFileData
+        if (imageFileType) payload.image_file_type = imageFileType
+        if (imageFileName) payload.image_file_name = imageFileName
       }
 
       const response = await fetch(`/api/properties/${propertyId}?buildingId=${encodeURIComponent(propertyId)}`, {
@@ -199,6 +242,10 @@ export default function EditPropertyPage() {
       }
 
       setSuccess('Property details updated successfully.')
+      setImageFileData(null)
+      setImageFileName(null)
+      setImageFileType(null)
+      setImageError(null)
     } catch (err) {
       console.error('[EditPropertyPage] Update failed', err)
       setError(err instanceof Error ? err.message : 'Failed to save changes. Please try again.')
@@ -330,6 +377,39 @@ export default function EditPropertyPage() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <Label>Property image</Label>
+                    <div className="relative overflow-hidden rounded-xl border bg-slate-100">
+                      <img
+                        src={imagePreview || form.imageUrl || '/modern-residential-building.png'}
+                        alt="Property preview"
+                        className="h-48 w-full object-cover"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="absolute bottom-3 right-3 inline-flex items-center justify-center rounded-full bg-white/90 text-gray-800 shadow-md h-10 w-10 hover:bg-white"
+                        aria-label="Change property image"
+                      >
+                        <Camera className="h-5 w-5" />
+                      </button>
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0] || null
+                          handleImagePick(file)
+                          e.currentTarget.value = ''
+                        }}
+                      />
+                    </div>
+                    {imageFileData && (
+                      <p className="text-xs text-muted-foreground">New image selected. Save to upload.</p>
+                    )}
+                    {imageError && <p className="text-xs text-red-600">{imageError}</p>}
+                  </div>
                   <div className="grid gap-4 md:grid-cols-2">
                     <div>
                       <Label htmlFor="name">Property name *</Label>

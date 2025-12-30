@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { sendVacancyAlert } from '@/lib/communications/vacancyAlerts'
 
 const UNIT_STATUSES = ['vacant', 'occupied', 'maintenance'] as const
 
@@ -35,7 +36,9 @@ async function authorize(buildingId: string) {
 
   const { data: building, error: buildingError } = await adminSupabase
     .from('apartment_buildings')
-    .select('id, organization_id, name, location, total_units, description, image_url, created_at')
+    .select(
+      'id, organization_id, name, location, total_units, description, image_url, created_at, vacancy_alerts_enabled'
+    )
     .eq('id', buildingId)
     .maybeSingle()
 
@@ -262,13 +265,27 @@ export async function PATCH(
   const authContext = await authorize(buildingId)
   if ('error' in authContext && authContext.error) return authContext.error
 
-  const { adminSupabase, building } = authContext
+  const { adminSupabase, building, organizationId, user } = authContext
   const { unit_id, updates } = body || {}
 
   if (!unit_id || !updates) {
     return NextResponse.json(
       { success: false, error: 'unit_id and updates are required.' },
       { status: 400 }
+    )
+  }
+
+  const { data: existingUnit, error: existingError } = await adminSupabase
+    .from('apartment_units')
+    .select('status, unit_number')
+    .eq('id', unit_id)
+    .eq('building_id', building.id)
+    .maybeSingle()
+
+  if (existingError || !existingUnit) {
+    return NextResponse.json(
+      { success: false, error: 'Unit not found.' },
+      { status: 404 }
     )
   }
 
@@ -314,6 +331,24 @@ export async function PATCH(
       { success: false, error: updateError.message || 'Failed to update unit.' },
       { status: 500 }
     )
+  }
+
+  const priorStatus = String(existingUnit.status || '').toLowerCase()
+  const nextStatus = allowed.status ? String(allowed.status).toLowerCase() : priorStatus
+
+  if (
+    building.vacancy_alerts_enabled &&
+    priorStatus === 'occupied' &&
+    nextStatus === 'vacant'
+  ) {
+    await sendVacancyAlert({
+      adminSupabase,
+      organizationId,
+      buildingId: building.id,
+      buildingName: building.name,
+      unitNumber: existingUnit.unit_number,
+      actorUserId: user?.id || null,
+    })
   }
 
   return NextResponse.json({ success: true })

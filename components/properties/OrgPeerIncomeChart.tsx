@@ -3,7 +3,7 @@
 import { TrendingUp } from 'lucide-react'
 import { Bar, BarChart, CartesianGrid, LabelList, XAxis, YAxis } from 'recharts'
 
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from '@/components/ui/chart'
 
 type Row = { property: string; income: number }
@@ -30,9 +30,6 @@ export function OrgPeerIncomeChart({ data, monthLabel }: { data: Row[]; monthLab
     <Card className="h-full">
       <CardHeader>
         <CardTitle>Apartment income comparison</CardTitle>
-        <CardDescription>
-          Monthly rent income across properties {monthLabel ? `(${monthLabel})` : ''}
-        </CardDescription>
       </CardHeader>
 
       <CardContent>
@@ -71,12 +68,12 @@ export function OrgPeerIncomeChart({ data, monthLabel }: { data: Row[]; monthLab
         </ChartContainer>
       </CardContent>
 
-      <CardFooter className="flex-col items-start gap-2 text-sm">
-        <div className="flex gap-2 leading-none font-medium">
-          Comparing properties <TrendingUp className="h-4 w-4" />
+      {monthLabel ? (
+        <div className="px-6 pb-5 text-sm font-medium flex items-center gap-2">
+          <span>{monthLabel}</span>
+          <TrendingUp className="h-4 w-4" />
         </div>
-        <div className="text-muted-foreground leading-none">Values condensed using K/M for readability.</div>
-      </CardFooter>
+      ) : null}
     </Card>
   )
 }

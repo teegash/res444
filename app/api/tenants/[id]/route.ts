@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
+import { sendVacancyAlert } from '@/lib/communications/vacancyAlerts'
 
 const MANAGER_ROLES = new Set(['admin', 'manager', 'caretaker'])
 
@@ -304,8 +305,34 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     const { error: profileError } = await adminSupabase.from('user_profiles').delete().eq('id', tenantId)
     if (profileError) throw profileError
 
+    let unitsToAlert: Array<{
+      id: string
+      unit_number: string | null
+      status: string | null
+      building: { id: string; name: string | null; vacancy_alerts_enabled: boolean | null } | null
+    }> = []
+
     // Vacate units that were occupied by this tenant
     if (unitIds.length) {
+      const { data: unitRows } = await adminSupabase
+        .from('apartment_units')
+        .select(
+          `
+          id,
+          unit_number,
+          status,
+          building:apartment_buildings (
+            id,
+            name,
+            vacancy_alerts_enabled
+          )
+        `
+        )
+        .in('id', unitIds)
+        .eq('organization_id', membership?.organization_id || '')
+
+      unitsToAlert = (unitRows || []) as any[]
+
       const { error: unitError } = await adminSupabase
         .from('apartment_units')
         .update({ status: 'vacant' })
@@ -318,6 +345,20 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     if (error && error.status !== 404) {
       // Log but do not block overall cleanup; return success to avoid leaving dangling data
       console.warn('[Tenants.DELETE] Auth delete warning:', error.message || error)
+    }
+
+    for (const unit of unitsToAlert) {
+      if (!unit?.building?.vacancy_alerts_enabled || !unit?.building?.id) continue
+      const priorStatus = String(unit.status || '').toLowerCase()
+      if (priorStatus !== 'occupied') continue
+      await sendVacancyAlert({
+        adminSupabase,
+        organizationId: membership?.organization_id || '',
+        buildingId: unit.building.id,
+        buildingName: unit.building.name || undefined,
+        unitNumber: unit.unit_number,
+        actorUserId: user?.id || null,
+      })
     }
 
     return NextResponse.json({ success: true })

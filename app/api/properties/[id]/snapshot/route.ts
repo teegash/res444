@@ -48,6 +48,7 @@ export async function GET(req: Request, ctx: { params: { id: string } }) {
   const now = new Date()
   const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - (months - 1), 1))
   const end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()))
+  const yearStart = new Date(Date.UTC(now.getUTCFullYear(), 0, 1))
   const rangeStart = toISODate(start)
   const rangeEnd = toISODate(end)
 
@@ -118,6 +119,7 @@ export async function GET(req: Request, ctx: { params: { id: string } }) {
     monthlyExpenses[key] = (monthlyExpenses[key] || 0) + amt
   }
 
+  const paymentStart = yearStart < start ? yearStart : start
   const { data: payments, error: payErr } = await admin
     .from('payments')
     .select(
@@ -135,7 +137,7 @@ export async function GET(req: Request, ctx: { params: { id: string } }) {
     )
     .eq('organization_id', orgId)
     .eq('verified', true)
-    .gte('payment_date', rangeStart)
+    .gte('payment_date', toISODate(paymentStart))
     .lte('payment_date', rangeEnd)
 
   if (payErr) return NextResponse.json({ success: false, error: payErr.message }, { status: 500 })
@@ -162,6 +164,7 @@ export async function GET(req: Request, ctx: { params: { id: string } }) {
 
   const monthlyPropertyRentIncome: Record<string, number> = {}
   let totalPropertyRentIncome = 0
+  let ytdPropertyRentIncome = 0
   const peerRentIncomeByMonth: Record<string, Record<string, number>> = {}
 
   for (const p of payments || []) {
@@ -175,6 +178,8 @@ export async function GET(req: Request, ctx: { params: { id: string } }) {
     const amt = Number((p as any).amount_paid || 0) || 0
     const d = new Date((p as any).payment_date)
     const mKey = monthKeyUTC(new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1)))
+    const inRange = d >= start && d <= end
+    const inYtd = d >= yearStart && d <= end
 
     const bId = unitToBuilding.get(unitId)
     if (bId) {
@@ -183,8 +188,13 @@ export async function GET(req: Request, ctx: { params: { id: string } }) {
     }
 
     if (unitIds.includes(unitId)) {
-      totalPropertyRentIncome += amt
-      monthlyPropertyRentIncome[mKey] = (monthlyPropertyRentIncome[mKey] || 0) + amt
+      if (inRange) {
+        totalPropertyRentIncome += amt
+        monthlyPropertyRentIncome[mKey] = (monthlyPropertyRentIncome[mKey] || 0) + amt
+      }
+      if (inYtd) {
+        ytdPropertyRentIncome += amt
+      }
     }
   }
 
@@ -236,6 +246,7 @@ export async function GET(req: Request, ctx: { params: { id: string } }) {
       range: { start: rangeStart, end: rangeEnd, months },
       kpis: {
         rent_income: totalPropertyRentIncome,
+        ytd_rent_income: ytdPropertyRentIncome,
         expenses: totalExpenses,
         net: totalPropertyRentIncome - totalExpenses,
         arrears_amount: arrearsAmount,

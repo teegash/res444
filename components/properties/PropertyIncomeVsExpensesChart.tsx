@@ -4,7 +4,7 @@ import { useMemo } from 'react'
 import { Search, TrendingUp } from 'lucide-react'
 import { Bar, BarChart, CartesianGrid, XAxis } from 'recharts'
 
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from '@/components/ui/chart'
 import { Button } from '@/components/ui/button'
 
@@ -48,12 +48,7 @@ export function PropertyIncomeVsExpensesChart({
     <Card className="h-full">
       <CardHeader className="relative">
         <div className="flex items-start justify-between gap-2">
-          <div>
-            <CardTitle>Rent Income vs Expenses</CardTitle>
-            <CardDescription>
-              Showing last {months} months (toggle to {months === 6 ? '12' : '6'} months)
-            </CardDescription>
-          </div>
+          <CardTitle>Rent Income vs Expenses</CardTitle>
 
           <Button
             variant="ghost"
@@ -86,17 +81,14 @@ export function PropertyIncomeVsExpensesChart({
         </ChartContainer>
       </CardContent>
 
-      <CardFooter className="flex-col items-start gap-2 text-sm">
-        {trend !== null ? (
-          <div className="flex gap-2 leading-none font-medium">
-            Income {trend >= 0 ? 'up' : 'down'} by {Math.abs(trend).toFixed(1)}% this month{' '}
-            <TrendingUp className="h-4 w-4" />
-          </div>
-        ) : (
-          <div className="text-muted-foreground leading-none">Trend not available yet.</div>
-        )}
-        <div className="text-muted-foreground leading-none">Blue = rent income, Red = expenses.</div>
-      </CardFooter>
+      {trend !== null ? (
+        <div className="px-6 pb-5 text-sm font-medium flex items-center gap-2">
+          <span>
+            Income {trend >= 0 ? 'up' : 'down'} by {Math.abs(trend).toFixed(1)}% this month
+          </span>
+          <TrendingUp className="h-4 w-4" />
+        </div>
+      ) : null}
     </Card>
   )
 }
