@@ -1,20 +1,21 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { useParams } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import { Sidebar } from '@/components/dashboard/sidebar'
 import { Header } from '@/components/dashboard/header'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Loader2, Download } from 'lucide-react'
+import { ChronoSelect } from '@/components/ui/chrono-select'
+import { Loader2, Download, ArrowLeft } from 'lucide-react'
 import { useToast } from '@/components/ui/use-toast'
 
 export default function TransitionDetailPage() {
   const params = useParams()
+  const router = useRouter()
   const caseId = String((params as any)?.id || '')
   const { toast } = useToast()
 
@@ -25,6 +26,7 @@ export default function TransitionDetailPage() {
 
   const [data, setData] = useState<any>(null)
   const [events, setEvents] = useState<any[]>([])
+  const [expandedEvents, setExpandedEvents] = useState<Record<string, boolean>>({})
 
   const [status, setStatus] = useState('submitted')
   const [stage, setStage] = useState('opened')
@@ -37,6 +39,13 @@ export default function TransitionDetailPage() {
   const [notifyMessage, setNotifyMessage] = useState('')
 
   const signed = data?.signed_urls || {}
+
+  const handoverDateValue = useMemo(() => {
+    if (!handoverDate) return undefined
+    const parsed = new Date(handoverDate)
+    if (Number.isNaN(parsed.getTime())) return undefined
+    return parsed
+  }, [handoverDate])
 
   const load = async () => {
     try {
@@ -73,6 +82,10 @@ export default function TransitionDetailPage() {
     const d = Number(depositDeductions || 0)
     return Math.max(a - d, 0)
   }, [depositAmount, depositDeductions])
+
+  const toggleEvent = (eventId: string) => {
+    setExpandedEvents((prev) => ({ ...prev, [eventId]: !prev[eventId] }))
+  }
 
   const saveUpdates = async () => {
     try {
@@ -140,6 +153,22 @@ export default function TransitionDetailPage() {
       <div className="flex-1">
         <Header />
         <main className="p-6 space-y-6">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <Button
+                variant="ghost"
+                className="px-0"
+                onClick={() => router.back()}
+              >
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                Back
+              </Button>
+              <h1 className="text-3xl font-bold mt-2">Tenant transitions</h1>
+              <p className="text-sm text-muted-foreground">
+                Manage handover, inspections, and deposit settlement.
+              </p>
+            </div>
+          </div>
           {loading ? (
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin" /> Loading...
@@ -195,7 +224,14 @@ export default function TransitionDetailPage() {
 
                   <div>
                     <div className="text-xs text-muted-foreground mb-1">Handover date</div>
-                    <Input value={handoverDate} onChange={(e) => setHandoverDate(e.target.value)} placeholder="YYYY-MM-DD" />
+                    <ChronoSelect
+                      value={handoverDateValue}
+                      onChange={(date) =>
+                        setHandoverDate(date ? date.toISOString().slice(0, 10) : '')
+                      }
+                      placeholder="Select handover date"
+                      className="w-full justify-start"
+                    />
                   </div>
                 </CardContent>
               </Card>
@@ -308,11 +344,22 @@ export default function TransitionDetailPage() {
                       <div key={ev.id} className="text-sm border rounded p-3">
                         <div className="flex items-center justify-between">
                           <span className="font-medium">{ev.action}</span>
-                          <span className="text-xs text-muted-foreground">{ev.created_at || ''}</span>
+                          <div className="flex items-center gap-3">
+                            <button
+                              type="button"
+                              className="text-xs text-blue-600 hover:text-blue-700"
+                              onClick={() => toggleEvent(ev.id)}
+                            >
+                              {expandedEvents[ev.id] ? 'Hide details' : 'View details'}
+                            </button>
+                            <span className="text-xs text-muted-foreground">{ev.created_at || ''}</span>
+                          </div>
                         </div>
-                        <pre className="mt-2 text-xs text-muted-foreground whitespace-pre-wrap">
-                          {JSON.stringify(ev.metadata || {}, null, 2)}
-                        </pre>
+                        {expandedEvents[ev.id] ? (
+                          <pre className="mt-2 text-xs text-muted-foreground whitespace-pre-wrap">
+                            {JSON.stringify(ev.metadata || {}, null, 2)}
+                          </pre>
+                        ) : null}
                       </div>
                     ))
                   )}

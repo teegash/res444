@@ -221,8 +221,6 @@ export function TenantsTable({ searchQuery = '', viewMode = 'list', propertyId }
   const [error, setError] = useState<string | null>(null)
   const [refreshIndex, setRefreshIndex] = useState(0)
   const [ratingFilter, setRatingFilter] = useState<'all' | 'red' | 'orange' | 'yellow' | 'green' | 'none'>('all')
-  const [defaultersFilter, setDefaultersFilter] = useState<'all' | 'defaulters'>('all')
-  const [kickoutFilter, setKickoutFilter] = useState<'all' | 'kickout'>('all')
   const [leaseStatusFilter, setLeaseStatusFilter] = useState<
     'all' | 'valid' | 'renewed' | 'pending' | 'expired' | 'unassigned'
   >('all')
@@ -312,14 +310,6 @@ export function TenantsTable({ searchQuery = '', viewMode = 'list', propertyId }
       })
     }
 
-    if (defaultersFilter === 'defaulters') {
-      list = list.filter((tenant) => Number(tenant.arrears_amount || 0) > 0)
-    }
-
-    if (kickoutFilter === 'kickout') {
-      list = list.filter((tenant) => Boolean(tenant.kick_out_candidate))
-    }
-
     if (leaseStatusFilter !== 'all') {
       list = list.filter((tenant) => (tenant.lease_status || '').toLowerCase() === leaseStatusFilter)
     }
@@ -331,7 +321,7 @@ export function TenantsTable({ searchQuery = '', viewMode = 'list', propertyId }
     }
 
     return list
-  }, [defaultersFilter, kickoutFilter, leaseStatusFilter, paymentFilter, ratingFilter, searchQuery, tenants])
+  }, [leaseStatusFilter, paymentFilter, ratingFilter, searchQuery, tenants])
 
   const viewTenants = useMemo(() => {
     if (loading) {
@@ -356,9 +346,6 @@ export function TenantsTable({ searchQuery = '', viewMode = 'list', propertyId }
         return 'All ratings'
     }
   })()
-
-  const defaultersFilterLabel = defaultersFilter === 'defaulters' ? 'Defaulters only' : 'All tenants'
-  const kickoutFilterLabel = kickoutFilter === 'kickout' ? 'Kick-out candidates' : 'All tenants'
 
   const leaseFilterLabel = (() => {
     switch (leaseStatusFilter) {
@@ -416,14 +403,6 @@ export function TenantsTable({ searchQuery = '', viewMode = 'list', propertyId }
     { value: 'yellow', label: 'Yellow rating' },
     { value: 'green', label: 'Green rating' },
     { value: 'none', label: 'No rating' },
-  ]
-  const defaultersOptions = [
-    { value: 'all', label: 'All tenants' },
-    { value: 'defaulters', label: 'Defaulters only' },
-  ]
-  const kickoutOptions = [
-    { value: 'all', label: 'All tenants' },
-    { value: 'kickout', label: 'Kick-out candidates' },
   ]
   const leaseOptions = [
     { value: 'all', label: 'All statuses' },
@@ -550,20 +529,6 @@ export function TenantsTable({ searchQuery = '', viewMode = 'list', propertyId }
               )}
             </div>
             <div className="flex items-center gap-1">
-              <span className="font-semibold">Defaulters</span>
-              <span className="text-slate-500">{defaultersFilterLabel}</span>
-              {renderFilterMenu(defaultersOptions, defaultersFilter, (value) =>
-                setDefaultersFilter(value as typeof defaultersFilter)
-              )}
-            </div>
-            <div className="flex items-center gap-1">
-              <span className="font-semibold">Kick-out</span>
-              <span className="text-slate-500">{kickoutFilterLabel}</span>
-              {renderFilterMenu(kickoutOptions, kickoutFilter, (value) =>
-                setKickoutFilter(value as typeof kickoutFilter)
-              )}
-            </div>
-            <div className="flex items-center gap-1">
               <span className="font-semibold">Lease status</span>
               <span className="text-slate-500">{leaseFilterLabel}</span>
               {renderFilterMenu(leaseOptions, leaseStatusFilter, (value) =>
@@ -615,7 +580,7 @@ export function TenantsTable({ searchQuery = '', viewMode = 'list', propertyId }
                     </div>
                     {tenant.tenant_user_id ? (
                       <Button variant="outline" size="sm" asChild>
-                        <Link href={buildStatementHref(tenant.tenant_user_id)}>Stmt</Link>
+                        <Link href={`/dashboard/tenants/${tenant.tenant_user_id}/lease`}>Lease</Link>
                       </Button>
                     ) : null}
                   </div>
@@ -691,22 +656,6 @@ export function TenantsTable({ searchQuery = '', viewMode = 'list', propertyId }
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <div className="flex flex-wrap items-center gap-4 border-b bg-slate-50/60 px-4 py-3 text-xs text-slate-600">
-              <div className="flex items-center gap-1">
-                <span className="font-semibold">Defaulters</span>
-                <span className="text-slate-500">{defaultersFilterLabel}</span>
-                {renderFilterMenu(defaultersOptions, defaultersFilter, (value) =>
-                  setDefaultersFilter(value as typeof defaultersFilter)
-                )}
-              </div>
-              <div className="flex items-center gap-1">
-                <span className="font-semibold">Kick-out</span>
-                <span className="text-slate-500">{kickoutFilterLabel}</span>
-                {renderFilterMenu(kickoutOptions, kickoutFilter, (value) =>
-                  setKickoutFilter(value as typeof kickoutFilter)
-                )}
-              </div>
-            </div>
             <Table>
             <TableHeader>
               <TableRow>

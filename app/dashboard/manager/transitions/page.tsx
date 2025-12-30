@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { Sidebar } from '@/components/dashboard/sidebar'
 import { Header } from '@/components/dashboard/header'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
@@ -9,7 +10,7 @@ import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Loader2, Search, ArrowRight } from 'lucide-react'
+import { Loader2, Search, ArrowRight, ArrowLeft } from 'lucide-react'
 
 type TransitionRow = any
 
@@ -23,6 +24,7 @@ const statusColor = (status?: string) => {
 }
 
 export default function ManagerTransitionsPage() {
+  const router = useRouter()
   const [loading, setLoading] = useState(true)
   const [rows, setRows] = useState<TransitionRow[]>([])
   const [error, setError] = useState<string | null>(null)
@@ -67,6 +69,22 @@ export default function ManagerTransitionsPage() {
       <div className="flex-1">
         <Header />
         <main className="p-6 space-y-6">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <Button
+                variant="ghost"
+                className="px-0"
+                onClick={() => router.back()}
+              >
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                Back
+              </Button>
+              <h1 className="text-3xl font-bold mt-2">Tenant transitions</h1>
+              <p className="text-sm text-muted-foreground">
+                Move-out, inspections, deposit settlement, and unit handover tracking.
+              </p>
+            </div>
+          </div>
           <Card>
             <CardHeader>
               <CardTitle>Move-out & Deposit Settlement</CardTitle>
