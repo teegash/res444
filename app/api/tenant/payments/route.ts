@@ -107,6 +107,7 @@ export async function GET() {
         mpesa_response_code,
         invoices (
           invoice_type,
+          created_at,
           due_date,
           leases (
             apartment_units (
@@ -130,6 +131,7 @@ export async function GET() {
     const mapped = (data || []).map((payment) => {
       const invoice = payment.invoices as {
         invoice_type: string | null
+        created_at: string | null
         due_date: string | null
         leases: {
           apartment_units: {
@@ -162,6 +164,7 @@ export async function GET() {
         months_paid: payment.months_paid || 1,
         invoice_type: invoice?.invoice_type || null,
         payment_type: invoice?.invoice_type || null,
+        invoice_created_at: invoice?.created_at || null,
         due_date: invoice?.due_date || null,
         property_name: invoice?.leases?.apartment_units?.apartment_buildings?.name || null,
         unit_label: invoice?.leases?.apartment_units?.unit_number || null,

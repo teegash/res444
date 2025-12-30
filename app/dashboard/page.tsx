@@ -334,17 +334,18 @@ function DashboardContent() {
         const list = (json.data || []) as Array<{
           tenant_id: string
           name: string
-          on_time_rate: number
+          on_time_rate: number | null
           payments: number
         }>
-        const sortedDesc = [...list].sort(
-          (a, b) => b.on_time_rate - a.on_time_rate || b.payments - a.payments
+        const rated = list.filter((tenant) => tenant.on_time_rate !== null)
+        const sortedDesc = [...rated].sort(
+          (a, b) => (b.on_time_rate || 0) - (a.on_time_rate || 0) || b.payments - a.payments
         )
-        const sortedAsc = [...list].sort(
-          (a, b) => a.on_time_rate - b.on_time_rate || b.payments - a.payments
+        const sortedAsc = [...rated].sort(
+          (a, b) => (a.on_time_rate || 0) - (b.on_time_rate || 0) || b.payments - a.payments
         )
-        setTopTenants(sortedDesc.slice(0, 3))
-        setWorstTenants(sortedAsc.slice(0, 3))
+        setTopTenants(sortedDesc.slice(0, 3) as typeof topTenants)
+        setWorstTenants(sortedAsc.slice(0, 3) as typeof worstTenants)
       } catch (err) {
         setRatingsError(err instanceof Error ? err.message : 'Unable to load tenant ratings')
         setTopTenants([])

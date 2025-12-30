@@ -385,30 +385,114 @@ export default function TenantDashboardClient() {
   const hasPending = pendingInvoices.length > 0
   const rentPaidUntil = summary?.lease?.rent_paid_until || null
 
-  const paymentsMade = tenantPayments.length
-  const onTimeRate = useMemo(() => {
-    if (!tenantPayments.length) return 0
-    let onTime = 0
-    tenantPayments.forEach((payment) => {
-      const p: any = payment as any
-      const due = p?.due_date ? new Date(p.due_date) : p?.invoices?.due_date ? new Date(p.invoices.due_date) : null
-      const paid = p?.posted_at ? new Date(p.posted_at) : p?.payment_date ? new Date(p.payment_date) : p?.created_at ? new Date(p.created_at) : null
-      if (due && paid && paid.getTime() <= due.getTime()) {
-        onTime += 1
-      }
+  const toDateOnly = (value?: string | Date | null) => {
+    if (!value) return null
+    const parsed = value instanceof Date ? value : new Date(value)
+    if (Number.isNaN(parsed.getTime())) return null
+    return new Date(Date.UTC(parsed.getUTCFullYear(), parsed.getUTCMonth(), parsed.getUTCDate()))
+  }
+  const isAfterMonth = (a: Date, b: Date) => {
+    if (a.getUTCFullYear() > b.getUTCFullYear()) return true
+    if (a.getUTCFullYear() < b.getUTCFullYear()) return false
+    return a.getUTCMonth() > b.getUTCMonth()
+  }
+  const isBeforeMonth = (a: Date, b: Date) => {
+    if (a.getUTCFullYear() < b.getUTCFullYear()) return true
+    if (a.getUTCFullYear() > b.getUTCFullYear()) return false
+    return a.getUTCMonth() < b.getUTCMonth()
+  }
+  const scorePayment = (dueDate: Date | null, paidDate: Date | null) => {
+    if (!paidDate) return null
+    const paid = toDateOnly(paidDate)
+    if (!paid) return null
+    const due = toDateOnly(dueDate)
+    if (!due) {
+      const day = paid.getUTCDate()
+      if (day <= 5) return 100
+      if (day <= 15) return 90
+      if (day <= 25) return 80
+      return 60
+    }
+    if (isBeforeMonth(paid, due)) return 100
+    if (isAfterMonth(paid, due)) return 60
+    const day = paid.getUTCDate()
+    if (day <= 5) return 100
+    if (day <= 15) return 90
+    if (day <= 25) return 80
+    return 60
+  }
+  const isPastPenaltyDate = (dueDate: Date | null, today: Date) => {
+    const due = toDateOnly(dueDate)
+    if (!due) return false
+    const threshold = new Date(Date.UTC(due.getUTCFullYear(), due.getUTCMonth(), 25))
+    const todayDate = toDateOnly(today)
+    if (!todayDate) return false
+    return todayDate.getTime() >= threshold.getTime()
+  }
+
+  const rentPayments = tenantPayments.filter((payment: any) => {
+    const type = (payment?.invoice_type || payment?.payment_type || 'rent').toLowerCase()
+    const status = (payment?.status || '').toLowerCase()
+    return type === 'rent' && status === 'verified'
+  })
+  const paymentsMade = rentPayments.length
+  const hasPendingInvoices = pendingInvoices.length > 0
+  const onTimeRate = useMemo<number | null>(() => {
+    const scores: number[] = []
+
+    rentPayments.forEach((payment: any) => {
+      const paidDateRaw =
+        payment?.posted_at || payment?.payment_date || payment?.created_at || null
+      const dueDateRaw = payment?.due_date || payment?.invoice_created_at || null
+      const paidDate = paidDateRaw ? new Date(paidDateRaw) : null
+      const dueDate = toDateOnly(dueDateRaw)
+      const score = scorePayment(dueDate, paidDate)
+      if (score !== null) scores.push(score)
     })
-    return Math.round((onTime / tenantPayments.length) * 100)
-  }, [tenantPayments])
+
+    const today = new Date()
+    pendingInvoices
+      .filter((inv) => (inv?.invoice_type || 'rent').toLowerCase() === 'rent')
+      .forEach((inv) => {
+        const dueDate = toDateOnly(inv?.due_date || null)
+        if (isPastPenaltyDate(dueDate, today)) {
+          scores.push(60)
+        }
+      })
+
+    if (scores.length === 0) return null
+    const total = scores.reduce((sum, val) => sum + val, 0)
+    return Math.round(total / scores.length)
+  }, [pendingInvoices, rentPayments])
+
+  const hasRating = onTimeRate !== null
 
   const ratingDot = useMemo(() => {
-    if (onTimeRate >= 95) return 'bg-green-500'
-    if (onTimeRate >= 87) return 'bg-yellow-400'
-    if (onTimeRate >= 80) return 'bg-orange-500'
+    if (onTimeRate === null) return 'bg-slate-300'
+    if (onTimeRate >= 90) return 'bg-green-500'
+    if (onTimeRate >= 80) return 'bg-yellow-400'
+    if (onTimeRate >= 70) return 'bg-orange-500'
     return 'bg-red-500'
   }, [onTimeRate])
 
   const performanceTheme = useMemo(() => {
-    if (onTimeRate >= 95) {
+    if (onTimeRate === null) {
+      return {
+        card: 'border-slate-200/70 bg-gradient-to-br from-slate-50 via-white to-slate-100/80',
+        glow: 'bg-slate-200/40',
+        icon: 'text-slate-500',
+        accentText: 'text-slate-700',
+        subtleText: 'text-slate-600/80',
+        badgeRing: 'ring-slate-200/60',
+        panel: 'border-slate-200/60 bg-gradient-to-br from-white/80 via-slate-50/50 to-slate-100/60',
+        panelText: 'text-slate-900/70',
+        panelMuted: 'text-slate-700/70',
+        labelText: 'text-slate-700/80',
+        trackRing: 'ring-slate-100',
+        progress: 'from-slate-300 via-slate-200 to-slate-300',
+      }
+    }
+    if (onTimeRate >= 90) {
       return {
         card: 'border-emerald-200/60 bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-50',
         glow: 'bg-emerald-200/40',
@@ -424,7 +508,7 @@ export default function TenantDashboardClient() {
         progress: 'from-emerald-500 via-teal-500 to-cyan-500',
       }
     }
-    if (onTimeRate >= 87) {
+    if (onTimeRate >= 80) {
       return {
         card: 'border-amber-200/70 bg-gradient-to-br from-amber-50 via-yellow-50 to-lime-50',
         glow: 'bg-amber-200/40',
@@ -440,7 +524,7 @@ export default function TenantDashboardClient() {
         progress: 'from-amber-400 via-yellow-400 to-lime-400',
       }
     }
-    if (onTimeRate >= 80) {
+    if (onTimeRate >= 70) {
       return {
         card: 'border-orange-200/70 bg-gradient-to-br from-orange-50 via-amber-50 to-yellow-50',
         glow: 'bg-orange-200/40',
@@ -651,14 +735,14 @@ export default function TenantDashboardClient() {
                 Payment Performance
               </CardTitle>
               <p className={`text-sm ${performanceTheme.subtleText}`}>
-                {paymentsMade} payments recorded
+                {hasRating ? `${paymentsMade} payments recorded` : 'No rating yet'}
               </p>
             </div>
             <div
               className={`flex items-center gap-2 rounded-full bg-white/70 px-3 py-1 text-sm font-semibold shadow-sm ring-1 ${performanceTheme.accentText} ${performanceTheme.badgeRing}`}
             >
               <span className={`h-2.5 w-2.5 rounded-full ${ratingDot}`} aria-hidden />
-              {onTimeRate}% on time
+              {hasRating ? `${onTimeRate}% on time` : 'No rating yet'}
             </div>
           </CardHeader>
           <CardContent>
@@ -696,11 +780,13 @@ export default function TenantDashboardClient() {
                 </div>
               </div>
               <div className="space-y-2">
-                <p className={`text-sm ${performanceTheme.labelText}`}>On-time payments</p>
+                <p className={`text-sm ${performanceTheme.labelText}`}>
+                  {hasRating ? 'On-time payments' : 'Rating pending'}
+                </p>
                 <div className={`w-full bg-white/70 h-2 rounded-full overflow-hidden ring-1 ${performanceTheme.trackRing}`}>
                   <div
                     className={`h-2 rounded-full bg-gradient-to-r ${performanceTheme.progress}`}
-                    style={{ width: `${Math.min(onTimeRate, 100)}%` }}
+                    style={{ width: `${hasRating ? Math.min(onTimeRate || 0, 100) : 0}%` }}
                   />
                 </div>
               </div>

@@ -1,35 +1,68 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getOrgContext, assertRole } from '@/lib/auth/org'
+import { startOfMonthUtc } from '@/lib/invoices/rentPeriods'
 
 type PaymentRow = {
   tenant_user_id: string
   payment_date: string | null
   created_at: string | null
-  months_paid: number | null
   invoices: {
-    created_at: string | null
+    due_date: string | null
     invoice_type: string | null
   } | null
 }
 
-function daysBetween(a: Date, b: Date) {
-  const ms = b.getTime() - a.getTime()
-  return Math.floor(ms / (1000 * 60 * 60 * 24))
+function toDateOnly(value?: string | Date | null): Date | null {
+  if (!value) return null
+  const parsed = value instanceof Date ? value : new Date(value)
+  if (Number.isNaN(parsed.getTime())) return null
+  return new Date(Date.UTC(parsed.getUTCFullYear(), parsed.getUTCMonth(), parsed.getUTCDate()))
 }
 
-function scorePayment(invoiceCreated: Date | null, paid: Date | null): number {
-  if (!paid) return 0
+function isAfterMonth(a: Date, b: Date) {
+  if (a.getUTCFullYear() > b.getUTCFullYear()) return true
+  if (a.getUTCFullYear() < b.getUTCFullYear()) return false
+  return a.getUTCMonth() > b.getUTCMonth()
+}
 
-  if (invoiceCreated) {
-    const diffDays = daysBetween(invoiceCreated, paid)
-    if (diffDays > 30) return 60
+function isBeforeMonth(a: Date, b: Date) {
+  if (a.getUTCFullYear() < b.getUTCFullYear()) return true
+  if (a.getUTCFullYear() > b.getUTCFullYear()) return false
+  return a.getUTCMonth() < b.getUTCMonth()
+}
+
+function scorePayment(dueDate: Date | null, paidDate: Date | null): number | null {
+  if (!paidDate) return null
+  const paid = toDateOnly(paidDate)
+  if (!paid) return null
+
+  const due = toDateOnly(dueDate)
+  if (!due) {
+    const day = paid.getUTCDate()
+    if (day <= 5) return 100
+    if (day <= 15) return 90
+    if (day <= 25) return 80
+    return 60
   }
 
-  const day = paid.getDate()
+  if (isBeforeMonth(paid, due)) return 100
+  if (isAfterMonth(paid, due)) return 60
+
+  const day = paid.getUTCDate()
   if (day <= 5) return 100
   if (day <= 15) return 90
-  return 80
+  if (day <= 25) return 80
+  return 60
+}
+
+function isPastPenaltyDate(dueDate: Date | null, today: Date): boolean {
+  const due = toDateOnly(dueDate)
+  if (!due) return false
+  const threshold = new Date(Date.UTC(due.getUTCFullYear(), due.getUTCMonth(), 25))
+  const todayDate = toDateOnly(today)
+  if (!todayDate) return false
+  return todayDate.getTime() >= threshold.getTime()
 }
 
 function ratingBucket(rate: number | null): 'green' | 'yellow' | 'orange' | 'red' | 'none' {
@@ -52,6 +85,121 @@ export async function GET(req: Request) {
 
     const admin = createAdminClient()
 
+    const { data: profiles, error: profileErr } = await admin
+      .from('user_profiles')
+      .select('id, full_name')
+      .eq('organization_id', ctx.organizationId)
+      .eq('role', 'tenant')
+
+    if (profileErr) {
+      console.warn('[TenantRatings] profiles lookup failed', profileErr)
+      return NextResponse.json({ success: false, error: 'Failed to load tenants' }, { status: 500 })
+    }
+
+    const tenants = profiles || []
+    if (tenants.length === 0) {
+      return NextResponse.json({ success: true, data: [] })
+    }
+
+    const tenantIds = tenants.map((t: any) => t.id).filter(Boolean)
+    const nameMap = new Map<string, string>()
+    tenants.forEach((p: any) => {
+      if (p?.id) nameMap.set(p.id, p.full_name || 'Tenant')
+    })
+
+    const { data: leases, error: leaseErr } = await admin
+      .from('leases')
+      .select('id, tenant_user_id, start_date, rent_paid_until, status')
+      .eq('organization_id', ctx.organizationId)
+      .in('tenant_user_id', tenantIds)
+      .in('status', ['active', 'pending', 'renewed'])
+
+    if (leaseErr) {
+      console.error('[TenantRatings] leases query failed', leaseErr)
+      return NextResponse.json({ success: false, error: 'Failed to load leases' }, { status: 500 })
+    }
+
+    const leaseMeta = new Map<
+      string,
+      { tenant_user_id: string; rent_paid_until: string | null; eligible_start: string | null }
+    >()
+
+    ;(leases || []).forEach((lease: any) => {
+      if (!lease?.id || !lease?.tenant_user_id) return
+      const leaseStartDate = lease.start_date ? new Date(lease.start_date) : null
+      const leaseStartMonth = leaseStartDate
+        ? new Date(Date.UTC(leaseStartDate.getUTCFullYear(), leaseStartDate.getUTCMonth(), 1))
+        : null
+      const leaseEligible =
+        leaseStartDate && leaseStartDate.getUTCDate() > 1 && leaseStartMonth
+          ? new Date(Date.UTC(leaseStartMonth.getUTCFullYear(), leaseStartMonth.getUTCMonth() + 1, 1))
+          : leaseStartMonth
+
+      leaseMeta.set(lease.id, {
+        tenant_user_id: lease.tenant_user_id,
+        rent_paid_until: lease.rent_paid_until || null,
+        eligible_start: leaseEligible ? leaseEligible.toISOString() : null,
+      })
+    })
+
+    const leaseIds = Array.from(leaseMeta.keys())
+
+    const tenantScores = new Map<string, { total: number; count: number; payments: number }>()
+    const today = new Date()
+
+    if (leaseIds.length > 0) {
+      const { data: invoices, error: invoiceErr } = await admin
+        .from('invoices')
+        .select('id, lease_id, due_date, status, invoice_type')
+        .in('lease_id', leaseIds)
+
+      if (invoiceErr) {
+        console.error('[TenantRatings] invoices query failed', invoiceErr)
+        return NextResponse.json({ success: false, error: 'Failed to load invoices' }, { status: 500 })
+      }
+
+      ;(invoices || []).forEach((invoice: any) => {
+        const meta = leaseMeta.get(invoice.lease_id)
+        if (!meta) return
+        if ((invoice.invoice_type || 'rent').toLowerCase() !== 'rent') return
+
+        const rentPaidUntilDate = meta.rent_paid_until ? new Date(meta.rent_paid_until) : null
+        const dueDateObj = toDateOnly(invoice.due_date)
+        const eligibleStart = meta.eligible_start ? new Date(meta.eligible_start) : null
+
+        const isCovered =
+          rentPaidUntilDate !== null &&
+          dueDateObj !== null &&
+          !Number.isNaN(dueDateObj.getTime()) &&
+          dueDateObj.getTime() <= rentPaidUntilDate.getTime()
+
+        const isPreStart =
+          eligibleStart !== null &&
+          dueDateObj !== null &&
+          !Number.isNaN(dueDateObj.getTime()) &&
+          startOfMonthUtc(dueDateObj) < startOfMonthUtc(eligibleStart)
+
+        const rawStatus = invoice.status
+        const normalizedPaid =
+          rawStatus === true ||
+          rawStatus === 'paid' ||
+          rawStatus === 'verified' ||
+          rawStatus === 'settled'
+
+        const statusValue =
+          isCovered || isPreStart || normalizedPaid ? true : rawStatus === false ? false : false
+
+        if (!statusValue && isPastPenaltyDate(dueDateObj, today)) {
+          const current = tenantScores.get(meta.tenant_user_id) || { total: 0, count: 0, payments: 0 }
+          tenantScores.set(meta.tenant_user_id, {
+            total: current.total + 60,
+            count: current.count + 1,
+            payments: current.payments,
+          })
+        }
+      })
+    }
+
     const { data: payments, error } = await admin
       .from('payments')
       .select(
@@ -59,9 +207,9 @@ export async function GET(req: Request) {
         tenant_user_id,
         payment_date,
         created_at,
-        months_paid,
-        invoices!inner (
+        invoices (
           created_at,
+          due_date,
           invoice_type
         )
       `
@@ -69,14 +217,13 @@ export async function GET(req: Request) {
       .eq('verified', true)
       .eq('organization_id', ctx.organizationId)
       .not('tenant_user_id', 'is', null)
+      .in('tenant_user_id', tenantIds)
       .eq('invoices.invoice_type', 'rent')
 
     if (error) {
       console.error('[TenantRatings] payments query failed', error)
       return NextResponse.json({ success: false, error: 'Failed to load payments' }, { status: 500 })
     }
-
-    const stats = new Map<string, { weight: number; score: number }>()
 
     ;(payments || []).forEach((row: any) => {
       const p = row as PaymentRow
@@ -89,51 +236,39 @@ export async function GET(req: Request) {
           ? new Date(p.created_at)
           : null
 
-      const invoiceCreated = p.invoices?.created_at ? new Date(p.invoices.created_at) : null
-      const score = scorePayment(invoiceCreated, paidDate)
-      const weight = Math.max(1, Number(p.months_paid || 1))
+      const dueDate = toDateOnly(p.invoices?.due_date || null)
+      const score = scorePayment(dueDate, paidDate)
+      if (score === null) return
 
-      const current = stats.get(tenantId) || { weight: 0, score: 0 }
-      stats.set(tenantId, {
-        weight: current.weight + weight,
-        score: current.score + score * weight,
+      const current = tenantScores.get(tenantId) || { total: 0, count: 0, payments: 0 }
+      tenantScores.set(tenantId, {
+        total: current.total + score,
+        count: current.count + 1,
+        payments: current.payments + 1,
       })
     })
 
-    const tenantIds = Array.from(stats.keys())
-    const nameMap = new Map<string, string>()
-
-    if (tenantIds.length > 0) {
-      const { data: profiles, error: profileErr } = await admin
-        .from('user_profiles')
-        .select('id, full_name')
-        .eq('organization_id', ctx.organizationId)
-        .in('id', tenantIds)
-
-      if (profileErr) {
-        console.warn('[TenantRatings] profiles lookup failed', profileErr)
-      } else {
-        ;(profiles || []).forEach((p: any) => {
-          nameMap.set(p.id, p.full_name || 'Tenant')
-        })
-      }
-    }
-
     let ratings = tenantIds.map((tenantId) => {
-      const s = stats.get(tenantId)!
-      const rate = s.weight > 0 ? Math.round(s.score / s.weight) : 0
+      const s = tenantScores.get(tenantId) || { total: 0, count: 0, payments: 0 }
+      const rate = s.count > 0 ? Math.round(s.total / s.count) : null
       return {
         tenant_id: tenantId,
         name: nameMap.get(tenantId) || 'Tenant',
         on_time_rate: rate,
-        payments: s.weight,
+        payments: s.payments,
         bucket: ratingBucket(rate),
       }
     })
 
     ratings.sort((a, b) => {
-      if (order === 'asc') return a.on_time_rate - b.on_time_rate || b.payments - a.payments
-      return b.on_time_rate - a.on_time_rate || b.payments - a.payments
+      if (order === 'asc') {
+        const aRate = a.on_time_rate ?? Number.POSITIVE_INFINITY
+        const bRate = b.on_time_rate ?? Number.POSITIVE_INFINITY
+        return aRate - bRate || b.payments - a.payments
+      }
+      const aRate = a.on_time_rate ?? Number.NEGATIVE_INFINITY
+      const bRate = b.on_time_rate ?? Number.NEGATIVE_INFINITY
+      return bRate - aRate || b.payments - a.payments
     })
 
     if (limit > 0) ratings = ratings.slice(0, limit)

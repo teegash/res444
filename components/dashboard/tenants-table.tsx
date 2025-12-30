@@ -210,7 +210,7 @@ function TenantActions({
 export function TenantsTable({ searchQuery = '', viewMode = 'list', propertyId }: TenantsTableProps) {
   const { toast } = useToast()
   const [tenants, setTenants] = useState<TenantRecord[]>([])
-  const [ratingsMap, setRatingsMap] = useState<Record<string, { on_time_rate: number; payments: number }>>({})
+  const [ratingsMap, setRatingsMap] = useState<Record<string, { on_time_rate: number | null; payments: number }>>({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [refreshIndex, setRefreshIndex] = useState(0)
@@ -271,11 +271,15 @@ export function TenantsTable({ searchQuery = '', viewMode = 'list', propertyId }
         if (!res.ok || !json.success) {
           throw new Error(json.error || 'Failed to load tenant ratings')
         }
-        const map: Record<string, { on_time_rate: number; payments: number }> = {}
+        const map: Record<string, { on_time_rate: number | null; payments: number }> = {}
         ;(json.data || []).forEach((item: any) => {
           if (item?.tenant_id) {
+            const rate =
+              item.on_time_rate === null || item.on_time_rate === undefined
+                ? null
+                : Number(item.on_time_rate)
             map[item.tenant_id] = {
-              on_time_rate: Number(item.on_time_rate || 0),
+              on_time_rate: Number.isFinite(rate as number) ? (rate as number) : null,
               payments: Number(item.payments || 0),
             }
           }
@@ -705,6 +709,7 @@ export function TenantsTable({ searchQuery = '', viewMode = 'list', propertyId }
               {!loading &&
                 filteredTenants.map((tenant) => {
                   const rating = ratingsMap[tenant.tenant_user_id]
+                  const hasRating = rating?.on_time_rate !== null && rating?.on_time_rate !== undefined
                   const meta = ratingMeta(rating?.on_time_rate)
                   const expired = isLeaseExpired(tenant)
                   return (
@@ -732,9 +737,9 @@ export function TenantsTable({ searchQuery = '', viewMode = 'list', propertyId }
                                     {meta.label}
                                   </p>
                                   <p>
-                                    {rating
-                                      ? `${rating.on_time_rate}% on time • ${rating.payments} payments`
-                                      : 'No payment history yet.'}
+                                    {hasRating
+                                      ? `${rating?.on_time_rate}% on time • ${rating?.payments} payments`
+                                      : 'No rating yet.'}
                                   </p>
                                 </div>
                               </TooltipContent>
