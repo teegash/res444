@@ -62,7 +62,7 @@ export default function ArrearsPage() {
   const [rows, setRows] = useState<ArrearsRow[]>([])
   const [buildings, setBuildings] = useState<Building[]>([])
   const [buildingId, setBuildingId] = useState<string>('all')
-  const [minArrears, setMinArrears] = useState<string>('0')
+  const [minArrears, setMinArrears] = useState<string>('')
   const [summary, setSummary] = useState<{
     active_tenants: number
     defaulters: number

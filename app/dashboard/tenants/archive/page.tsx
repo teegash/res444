@@ -48,6 +48,7 @@ export default function TenantArchivePage() {
               <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                 <div className="relative w-full md:flex-[0_0_50%]">
                   <Input
+                    className="bg-white/70"
                     placeholder="Search by name, email, phone, or unit..."
                     value={searchTerm}
                     onChange={(event) => setSearchTerm(event.target.value)}
@@ -80,19 +81,6 @@ export default function TenantArchivePage() {
                       <Rows4 className="h-4 w-4" />
                     </Button>
                   </div>
-                  <Button
-                    onClick={() => router.push('/dashboard/tenants/new')}
-                    className="gap-2 bg-[#4682B4] hover:bg-[#4682B4]/90"
-                  >
-                    <Plus className="w-4 h-4" />
-                    Add New Tenant
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={() => router.push('/dashboard/tenants/bulk-import')}
-                  >
-                    Bulk Import
-                  </Button>
                 </div>
               </div>
             </div>

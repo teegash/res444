@@ -33,9 +33,9 @@ export default function TransitionDetailPage() {
   const [stage, setStage] = useState('opened')
   const [handoverDate, setHandoverDate] = useState('')
   const [inspectionNotes, setInspectionNotes] = useState('')
-  const [damageCost, setDamageCost] = useState<string>('0')
-  const [depositAmount, setDepositAmount] = useState<string>('0')
-  const [depositDeductions, setDepositDeductions] = useState<string>('0')
+  const [damageCost, setDamageCost] = useState<string>('')
+  const [depositAmount, setDepositAmount] = useState<string>('')
+  const [depositDeductions, setDepositDeductions] = useState<string>('')
   const [refundStatus, setRefundStatus] = useState<string>('not_applicable')
   const [notifyMessage, setNotifyMessage] = useState('')
 
@@ -78,9 +78,9 @@ export default function TransitionDetailPage() {
       setStage(payload.case.stage || 'opened')
       setHandoverDate(payload.case.handover_date || '')
       setInspectionNotes(payload.case.inspection_notes || '')
-      setDamageCost(String(payload.case.damage_cost ?? 0))
-      setDepositAmount(String(payload.case.deposit_amount ?? 0))
-      setDepositDeductions(String(payload.case.deposit_deductions ?? 0))
+      setDamageCost(payload.case.damage_cost ? String(payload.case.damage_cost) : '')
+      setDepositAmount(payload.case.deposit_amount ? String(payload.case.deposit_amount) : '')
+      setDepositDeductions(payload.case.deposit_deductions ? String(payload.case.deposit_deductions) : '')
       setRefundStatus(payload.case.refund_status || 'not_applicable')
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load case.')
@@ -304,14 +304,26 @@ export default function TransitionDetailPage() {
                     <div className="text-xs text-muted-foreground">Inspection notes</div>
                     <Textarea value={inspectionNotes} onChange={(e) => setInspectionNotes(e.target.value)} rows={6} />
                     <div className="text-xs text-muted-foreground">Damage cost (KES)</div>
-                    <Input value={damageCost} onChange={(e) => setDamageCost(e.target.value)} />
+                    <Input
+                      value={damageCost}
+                      onChange={(e) => setDamageCost(e.target.value)}
+                      placeholder="e.g. 2500"
+                    />
                   </div>
 
                   <div className="space-y-2">
                     <div className="text-xs text-muted-foreground">Deposit amount (KES)</div>
-                    <Input value={depositAmount} onChange={(e) => setDepositAmount(e.target.value)} />
+                    <Input
+                      value={depositAmount}
+                      onChange={(e) => setDepositAmount(e.target.value)}
+                      placeholder="e.g. 10000"
+                    />
                     <div className="text-xs text-muted-foreground">Deposit deductions (KES)</div>
-                    <Input value={depositDeductions} onChange={(e) => setDepositDeductions(e.target.value)} />
+                    <Input
+                      value={depositDeductions}
+                      onChange={(e) => setDepositDeductions(e.target.value)}
+                      placeholder="e.g. 1500"
+                    />
                     <div className="text-xs text-muted-foreground">Refund status</div>
                     <Select value={refundStatus} onValueChange={setRefundStatus}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
