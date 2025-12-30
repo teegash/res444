@@ -338,10 +338,11 @@ function DashboardContent() {
           payments: number
         }>
         const rated = list.filter((tenant) => tenant.on_time_rate !== null)
+        const worstCandidates = rated.filter((tenant) => (tenant.on_time_rate || 0) < 90)
         const sortedDesc = [...rated].sort(
           (a, b) => (b.on_time_rate || 0) - (a.on_time_rate || 0) || b.payments - a.payments
         )
-        const sortedAsc = [...rated].sort(
+        const sortedAsc = [...worstCandidates].sort(
           (a, b) => (a.on_time_rate || 0) - (b.on_time_rate || 0) || b.payments - a.payments
         )
         setTopTenants(sortedDesc.slice(0, 3) as typeof topTenants)
@@ -500,7 +501,7 @@ function DashboardContent() {
             )}
 
             {/* Metrics Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4">
               <Link
                 href="/dashboard/properties"
                 className="block rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4682B4]/40"
@@ -510,7 +511,7 @@ function DashboardContent() {
                   <CardContent className="pt-6">
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-sm text-gray-600 mb-1">Total Properties</p>
+                        <p className="text-sm text-gray-600 mb-1 font-semibold">Total Properties</p>
                         <p className="text-3xl font-bold">{overview?.summary?.totalProperties ?? '—'}</p>
                         <p className="text-sm text-green-600 mt-1">Portfolio snapshot</p>
                       </div>
@@ -531,7 +532,7 @@ function DashboardContent() {
                   <CardContent className="pt-6">
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-sm text-gray-600 mb-1">Active Tenants</p>
+                        <p className="text-sm text-gray-600 mb-1 font-semibold">Active Tenants</p>
                         <p className="text-3xl font-bold">{overview?.summary?.totalTenants ?? '—'}</p>
                         <p className="text-sm text-green-600 mt-1">Live occupants</p>
                       </div>
@@ -552,7 +553,7 @@ function DashboardContent() {
                   <CardContent className="pt-6">
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-sm text-gray-600 mb-1">Monthly Revenue</p>
+                        <p className="text-sm text-gray-600 mb-1 font-semibold">Monthly Revenue</p>
                         <p className="text-3xl font-bold">
                           {overview?.summary ? formatCurrency(overview.summary.monthlyRevenue || 0, 'KES') : '—'}
                         </p>
@@ -590,7 +591,7 @@ function DashboardContent() {
                   <CardContent className="pt-6">
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-sm text-gray-600 mb-1">Pending Requests</p>
+                        <p className="text-sm text-gray-600 mb-1 font-semibold">Pending Requests</p>
                         <p className="text-3xl font-bold">{overview?.summary?.pendingRequests ?? '—'}</p>
                         <p className="text-sm text-gray-500 mt-1">Open maintenance</p>
                       </div>
@@ -611,7 +612,7 @@ function DashboardContent() {
                   <CardContent className="pt-6">
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-sm text-gray-600 mb-1">Defaulters</p>
+                        <p className="text-sm text-gray-600 mb-1 font-semibold">Defaulters</p>
                         <p className="text-3xl font-bold">{defaultersSummary?.defaulters ?? '—'}</p>
                         <p className="text-sm text-red-600 mt-1">
                           {defaultersSummary ? `${defaultersSummary.defaulters_pct}% of active tenants` : 'Arrears snapshot'}
@@ -721,71 +722,70 @@ function DashboardContent() {
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <div className="space-y-3">
-                    {ratingsError && <p className="text-sm text-red-600">{ratingsError}</p>}
-                    {!ratingsError && topTenants.length === 0 && (
-                      <p className="text-sm text-gray-500">No tenant ratings yet.</p>
-                    )}
-                    <p className="text-sm font-semibold text-gray-900">Best Tenants</p>
-                    {topTenants.map((tenant) => {
-                      const rate = tenant.on_time_rate || 0
-                      let dot = 'bg-red-500'
-                      if (rate >= 90) dot = 'bg-green-500'
-                      else if (rate >= 80) dot = 'bg-yellow-400'
-                      else if (rate >= 70) dot = 'bg-orange-500'
-                      return (
-                        <div
-                          key={tenant.tenant_id}
-                          className="flex items-center justify-between rounded-lg border border-gray-100 p-3"
-                        >
-                          <div className="flex items-center gap-3">
-                            <span className={`w-3 h-3 rounded-full ${dot}`} aria-hidden />
-                            <div>
-                              <p className="font-semibold text-gray-900">{tenant.name}</p>
-                              <p className="text-xs text-gray-500">{tenant.payments} payments</p>
+                  {ratingsError && <p className="text-sm text-red-600">{ratingsError}</p>}
+                  {!ratingsError && topTenants.length === 0 && worstTenants.length === 0 && (
+                    <p className="text-sm text-gray-500">No tenant ratings yet.</p>
+                  )}
+                  <div className="grid gap-4 lg:grid-cols-2">
+                    <div className="space-y-3">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-gray-700">Best Tenants</p>
+                      {topTenants.map((tenant) => {
+                        const rate = tenant.on_time_rate || 0
+                        let dot = 'bg-red-500'
+                        if (rate >= 90) dot = 'bg-green-500'
+                        else if (rate >= 80) dot = 'bg-yellow-400'
+                        else if (rate >= 70) dot = 'bg-orange-500'
+                        return (
+                          <div
+                            key={tenant.tenant_id}
+                            className="flex items-center justify-between rounded-lg border border-gray-100 p-2"
+                          >
+                            <div className="flex items-center gap-2">
+                              <span className={`w-2.5 h-2.5 rounded-full ${dot}`} aria-hidden />
+                              <div>
+                                <p className="text-sm font-semibold text-gray-900">{tenant.name}</p>
+                                <p className="text-[11px] text-gray-500">{tenant.payments} payments</p>
+                              </div>
                             </div>
+                            <p className="text-sm font-semibold text-gray-900">{rate}%</p>
                           </div>
-                          <p className="font-semibold text-gray-900">{rate}% on time</p>
-                        </div>
-                      )
-                    })}
-                    <div className="mt-6">
+                        )
+                      })}
+                    </div>
+
+                    <div className="space-y-3">
                       <div className="flex items-center justify-between">
-                        <p className="text-sm font-semibold text-gray-900">Worst Tenants</p>
-                        <Link href="/dashboard/tenants" className="text-xs text-primary hover:underline">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-gray-700">Worst Tenants</p>
+                        <Link href="/dashboard/tenants" className="text-[11px] text-primary hover:underline">
                           View tenants
                         </Link>
                       </div>
+                      {worstTenants.length === 0 && !ratingsError && (
+                        <p className="text-sm text-gray-500">No yellow/orange/red tenants yet.</p>
+                      )}
+                      {worstTenants.map((tenant) => {
+                        const rate = tenant.on_time_rate || 0
+                        let dot = 'bg-red-500'
+                        if (rate >= 90) dot = 'bg-green-500'
+                        else if (rate >= 80) dot = 'bg-yellow-400'
+                        else if (rate >= 70) dot = 'bg-orange-500'
 
-                      <div className="mt-3 space-y-3">
-                        {!ratingsError && worstTenants.length === 0 && (
-                          <p className="text-sm text-gray-500">No tenant ratings yet.</p>
-                        )}
-
-                        {worstTenants.map((tenant) => {
-                          const rate = tenant.on_time_rate || 0
-                          let dot = 'bg-red-500'
-                          if (rate >= 90) dot = 'bg-green-500'
-                          else if (rate >= 80) dot = 'bg-yellow-400'
-                          else if (rate >= 70) dot = 'bg-orange-500'
-
-                          return (
-                            <div
-                              key={tenant.tenant_id}
-                              className="flex items-center justify-between rounded-lg border border-gray-100 p-3"
-                            >
-                              <div className="flex items-center gap-3">
-                                <span className={`w-3 h-3 rounded-full ${dot}`} aria-hidden />
-                                <div>
-                                  <p className="font-semibold text-gray-900">{tenant.name}</p>
-                                  <p className="text-xs text-gray-500">{tenant.payments} payments</p>
-                                </div>
+                        return (
+                          <div
+                            key={tenant.tenant_id}
+                            className="flex items-center justify-between rounded-lg border border-gray-100 p-2"
+                          >
+                            <div className="flex items-center gap-2">
+                              <span className={`w-2.5 h-2.5 rounded-full ${dot}`} aria-hidden />
+                              <div>
+                                <p className="text-sm font-semibold text-gray-900">{tenant.name}</p>
+                                <p className="text-[11px] text-gray-500">{tenant.payments} payments</p>
                               </div>
-                              <p className="font-semibold text-gray-900">{rate}%</p>
                             </div>
-                          )
-                        })}
-                      </div>
+                            <p className="text-sm font-semibold text-gray-900">{rate}%</p>
+                          </div>
+                        )
+                      })}
                     </div>
                   </div>
                 </CardContent>

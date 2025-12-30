@@ -1,10 +1,19 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
+import { AgGridReact } from 'ag-grid-react'
+import type { ColDef, GridApi } from 'ag-grid-community'
+import { AllCommunityModule, ModuleRegistry } from 'ag-grid-community'
+import { ArrowLeft } from 'lucide-react'
+import { Sidebar } from '@/components/dashboard/sidebar'
+import { Header } from '@/components/dashboard/header'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+
+ModuleRegistry.registerModules([AllCommunityModule])
 
 type ArrearsRow = {
   organization_id: string
@@ -32,7 +41,24 @@ function formatKES(value: number) {
   return `KES ${Math.round(value).toLocaleString()}`
 }
 
+function toDateOnly(value?: string | null) {
+  if (!value) return null
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) return null
+  return new Date(Date.UTC(parsed.getUTCFullYear(), parsed.getUTCMonth(), parsed.getUTCDate()))
+}
+
+function isOverdueTwoMonths(oldestDue?: string | null) {
+  const due = toDateOnly(oldestDue)
+  if (!due) return false
+  const today = new Date()
+  const threshold = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() - 2, today.getUTCDate()))
+  return due.getTime() <= threshold.getTime()
+}
+
 export default function ArrearsPage() {
+  const router = useRouter()
+  const gridApiRef = useRef<GridApi | null>(null)
   const [rows, setRows] = useState<ArrearsRow[]>([])
   const [buildings, setBuildings] = useState<Building[]>([])
   const [buildingId, setBuildingId] = useState<string>('all')
@@ -46,6 +72,48 @@ export default function ArrearsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [q, setQ] = useState('')
+
+  const colDefs = useMemo<ColDef<ArrearsRow>[]>(() => {
+    return [
+      { headerName: 'Unit', field: 'unit_number', width: 110 },
+      { headerName: 'Tenant', field: 'tenant_name', minWidth: 180, flex: 1 },
+      { headerName: 'Phone', field: 'tenant_phone', minWidth: 140 },
+      { headerName: 'Building', field: 'building_name', minWidth: 160, flex: 1 },
+      {
+        headerName: 'Arrears',
+        field: 'arrears_amount',
+        minWidth: 140,
+        valueFormatter: (p) => formatKES(Number(p.value || 0)),
+        cellClass: (p) => {
+          if (!p.data) return ''
+          if (isOverdueTwoMonths(p.data.oldest_due_date)) return 'text-red-600 font-semibold'
+          return Number(p.value || 0) > 0 ? 'text-orange-500 font-semibold' : ''
+        },
+      },
+      { headerName: 'Oldest Due', field: 'oldest_due_date', minWidth: 130 },
+      { headerName: 'Open Invoices', field: 'open_invoices_count', minWidth: 120 },
+      {
+        headerName: 'Actions',
+        minWidth: 210,
+        cellRenderer: (p: any) => {
+          const row = p.data as ArrearsRow | undefined
+          if (!row?.tenant_user_id) return <span className="text-slate-400">—</span>
+          const statementHref = `/dashboard/manager/statements/${row.tenant_user_id}?leaseId=${row.lease_id}`
+          const leaseHref = `/dashboard/tenants/${row.tenant_user_id}/lease`
+          return (
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={() => router.push(leaseHref)}>
+                View Lease
+              </Button>
+              <Button size="sm" onClick={() => router.push(statementHref)}>
+                View Stmt
+              </Button>
+            </div>
+          )
+        },
+      },
+    ]
+  }, [router])
 
   useEffect(() => {
     let mounted = true
@@ -104,167 +172,154 @@ export default function ArrearsPage() {
     })
   }, [rows, q])
 
+  useEffect(() => {
+    gridApiRef.current?.setGridOption('quickFilterText', q)
+  }, [q])
+
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6">
-      <div className="flex items-start justify-between gap-4 flex-wrap">
-        <div>
-          <h1 className="text-3xl font-bold">Rent Arrears</h1>
-          <p className="text-sm text-muted-foreground">
-            Rent-only arrears computed from unpaid/overdue rent invoices (verified payments only).
-          </p>
-        </div>
+    <div className="flex min-h-screen bg-slate-50">
+      <Sidebar />
+      <div className="flex-1 flex flex-col">
+        <Header />
+        <main className="flex-1 p-6 overflow-auto">
+          <div className="max-w-7xl mx-auto space-y-6">
+            <div className="flex items-start justify-between gap-4 flex-wrap">
+              <div className="space-y-2">
+                <Button variant="ghost" className="gap-2 px-0" onClick={() => router.back()}>
+                  <ArrowLeft className="h-4 w-4" />
+                  Back
+                </Button>
+                <div>
+                  <h1 className="text-3xl font-bold">Active tenants</h1>
+                  <p className="text-sm text-muted-foreground">
+                    Rent-only arrears computed from unpaid/overdue rent invoices.
+                  </p>
+                </div>
+              </div>
 
-        <div className="w-full sm:w-96">
-          <Input
-            placeholder="Search unit, tenant, phone…"
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-          />
-        </div>
+              <div className="w-full sm:w-96">
+                <Input
+                  placeholder="Search unit, tenant, phone…"
+                  value={q}
+                  onChange={(e) => setQ(e.target.value)}
+                />
+              </div>
+            </div>
+
+            {summary && (
+              <Card className="border-0 bg-gradient-to-br from-white via-slate-50 to-slate-100 shadow-md">
+                <CardContent className="p-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                  <div className="rounded-xl border bg-white/90 p-4 shadow-sm">
+                    <p className="text-xs text-muted-foreground">Active tenants</p>
+                    <p className="text-2xl font-bold text-slate-900">{summary.active_tenants}</p>
+                  </div>
+                  <div className="rounded-xl border bg-white/90 p-4 shadow-sm">
+                    <p className="text-xs text-muted-foreground">Defaulters</p>
+                    <p className="text-2xl font-bold text-rose-700">{summary.defaulters}</p>
+                  </div>
+                  <div className="rounded-xl border bg-white/90 p-4 shadow-sm">
+                    <p className="text-xs text-muted-foreground">Defaulters rate</p>
+                    <p className="text-2xl font-bold text-amber-700">{summary.defaulters_pct}%</p>
+                  </div>
+                  <div className="rounded-xl border bg-white/90 p-4 shadow-sm">
+                    <p className="text-xs text-muted-foreground">Total arrears</p>
+                    <p className="text-2xl font-bold text-slate-900">
+                      {formatKES(summary.total_arrears_amount || 0)}
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            <Card className="border-0 shadow-md">
+              <CardHeader>
+                <CardTitle>Filters</CardTitle>
+              </CardHeader>
+              <CardContent className="flex gap-3 flex-wrap items-center">
+                <div className="w-full sm:w-72">
+                  <select
+                    className="w-full border rounded-md h-10 px-3 text-sm bg-white"
+                    value={buildingId}
+                    onChange={(e) => setBuildingId(e.target.value)}
+                  >
+                    <option value="all">All buildings</option>
+                    {buildings.map((b) => (
+                      <option key={b.id} value={b.id}>
+                        {b.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="w-full sm:w-56">
+                  <Input
+                    placeholder="Min arrears (KES)"
+                    value={minArrears}
+                    onChange={(e) => setMinArrears(e.target.value)}
+                  />
+                </div>
+
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setBuildingId('all')
+                    setMinArrears('0')
+                    setQ('')
+                  }}
+                >
+                  Reset
+                </Button>
+              </CardContent>
+            </Card>
+
+            {loading && (
+              <Card>
+                <CardContent className="p-6 text-sm text-muted-foreground">Loading arrears…</CardContent>
+              </Card>
+            )}
+
+            {error && (
+              <Card>
+                <CardContent className="p-6 text-sm text-destructive">{error}</CardContent>
+              </Card>
+            )}
+
+            {!loading && !error && (
+              <Card className="border-0 shadow-lg">
+                <CardHeader className="flex flex-row items-center justify-between">
+                  <CardTitle>Leases in arrears ({filtered.length})</CardTitle>
+                  <div className="text-xs text-muted-foreground">
+                    Orange = recent • Red = 2+ months overdue
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="ag-theme-quartz w-full h-[520px] rounded-xl border border-slate-200 bg-white overflow-auto">
+                    <AgGridReact<ArrearsRow>
+                      rowData={filtered}
+                      columnDefs={colDefs}
+                      defaultColDef={{
+                        sortable: true,
+                        resizable: true,
+                        filter: true,
+                        floatingFilter: true,
+                        minWidth: 110,
+                      }}
+                      pagination
+                      paginationPageSize={25}
+                      rowSelection={{ mode: 'single' }}
+                      theme="legacy"
+                      onGridReady={(params) => {
+                        gridApiRef.current = params.api
+                        params.api.setGridOption('quickFilterText', q)
+                      }}
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        </main>
       </div>
-
-      <div className="flex gap-3 flex-wrap items-center">
-        <div className="w-full sm:w-72">
-          <select
-            className="w-full border rounded-md h-10 px-3 text-sm bg-white"
-            value={buildingId}
-            onChange={(e) => setBuildingId(e.target.value)}
-          >
-            <option value="all">All buildings</option>
-            {buildings.map((b) => (
-              <option key={b.id} value={b.id}>
-                {b.name}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div className="w-full sm:w-56">
-          <Input
-            placeholder="Min arrears (KES)"
-            value={minArrears}
-            onChange={(e) => setMinArrears(e.target.value)}
-          />
-        </div>
-
-        <Button
-          variant="outline"
-          onClick={() => {
-            setBuildingId('all')
-            setMinArrears('0')
-            setQ('')
-          }}
-        >
-          Reset
-        </Button>
-      </div>
-
-      {summary && (
-        <Card>
-          <CardContent className="p-6 flex flex-wrap gap-6 text-sm">
-            <div>
-              <p className="text-muted-foreground">Active tenants</p>
-              <p className="text-xl font-bold">{summary.active_tenants}</p>
-            </div>
-            <div>
-              <p className="text-muted-foreground">Defaulters</p>
-              <p className="text-xl font-bold">{summary.defaulters}</p>
-            </div>
-            <div>
-              <p className="text-muted-foreground">Defaulters rate</p>
-              <p className="text-xl font-bold">{summary.defaulters_pct}%</p>
-            </div>
-            <div>
-              <p className="text-muted-foreground">Total arrears</p>
-              <p className="text-xl font-bold">{formatKES(summary.total_arrears_amount || 0)}</p>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {loading && (
-        <Card>
-          <CardContent className="p-6 text-sm text-muted-foreground">Loading arrears…</CardContent>
-        </Card>
-      )}
-
-      {error && (
-        <Card>
-          <CardContent className="p-6 text-sm text-destructive">{error}</CardContent>
-        </Card>
-      )}
-
-      {!loading && !error && (
-        <Card>
-          <CardHeader>
-            <CardTitle>
-              Leases in arrears ({filtered.length})
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="text-left text-muted-foreground">
-                <tr className="border-b">
-                  <th className="py-2 pr-4">Unit</th>
-                  <th className="py-2 pr-4">Building</th>
-                  <th className="py-2 pr-4">Tenant</th>
-                  <th className="py-2 pr-4">Phone</th>
-                  <th className="py-2 pr-4">Arrears</th>
-                  <th className="py-2 pr-4">Oldest Due</th>
-                  <th className="py-2 pr-4">Open Invoices</th>
-                  <th className="py-2 pr-4">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((r) => (
-                  <tr key={r.lease_id} className="border-b last:border-b-0">
-                    <td className="py-2 pr-4 font-medium">{r.unit_number ?? '-'}</td>
-                    <td className="py-2 pr-4">
-                      <div className="font-medium">{r.building_name ?? '-'}</div>
-                      {r.building_location && (
-                        <div className="text-xs text-muted-foreground">{r.building_location}</div>
-                      )}
-                    </td>
-                    <td className="py-2 pr-4">{r.tenant_name ?? '-'}</td>
-                    <td className="py-2 pr-4">{r.tenant_phone ?? '-'}</td>
-                    <td className="py-2 pr-4 font-semibold">{formatKES(r.arrears_amount || 0)}</td>
-                    <td className="py-2 pr-4">{r.oldest_due_date ?? '-'}</td>
-                    <td className="py-2 pr-4">{r.open_invoices_count ?? 0}</td>
-                    <td className="py-2 pr-4">
-                      <div className="flex gap-2">
-                        {r.tenant_user_id ? (
-                          <Button asChild variant="outline" size="sm">
-                            <Link href={`/dashboard/tenants/${r.tenant_user_id}/lease`}>
-                              View Lease
-                            </Link>
-                          </Button>
-                        ) : (
-                          <Button variant="outline" size="sm" disabled>
-                            View Lease
-                          </Button>
-                        )}
-                        <Button asChild variant="outline" size="sm">
-                          <Link href={`/dashboard/payments?lease_id=${r.lease_id}&type=rent&status=unpaid`}>
-                            View Invoices
-                          </Link>
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-
-                {filtered.length === 0 && (
-                  <tr>
-                    <td colSpan={8} className="py-8 text-center text-muted-foreground">
-                      No rent arrears found.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </CardContent>
-        </Card>
-      )}
     </div>
   )
 }
