@@ -77,6 +77,16 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
 
   const { adminSupabase, building } = authContext
 
+  const { data: org, error: orgError } = await adminSupabase
+    .from('organizations')
+    .select('name')
+    .eq('id', building.organization_id)
+    .maybeSingle()
+
+  if (orgError) {
+    console.warn('[GET /api/properties/[id]] Failed to load organization name', orgError)
+  }
+
   const { count: totalUnitsCount, error: totalCountError } = await adminSupabase
     .from('apartment_units')
     .select('id', { head: true, count: 'exact' })
@@ -106,6 +116,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
       description: building.description,
       imageUrl: building.image_url,
       organizationId: building.organization_id,
+      organizationName: org?.name || null,
       county: null,
       createdAt: building.created_at,
       updatedAt: building.updated_at,

@@ -10,7 +10,8 @@ import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Loader2, Search, ArrowRight, ArrowLeft } from 'lucide-react'
+import { Loader2, Search, ArrowRight, ArrowLeft, Download } from 'lucide-react'
+import { exportRowsAsCSV, exportRowsAsExcel, exportRowsAsPDF, ExportColumn } from '@/lib/export/download'
 
 type TransitionRow = any
 
@@ -21,6 +22,18 @@ const statusColor = (status?: string) => {
   if (s === 'approved') return 'bg-blue-100 text-blue-800'
   if (s === 'acknowledged') return 'bg-amber-100 text-amber-800'
   return 'bg-purple-100 text-purple-800'
+}
+
+const formatDate = (value?: string | null) => {
+  if (!value) return '—'
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) return '—'
+  return parsed.toLocaleDateString()
+}
+
+const formatCurrency = (value?: number | null) => {
+  if (value === null || value === undefined || Number.isNaN(Number(value))) return '—'
+  return `KES ${Number(value).toLocaleString()}`
 }
 
 export default function ManagerTransitionsPage() {
@@ -63,6 +76,42 @@ export default function ManagerTransitionsPage() {
 
   const visible = useMemo(() => rows, [rows])
 
+  const exportColumns: ExportColumn<TransitionRow>[] = [
+    { header: 'Tenant', accessor: (row) => row.tenant?.full_name || 'Tenant' },
+    { header: 'Unit', accessor: (row) => row.unit?.unit_number || '—' },
+    { header: 'Property', accessor: (row) => row.unit?.building?.name || 'Property' },
+    { header: 'Case Type', accessor: (row) => row.case_type || '—' },
+    { header: 'Status', accessor: (row) => row.status || '—' },
+    { header: 'Stage', accessor: (row) => row.stage || '—' },
+    { header: 'Expected Vacate', accessor: (row) => formatDate(row.expected_vacate_date) },
+    { header: 'Handover', accessor: (row) => formatDate(row.handover_date) },
+    { header: 'Actual Vacate', accessor: (row) => formatDate(row.actual_vacate_date) },
+    { header: 'Deposit', accessor: (row) => formatCurrency(row.deposit_amount) },
+    { header: 'Deductions', accessor: (row) => formatCurrency(row.deposit_deductions) },
+    { header: 'Refund', accessor: (row) => formatCurrency(row.deposit_refund_amount) },
+    { header: 'Refund Status', accessor: (row) => row.refund_status || '—' },
+    { header: 'Damage Cost', accessor: (row) => formatCurrency(row.damage_cost) },
+    { header: 'Created', accessor: (row) => formatDate(row.created_at) },
+  ]
+
+  const handleExport = async (format: 'pdf' | 'excel' | 'csv') => {
+    const filename = `tenant-transitions-${new Date().toISOString().slice(0, 10)}`
+    const subtitle = `Status: ${status}. Stage: ${stage}. Type: ${caseType}. Search: ${search || '—'}.`
+    const letterhead = { documentTitle: 'Tenant Transitions', generatedAtISO: new Date().toISOString() }
+
+    if (format === 'pdf') {
+      await exportRowsAsPDF(filename, exportColumns, visible, {
+        title: 'Tenant Transitions',
+        subtitle,
+        orientation: 'landscape',
+      })
+    } else if (format === 'excel') {
+      await exportRowsAsExcel(filename, exportColumns, visible, undefined, { letterhead })
+    } else {
+      await exportRowsAsCSV(filename, exportColumns, visible, undefined, { letterhead })
+    }
+  }
+
   return (
     <div className="flex min-h-screen bg-background">
       <Sidebar />
@@ -91,6 +140,25 @@ export default function ManagerTransitionsPage() {
               <CardDescription>Track vacate/relocation/eviction transitions, inspections, and refunds.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <p className="text-sm text-muted-foreground">
+                  Showing {visible.length} case{visible.length === 1 ? '' : 's'}.
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <Button variant="outline" onClick={() => handleExport('pdf')} disabled={loading || visible.length === 0}>
+                    <Download className="h-4 w-4 mr-2" />
+                    PDF
+                  </Button>
+                  <Button variant="outline" onClick={() => handleExport('excel')} disabled={loading || visible.length === 0}>
+                    <Download className="h-4 w-4 mr-2" />
+                    Excel
+                  </Button>
+                  <Button variant="outline" onClick={() => handleExport('csv')} disabled={loading || visible.length === 0}>
+                    <Download className="h-4 w-4 mr-2" />
+                    CSV
+                  </Button>
+                </div>
+              </div>
               <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
                 <div className="relative">
                   <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
