@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 
@@ -86,7 +86,7 @@ function summarizeLeaseState(
   }
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient()
     const {
@@ -114,6 +114,8 @@ export async function GET() {
     if (!membership?.organization_id) {
       return NextResponse.json({ success: false, error: 'Organization not found.' }, { status: 403 })
     }
+
+    const defaultersOnly = request.nextUrl.searchParams.get('defaulters') === '1'
 
     if (membership?.role) userRole = membership.role
     const isCaretaker = userRole === 'caretaker'
@@ -359,6 +361,54 @@ export async function GET() {
       }
     }
 
+    const riskMap = new Map<
+      string,
+      {
+        arrears_amount: number
+        open_invoices_count: number
+        oldest_due_date: string | null
+        rating_percentage: number | null
+        scored_items_count: number
+      }
+    >()
+    const kickoutMap = new Map<
+      string,
+      { kick_out_candidate: boolean; monthly_rent: number | null }
+    >()
+
+    const { data: riskRows } = await adminSupabase
+      .from('vw_tenant_risk_summary')
+      .select('tenant_user_id, arrears_amount, open_invoices_count, oldest_due_date, rating_percentage, scored_items_count')
+      .eq('organization_id', membership.organization_id)
+
+    ;(riskRows || []).forEach((row: any) => {
+      riskMap.set(row.tenant_user_id, {
+        arrears_amount: Number(row.arrears_amount || 0),
+        open_invoices_count: Number(row.open_invoices_count || 0),
+        oldest_due_date: row.oldest_due_date || null,
+        rating_percentage:
+          row.rating_percentage === null || row.rating_percentage === undefined
+            ? null
+            : Number(row.rating_percentage),
+        scored_items_count: Number(row.scored_items_count || 0),
+      })
+    })
+
+    const { data: kickRows } = await adminSupabase
+      .from('vw_tenant_kickout_signal')
+      .select('tenant_user_id, monthly_rent, kick_out_candidate')
+      .eq('organization_id', membership.organization_id)
+
+    ;(kickRows || []).forEach((row: any) => {
+      kickoutMap.set(row.tenant_user_id, {
+        kick_out_candidate: Boolean(row.kick_out_candidate),
+        monthly_rent:
+          row.monthly_rent === null || row.monthly_rent === undefined
+            ? null
+            : Number(row.monthly_rent),
+      })
+    })
+
     const payload = profiles.map((profile: any) => {
       const authUser = authMap.get(profile.id)
       const lease = leaseMap.get(profile.id) || null
@@ -388,6 +438,9 @@ export async function GET() {
             detail: 'Lease details will appear once assigned to a unit.',
             latestPaymentDate: null,
           }
+
+      const risk = riskMap.get(profile.id)
+      const kickout = kickoutMap.get(profile.id)
 
       return {
         lease_id: lease?.id || null,
@@ -422,6 +475,13 @@ export async function GET() {
         payment_status: paymentStatus.status,
         payment_status_detail: paymentStatus.detail,
         last_payment_date: paymentStatus.latestPaymentDate,
+        arrears_amount: risk?.arrears_amount ?? 0,
+        open_invoices_count: risk?.open_invoices_count ?? 0,
+        oldest_due_date: risk?.oldest_due_date ?? null,
+        rating_percentage: risk?.rating_percentage ?? null,
+        scored_items_count: risk?.scored_items_count ?? 0,
+        kick_out_candidate: kickout?.kick_out_candidate ?? false,
+        kickout_monthly_rent: kickout?.monthly_rent ?? null,
       }
     })
 
@@ -429,6 +489,10 @@ export async function GET() {
       isCaretaker && propertyScope
         ? payload.filter((tenant: any) => tenant?.unit?.building_id === propertyScope)
         : payload
+
+    const filteredPayload = defaultersOnly
+      ? scopedPayload.filter((tenant: any) => Number(tenant?.arrears_amount || 0) > 0)
+      : scopedPayload
 
     try {
       const expiredTenants = scopedPayload.filter(
@@ -527,7 +591,7 @@ export async function GET() {
       console.error('[Tenants.GET] lease-expired notifications failed', notifyErr)
     }
 
-    return NextResponse.json({ success: true, data: scopedPayload })
+    return NextResponse.json({ success: true, data: filteredPayload })
   } catch (error) {
     console.error('[Tenants.GET] Failed to fetch tenants', error)
     return NextResponse.json(

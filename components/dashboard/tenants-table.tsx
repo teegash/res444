@@ -61,6 +61,13 @@ type TenantRecord = {
   payment_status_detail?: string
   last_payment_date?: string | null
   unit_label: string
+  arrears_amount?: number
+  open_invoices_count?: number
+  oldest_due_date?: string | null
+  rating_percentage?: number | null
+  scored_items_count?: number
+  kick_out_candidate?: boolean
+  kickout_monthly_rent?: number | null
 }
 
 interface TenantsTableProps {
@@ -215,6 +222,7 @@ export function TenantsTable({ searchQuery = '', viewMode = 'list', propertyId }
   const [error, setError] = useState<string | null>(null)
   const [refreshIndex, setRefreshIndex] = useState(0)
   const [ratingFilter, setRatingFilter] = useState<'all' | 'red' | 'orange' | 'yellow' | 'green' | 'none'>('all')
+  const [defaultersFilter, setDefaultersFilter] = useState<'all' | 'defaulters'>('all')
   const [leaseStatusFilter, setLeaseStatusFilter] = useState<
     'all' | 'valid' | 'renewed' | 'pending' | 'expired' | 'unassigned'
   >('all')
@@ -241,7 +249,8 @@ export function TenantsTable({ searchQuery = '', viewMode = 'list', propertyId }
       setLoading(true)
       setError(null)
       try {
-        const response = await fetch('/api/tenants', { cache: 'no-store' })
+        const qs = defaultersFilter === 'defaulters' ? '?defaulters=1' : ''
+        const response = await fetch(`/api/tenants${qs}`, { cache: 'no-store' })
         if (!response.ok) {
           const errorPayload = await response.json().catch(() => ({}))
           throw new Error(errorPayload.error || 'Failed to fetch tenants.')
@@ -261,7 +270,7 @@ export function TenantsTable({ searchQuery = '', viewMode = 'list', propertyId }
     }
 
     fetchTenants()
-  }, [refreshIndex])
+  }, [defaultersFilter, propertyId, refreshIndex])
 
   useEffect(() => {
     const fetchRatings = async () => {
@@ -330,8 +339,9 @@ export function TenantsTable({ searchQuery = '', viewMode = 'list', propertyId }
 
     if (ratingFilter !== 'all') {
       list = list.filter((tenant) => {
-        const rating = ratingsMap[tenant.tenant_user_id]
-        return ratingBucket(rating?.on_time_rate) === ratingFilter
+        const ratingValue =
+          ratingsMap[tenant.tenant_user_id]?.on_time_rate ?? tenant.rating_percentage ?? null
+        return ratingBucket(ratingValue) === ratingFilter
       })
     }
 
@@ -371,6 +381,8 @@ export function TenantsTable({ searchQuery = '', viewMode = 'list', propertyId }
         return 'All ratings'
     }
   })()
+
+  const defaultersFilterLabel = defaultersFilter === 'defaulters' ? 'Defaulters only' : 'All tenants'
 
   const leaseFilterLabel = (() => {
     switch (leaseStatusFilter) {
@@ -428,6 +440,10 @@ export function TenantsTable({ searchQuery = '', viewMode = 'list', propertyId }
     { value: 'yellow', label: 'Yellow rating' },
     { value: 'green', label: 'Green rating' },
     { value: 'none', label: 'No rating' },
+  ]
+  const defaultersOptions = [
+    { value: 'all', label: 'All tenants' },
+    { value: 'defaulters', label: 'Defaulters only' },
   ]
   const leaseOptions = [
     { value: 'all', label: 'All statuses' },
@@ -554,6 +570,13 @@ export function TenantsTable({ searchQuery = '', viewMode = 'list', propertyId }
               )}
             </div>
             <div className="flex items-center gap-1">
+              <span className="font-semibold">Defaulters</span>
+              <span className="text-slate-500">{defaultersFilterLabel}</span>
+              {renderFilterMenu(defaultersOptions, defaultersFilter, (value) =>
+                setDefaultersFilter(value as typeof defaultersFilter)
+              )}
+            </div>
+            <div className="flex items-center gap-1">
               <span className="font-semibold">Lease status</span>
               <span className="text-slate-500">{leaseFilterLabel}</span>
               {renderFilterMenu(leaseOptions, leaseStatusFilter, (value) =>
@@ -573,7 +596,14 @@ export function TenantsTable({ searchQuery = '', viewMode = 'list', propertyId }
         {viewMode === 'grid' ? (
           <div className="p-4">
             <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-              {viewTenants.map((tenant) => (
+              {viewTenants.map((tenant) => {
+                const ratingValue =
+                  ratingsMap[tenant.tenant_user_id]?.on_time_rate ?? tenant.rating_percentage ?? null
+                const ratingInfo = ratingMeta(ratingValue ?? undefined)
+                const hasRating = ratingValue !== null && ratingValue !== undefined
+                const arrearsAmount = Number(tenant.arrears_amount || 0)
+                const hasArrears = arrearsAmount > 0
+                return (
                 <div
                   key={`card-${tenant.tenant_user_id}`}
                   className={`rounded-xl border shadow-sm transition-shadow ${
@@ -627,6 +657,27 @@ export function TenantsTable({ searchQuery = '', viewMode = 'list', propertyId }
                         {tenant.payment_status}
                       </Badge>
                     </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-muted-foreground">Rating</span>
+                      <span className="inline-flex items-center gap-2">
+                        <span className={`h-2.5 w-2.5 rounded-full ${ratingInfo.color}`} />
+                        <span className="font-medium">
+                          {hasRating ? `${ratingValue}%` : 'No rating'}
+                        </span>
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-muted-foreground">Arrears</span>
+                      <Badge variant={hasArrears ? 'destructive' : 'outline'}>
+                        {hasArrears ? formatCurrency(arrearsAmount) : 'No arrears'}
+                      </Badge>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-muted-foreground">Kick-out</span>
+                      <Badge variant={tenant.kick_out_candidate ? 'destructive' : 'outline'}>
+                        {tenant.kick_out_candidate ? 'Review' : 'No'}
+                      </Badge>
+                    </div>
                     <div className="grid grid-cols-2 gap-2 pt-3">
                       <Button size="sm" variant="outline" onClick={() => setEditTenant(tenant)}>
                         Edit
@@ -643,7 +694,7 @@ export function TenantsTable({ searchQuery = '', viewMode = 'list', propertyId }
                     </div>
                   </div>
                 </div>
-              ))}
+              )})}
               {viewTenants.length === 0 && (
                 <div className="col-span-full text-center text-sm text-muted-foreground py-12">
                   No tenants found.
@@ -677,6 +728,14 @@ export function TenantsTable({ searchQuery = '', viewMode = 'list', propertyId }
                 </TableHead>
                 <TableHead>
                   <div className="flex items-center gap-1">
+                    <span>Defaulters</span>
+                    {renderFilterMenu(defaultersOptions, defaultersFilter, (value) =>
+                      setDefaultersFilter(value as typeof defaultersFilter)
+                    )}
+                  </div>
+                </TableHead>
+                <TableHead>
+                  <div className="flex items-center gap-1">
                     <span>Payment Status</span>
                     {renderFilterMenu(paymentOptions, paymentFilter, (value) =>
                       setPaymentFilter(value as typeof paymentFilter)
@@ -684,13 +743,14 @@ export function TenantsTable({ searchQuery = '', viewMode = 'list', propertyId }
                   </div>
                 </TableHead>
                 <TableHead>Lease Start</TableHead>
+                <TableHead>Kick-out</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {loading && (
                 <TableRow>
-                  <TableCell colSpan={8} className="py-6">
+                  <TableCell colSpan={10} className="py-6">
                     <SkeletonTable rows={4} columns={6} />
                   </TableCell>
                 </TableRow>
@@ -698,7 +758,7 @@ export function TenantsTable({ searchQuery = '', viewMode = 'list', propertyId }
 
               {!loading && filteredTenants.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={8} className="py-10 text-center text-muted-foreground">
+                  <TableCell colSpan={10} className="py-10 text-center text-muted-foreground">
                     {searchQuery
                       ? 'No tenants match your search.'
                       : 'No active tenants yet. Add a tenant to get started.'}
@@ -708,9 +768,12 @@ export function TenantsTable({ searchQuery = '', viewMode = 'list', propertyId }
 
               {!loading &&
                 filteredTenants.map((tenant) => {
-                  const rating = ratingsMap[tenant.tenant_user_id]
-                  const hasRating = rating?.on_time_rate !== null && rating?.on_time_rate !== undefined
-                  const meta = ratingMeta(rating?.on_time_rate)
+                  const ratingValue =
+                    ratingsMap[tenant.tenant_user_id]?.on_time_rate ?? tenant.rating_percentage ?? null
+                  const ratingCount =
+                    ratingsMap[tenant.tenant_user_id]?.payments ?? tenant.scored_items_count ?? 0
+                  const hasRating = ratingValue !== null && ratingValue !== undefined
+                  const meta = ratingMeta(ratingValue ?? undefined)
                   const expired = isLeaseExpired(tenant)
                   return (
                   <TableRow key={tenant.lease_id} className={expired ? 'bg-rose-200/90' : undefined}>
@@ -738,7 +801,7 @@ export function TenantsTable({ searchQuery = '', viewMode = 'list', propertyId }
                                   </p>
                                   <p>
                                     {hasRating
-                                      ? `${rating?.on_time_rate}% on time • ${rating?.payments} payments`
+                                      ? `${ratingValue}% on time • ${ratingCount} scores`
                                       : 'No rating yet.'}
                                   </p>
                                 </div>
@@ -814,6 +877,13 @@ export function TenantsTable({ searchQuery = '', viewMode = 'list', propertyId }
                       </Tooltip>
                     </TableCell>
                     <TableCell>
+                      {Number(tenant.arrears_amount || 0) > 0 ? (
+                        <Badge variant="destructive">Yes</Badge>
+                      ) : (
+                        <Badge variant="outline">No</Badge>
+                      )}
+                    </TableCell>
+                    <TableCell>
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <Badge variant={paymentBadgeVariant(tenant.payment_status)}>
@@ -833,6 +903,13 @@ export function TenantsTable({ searchQuery = '', viewMode = 'list', propertyId }
                     </TableCell>
                     <TableCell className="text-sm">
                       {formatDisplayDate(tenant.lease_start_date)}
+                    </TableCell>
+                    <TableCell>
+                      {tenant.kick_out_candidate ? (
+                        <Badge variant="destructive">Review</Badge>
+                      ) : (
+                        <Badge variant="outline">No</Badge>
+                      )}
                     </TableCell>
                     <TableCell className="text-right">
                       <TenantActions tenant={tenant} onEdit={setEditTenant} onRemove={setTenantToDelete} />

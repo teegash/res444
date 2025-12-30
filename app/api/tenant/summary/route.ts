@@ -159,6 +159,22 @@ export async function GET() {
       ? parseCurrency(lease.unit?.unit_price_category, lease.monthly_rent)
       : null
 
+    let ratingPercentage: number | null = null
+    let scoredItemsCount = 0
+    const { data: ratingRow } = await adminSupabase
+      .from('vw_tenant_payment_timeliness')
+      .select('rating_percentage, scored_items_count')
+      .eq('tenant_user_id', user.id)
+      .maybeSingle()
+
+    if (ratingRow) {
+      ratingPercentage =
+        ratingRow.rating_percentage === null || ratingRow.rating_percentage === undefined
+          ? null
+          : Number(ratingRow.rating_percentage)
+      scoredItemsCount = Number(ratingRow.scored_items_count || 0)
+    }
+
     const unitLabel =
       lease?.unit?.unit_number && lease?.unit?.building?.name
         ? `${lease.unit.unit_number} • ${lease.unit.building.name}`
@@ -196,6 +212,10 @@ export async function GET() {
 
     const payload = {
       profile: profile || null,
+      rating: {
+        rating_percentage: ratingPercentage,
+        scored_items_count: scoredItemsCount,
+      },
       lease: lease
         ? {
             id: lease.id,

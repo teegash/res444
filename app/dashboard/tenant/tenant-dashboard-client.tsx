@@ -385,85 +385,17 @@ export default function TenantDashboardClient() {
   const hasPending = pendingInvoices.length > 0
   const rentPaidUntil = summary?.lease?.rent_paid_until || null
 
-  const toDateOnly = (value?: string | Date | null) => {
-    if (!value) return null
-    const parsed = value instanceof Date ? value : new Date(value)
-    if (Number.isNaN(parsed.getTime())) return null
-    return new Date(Date.UTC(parsed.getUTCFullYear(), parsed.getUTCMonth(), parsed.getUTCDate()))
-  }
-  const isAfterMonth = (a: Date, b: Date) => {
-    if (a.getUTCFullYear() > b.getUTCFullYear()) return true
-    if (a.getUTCFullYear() < b.getUTCFullYear()) return false
-    return a.getUTCMonth() > b.getUTCMonth()
-  }
-  const isBeforeMonth = (a: Date, b: Date) => {
-    if (a.getUTCFullYear() < b.getUTCFullYear()) return true
-    if (a.getUTCFullYear() > b.getUTCFullYear()) return false
-    return a.getUTCMonth() < b.getUTCMonth()
-  }
-  const scorePayment = (dueDate: Date | null, paidDate: Date | null) => {
-    if (!paidDate) return null
-    const paid = toDateOnly(paidDate)
-    if (!paid) return null
-    const due = toDateOnly(dueDate)
-    if (!due) {
-      const day = paid.getUTCDate()
-      if (day <= 5) return 100
-      if (day <= 15) return 90
-      if (day <= 25) return 80
-      return 60
-    }
-    if (isBeforeMonth(paid, due)) return 100
-    if (isAfterMonth(paid, due)) return 60
-    const day = paid.getUTCDate()
-    if (day <= 5) return 100
-    if (day <= 15) return 90
-    if (day <= 25) return 80
-    return 60
-  }
-  const isPastPenaltyDate = (dueDate: Date | null, today: Date) => {
-    const due = toDateOnly(dueDate)
-    if (!due) return false
-    const threshold = new Date(Date.UTC(due.getUTCFullYear(), due.getUTCMonth(), 25))
-    const todayDate = toDateOnly(today)
-    if (!todayDate) return false
-    return todayDate.getTime() >= threshold.getTime()
-  }
-
   const rentPayments = tenantPayments.filter((payment: any) => {
     const type = (payment?.invoice_type || payment?.payment_type || 'rent').toLowerCase()
     const status = (payment?.status || '').toLowerCase()
     return type === 'rent' && status === 'verified'
   })
-  const paymentsMade = rentPayments.length
-  const hasPendingInvoices = pendingInvoices.length > 0
-  const onTimeRate = useMemo<number | null>(() => {
-    const scores: number[] = []
-
-    rentPayments.forEach((payment: any) => {
-      const paidDateRaw =
-        payment?.posted_at || payment?.payment_date || payment?.created_at || null
-      const dueDateRaw = payment?.due_date || payment?.invoice_created_at || null
-      const paidDate = paidDateRaw ? new Date(paidDateRaw) : null
-      const dueDate = toDateOnly(dueDateRaw)
-      const score = scorePayment(dueDate, paidDate)
-      if (score !== null) scores.push(score)
-    })
-
-    const today = new Date()
-    pendingInvoices
-      .filter((inv) => (inv?.invoice_type || 'rent').toLowerCase() === 'rent')
-      .forEach((inv) => {
-        const dueDate = toDateOnly(inv?.due_date || null)
-        if (isPastPenaltyDate(dueDate, today)) {
-          scores.push(60)
-        }
-      })
-
-    if (scores.length === 0) return null
-    const total = scores.reduce((sum, val) => sum + val, 0)
-    return Math.round(total / scores.length)
-  }, [pendingInvoices, rentPayments])
+  const paymentsMade = scoredItemsCount > 0 ? scoredItemsCount : rentPayments.length
+  const scoredItemsCount = summary?.rating?.scored_items_count || 0
+  const onTimeRate =
+    summary?.rating?.rating_percentage === null || summary?.rating?.rating_percentage === undefined
+      ? null
+      : Number(summary.rating.rating_percentage)
 
   const hasRating = onTimeRate !== null
 
