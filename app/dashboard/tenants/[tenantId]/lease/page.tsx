@@ -243,6 +243,7 @@ export default function TenantLeaseManagementPage() {
   const [vacateError, setVacateError] = useState<string | null>(null)
   const [vacateActionBusy, setVacateActionBusy] = useState<null | 'ack' | 'approve' | 'reject' | 'complete' | 'download'>(null)
   const [rejectReason, setRejectReason] = useState('')
+  const [transitionBusy, setTransitionBusy] = useState(false)
 
   const [startDate, setStartDate] = useState('')
   const [durationMonths, setDurationMonths] = useState('12')
@@ -372,6 +373,37 @@ export default function TenantLeaseManagementPage() {
       setRenewalLoading(false)
     }
   }, [])
+
+  const handleOpenTransition = useCallback(async () => {
+    if (!vacateNotice?.id) return
+    setTransitionBusy(true)
+    try {
+      const res = await fetch('/api/tenant-transitions/from-vacate-notice', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ notice_id: vacateNotice.id }),
+      })
+      const payload = await res.json()
+      if (!res.ok) {
+        throw new Error(payload.error || 'Failed to open transition case.')
+      }
+      toast({
+        title: 'Move-out case opened',
+        description: 'Transition case created from this vacate notice.',
+      })
+      if (payload.caseId) {
+        router.push(`/dashboard/manager/transitions/${payload.caseId}`)
+      }
+    } catch (err) {
+      toast({
+        title: 'Failed to open case',
+        description: err instanceof Error ? err.message : 'Unable to create transition case.',
+        variant: 'destructive',
+      })
+    } finally {
+      setTransitionBusy(false)
+    }
+  }, [router, toast, vacateNotice?.id])
 
   const durationFromRange = (start: string, end: string) => {
     const startDate = new Date(start)
@@ -1217,6 +1249,14 @@ export default function TenantLeaseManagementPage() {
                       >
                         <Download className="h-4 w-4 mr-2" />
                         Download notice
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        disabled={transitionBusy}
+                        onClick={handleOpenTransition}
+                      >
+                        {transitionBusy ? 'Opening...' : 'Open Move-out Case'}
                       </Button>
                     </div>
 

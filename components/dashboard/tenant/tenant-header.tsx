@@ -210,6 +210,8 @@ export function TenantHeader({ summary, loading }: TenantHeaderProps) {
           ? `?requestId=${notification.related_entity_id}`
           : ''
         router.push(`/dashboard/tenant/maintenance${qs}`)
+      } else if (relatedType === 'tenant_transition') {
+        router.push('/dashboard/tenant/transition')
       } else {
         router.push('/dashboard/tenant/messages')
       }
@@ -322,15 +324,19 @@ export function TenantHeader({ summary, loading }: TenantHeaderProps) {
                         (notification.related_entity_type || '').toLowerCase() === 'lease_expired'
                       const isVacateNotice =
                         (notification.related_entity_type || '').toLowerCase() === 'vacate_notice'
+                      const isTransition =
+                        (notification.related_entity_type || '').toLowerCase() === 'tenant_transition'
                       const rowClasses = isPayment
                         ? 'bg-red-50 border-red-200'
                         : isLeaseExpired
                           ? 'bg-rose-50 border-rose-200'
                           : isVacateNotice
                             ? 'bg-amber-50 border-amber-200'
-                          : notification.read
-                            ? 'bg-white border-gray-200'
-                            : 'bg-blue-50 border-blue-200'
+                            : isTransition
+                              ? 'bg-indigo-50 border-indigo-200'
+                              : notification.read
+                                ? 'bg-white border-gray-200'
+                                : 'bg-blue-50 border-blue-200'
                       return (
                         <button
                           key={notification.id}
@@ -353,6 +359,11 @@ export function TenantHeader({ summary, loading }: TenantHeaderProps) {
                               {isVacateNotice && (
                                 <Badge className="bg-amber-500 text-white rounded-full px-2 py-0.5 text-[10px]">
                                   Vacate
+                                </Badge>
+                              )}
+                              {isTransition && (
+                                <Badge className="bg-indigo-500 text-white rounded-full px-2 py-0.5 text-[10px]">
+                                  Transition
                                 </Badge>
                               )}
                               <span>

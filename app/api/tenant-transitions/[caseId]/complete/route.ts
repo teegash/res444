@@ -1,0 +1,57 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { normalizeUuid, requireManagerContext, notifyTenant } from '../../_helpers'
+
+export async function POST(req: NextRequest, ctx: { params: { caseId: string } }) {
+  const caseId = normalizeUuid(`${ctx.params.caseId} ${req.nextUrl.pathname}`)
+  if (!caseId) return NextResponse.json({ success: false, error: 'Invalid case id.' }, { status: 400 })
+
+  const auth = await requireManagerContext()
+  if ((auth as any).error) return (auth as any).error
+
+  try {
+    const { admin, organizationId, user } = auth as any
+    const body = await req.json().catch(() => ({}))
+
+    const unitNextStatus = String(body.unit_next_status || 'vacant')
+    const actualVacateDate = body.actual_vacate_date || null
+
+    const { data: row, error: rErr } = await admin
+      .from('tenant_transition_cases')
+      .select('id, tenant_user_id')
+      .eq('organization_id', organizationId)
+      .eq('id', caseId)
+      .maybeSingle()
+
+    if (rErr) throw rErr
+    if (!row) return NextResponse.json({ success: false, error: 'Case not found.' }, { status: 404 })
+
+    const { error: rpcErr } = await admin.rpc('complete_transition_case', {
+      p_case_id: caseId,
+      p_unit_next_status: unitNextStatus,
+      p_actual_vacate_date: actualVacateDate,
+    })
+
+    if (rpcErr) throw rpcErr
+
+    try {
+      await notifyTenant(admin, {
+        tenantUserId: row.tenant_user_id,
+        organizationId,
+        caseId,
+        senderUserId: user?.id || null,
+        message:
+          'Your move-out case has been completed. If any deposit refund is pending, management will process it according to the settlement record.',
+      })
+    } catch {
+      // ignore notification errors
+    }
+
+    return NextResponse.json({ success: true })
+  } catch (err) {
+    console.error('[TenantTransitions.Complete.POST] Failed', err)
+    return NextResponse.json(
+      { success: false, error: err instanceof Error ? err.message : 'Failed to complete transition case.' },
+      { status: 500 }
+    )
+  }
+}

@@ -4,7 +4,7 @@
 	import { useState, useEffect, useMemo } from 'react'
 	import { usePathname, useRouter } from 'next/navigation'
 	import { Button } from '@/components/ui/button'
-	import { LayoutDashboard, Building2, Users, CreditCard, Droplet, Wrench, MessageSquare, Bell, BarChart3, FileText, Settings, LogOut, Lock, Unlock, Receipt, Camera, Loader2 } from 'lucide-react'
+	import { LayoutDashboard, Building2, Users, CreditCard, Droplet, Wrench, MessageSquare, Bell, BarChart3, FileText, Settings, LogOut, Lock, Unlock, Receipt, Camera, Loader2, ArrowLeftRight } from 'lucide-react'
 	import { cn } from '@/lib/utils'
 	import { useAuth } from '@/lib/auth/context'
 	import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -21,6 +21,7 @@ const menuItems = [
   { icon: Wrench, label: 'Maintenance', href: '/dashboard/maintenance' },
   { icon: MessageSquare, label: 'Messages', href: '/dashboard/communications' },
   { icon: Bell, label: 'Notices', href: '/dashboard/manager/notices' },
+  { icon: ArrowLeftRight, label: 'Transitions', href: '/dashboard/manager/transitions' },
   { icon: BarChart3, label: 'Reports', href: '/dashboard/manager/reports' },
   { icon: FileText, label: 'Statements', href: '/dashboard/manager/statements' },
 ]
@@ -146,13 +147,14 @@ const menuItems = [
 
 	  const visibleMenuItems = useMemo(() => {
 	    if (!isCaretaker) return menuItems
-	    const allowed = new Set([
+    const allowed = new Set([
       '/dashboard',
       '/dashboard/tenants',
       '/dashboard/payments',
       '/dashboard/water-bills',
       '/dashboard/communications',
       '/dashboard/maintenance',
+      '/dashboard/manager/transitions',
     ])
     return menuItems.filter((item) => allowed.has(item.href))
   }, [isCaretaker])

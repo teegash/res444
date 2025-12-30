@@ -107,9 +107,10 @@ export function Header() {
       const type = (item.related_entity_type || '').toLowerCase()
       if (type === 'lease_expired') return 0
       if (type === 'vacate_notice') return 1
-      if (type === 'payment') return 2
-      if (type === 'maintenance_request') return 3
-      return 4
+      if (type === 'tenant_transition') return 2
+      if (type === 'payment') return 3
+      if (type === 'maintenance_request') return 4
+      return 5
     }
 
     return [...items].sort((a, b) => {
@@ -202,6 +203,13 @@ export function Header() {
         if (noticeId) qs.set('noticeId', noticeId)
         qs.set('tab', 'vacate_notice')
         router.push(tenantId ? `/dashboard/tenants/${tenantId}/lease?${qs.toString()}` : '/dashboard/tenants')
+      } else if (type === 'tenant_transition') {
+        const caseId = notification.related_entity_id
+        if (caseId) {
+          router.push(`/dashboard/manager/transitions/${caseId}`)
+        } else {
+          router.push('/dashboard/manager/transitions')
+        }
       } else if (type === 'lease_expired') {
         const tenantId = notification.sender_user_id
         if (tenantId) {
@@ -330,6 +338,7 @@ export function Header() {
                     const isLeaseRenewal = type === 'lease_renewal'
                     const isLeaseExpired = type === 'lease_expired'
                     const isVacateNotice = type === 'vacate_notice'
+                    const isTransition = type === 'tenant_transition'
                     const rowClasses = isPayment
                       ? 'bg-red-500/10 border-red-200'
                       : isMaintenance
@@ -340,6 +349,8 @@ export function Header() {
                             ? 'bg-rose-500/10 border-rose-200'
                             : isVacateNotice
                               ? 'bg-amber-500/10 border-amber-200'
+                              : isTransition
+                                ? 'bg-indigo-500/10 border-indigo-200'
                           : notification.read
                             ? 'bg-background border-border'
                             : 'bg-primary/5 border-primary/20'
@@ -374,6 +385,10 @@ export function Header() {
                               <Badge className="bg-amber-500/80 text-white rounded-full px-2 py-0.5">
                                 Vacate notice
                               </Badge>
+                            ) : isTransition ? (
+                              <Badge className="bg-indigo-500/80 text-white rounded-full px-2 py-0.5">
+                                Transition
+                              </Badge>
                             ) : null}
                             <span>
                               {isPayment
@@ -386,6 +401,8 @@ export function Header() {
                                       ? 'Lease expired'
                                       : isVacateNotice
                                         ? 'Vacate notice'
+                                        : isTransition
+                                          ? 'Move-out transition'
                                     : 'New tenant message'}
                             </span>
                           </p>
@@ -395,6 +412,8 @@ export function Header() {
                                 ? 'text-rose-700'
                                 : isVacateNotice
                                   ? 'text-amber-700'
+                                  : isTransition
+                                    ? 'text-indigo-700'
                                   : 'text-muted-foreground'
                             }`}
                           >

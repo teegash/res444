@@ -17,7 +17,6 @@ create index IF not exists idx_buildings_org_id on public.apartment_buildings us
 
 
 
-
 create table public.apartment_units (
   id uuid not null default gen_random_uuid (),
   building_id uuid not null,
@@ -61,7 +60,6 @@ create index IF not exists idx_units_org_id on public.apartment_units using btre
 
 
 
-
 create table public.app_settings (
   id uuid not null default gen_random_uuid (),
   organization_id uuid not null,
@@ -71,8 +69,6 @@ create table public.app_settings (
   constraint app_settings_pkey primary key (id),
   constraint app_settings_organization_id_key_key unique (organization_id, key)
 ) TABLESPACE pg_default;
-
-
 
 
 
@@ -130,7 +126,8 @@ create table public.communications (
         array[
           'maintenance_request'::text,
           'payment'::text,
-          'lease'::text
+          'lease'::text,
+          'vacate_notice'::text
         ]
       )
     )
@@ -192,45 +189,6 @@ where
 
 
 
-create table public.cron_runs (
-  id uuid not null default gen_random_uuid (),
-  organization_id uuid null,
-  function_name text not null,
-  trigger text not null default 'github_actions'::text,
-  started_at timestamp with time zone not null default now(),
-  finished_at timestamp with time zone null,
-  ok boolean null,
-  inserted_count integer not null default 0,
-  attempted_count integer not null default 0,
-  skipped_prepaid integer not null default 0,
-  leases_processed integer not null default 0,
-  months_considered integer not null default 0,
-  catch_up boolean not null default false,
-  error text null,
-  meta jsonb not null default '{}'::jsonb,
-  constraint cron_runs_pkey primary key (id)
-) TABLESPACE pg_default;
-
-create index IF not exists idx_cron_runs_function_started on public.cron_runs using btree (function_name, started_at desc) TABLESPACE pg_default;
-
-create index IF not exists idx_cron_runs_started on public.cron_runs using btree (started_at desc) TABLESPACE pg_default;
-
-create index IF not exists idx_cron_runs_org_started on public.cron_runs using btree (organization_id, started_at desc) TABLESPACE pg_default;
-
-create unique INDEX IF not exists ux_cron_runs_one_active_per_function on public.cron_runs using btree (function_name) TABLESPACE pg_default
-where
-  (finished_at is null);
-
-create index IF not exists idx_cron_runs_active_started_at on public.cron_runs using btree (started_at) TABLESPACE pg_default
-where
-  (finished_at is null);
-
-
-
-
-
-
-
 create table public.cron_state (
   function_name text not null,
   state jsonb not null default '{}'::jsonb,
@@ -241,6 +199,7 @@ create table public.cron_state (
 create trigger trg_touch_cron_state_updated_at BEFORE
 update on cron_state for EACH row
 execute FUNCTION touch_cron_state_updated_at ();
+
 
 
 
@@ -301,28 +260,6 @@ create unique INDEX IF not exists uq_expenses_maintenance_request_idempotent on 
 where
   (maintenance_request_id is not null);
 
-
-
-
-
-
-create table public.invite_codes (
-  id uuid not null default gen_random_uuid (),
-  code text not null,
-  expires_at timestamp with time zone not null,
-  max_uses integer not null default 1,
-  used_count integer not null default 0,
-  active boolean not null default true,
-  created_at timestamp with time zone null default now(),
-  constraint invite_codes_pkey primary key (id),
-  constraint invite_codes_code_key unique (code)
-) TABLESPACE pg_default;
-
-create index IF not exists idx_invite_codes_active on public.invite_codes using btree (active) TABLESPACE pg_default;
-
-create index IF not exists idx_invite_codes_expires on public.invite_codes using btree (expires_at) TABLESPACE pg_default;
-
-create index IF not exists idx_invite_codes_usage on public.invite_codes using btree (used_count, max_uses) TABLESPACE pg_default;
 
 
 
@@ -509,8 +446,6 @@ create index IF not exists idx_lease_renewals_org on public.lease_renewals using
 
 
 
-
-
 create table public.leases (
   id uuid not null default gen_random_uuid (),
   unit_id uuid not null,
@@ -657,7 +592,6 @@ maintenance_cost_paid_by,
 maintenance_cost_notes,
 title on maintenance_requests for EACH row
 execute FUNCTION sync_maintenance_cost_to_expenses ();
-
 
 
 
@@ -935,6 +869,7 @@ create index IF not exists idx_recurring_expenses_property on public.recurring_e
 
 
 
+
 create table public.reminders (
   id uuid not null default gen_random_uuid (),
   user_id uuid not null,
@@ -1102,7 +1037,6 @@ create unique INDEX IF not exists uq_sms_templates_org_key on public.sms_templat
 
 
 
-
 create table public.technician_profession_map (
   technician_id uuid not null,
   profession_id uuid not null,
@@ -1138,6 +1072,8 @@ create index IF not exists idx_tech_prof_org on public.technician_professions us
 
 
 
+
+
 create table public.technicians (
   id uuid not null default gen_random_uuid (),
   organization_id uuid not null,
@@ -1160,6 +1096,101 @@ create index IF not exists idx_tech_active on public.technicians using btree (or
 create trigger trg_technicians_touch_updated_at BEFORE
 update on technicians for EACH row
 execute FUNCTION touch_updated_at ();
+
+
+
+
+
+create table public.tenant_vacate_notice_events (
+  id uuid not null default gen_random_uuid (),
+  notice_id uuid not null,
+  organization_id uuid not null,
+  actor_user_id uuid null,
+  action text not null,
+  metadata jsonb not null default '{}'::jsonb,
+  created_at timestamp with time zone not null default now(),
+  constraint tenant_vacate_notice_events_pkey primary key (id),
+  constraint tenant_vacate_notice_events_notice_fk foreign KEY (notice_id) references tenant_vacate_notices (id) on delete CASCADE
+) TABLESPACE pg_default;
+
+create index IF not exists idx_vacate_notice_events_notice on public.tenant_vacate_notice_events using btree (notice_id) TABLESPACE pg_default;
+
+create index IF not exists idx_vacate_notice_events_org on public.tenant_vacate_notice_events using btree (organization_id) TABLESPACE pg_default;
+
+
+
+
+
+create table public.tenant_vacate_notices (
+  id uuid not null default gen_random_uuid (),
+  organization_id uuid not null,
+  lease_id uuid not null,
+  unit_id uuid not null,
+  tenant_user_id uuid not null,
+  notice_submitted_at timestamp with time zone not null default now(),
+  requested_vacate_date date not null,
+  notice_document_url text null,
+  status text not null default 'submitted'::text,
+  manager_notes text null,
+  acknowledged_at timestamp with time zone null,
+  approved_at timestamp with time zone null,
+  rejected_at timestamp with time zone null,
+  completed_at timestamp with time zone null,
+  created_at timestamp with time zone not null default now(),
+  updated_at timestamp with time zone not null default now(),
+  constraint tenant_vacate_notices_pkey primary key (id),
+  constraint tenant_vacate_notices_lease_org_fk foreign KEY (lease_id, organization_id) references leases (id, organization_id) on delete CASCADE,
+  constraint tenant_vacate_notices_org_fk foreign KEY (organization_id) references organizations (id) on delete CASCADE,
+  constraint tenant_vacate_notices_tenant_fk foreign KEY (tenant_user_id) references auth.users (id) on delete CASCADE,
+  constraint tenant_vacate_notices_unit_org_fk foreign KEY (unit_id, organization_id) references apartment_units (id, organization_id) on delete CASCADE,
+  constraint tenant_vacate_notices_status_check check (
+    (
+      status = any (
+        array[
+          'submitted'::text,
+          'acknowledged'::text,
+          'approved'::text,
+          'rejected'::text,
+          'completed'::text,
+          'cancelled'::text
+        ]
+      )
+    )
+  )
+) TABLESPACE pg_default;
+
+create index IF not exists idx_tenant_vacate_notices_org on public.tenant_vacate_notices using btree (organization_id) TABLESPACE pg_default;
+
+create index IF not exists idx_tenant_vacate_notices_lease on public.tenant_vacate_notices using btree (lease_id) TABLESPACE pg_default;
+
+create index IF not exists idx_tenant_vacate_notices_unit on public.tenant_vacate_notices using btree (unit_id) TABLESPACE pg_default;
+
+create index IF not exists idx_tenant_vacate_notices_tenant on public.tenant_vacate_notices using btree (tenant_user_id) TABLESPACE pg_default;
+
+create unique INDEX IF not exists uq_vacate_notice_active_per_lease on public.tenant_vacate_notices using btree (organization_id, lease_id) TABLESPACE pg_default
+where
+  (
+    status = any (
+      array[
+        'submitted'::text,
+        'acknowledged'::text,
+        'approved'::text
+      ]
+    )
+  );
+
+create trigger trg_vacate_notices_touch_updated_at BEFORE
+update on tenant_vacate_notices for EACH row
+execute FUNCTION touch_updated_at ();
+
+create trigger trg_validate_vacate_notice_date BEFORE INSERT
+or
+update OF requested_vacate_date on tenant_vacate_notices for EACH row
+execute FUNCTION validate_vacate_notice_date ();
+
+
+
+
 
 
 
@@ -1259,6 +1290,7 @@ group by
 
 
 
+
 create view public.vw_lease_arrears as
 select
   i.organization_id,
@@ -1308,6 +1340,8 @@ group by
 
 
 
+
+
 create view public.vw_lease_arrears_detail as
 select
   a.organization_id,
@@ -1324,6 +1358,7 @@ from
   vw_lease_arrears a
   left join user_profiles up on up.id = a.tenant_user_id
   left join apartment_units u on u.id = a.unit_id;
+
 
 
 
@@ -1359,6 +1394,7 @@ from
   left join apartment_units u on u.id = l.unit_id
 where
   l.status = 'active'::text;
+
 
 
 
@@ -1416,6 +1452,180 @@ from
 group by
   organization_id,
   tenant_user_id;
+
+
+
+
+
+
+create view public.vw_tenant_kickout_signal as
+with
+  active_rent as (
+    select
+      l.organization_id,
+      l.tenant_user_id,
+      max(l.monthly_rent)::numeric(12, 2) as monthly_rent
+    from
+      leases l
+    where
+      l.status = 'active'::text
+    group by
+      l.organization_id,
+      l.tenant_user_id
+  )
+select
+  r.organization_id,
+  r.tenant_user_id,
+  r.arrears_amount,
+  ar.monthly_rent,
+  case
+    when ar.monthly_rent is null then false
+    when r.arrears_amount >= (ar.monthly_rent * 3::numeric) then true
+    else false
+  end as kick_out_candidate
+from
+  vw_tenant_risk_summary r
+  left join active_rent ar on ar.organization_id = r.organization_id
+  and ar.tenant_user_id = r.tenant_user_id;
+
+
+
+
+
+
+create view public.vw_tenant_payment_timeliness as
+with
+  rent_invoices as (
+    select
+      i.organization_id,
+      l.tenant_user_id,
+      i.id as invoice_id,
+      i.period_start,
+      date_trunc(
+        'month'::text,
+        i.period_start::timestamp with time zone
+      )::date as month_start,
+      (
+        date_trunc(
+          'month'::text,
+          i.period_start::timestamp with time zone
+        )::date + '1 mon'::interval
+      )::date as next_month_start,
+      (
+        date_trunc(
+          'month'::text,
+          i.period_start::timestamp with time zone
+        )::date + '24 days'::interval
+      )::date as penalty_date,
+      COALESCE(i.status_text, 'unpaid'::text) as status_text,
+      i.payment_date as paid_date,
+      i.amount,
+      i.total_paid,
+      COALESCE(i.status_text, 'unpaid'::text) = 'paid'::text
+      or COALESCE(i.total_paid, 0::numeric) >= COALESCE(i.amount, 0::numeric)
+      or i.payment_date is not null
+      and COALESCE(i.status_text, 'unpaid'::text) <> 'void'::text as is_effectively_paid
+    from
+      invoices i
+      join leases l on l.id = i.lease_id
+      and l.organization_id = i.organization_id
+    where
+      i.invoice_type = 'rent'::text
+      and i.period_start is not null
+      and l.tenant_user_id is not null
+      and COALESCE(i.status_text, 'unpaid'::text) <> 'void'::text
+  ),
+  paid_scores as (
+    select
+      rent_invoices.organization_id,
+      rent_invoices.tenant_user_id,
+      case
+        when rent_invoices.paid_date is null then null::integer
+        when rent_invoices.paid_date < rent_invoices.month_start then 100
+        when rent_invoices.paid_date >= rent_invoices.next_month_start then 60
+        when EXTRACT(
+          day
+          from
+            rent_invoices.paid_date
+        ) <= 5::numeric then 100
+        when EXTRACT(
+          day
+          from
+            rent_invoices.paid_date
+        ) <= 15::numeric then 90
+        when EXTRACT(
+          day
+          from
+            rent_invoices.paid_date
+        ) <= 25::numeric then 80
+        else 60
+      end as score
+    from
+      rent_invoices
+    where
+      rent_invoices.is_effectively_paid = true
+  ),
+  unpaid_penalties as (
+    select
+      rent_invoices.organization_id,
+      rent_invoices.tenant_user_id,
+      60 as score
+    from
+      rent_invoices
+    where
+      rent_invoices.is_effectively_paid = false
+      and CURRENT_DATE >= rent_invoices.penalty_date
+  )
+select
+  organization_id,
+  tenant_user_id,
+  case
+    when count(*) = 0 then null::integer
+    else round(avg(score))::integer
+  end as rating_percentage,
+  count(*)::integer as scored_items_count
+from
+  (
+    select
+      paid_scores.organization_id,
+      paid_scores.tenant_user_id,
+      paid_scores.score
+    from
+      paid_scores
+    where
+      paid_scores.score is not null
+    union all
+    select
+      unpaid_penalties.organization_id,
+      unpaid_penalties.tenant_user_id,
+      unpaid_penalties.score
+    from
+      unpaid_penalties
+  ) s
+group by
+  organization_id,
+  tenant_user_id;
+
+
+
+
+
+
+create view public.vw_tenant_risk_summary as
+select
+  a.organization_id,
+  a.tenant_user_id,
+  a.arrears_amount,
+  a.open_invoices_count,
+  a.oldest_due_date,
+  t.rating_percentage,
+  t.scored_items_count
+from
+  vw_tenant_arrears a
+  left join vw_tenant_payment_timeliness t on t.organization_id = a.organization_id
+  and t.tenant_user_id = a.tenant_user_id;
+
+
 
 
 
@@ -1555,6 +1765,7 @@ from
 
 
 
+
 create view public.vw_unit_financial_performance_yearly_enriched as
 select
   v.organization_id,
@@ -1573,6 +1784,7 @@ from
   and u.organization_id = v.organization_id
   join apartment_buildings b on b.id = v.property_id
   and b.organization_id = v.organization_id;
+
 
 
 
@@ -1597,6 +1809,8 @@ group by
   mr.unit_id,
   au.building_id,
   (date_part('year'::text, mr.created_at));
+
+
 
 
 
@@ -1654,7 +1868,6 @@ group by
   l.unit_id,
   au.building_id,
   (date_part('year'::text, p.payment_date)::integer);
-
 
 
 
