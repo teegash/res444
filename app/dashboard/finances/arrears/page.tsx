@@ -190,7 +190,7 @@ export default function ArrearsPage() {
                   Back
                 </Button>
                 <div>
-                  <h1 className="text-3xl font-bold">Active tenants</h1>
+                  <h1 className="text-3xl font-bold">Rent Arrears</h1>
                   <p className="text-sm text-muted-foreground">
                     Rent-only arrears computed from unpaid/overdue rent invoices.
                   </p>
@@ -293,7 +293,7 @@ export default function ArrearsPage() {
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <div className="ag-theme-quartz w-full h-[520px] rounded-xl border border-slate-200 bg-white overflow-auto">
+                  <div className="ag-theme-quartz w-full h-[520px] rounded-xl border border-slate-200 bg-white shadow-sm">
                     <AgGridReact<ArrearsRow>
                       rowData={filtered}
                       columnDefs={colDefs}
@@ -301,9 +301,10 @@ export default function ArrearsPage() {
                         sortable: true,
                         resizable: true,
                         filter: true,
-                        floatingFilter: true,
+                        floatingFilter: false,
                         minWidth: 110,
                       }}
+                      suppressHorizontalScroll
                       pagination
                       paginationPageSize={25}
                       rowSelection={{ mode: 'single' }}
@@ -311,7 +312,9 @@ export default function ArrearsPage() {
                       onGridReady={(params) => {
                         gridApiRef.current = params.api
                         params.api.setGridOption('quickFilterText', q)
+                        params.api.sizeColumnsToFit()
                       }}
+                      onGridSizeChanged={(params) => params.api.sizeColumnsToFit()}
                     />
                   </div>
                 </CardContent>

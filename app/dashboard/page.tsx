@@ -4,7 +4,7 @@ import { Suspense, useCallback, useEffect, useMemo, useState } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { Sidebar } from '@/components/dashboard/sidebar'
 import { Header } from '@/components/dashboard/header'
-import { Crown, Building2, Users, DollarSign, Wrench, ArrowUpRight, ArrowDownRight, Droplet, FileText, BarChart3, MessageSquare } from 'lucide-react'
+import { Crown, Building2, Users, DollarSign, Wrench, ArrowUpRight, ArrowDownRight, Droplet, BarChart3, MessageSquare } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import Link from 'next/link'
@@ -14,6 +14,7 @@ import { useAuth } from '@/lib/auth/context'
 import { SkeletonLoader, SkeletonPropertyCard, SkeletonTable } from '@/components/ui/skeletons'
 import { formatCurrency } from '@/lib/format/currency'
 import { cn } from '@/lib/utils'
+import { ProgressCircle } from '@/components/ProgressCircle'
 
 export default function DashboardPage() {
   return (
@@ -504,14 +505,14 @@ function DashboardContent() {
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4">
               <Link
                 href="/dashboard/properties"
-                className="block rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4682B4]/40"
+                className="block h-full rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4682B4]/40"
                 aria-label="View properties"
               >
-                <Card className="cursor-pointer transition-shadow hover:shadow-md">
-                  <CardContent className="pt-6">
+                <Card className="h-full cursor-pointer transition-shadow hover:shadow-md">
+                  <CardContent className="pt-4 pb-4 h-full">
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-sm text-gray-600 mb-1 font-semibold">Total Properties</p>
+                        <p className="text-base text-gray-700 font-bold">Total Properties</p>
                         <p className="text-3xl font-bold">{overview?.summary?.totalProperties ?? '—'}</p>
                         <p className="text-sm text-green-600 mt-1">Portfolio snapshot</p>
                       </div>
@@ -525,14 +526,14 @@ function DashboardContent() {
 
               <Link
                 href="/dashboard/tenants"
-                className="block rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4682B4]/40"
+                className="block h-full rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4682B4]/40"
                 aria-label="View tenants"
               >
-                <Card className="cursor-pointer transition-shadow hover:shadow-md">
-                  <CardContent className="pt-6">
+                <Card className="h-full cursor-pointer transition-shadow hover:shadow-md">
+                  <CardContent className="pt-4 pb-4 h-full">
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-sm text-gray-600 mb-1 font-semibold">Active Tenants</p>
+                        <p className="text-base text-gray-700 font-bold">Active Tenants</p>
                         <p className="text-3xl font-bold">{overview?.summary?.totalTenants ?? '—'}</p>
                         <p className="text-sm text-green-600 mt-1">Live occupants</p>
                       </div>
@@ -546,14 +547,14 @@ function DashboardContent() {
 
               <Link
                 href="/dashboard/manager/reports"
-                className="block rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4682B4]/40"
+                className="block h-full rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4682B4]/40"
                 aria-label="View reports"
               >
-                <Card className="cursor-pointer transition-shadow hover:shadow-md">
-                  <CardContent className="pt-6">
+                <Card className="h-full cursor-pointer transition-shadow hover:shadow-md">
+                  <CardContent className="pt-4 pb-4 h-full">
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-sm text-gray-600 mb-1 font-semibold">Monthly Revenue</p>
+                        <p className="text-base text-gray-700 font-bold">Monthly Revenue</p>
                         <p className="text-3xl font-bold">
                           {overview?.summary ? formatCurrency(overview.summary.monthlyRevenue || 0, 'KES') : '—'}
                         </p>
@@ -584,14 +585,14 @@ function DashboardContent() {
 
               <Link
                 href="/dashboard/maintenance"
-                className="block rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4682B4]/40"
+                className="block h-full rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4682B4]/40"
                 aria-label="View maintenance requests"
               >
-                <Card className="cursor-pointer transition-shadow hover:shadow-md">
-                  <CardContent className="pt-6">
+                <Card className="h-full cursor-pointer transition-shadow hover:shadow-md">
+                  <CardContent className="pt-4 pb-4 h-full">
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-sm text-gray-600 mb-1 font-semibold">Pending Requests</p>
+                        <p className="text-base text-gray-700 font-bold">Pending Requests</p>
                         <p className="text-3xl font-bold">{overview?.summary?.pendingRequests ?? '—'}</p>
                         <p className="text-sm text-gray-500 mt-1">Open maintenance</p>
                       </div>
@@ -605,14 +606,14 @@ function DashboardContent() {
 
               <Link
                 href="/dashboard/finances/arrears"
-                className="block rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4682B4]/40"
+                className="block h-full rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4682B4]/40"
                 aria-label="View arrears"
               >
-                <Card className="cursor-pointer transition-shadow hover:shadow-md">
-                  <CardContent className="pt-6">
+                <Card className="h-full cursor-pointer transition-shadow hover:shadow-md">
+                  <CardContent className="pt-4 pb-4 h-full">
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-sm text-gray-600 mb-1 font-semibold">Defaulters</p>
+                        <p className="text-base text-gray-700 font-bold">Defaulters</p>
                         <p className="text-3xl font-bold">{defaultersSummary?.defaulters ?? '—'}</p>
                         <p className="text-sm text-red-600 mt-1">
                           {defaultersSummary ? `${defaultersSummary.defaulters_pct}% of active tenants` : 'Arrears snapshot'}
@@ -621,9 +622,11 @@ function DashboardContent() {
                           Total arrears {defaultersSummary ? formatCurrency(defaultersSummary.total_arrears_amount || 0, 'KES') : '—'}
                         </p>
                       </div>
-                      <div className="w-12 h-12 bg-rose-100 rounded-full flex items-center justify-center">
-                        <FileText className="w-6 h-6 text-rose-600" />
-                      </div>
+                      <ProgressCircle value={defaultersSummary?.defaulters_pct || 0} className="text-red-600">
+                        <span className="text-xs font-semibold text-red-700">
+                          {defaultersSummary?.defaulters_pct ?? 0}%
+                        </span>
+                      </ProgressCircle>
                     </div>
                   </CardContent>
                 </Card>
