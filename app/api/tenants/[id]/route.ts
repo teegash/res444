@@ -74,7 +74,9 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
     const { data: tenantProfile, error: tenantProfileError } = await adminSupabase
       .from('user_profiles')
-      .select('id, full_name, phone_number, national_id, address, date_of_birth, profile_picture_url, role')
+      .select(
+        'id, organization_id, full_name, phone_number, national_id, address, date_of_birth, profile_picture_url, role'
+      )
       .eq('id', tenantId)
       .maybeSingle()
 
