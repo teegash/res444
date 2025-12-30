@@ -12,6 +12,7 @@ import { Calendar, TrendingUp, Clock, CheckCircle2, Droplet } from 'lucide-react
 import Link from 'next/link'
 import { SkeletonLoader, SkeletonPropertyCard, SkeletonTable } from '@/components/ui/skeletons'
 import { AiGlowButton } from '@/components/ui/AiGlowButton'
+import styles from '@/components/ui/AiGlowButton.module.css'
 
 type TenantSummary = {
   profile: {
@@ -506,7 +507,7 @@ export default function TenantDashboardClient() {
           onClick={() => {
             window.location.href = 'tel:+254707694388'
           }}
-          className="scale-[1.4] md:scale-[1.6]"
+          className={`${styles.danger} scale-[1.4] md:scale-[1.6]`}
         />
       </div>
     )

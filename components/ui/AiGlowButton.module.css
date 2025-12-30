@@ -194,6 +194,33 @@
   animation: dash var(--duration) ease-out infinite;
 }
 
+.danger .aiBtn {
+  background-color: #3b0b0b;
+  background-image: linear-gradient(to bottom, #ef444430, transparent);
+  color: #fef2f2;
+  border: 1px solid #ef4444;
+  box-shadow:
+    0 0 40px -10px #fecaca80,
+    inset -1px -1px 1px 1px #2a0707,
+    inset -2px -2px 2px 1px #7f1d1d,
+    inset 1px 1px 1px 1px #1f0606,
+    inset 2px 2px 2px 1px #ef444466;
+}
+
+.danger .lineBg {
+  stroke: #fecaca66;
+}
+
+.danger .dot {
+  fill: #fca5a5;
+  opacity: 0.5;
+}
+
+.danger .light1,
+.danger .light2 {
+  background-color: #fecaca55;
+}
+
 @keyframes pulse-text {
   0%,
   100% {

@@ -37,6 +37,8 @@ export async function GET() {
       .select('id', { count: 'exact', head: true })
       .eq('organization_id', organizationId)
       .eq('status', 'active')
+      .not('unit_id', 'is', null)
+      .not('tenant_user_id', 'is', null)
 
     if (activeErr) throw activeErr
 
