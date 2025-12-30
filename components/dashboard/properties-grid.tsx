@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -30,9 +30,10 @@ interface PropertiesGridProps {
   onEdit: (property: any) => void
   onManageUnits: (property: any) => void
   onView: (id: string) => void
+  searchTerm: string
 }
 
-export function PropertiesGrid({ onEdit, onManageUnits, onView }: PropertiesGridProps) {
+export function PropertiesGrid({ onEdit, onManageUnits, onView, searchTerm }: PropertiesGridProps) {
   const [properties, setProperties] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState<Record<string, boolean>>({})
@@ -266,14 +267,29 @@ export function PropertiesGrid({ onEdit, onManageUnits, onView }: PropertiesGrid
     return propertyImages[normalizedId] || property.imageUrl || '/modern-residential-building.png'
   }
 
+  const normalizedSearch = searchTerm.trim().toLowerCase()
+  const filteredProperties = useMemo(() => {
+    if (!normalizedSearch) return properties
+    return properties.filter((property) => {
+      const name = String(property?.name || '').toLowerCase()
+      const location = String(property?.location || '').toLowerCase()
+      return name.includes(normalizedSearch) || location.includes(normalizedSearch)
+    })
+  }, [properties, normalizedSearch])
+
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
       {loading && properties.length === 0 ? (
         <div className="col-span-full">
           <SkeletonPropertyCard count={6} />
         </div>
       ) : null}
-      {properties.map((property) => {
+      {!loading && properties.length > 0 && filteredProperties.length === 0 ? (
+        <div className="col-span-full text-center py-10 text-muted-foreground">
+          No properties match your search.
+        </div>
+      ) : null}
+      {filteredProperties.map((property) => {
         const buildingId =
           normalizeId(
             property?.id ??
@@ -292,10 +308,10 @@ export function PropertiesGrid({ onEdit, onManageUnits, onView }: PropertiesGrid
         return (
           <Card
             key={buildingId || property.id}
-            className="overflow-hidden hover:shadow-lg transition-shadow"
+            className="overflow-hidden hover:shadow-md transition-shadow"
           >
             <div
-              className="relative h-48 group cursor-pointer"
+              className="relative h-40 group cursor-pointer"
               onClick={(e) => {
                 // Don't navigate if clicking the edit button
                 if ((e.target as HTMLElement).closest('.image-edit-button')) {
@@ -331,31 +347,31 @@ export function PropertiesGrid({ onEdit, onManageUnits, onView }: PropertiesGrid
                 </Button>
               </div>
             </div>
-            <CardHeader className="pb-3">
+            <CardHeader className="pb-2 pt-4">
               <div className="flex items-start justify-between">
                 <div>
-                  <h3 className="font-semibold text-lg">{property.name}</h3>
-                  <p className="text-sm text-muted-foreground">{property.location}</p>
+                  <h3 className="font-semibold text-base">{property.name}</h3>
+                  <p className="text-xs text-muted-foreground">{property.location}</p>
                 </div>
               </div>
             </CardHeader>
-            <CardContent className="space-y-3">
-              <Badge className="bg-green-600">Active</Badge>
+            <CardContent className="space-y-2 pt-0">
+              <Badge className="bg-green-600 text-xs">Active</Badge>
               <div>
-                <div className="flex justify-between text-sm mb-2">
+                <div className="flex justify-between text-xs mb-2">
                   <span className="font-medium">Occupancy</span>
                   <span>
                     {occupiedUnits}/{totalUnits} Units
                   </span>
                 </div>
                 <Progress value={totalUnits > 0 ? (occupiedUnits / totalUnits) * 100 : 0} />
-                <p className="text-xs text-muted-foreground mt-1">{occupancyPercent}% occupied</p>
+                <p className="text-[11px] text-muted-foreground mt-1">{occupancyPercent}% occupied</p>
               </div>
-              <div className="flex gap-2 pt-2">
+              <div className="flex gap-2 pt-1">
                 <Button
                   variant="outline"
                   size="sm"
-                  className="flex-1 gap-2"
+                  className="flex-1 gap-2 text-xs"
                   onClick={() => onEdit({ ...property, id: buildingId })}
                 >
                   <Edit2 className="w-4 h-4" />
@@ -364,7 +380,7 @@ export function PropertiesGrid({ onEdit, onManageUnits, onView }: PropertiesGrid
                 <Button
                   variant="outline"
                   size="sm"
-                  className="flex-1 gap-2"
+                  className="flex-1 gap-2 text-xs"
                   onClick={() => onManageUnits({ ...property, id: buildingId })}
                 >
                   <Users className="w-4 h-4" />
@@ -374,7 +390,7 @@ export function PropertiesGrid({ onEdit, onManageUnits, onView }: PropertiesGrid
               <Button
                 variant="ghost"
                 size="sm"
-                className="w-full gap-2"
+                className="w-full gap-2 text-xs"
                 onClick={() => onView(buildingId)}
               >
                 <Eye className="w-4 h-4" />

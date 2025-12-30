@@ -18,9 +18,10 @@ interface PropertiesListProps {
   onEdit: (property: any) => void
   onManageUnits: (property: any) => void
   onView: (id: string) => void
+  searchTerm: string
 }
 
-export function PropertiesList({ onEdit, onManageUnits, onView }: PropertiesListProps) {
+export function PropertiesList({ onEdit, onManageUnits, onView, searchTerm }: PropertiesListProps) {
   const [properties, setProperties] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -56,6 +57,16 @@ export function PropertiesList({ onEdit, onManageUnits, onView }: PropertiesList
     fetchProperties()
   }, [fetchProperties])
 
+  const normalizedSearch = searchTerm.trim().toLowerCase()
+  const filteredProperties = useMemo(() => {
+    if (!normalizedSearch) return properties
+    return properties.filter((property) => {
+      const name = String(property?.name || '').toLowerCase()
+      const location = String(property?.location || '').toLowerCase()
+      return name.includes(normalizedSearch) || location.includes(normalizedSearch)
+    })
+  }, [properties, normalizedSearch])
+
   return (
     <div className="border border-border rounded-lg overflow-hidden">
       <Table>
@@ -88,8 +99,14 @@ export function PropertiesList({ onEdit, onManageUnits, onView }: PropertiesList
                 No properties found. Add your first building to get started.
               </TableCell>
             </TableRow>
+          ) : filteredProperties.length === 0 ? (
+            <TableRow>
+              <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                No properties match your search.
+              </TableCell>
+            </TableRow>
           ) : (
-            properties.map((property) => {
+            filteredProperties.map((property) => {
               const occupancy =
                 property.totalUnits > 0
                   ? Math.round((property.occupiedUnits / property.totalUnits) * 100)

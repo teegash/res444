@@ -6,12 +6,16 @@ interface PropertiesHeaderProps {
   viewType: 'grid' | 'list'
   setViewType: (type: 'grid' | 'list') => void
   onAddProperty: () => void
+  searchTerm: string
+  onSearchChange: (value: string) => void
 }
 
 export function PropertiesHeader({
   viewType,
   setViewType,
   onAddProperty,
+  searchTerm,
+  onSearchChange,
 }: PropertiesHeaderProps) {
   return (
     <div className="mb-6 space-y-4">
@@ -25,7 +29,11 @@ export function PropertiesHeader({
 
       <div className="flex items-center gap-4">
         <div className="flex-1">
-          <Input placeholder="Search by building name..." />
+          <Input
+            placeholder="Search by building name..."
+            value={searchTerm}
+            onChange={(e) => onSearchChange(e.target.value)}
+          />
         </div>
         <div className="flex gap-2">
           <Button

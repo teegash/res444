@@ -10,6 +10,7 @@ import { useRouter } from 'next/navigation'
 
 export default function PropertiesPage() {
   const [viewType, setViewType] = useState<'grid' | 'list'>('grid')
+  const [searchTerm, setSearchTerm] = useState('')
   const router = useRouter()
 
   const handleAddProperty = () => {
@@ -76,12 +77,24 @@ export default function PropertiesPage() {
               viewType={viewType}
               setViewType={setViewType}
               onAddProperty={handleAddProperty}
+              searchTerm={searchTerm}
+              onSearchChange={setSearchTerm}
             />
 
             {viewType === 'grid' ? (
-              <PropertiesGrid onEdit={handleEditProperty} onManageUnits={handleManageUnits} onView={handleViewProperty} />
+              <PropertiesGrid
+                onEdit={handleEditProperty}
+                onManageUnits={handleManageUnits}
+                onView={handleViewProperty}
+                searchTerm={searchTerm}
+              />
             ) : (
-              <PropertiesList onEdit={handleEditProperty} onManageUnits={handleManageUnits} onView={handleViewProperty} />
+              <PropertiesList
+                onEdit={handleEditProperty}
+                onManageUnits={handleManageUnits}
+                onView={handleViewProperty}
+                searchTerm={searchTerm}
+              />
             )}
 
           </div>
