@@ -135,7 +135,7 @@ export default function ReportsOverviewPage() {
     } finally {
       setLoading(false)
     }
-  }, [filters.period, filters.propertyId, filters.groupBy, toast])
+  }, [filters.period, filters.propertyId, filters.groupBy, filters.startDate, filters.endDate, toast])
 
   React.useEffect(() => {
     load()
@@ -205,6 +205,8 @@ export default function ReportsOverviewPage() {
     const calendarData = payload?.maintenanceCalendar?.data || []
     const monthKey = payload?.maintenanceCalendar?.month || new Date().toISOString().slice(0, 7)
     const maxValue = payload?.maintenanceCalendar?.max || 0
+    const isDark = typeof document !== 'undefined' && document.documentElement.classList.contains('dark')
+    const labelColor = isDark ? '#e2e8f0' : '#0f172a'
 
     const option: echarts.EChartsOption = {
       tooltip: {
@@ -233,12 +235,21 @@ export default function ReportsOverviewPage() {
         top: 8,
         bottom: 8,
         yearLabel: { show: false },
-        monthLabel: { nameMap: 'en', margin: 10, position: 'start', align: 'left' },
+        monthLabel: {
+          nameMap: 'en',
+          margin: 10,
+          position: 'start',
+          align: 'left',
+          color: labelColor,
+          fontWeight: 600,
+        },
         dayLabel: {
           firstDay: 1,
           nameMap: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
           margin: 6,
           position: 'start',
+          color: labelColor,
+          fontWeight: 600,
         },
         itemStyle: {
           borderWidth: 2,
