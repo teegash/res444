@@ -12,10 +12,12 @@ import { Sidebar } from '@/components/dashboard/sidebar'
 import { Header } from '@/components/dashboard/header'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { SkeletonLoader } from '@/components/ui/skeletons'
+import { ChronoSelect } from '@/components/ui/chrono-select'
 import { exportRowsAsCSV, exportRowsAsExcel, exportRowsAsPDF } from '@/lib/export/download'
 import {
   Dialog,
@@ -57,6 +59,19 @@ type Summary = {
 const fmtKES = (value: number) => `KES ${Math.round(value).toLocaleString()}`
 const fmtPct = (value: number | null) =>
   value === null ? '—' : `${(value * 100).toFixed(1)}%`
+const toDateString = (date?: Date | null) => {
+  if (!date) return null
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+const fromDateString = (value?: string | null) => {
+  if (!value) return undefined
+  const [year, month, day] = value.split('-').map(Number)
+  if (!year || !month || !day) return undefined
+  return new Date(year, month - 1, day)
+}
 
 export default function MaintenancePerformanceReportPage() {
   const nowYear = new Date().getFullYear()
@@ -71,6 +86,9 @@ export default function MaintenancePerformanceReportPage() {
   const [year, setYear] = useState(String(nowYear))
   const [propertyId, setPropertyId] = useState('all')
   const [unitId, setUnitId] = useState('all')
+  const [startDate, setStartDate] = useState<string | null>(null)
+  const [endDate, setEndDate] = useState<string | null>(null)
+  const [initialized, setInitialized] = useState(false)
 
   const [properties, setProperties] = useState<PropertyOption[]>([])
   const [units, setUnits] = useState<UnitOption[]>([])
@@ -179,14 +197,20 @@ export default function MaintenancePerformanceReportPage() {
     setUnits(list)
   }
 
-  const loadReport = async (opts?: { year?: string; propertyId?: string; unitId?: string }) => {
-    const activeYear = opts?.year ?? year
-    const activeProperty = opts?.propertyId ?? propertyId
-    const activeUnit = opts?.unitId ?? unitId
-
-    const qs = new URLSearchParams({ year: activeYear })
-    if (activeProperty && activeProperty !== 'all') qs.set('propertyId', activeProperty)
-    if (activeUnit && activeUnit !== 'all') qs.set('unitId', activeUnit)
+  const loadReport = async (opts: {
+    year: string
+    propertyId: string
+    unitId: string
+    startDate?: string | null
+    endDate?: string | null
+  }) => {
+    const qs = new URLSearchParams({ year: opts.year })
+    if (opts.propertyId && opts.propertyId !== 'all') qs.set('propertyId', opts.propertyId)
+    if (opts.unitId && opts.unitId !== 'all') qs.set('unitId', opts.unitId)
+    if (opts.startDate && opts.endDate) {
+      qs.set('startDate', opts.startDate)
+      qs.set('endDate', opts.endDate)
+    }
 
     setLoading(true)
     setError(null)
@@ -217,7 +241,14 @@ export default function MaintenancePerformanceReportPage() {
       try {
         setLoading(true)
         await loadProperties()
-        await loadReport({ year: String(nowYear), propertyId: 'all', unitId: 'all' })
+        await loadReport({
+          year: String(nowYear),
+          propertyId: 'all',
+          unitId: 'all',
+          startDate: null,
+          endDate: null,
+        })
+        setInitialized(true)
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to initialize report.')
       } finally {
@@ -237,20 +268,10 @@ export default function MaintenancePerformanceReportPage() {
     })()
   }, [propertyId])
 
-  const handleApply = async () => {
-    await loadReport()
-  }
-
-  const handleReset = async () => {
-    setYear(String(nowYear))
-    setPropertyId('all')
-    setUnitId('all')
-    setSearch('')
-    if (gridApiRef.current) {
-      gridApiRef.current.setGridOption('quickFilterText', '')
-    }
-    await loadReport({ year: String(nowYear), propertyId: 'all', unitId: 'all' })
-  }
+  useEffect(() => {
+    if (!initialized) return
+    loadReport({ year, propertyId, unitId, startDate, endDate })
+  }, [year, propertyId, unitId, startDate, endDate, initialized])
 
   const handleExport = (format: 'pdf' | 'excel' | 'csv') => {
     const filename = `maintenance-performance-${year}-${propertyId}-${unitId}-${new Date()
@@ -381,10 +402,46 @@ export default function MaintenancePerformanceReportPage() {
                   </SelectContent>
                 </Select>
 
-                <Button onClick={handleApply}>Apply</Button>
-                <Button variant="outline" onClick={handleReset}>
-                  Reset
-                </Button>
+                <div className="flex flex-wrap items-end gap-2">
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">Start date</Label>
+                    <ChronoSelect
+                      value={fromDateString(startDate)}
+                      onChange={(date) => {
+                        const iso = toDateString(date)
+                        setStartDate(iso)
+                        if (iso && (!endDate || iso > endDate)) setEndDate(iso)
+                      }}
+                    maxDate={fromDateString(endDate)}
+                      className="w-[200px]"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">End date</Label>
+                    <ChronoSelect
+                      value={fromDateString(endDate)}
+                      onChange={(date) => {
+                        const iso = toDateString(date)
+                        setEndDate(iso)
+                        if (iso && (!startDate || iso < startDate)) setStartDate(iso)
+                      }}
+                    minDate={fromDateString(startDate)}
+                      className="w-[200px]"
+                    />
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="mb-1 h-9"
+                    onClick={() => {
+                      setStartDate(null)
+                      setEndDate(null)
+                    }}
+                  >
+                    Clear
+                  </Button>
+                </div>
 
                 <div className="flex flex-wrap items-center gap-2 md:ml-auto">
                   <Button variant="outline" onClick={() => handleExport('pdf')}>

@@ -15,9 +15,23 @@ export async function GET(request: NextRequest) {
     const yearRaw = searchParams.get('year')
     const propertyId = searchParams.get('propertyId')
     const unitId = searchParams.get('unitId')
+    const startDate = searchParams.get('startDate')
+    const endDate = searchParams.get('endDate')
+
+    const hasCustomRange = !!(startDate && endDate)
+    const dateRe = /^\d{4}-\d{2}-\d{2}$/
+
+    if (hasCustomRange) {
+      if (!dateRe.test(startDate as string) || !dateRe.test(endDate as string)) {
+        return NextResponse.json({ success: false, error: 'Invalid date range.' }, { status: 400 })
+      }
+      if ((startDate as string) > (endDate as string)) {
+        return NextResponse.json({ success: false, error: 'Start date cannot be after end date.' }, { status: 400 })
+      }
+    }
 
     const year = yearRaw ? Number(yearRaw) : new Date().getFullYear()
-    if (!Number.isFinite(year) || year < 2000 || year > 2100) {
+    if (!hasCustomRange && (!Number.isFinite(year) || year < 2000 || year > 2100)) {
       return NextResponse.json({ success: false, error: 'Valid year is required.' }, { status: 400 })
     }
     if (propertyId && !isUuid(propertyId)) {
@@ -54,6 +68,148 @@ export async function GET(request: NextRequest) {
     }
 
     const orgId = membership.organization_id
+
+    if (hasCustomRange) {
+      const startTs = `${startDate}T00:00:00Z`
+      const endTs = `${endDate}T23:59:59.999Z`
+
+      let unitsQ = admin
+        .from('apartment_units')
+        .select(
+          'id, unit_number, building_id, building:apartment_buildings!apartment_units_building_org_fk ( id, name )'
+        )
+        .eq('organization_id', orgId)
+
+      if (propertyId) unitsQ = unitsQ.eq('building_id', propertyId)
+      if (unitId) unitsQ = unitsQ.eq('id', unitId)
+
+      const { data: units, error: unitsError } = await unitsQ
+      if (unitsError) throw unitsError
+
+      const rows = (units || []).map((unit: any) => ({
+        organization_id: orgId,
+        property_id: unit.building_id,
+        property_name: unit.building?.name || 'Property',
+        unit_id: unit.id,
+        unit_number: unit.unit_number,
+        year: Number(String(startDate).slice(0, 4)),
+        rent_collected: 0,
+        maintenance_spend: 0,
+        other_expenses: 0,
+        net_income: 0,
+        maintenance_to_collections_ratio: null as number | null,
+      }))
+
+      const rowByUnit = new Map(rows.map((row) => [row.unit_id, row]))
+      const unitIds = rows.map((row) => row.unit_id)
+
+      if (unitIds.length) {
+        const { data: payments, error: payError } = await admin
+          .from('payments')
+          .select(
+            `
+            amount_paid,
+            payment_date,
+            invoice:invoices!payments_invoice_org_fk (
+              invoice_type,
+              lease:leases!invoices_lease_org_fk ( unit_id )
+            )
+          `
+          )
+          .eq('organization_id', orgId)
+          .eq('verified', true)
+          .gte('payment_date', startTs)
+          .lte('payment_date', endTs)
+
+        if (payError) throw payError
+
+        for (const payment of payments || []) {
+          if (payment?.invoice?.invoice_type !== 'rent') continue
+          const unitKey = payment?.invoice?.lease?.unit_id
+          if (!unitKey || !rowByUnit.has(unitKey)) continue
+          const row = rowByUnit.get(unitKey)
+          if (row) row.rent_collected += Number(payment.amount_paid || 0)
+        }
+
+        const { data: maintenanceRows, error: maintError } = await admin
+          .from('maintenance_requests')
+          .select('unit_id, maintenance_cost, maintenance_cost_paid_by, created_at')
+          .eq('organization_id', orgId)
+          .eq('maintenance_cost_paid_by', 'landlord')
+          .gte('created_at', startTs)
+          .lte('created_at', endTs)
+          .in('unit_id', unitIds)
+
+        if (maintError) throw maintError
+
+        for (const request of maintenanceRows || []) {
+          const unitKey = request.unit_id
+          if (!unitKey || !rowByUnit.has(unitKey)) continue
+          const row = rowByUnit.get(unitKey)
+          if (row) row.maintenance_spend += Number(request.maintenance_cost || 0)
+        }
+      }
+
+      const totalCollected = rows.reduce((sum, item) => sum + (item.rent_collected || 0), 0)
+      const totalSpend = rows.reduce((sum, item) => sum + (item.maintenance_spend || 0), 0)
+
+      let totalOtherExpenses = 0
+      try {
+        const scopePropertyId = propertyId || (unitId ? rows[0]?.property_id : null)
+        let expQ = admin
+          .from('expenses')
+          .select('amount, category, incurred_at, created_at, property_id')
+          .eq('organization_id', orgId)
+          .neq('category', 'maintenance')
+
+        if (scopePropertyId) expQ = expQ.eq('property_id', scopePropertyId)
+
+        const { data: expenses, error: expError } = await expQ
+        if (expError) throw expError
+
+        totalOtherExpenses = (expenses || []).reduce((sum, item: any) => {
+          const rawDate = item.incurred_at || item.created_at
+          if (!rawDate) return sum
+          const iso = String(rawDate).slice(0, 10)
+          if (iso < (startDate as string) || iso > (endDate as string)) return sum
+          return sum + Number(item.amount || 0)
+        }, 0)
+      } catch (expErr) {
+        console.warn('[unit-maintenance-performance] other expenses lookup failed', expErr)
+      }
+
+      const rowsWithOther = rows.map((row) => {
+        const share = totalCollected > 0 ? (row.rent_collected || 0) / totalCollected : 0
+        const allocatedOther = Number((totalOtherExpenses * share).toFixed(2))
+        const adjustedNet = (row.rent_collected || 0) - (row.maintenance_spend || 0) - allocatedOther
+        return {
+          ...row,
+          other_expenses: allocatedOther,
+          net_income: adjustedNet,
+          maintenance_to_collections_ratio:
+            row.rent_collected > 0 ? row.maintenance_spend / row.rent_collected : null,
+        }
+      })
+
+      const totalNet = totalCollected - totalSpend - totalOtherExpenses
+      const unitsWithZeroCollections = rowsWithOther.filter((item) => (item.rent_collected || 0) <= 0).length
+      const overallRatio = totalCollected > 0 ? totalSpend / totalCollected : null
+
+      return NextResponse.json({
+        success: true,
+        data: rowsWithOther,
+        summary: {
+          year: Number(String(startDate).slice(0, 4)),
+          units: rowsWithOther.length,
+          total_collected: totalCollected,
+          total_maintenance_spend: totalSpend,
+          total_other_expenses: totalOtherExpenses,
+          total_net_income: totalNet,
+          overall_ratio: overallRatio,
+          units_with_zero_collections: unitsWithZeroCollections,
+        },
+      })
+    }
 
     let q = admin
       .from('vw_unit_financial_performance_yearly_enriched')
