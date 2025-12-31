@@ -219,21 +219,27 @@ export default function ReportsOverviewPage() {
       visualMap: {
         min: 0,
         max: Math.max(maxValue, 1),
-        calculable: true,
-        orient: 'horizontal',
-        left: 'center',
-        bottom: 0,
+        show: false,
         inRange: {
           color: ['#fff7ed', '#fdba74', '#fb923c', '#f97316', '#ea580c'],
         },
       },
       calendar: {
         range: monthKey,
-        cellSize: [22, 22],
+        cellSize: 'auto',
         orient: 'horizontal',
+        left: 8,
+        right: 8,
+        top: 8,
+        bottom: 8,
         yearLabel: { show: false },
-        monthLabel: { nameMap: 'en', margin: 12 },
-        dayLabel: { firstDay: 1, nameMap: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'], margin: 8 },
+        monthLabel: { nameMap: 'en', margin: 10, position: 'start', align: 'left' },
+        dayLabel: {
+          firstDay: 1,
+          nameMap: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+          margin: 6,
+          position: 'start',
+        },
         itemStyle: {
           borderWidth: 2,
           borderColor: '#ffffff',
@@ -436,7 +442,7 @@ export default function ReportsOverviewPage() {
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="pt-2">
-                    <div ref={calendarRef} className="h-[320px] w-full" />
+                    <div ref={calendarRef} className="h-[360px] w-full" />
                   </CardContent>
                 </Card>
 
@@ -531,7 +537,7 @@ export default function ReportsOverviewPage() {
                   <CardDescription>Jump into specialized reports for deeper analysis.</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  <div className="grid grid-cols-1 gap-2 md:grid-cols-5">
                     {[
                       { label: 'Revenue report', href: '/dashboard/manager/reports/revenue' },
                       { label: 'Occupancy report', href: '/dashboard/manager/reports/occupancy' },
@@ -541,8 +547,8 @@ export default function ReportsOverviewPage() {
                     ].map((item) => (
                       <ParticleButton
                         key={item.href}
-                        variant="outline"
-                        className="h-12 justify-between border-slate-200 bg-white/80 px-4 shadow-sm hover:bg-white"
+                        variant="default"
+                        className="h-10 w-full justify-center gap-2 whitespace-nowrap rounded-lg bg-gradient-to-b from-neutral-700 via-neutral-900 to-black px-3 text-xs text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.25),0_10px_20px_-12px_rgba(0,0,0,0.8)] ring-1 ring-black/40 hover:from-neutral-600 hover:via-neutral-800 hover:to-neutral-950 sm:text-sm"
                         onClick={() => router.push(item.href)}
                       >
                         <span>{item.label}</span>

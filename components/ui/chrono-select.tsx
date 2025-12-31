@@ -23,6 +23,7 @@ interface ChronoSelectProps {
   yearRange?: [number, number]
   minDate?: Date
   maxDate?: Date
+  disabled?: boolean
 }
 
 export function ChronoSelect({
@@ -33,6 +34,7 @@ export function ChronoSelect({
   yearRange = [1970, 2050],
   minDate,
   maxDate,
+  disabled = false,
 }: ChronoSelectProps) {
   const [open, setOpen] = React.useState(false)
   const [selected, setSelected] = React.useState<Date | undefined>(value)
@@ -82,10 +84,16 @@ export function ChronoSelect({
   }, [normalizedMin, normalizedMax])
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover
+      open={disabled ? false : open}
+      onOpenChange={(next) => {
+        if (!disabled) setOpen(next)
+      }}
+    >
       <PopoverTrigger asChild>
         <Button
           variant="outline"
+          disabled={disabled}
           className={cn(
             "w-[280px] justify-start text-left font-normal hover:bg-slate-100 hover:text-foreground",
             !selected && "text-muted-foreground",
