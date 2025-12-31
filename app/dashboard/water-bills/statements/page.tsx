@@ -365,34 +365,37 @@ export default function WaterBillStatementsPage() {
                   No bills match your filters.
                 </p>
               ) : (
-                <div className="overflow-x-auto">
+                <div className="overflow-x-auto rounded-2xl border border-white/60 bg-white/70 shadow-[0_20px_50px_-35px_rgba(15,23,42,0.6)] backdrop-blur">
                   <table className="w-full text-sm">
-                    <thead>
-                      <tr className="text-left text-xs text-muted-foreground border-b">
-                        <th className="py-2">Tenant</th>
-                        <th className="py-2">Property</th>
-                        <th className="py-2">Unit</th>
-                        <th className="py-2">Billing Month</th>
-                        <th className="py-2 text-right">Amount</th>
-                        <th className="py-2">Status</th>
-                        <th className="py-2">Invoice Due</th>
+                    <thead className="sticky top-0 z-10 bg-gradient-to-r from-slate-100/90 via-white/80 to-slate-100/90 backdrop-blur">
+                      <tr className="text-left text-[11px] uppercase tracking-wider text-slate-600 border-b border-slate-200/70">
+                        <th className="py-3 px-3">Tenant</th>
+                        <th className="py-3 px-3">Property</th>
+                        <th className="py-3 px-3">Unit</th>
+                        <th className="py-3 px-3">Billing Month</th>
+                        <th className="py-3 px-3 text-right">Amount</th>
+                        <th className="py-3 px-3">Status</th>
+                        <th className="py-3 px-3">Invoice Due</th>
                       </tr>
                     </thead>
                     <tbody>
                       {filteredRecords.map((record) => (
-                        <tr key={record.id} className="border-b last:border-0">
-                          <td className="py-3">
+                        <tr
+                          key={record.id}
+                          className="border-b border-slate-100/80 odd:bg-white/70 even:bg-slate-50/60 hover:bg-slate-100/70 transition-colors"
+                        >
+                          <td className="py-3 px-3">
                             <p className="font-medium">{record.tenant_name}</p>
                             <p className="text-xs text-muted-foreground">
                               {record.tenant_phone || record.tenant_email || '—'}
                             </p>
                           </td>
-                          <td className="py-3">
+                          <td className="py-3 px-3">
                             <p className="font-medium">{record.property_name}</p>
                             <p className="text-xs text-muted-foreground">{record.property_location}</p>
                           </td>
-                          <td className="py-3">{record.unit_number}</td>
-                          <td className="py-3">
+                          <td className="py-3 px-3">{record.unit_number}</td>
+                          <td className="py-3 px-3">
                             {record.billing_month
                               ? new Date(record.billing_month).toLocaleDateString(undefined, {
                                   year: 'numeric',
@@ -400,9 +403,9 @@ export default function WaterBillStatementsPage() {
                                 })
                               : '—'}
                           </td>
-                          <td className="py-3 text-right font-semibold">{formatCurrency(record.amount)}</td>
-                          <td className="py-3">{renderStatusBadge(record.status)}</td>
-                          <td className="py-3 text-sm text-muted-foreground">
+                          <td className="py-3 px-3 text-right font-semibold">{formatCurrency(record.amount)}</td>
+                          <td className="py-3 px-3">{renderStatusBadge(record.status)}</td>
+                          <td className="py-3 px-3 text-sm text-muted-foreground">
                             {record.invoice_due_date
                               ? new Date(record.invoice_due_date).toLocaleDateString()
                               : '—'}

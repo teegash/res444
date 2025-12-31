@@ -214,3 +214,26 @@
 .ag-theme-quartz.premium-grid .ag-root-wrapper {
   border-radius: 16px;
 }
+
+.ag-theme-quartz.glass-grid .ag-header {
+  background: linear-gradient(180deg, rgba(241, 245, 249, 0.85) 0%, rgba(226, 232, 240, 0.7) 100%);
+  backdrop-filter: blur(12px);
+}
+
+.ag-theme-quartz.glass-grid .ag-header-cell-label {
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: #0f172a;
+}
+
+.ag-theme-quartz.glass-grid .ag-row-odd {
+  background-color: rgba(255, 255, 255, 0.7);
+}
+
+.ag-theme-quartz.glass-grid .ag-row-even {
+  background-color: rgba(248, 250, 252, 0.6);
+}
+
+.ag-theme-quartz.glass-grid .ag-row-hover {
+  background-color: rgba(226, 232, 240, 0.7);
+}

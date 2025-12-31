@@ -352,6 +352,41 @@ export async function GET(req: NextRequest) {
     }
 
     const maintenanceMax = maintenanceData.reduce((max, row) => Math.max(max, row[1]), 0)
+    const yearStart = new Date(Date.UTC(year, 0, 1))
+    const nextYear = new Date(Date.UTC(year + 1, 0, 1))
+    let maintenanceYearRows: Array<{ created_at: string | null; unit_id: string | null }> = []
+
+    if (!scopePropertyId || unitIdsForScope.length) {
+      let maintenanceYearQuery = admin
+        .from('maintenance_requests')
+        .select('created_at, unit_id')
+        .eq('organization_id', orgId)
+        .gte('created_at', yearStart.toISOString())
+        .lt('created_at', nextYear.toISOString())
+
+      if (unitIdsForScope?.length) {
+        maintenanceYearQuery = maintenanceYearQuery.in('unit_id', unitIdsForScope)
+      }
+
+      const { data: yearData, error: yearError } = await maintenanceYearQuery
+      if (yearError) throw yearError
+      maintenanceYearRows = yearData || []
+    }
+
+    const monthCounts = new Map<string, number>()
+    maintenanceYearRows.forEach((row) => {
+      const day = isoDate(row.created_at)
+      if (!day) return
+      const monthKey = day.slice(0, 7)
+      monthCounts.set(monthKey, (monthCounts.get(monthKey) || 0) + 1)
+    })
+
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+    const maintenanceMonths = monthNames.map((label, index) => {
+      const key = `${yearStr}-${String(index + 1).padStart(2, '0')}`
+      return { key, label, count: monthCounts.get(key) || 0 }
+    })
+    const maintenanceYearMax = maintenanceMonths.reduce((max, item) => Math.max(max, item.count), 0)
 
     return NextResponse.json({
       success: true,
@@ -377,6 +412,11 @@ export async function GET(req: NextRequest) {
           month: monthKey,
           data: maintenanceData,
           max: maintenanceMax,
+        },
+        maintenanceCalendarYear: {
+          year: yearStr,
+          months: maintenanceMonths,
+          max: maintenanceYearMax,
         },
       },
     })

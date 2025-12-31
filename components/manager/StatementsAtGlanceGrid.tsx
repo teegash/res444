@@ -306,7 +306,10 @@ export function StatementsAtGlanceGrid() {
 
       {error ? <div className="text-sm text-red-600">{error}</div> : null}
 
-      <div className="ag-theme-quartz w-full max-w-full min-w-0 overflow-hidden" style={{ height: 680 }}>
+      <div
+        className="ag-theme-quartz premium-grid glass-grid w-full max-w-full min-w-0 overflow-hidden rounded-2xl border border-white/60 bg-white/70 shadow-[0_24px_60px_-40px_rgba(15,23,42,0.6)] backdrop-blur"
+        style={{ height: 680 }}
+      >
         <div
           className="w-full h-full min-w-0"
           style={{

@@ -44,6 +44,7 @@ import {
 
 import { exportRowsAsCSV, exportRowsAsExcel, exportRowsAsPDF } from '@/lib/export/download'
 import { ParticleButton } from '@/components/ui/particle-button'
+import { MnYrSwitch } from '@/components/ui/switch-1'
 
 type OverviewPayload = {
   range: { start: string | null; end: string }
@@ -77,6 +78,11 @@ type OverviewPayload = {
     data: Array<[string, number]>
     max: number
   }
+  maintenanceCalendarYear?: {
+    year: string
+    months: Array<{ key: string; label: string; count: number }>
+    max: number
+  }
 }
 
 function kes(value: number) {
@@ -94,6 +100,8 @@ export default function ReportsOverviewPage() {
   const { toast } = useToast()
   const router = useRouter()
   const calendarRef = React.useRef<HTMLDivElement | null>(null)
+  const calendarChartRef = React.useRef<echarts.ECharts | null>(null)
+  const [calendarView, setCalendarView] = React.useState<'month' | 'year'>('month')
 
   const [filters, setFilters] = React.useState<ReportFilterState>({
     period: 'quarter',
@@ -196,9 +204,17 @@ export default function ReportsOverviewPage() {
 
   React.useEffect(() => {
     const node = calendarRef.current
+    if (calendarView !== 'month') {
+      if (calendarChartRef.current) {
+        calendarChartRef.current.dispose()
+        calendarChartRef.current = null
+      }
+      return
+    }
     if (!node) return
 
-    const chart = echarts.init(node)
+    const chart = calendarChartRef.current || echarts.init(node)
+    calendarChartRef.current = chart
     const calendarData = payload?.maintenanceCalendar?.data || []
     const monthKey = payload?.maintenanceCalendar?.month || new Date().toISOString().slice(0, 7)
     const maxValue = payload?.maintenanceCalendar?.max || 0
@@ -242,7 +258,7 @@ export default function ReportsOverviewPage() {
         },
         dayLabel: {
           firstDay: 1,
-          nameMap: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+          nameMap: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
           margin: 12,
           position: 'start',
           color: labelColor,
@@ -288,9 +304,12 @@ export default function ReportsOverviewPage() {
 
     return () => {
       window.removeEventListener('resize', handleResize)
-      chart.dispose()
+      if (calendarView !== 'month') {
+        chart.dispose()
+        calendarChartRef.current = null
+      }
     }
-  }, [payload?.maintenanceCalendar])
+  }, [payload?.maintenanceCalendar, calendarView])
 
   const exportRows = React.useMemo(() => {
     return (payload?.propertyRows || []).map((row) => ({
@@ -464,13 +483,48 @@ export default function ReportsOverviewPage() {
 
                 <Card className="border bg-background">
                   <CardHeader className="pb-2">
-                    <CardTitle className="text-base">Maintenance Request Calendar</CardTitle>
-                    <CardDescription>
-                      Darker orange means more requests on that day in the selected month.
-                    </CardDescription>
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <CardTitle className="text-base">Maintenance Request Calendar</CardTitle>
+                        <CardDescription>
+                          Darker orange means more requests on that day in the selected month.
+                        </CardDescription>
+                      </div>
+                      <MnYrSwitch
+                        checked={calendarView === 'year'}
+                        onCheckedChange={(checked) => setCalendarView(checked ? 'year' : 'month')}
+                      />
+                    </div>
                   </CardHeader>
                   <CardContent className="pt-2">
-                    <div ref={calendarRef} className="h-[330px] w-full" />
+                    {calendarView === 'month' ? (
+                      <div ref={calendarRef} className="h-[330px] w-full" />
+                    ) : (
+                      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+                        {(payload?.maintenanceCalendarYear?.months || []).map((month) => {
+                          const max = payload?.maintenanceCalendarYear?.max || 0
+                          const intensity = max > 0 ? month.count / max : 0
+                          const bg = `rgba(249, 115, 22, ${0.12 + intensity * 0.6})`
+                          const shadow = `0 16px 28px -18px rgba(249,115,22, ${0.2 + intensity * 0.5})`
+                          return (
+                            <div
+                              key={month.key}
+                              title={`${month.label} ${payload?.maintenanceCalendarYear?.year}: ${month.count} requests`}
+                              className="group rounded-xl border border-white/70 bg-white/60 p-4 shadow-sm backdrop-blur transition-transform hover:-translate-y-1"
+                              style={{ backgroundColor: bg, boxShadow: shadow }}
+                            >
+                              <div className="text-xs font-semibold uppercase tracking-wider text-slate-700">
+                                {month.label}
+                              </div>
+                              <div className="mt-3 text-2xl font-semibold text-slate-900">
+                                {month.count}
+                              </div>
+                              <div className="text-xs text-slate-600">requests</div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
 
