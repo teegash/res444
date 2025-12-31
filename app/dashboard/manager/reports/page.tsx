@@ -538,7 +538,9 @@ export default function ReportsOverviewPage() {
                   </CardHeader>
                   <CardContent className="pt-2">
                     <div className={calendarView === 'month' ? 'block' : 'hidden'}>
-                      <div ref={calendarRef} className="h-[330px] w-full" />
+                      <div className="rounded-2xl border border-white/70 bg-white/70 shadow-[0_18px_40px_-30px_rgba(15,23,42,0.45)] backdrop-blur overflow-hidden">
+                        <div ref={calendarRef} className="h-[330px] w-full" />
+                      </div>
                     </div>
                     <div className={calendarView === 'year' ? 'grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4' : 'hidden'}>
                       {yearGrid.map((month) => {
