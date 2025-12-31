@@ -331,23 +331,36 @@ export default function MaintenancePerformanceReportPage() {
         <Header />
         <main className="flex-1 p-8 overflow-auto space-y-6">
           <div className="space-y-4">
-            <div className="flex items-center gap-3">
-              <Link href="/dashboard/manager/reports">
-                <Button variant="ghost" size="icon">
-                  <ArrowLeft className="h-4 w-4" />
+            <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+              <div className="flex items-center gap-3">
+                <Link href="/dashboard/manager/reports">
+                  <Button variant="ghost" size="icon">
+                    <ArrowLeft className="h-4 w-4" />
+                  </Button>
+                </Link>
+                <div>
+                  <h1 className="text-3xl font-bold">Maintenance Report</h1>
+                  <p className="text-sm text-muted-foreground">
+                    Annual landlord maintenance spend vs verified rent collected, per unit.
+                  </p>
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center gap-2 md:justify-end">
+                <Button variant="outline" onClick={() => handleExport('pdf')}>
+                  <Download className="h-4 w-4 mr-2" /> PDF
                 </Button>
-              </Link>
-              <div>
-                <h1 className="text-3xl font-bold">Maintenance Report</h1>
-                <p className="text-sm text-muted-foreground">
-                  Annual landlord maintenance spend vs verified rent collected, per unit.
-                </p>
+                <Button variant="outline" onClick={() => handleExport('excel')}>
+                  <Download className="h-4 w-4 mr-2" /> Excel
+                </Button>
+                <Button variant="outline" onClick={() => handleExport('csv')}>
+                  <Download className="h-4 w-4 mr-2" /> CSV
+                </Button>
               </div>
             </div>
 
             <Card className="border-0 shadow-sm bg-white/90">
-              <CardContent className="p-3 flex flex-wrap items-center gap-2">
-                <div className="relative flex-1 min-w-[220px] md:max-w-xs">
+              <CardContent className="p-4 flex flex-wrap items-end gap-3">
+                <div className="relative min-w-[220px] max-w-xs flex-1">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
                     className="pl-9 w-full"
@@ -361,48 +374,57 @@ export default function MaintenancePerformanceReportPage() {
                   />
                 </div>
 
-                <Select value={year} onValueChange={setYear}>
-                  <SelectTrigger className="w-[120px]">
-                    <SelectValue placeholder="Year" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {years.map((value) => (
-                      <SelectItem key={value} value={value}>
-                        {value}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Year</Label>
+                  <Select value={year} onValueChange={setYear}>
+                    <SelectTrigger className="w-[120px]">
+                      <SelectValue placeholder="Year" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {years.map((value) => (
+                        <SelectItem key={value} value={value}>
+                          {value}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
 
-                <Select value={propertyId} onValueChange={setPropertyId}>
-                  <SelectTrigger className="w-[220px]">
-                    <SelectValue placeholder="Property" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All properties</SelectItem>
-                    {properties.map((property) => (
-                      <SelectItem key={property.id} value={property.id}>
-                        {property.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Property</Label>
+                  <Select value={propertyId} onValueChange={setPropertyId}>
+                    <SelectTrigger className="w-[220px]">
+                      <SelectValue placeholder="Property" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All properties</SelectItem>
+                      {properties.map((property) => (
+                        <SelectItem key={property.id} value={property.id}>
+                          {property.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
 
-                <Select value={unitId} onValueChange={setUnitId} disabled={propertyId === 'all'}>
-                  <SelectTrigger className="w-[160px]">
-                    <SelectValue placeholder="Unit" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All units</SelectItem>
-                    {units.map((unit) => (
-                      <SelectItem key={unit.id} value={unit.id}>
-                        {unit.unit_number}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Unit</Label>
+                  <Select value={unitId} onValueChange={setUnitId} disabled={propertyId === 'all'}>
+                    <SelectTrigger className="w-[160px]">
+                      <SelectValue placeholder="Unit" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All units</SelectItem>
+                      {units.map((unit) => (
+                        <SelectItem key={unit.id} value={unit.id}>
+                          {unit.unit_number}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
 
-                <div className="flex flex-wrap items-end gap-2">
+                <div className="flex items-end gap-2">
                   <div className="space-y-1">
                     <Label className="text-xs text-muted-foreground">Start date</Label>
                     <ChronoSelect
@@ -412,8 +434,8 @@ export default function MaintenancePerformanceReportPage() {
                         setStartDate(iso)
                         if (iso && (!endDate || iso > endDate)) setEndDate(iso)
                       }}
-                    maxDate={fromDateString(endDate)}
-                      className="w-[200px]"
+                      maxDate={fromDateString(endDate)}
+                      className="w-[180px]"
                     />
                   </div>
                   <div className="space-y-1">
@@ -425,33 +447,21 @@ export default function MaintenancePerformanceReportPage() {
                         setEndDate(iso)
                         if (iso && (!startDate || iso < startDate)) setStartDate(iso)
                       }}
-                    minDate={fromDateString(startDate)}
-                      className="w-[200px]"
+                      minDate={fromDateString(startDate)}
+                      className="w-[180px]"
                     />
                   </div>
                   <Button
                     type="button"
                     variant="outline"
                     size="sm"
-                    className="mb-1 h-9"
+                    className="h-9"
                     onClick={() => {
                       setStartDate(null)
                       setEndDate(null)
                     }}
                   >
                     Clear
-                  </Button>
-                </div>
-
-                <div className="flex flex-wrap items-center gap-2 md:ml-auto">
-                  <Button variant="outline" onClick={() => handleExport('pdf')}>
-                    <Download className="h-4 w-4 mr-2" /> PDF
-                  </Button>
-                  <Button variant="outline" onClick={() => handleExport('excel')}>
-                    <Download className="h-4 w-4 mr-2" /> Excel
-                  </Button>
-                  <Button variant="outline" onClick={() => handleExport('csv')}>
-                    <Download className="h-4 w-4 mr-2" /> CSV
                   </Button>
                 </div>
               </CardContent>
