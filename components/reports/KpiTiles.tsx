@@ -20,10 +20,18 @@ export function KpiTiles(props: { items: KpiItem[]; className?: string }) {
   return (
     <div className={cn('grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4', props.className)}>
       {props.items.map((kpi, idx) => (
-        <Card key={idx} className="border bg-background">
+        <Card
+          key={idx}
+          className="border border-slate-200/70 bg-gradient-to-br from-white to-slate-50/80 shadow-sm dark:border-slate-800 dark:from-slate-900 dark:to-slate-950"
+        >
           <CardContent className="p-4">
             <div className="text-xs text-muted-foreground">{kpi.label}</div>
-            <div className={cn('mt-1 text-2xl font-semibold tracking-tight', kpi.valueClassName)}>
+            <div
+              className={cn(
+                'mt-1 text-lg font-semibold tracking-tight leading-tight tabular-nums sm:text-xl',
+                kpi.valueClassName
+              )}
+            >
               {kpi.value}
             </div>
 

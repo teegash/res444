@@ -307,6 +307,50 @@ export async function GET(req: NextRequest) {
       })
       .sort((a, b) => b.collected - a.collected)
 
+    const monthKey = range.end.slice(0, 7)
+    const [yearStr, monthStr] = monthKey.split('-')
+    const year = Number(yearStr)
+    const month = Number(monthStr)
+    const monthStart = new Date(Date.UTC(year, month - 1, 1))
+    const nextMonth = new Date(Date.UTC(year, month, 1))
+    const unitIdsForScope = scopePropertyId ? (units || []).map((unit: any) => unit.id) : null
+
+    let maintenanceRows: Array<{ created_at: string | null; unit_id: string | null }> = []
+
+    if (!scopePropertyId || unitIdsForScope.length) {
+      let maintenanceQuery = admin
+        .from('maintenance_requests')
+        .select('created_at, unit_id')
+        .eq('organization_id', orgId)
+        .gte('created_at', monthStart.toISOString())
+        .lt('created_at', nextMonth.toISOString())
+
+      if (unitIdsForScope?.length) {
+        maintenanceQuery = maintenanceQuery.in('unit_id', unitIdsForScope)
+      }
+
+      const { data: maintenanceData, error: maintenanceError } = await maintenanceQuery
+      if (maintenanceError) throw maintenanceError
+      maintenanceRows = maintenanceData || []
+    }
+
+    const maintenanceCounts = new Map<string, number>()
+    maintenanceRows.forEach((row) => {
+      const day = isoDate(row.created_at)
+      if (!day) return
+      maintenanceCounts.set(day, (maintenanceCounts.get(day) || 0) + 1)
+    })
+
+    const maintenanceData: Array<[string, number]> = []
+    const cursor = new Date(monthStart)
+    while (cursor < nextMonth) {
+      const day = cursor.toISOString().slice(0, 10)
+      maintenanceData.push([day, maintenanceCounts.get(day) || 0])
+      cursor.setUTCDate(cursor.getUTCDate() + 1)
+    }
+
+    const maintenanceMax = maintenanceData.reduce((max, row) => Math.max(max, row[1]), 0)
+
     return NextResponse.json({
       success: true,
       data: {
@@ -327,6 +371,11 @@ export async function GET(req: NextRequest) {
         unitStatus: unitStatusCounts,
         timeseries,
         propertyRows,
+        maintenanceCalendar: {
+          month: monthKey,
+          data: maintenanceData,
+          max: maintenanceMax,
+        },
       },
     })
   } catch (error: any) {

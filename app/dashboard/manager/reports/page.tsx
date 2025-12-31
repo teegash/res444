@@ -14,7 +14,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { Download, BarChart3, ArrowUpRight } from 'lucide-react'
+import { Download, BarChart3 } from 'lucide-react'
 import * as echarts from 'echarts'
 
 import { ReportFilters, type ReportFilterState } from '@/components/reports/ReportFilters'
@@ -42,6 +42,7 @@ import {
 } from 'recharts'
 
 import { exportRowsAsCSV, exportRowsAsExcel, exportRowsAsPDF } from '@/lib/export/download'
+import { ParticleButton } from '@/components/ui/particle-button'
 
 type OverviewPayload = {
   range: { start: string | null; end: string }
@@ -70,6 +71,11 @@ type OverviewPayload = {
     arrearsNow: number
     collectionRate: number
   }>
+  maintenanceCalendar?: {
+    month: string
+    data: Array<[string, number]>
+    max: number
+  }
 }
 
 function kes(value: number) {
@@ -77,7 +83,7 @@ function kes(value: number) {
 }
 
 const performanceConfig = {
-  unpaid: { label: 'Unpaid', color: '#4c1d95' },
+  unpaid: { label: 'Rent unpaid', color: '#4c1d95' },
   collected: { label: 'Collected', color: '#16a34a' },
   expenses: { label: 'Expenses', color: '#ef4444' },
   net: { label: 'Net', color: '#1d4ed8' },
@@ -85,7 +91,7 @@ const performanceConfig = {
 
 export default function ReportsOverviewPage() {
   const { toast } = useToast()
-  const sunburstRef = React.useRef<HTMLDivElement | null>(null)
+  const calendarRef = React.useRef<HTMLDivElement | null>(null)
 
   const [filters, setFilters] = React.useState<ReportFilterState>({
     period: 'quarter',
@@ -149,7 +155,7 @@ export default function ReportsOverviewPage() {
       { label: 'Expenses (period)', value: kes(kpis.expenses) },
       { label: 'Net (period)', value: kes(kpis.net) },
       {
-        label: 'Arrears outstanding (now)',
+        label: 'Arrears',
         value: kes(kpis.arrearsNow),
         valueClassName: 'text-rose-600 dark:text-rose-400',
       },
@@ -158,7 +164,7 @@ export default function ReportsOverviewPage() {
         value: `${kpis.occupancyRate.toFixed(1)}%`,
         subtext: `${kpis.totalUnits.toLocaleString()} units`,
       },
-      { label: 'Defaulters (overdue rent)', value: kpis.defaultersCount.toLocaleString() },
+      { label: 'Defaulters (overdue)', value: kpis.defaultersCount.toLocaleString() },
     ]
   }, [kpis, payload?.range])
 
@@ -169,56 +175,53 @@ export default function ReportsOverviewPage() {
     }))
   }, [payload?.timeseries])
 
-  const sunburstData = React.useMemo(() => {
-    const rows = payload?.propertyRows || []
-    const children = rows.map((row) => ({
-      name: row.propertyName,
-      value: Number(row.collected || 0) + Number(row.billed || 0),
-      children: [
-        { name: 'Income', value: Number(row.collected || 0) },
-        { name: 'Revenue', value: Number(row.billed || 0) },
-      ],
-    }))
-
-    return [
-      {
-        name: 'Revenue',
-        value: children.reduce((sum, child) => sum + (child.value || 0), 0),
-        children,
-      },
-    ]
-  }, [payload?.propertyRows])
-
   React.useEffect(() => {
-    const node = sunburstRef.current
+    const node = calendarRef.current
     if (!node) return
 
     const chart = echarts.init(node)
+    const calendarData = payload?.maintenanceCalendar?.data || []
+    const monthKey = payload?.maintenanceCalendar?.month || new Date().toISOString().slice(0, 7)
+    const maxValue = payload?.maintenanceCalendar?.max || 0
+
     const option: echarts.EChartsOption = {
       tooltip: {
-        trigger: 'item',
+        position: 'top',
         formatter: (params: any) => {
-          if (!params?.name) return ''
-          const path = (params.treePathInfo || [])
-            .map((node: any) => node.name)
-            .filter(Boolean)
-            .join(' / ')
-          const value = typeof params.value === 'number' ? params.value : 0
-          return `${path}<br/>KES ${Math.round(value).toLocaleString()}`
+          const date = params?.data?.[0] || params?.name
+          const value = params?.data?.[1] ?? 0
+          if (!date) return ''
+          return `${date}<br/>Maintenance requests: ${value}`
+        },
+      },
+      visualMap: {
+        min: 0,
+        max: Math.max(maxValue, 1),
+        calculable: true,
+        orient: 'horizontal',
+        left: 'center',
+        bottom: 0,
+        inRange: {
+          color: ['#fff7ed', '#fdba74', '#fb923c', '#f97316', '#ea580c'],
+        },
+      },
+      calendar: {
+        range: monthKey,
+        cellSize: [22, 22],
+        orient: 'horizontal',
+        yearLabel: { show: false },
+        monthLabel: { nameMap: 'en', margin: 12 },
+        dayLabel: { firstDay: 1, nameMap: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'], margin: 8 },
+        itemStyle: {
+          borderWidth: 2,
+          borderColor: '#ffffff',
+          borderRadius: 4,
         },
       },
       series: {
-        type: 'sunburst',
-        data: sunburstData,
-        radius: [60, '90%'],
-        itemStyle: {
-          borderRadius: 7,
-          borderWidth: 2,
-          borderColor: '#ffffff',
-        },
-        label: {
-          show: false,
-        },
+        type: 'heatmap',
+        coordinateSystem: 'calendar',
+        data: calendarData,
       },
     }
 
@@ -231,7 +234,7 @@ export default function ReportsOverviewPage() {
       window.removeEventListener('resize', handleResize)
       chart.dispose()
     }
-  }, [sunburstData])
+  }, [payload?.maintenanceCalendar])
 
   const exportRows = React.useMemo(() => {
     return (payload?.propertyRows || []).map((row) => ({
@@ -350,9 +353,9 @@ export default function ReportsOverviewPage() {
               <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
                 <Card className="border bg-background">
                   <CardHeader className="pb-2">
-                    <CardTitle className="text-base">Unpaid vs Collected</CardTitle>
+                    <CardTitle className="text-base">Rent Unpaid vs Collected</CardTitle>
                     <CardDescription>
-                      Unpaid is bucketed by invoice.period_start. Collected uses payments.payment_date.
+                      Unpaid rent is invoiced rent that is pending confirmed payment.
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="pt-2">
@@ -385,7 +388,7 @@ export default function ReportsOverviewPage() {
                 <Card className="border bg-background">
                   <CardHeader className="pb-2">
                     <CardTitle className="text-base">Cashflow</CardTitle>
-                    <CardDescription>Collected vs Expenses per bucket. Net = collected - expenses.</CardDescription>
+                    <CardDescription>Net = collected - expenses.</CardDescription>
                   </CardHeader>
                   <CardContent className="pt-2">
                     <ChartContainer config={performanceConfig} className="h-[280px] w-full">
@@ -405,13 +408,13 @@ export default function ReportsOverviewPage() {
 
                 <Card className="border bg-background">
                   <CardHeader className="pb-2">
-                    <CardTitle className="text-base">Revenue Sunburst</CardTitle>
+                    <CardTitle className="text-base">Maintenance Request Calendar</CardTitle>
                     <CardDescription>
-                      Inner ring is revenue, then properties, then income vs revenue. Hover for details.
+                      Darker orange means more requests on that day in the selected month.
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="pt-2">
-                    <div ref={sunburstRef} className="h-[280px] w-full" />
+                    <div ref={calendarRef} className="h-[320px] w-full" />
                   </CardContent>
                 </Card>
 
@@ -502,7 +505,7 @@ export default function ReportsOverviewPage() {
 
               <Card className="border bg-background">
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-base">More reports</CardTitle>
+                  <CardTitle className="text-base">Actions</CardTitle>
                   <CardDescription>Jump into specialized reports for deeper analysis.</CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -514,17 +517,16 @@ export default function ReportsOverviewPage() {
                       { label: 'Financial statement', href: '/dashboard/manager/reports/financial-statement' },
                       { label: 'Report preview', href: '/dashboard/manager/reports/preview' },
                     ].map((item) => (
-                      <Button
+                      <ParticleButton
                         key={item.href}
-                        variant="outline"
                         asChild
-                        className="h-12 justify-between border-slate-200 bg-white/80 shadow-sm hover:bg-white"
+                        variant="outline"
+                        className="h-12 justify-between border-slate-200 bg-white/80 px-4 shadow-sm hover:bg-white"
                       >
                         <Link href={item.href}>
                           <span>{item.label}</span>
-                          <ArrowUpRight className="h-4 w-4 text-muted-foreground" />
                         </Link>
-                      </Button>
+                      </ParticleButton>
                     ))}
                   </div>
                 </CardContent>
