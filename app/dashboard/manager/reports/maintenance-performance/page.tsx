@@ -39,6 +39,7 @@ type Row = {
   year: number
   rent_collected: number
   maintenance_spend: number
+  other_expenses: number
   net_income: number
   maintenance_to_collections_ratio: number | null
 }
@@ -107,6 +108,13 @@ export default function MaintenancePerformanceReportPage() {
       {
         headerName: 'Maintenance Spend (KES)',
         field: 'maintenance_spend',
+        width: 210,
+        filter: 'agNumberColumnFilter',
+        valueFormatter: (params) => fmtKES(Number(params.value || 0)),
+      },
+      {
+        headerName: 'Other Expenses (KES)',
+        field: 'other_expenses',
         width: 210,
         filter: 'agNumberColumnFilter',
         valueFormatter: (params) => fmtKES(Number(params.value || 0)),
@@ -270,23 +278,25 @@ export default function MaintenancePerformanceReportPage() {
       { header: 'Year', accessor: (row: Row) => String(row.year) },
       { header: 'Collected (KES)', accessor: (row: Row) => fmtKES(row.rent_collected) },
       { header: 'Maintenance Spend (KES)', accessor: (row: Row) => fmtKES(row.maintenance_spend) },
+      { header: 'Other Expenses (KES)', accessor: (row: Row) => fmtKES(row.other_expenses || 0) },
       { header: 'Net Income (KES)', accessor: (row: Row) => fmtKES(row.net_income) },
       { header: 'Spend Ratio', accessor: (row: Row) => fmtPct(row.maintenance_to_collections_ratio) },
     ]
 
     const summaryRows = summary
-      ? [
-          [
-            'TOTALS',
-            '',
-            String(summary.year),
-            fmtKES(summary.total_collected),
-            fmtKES(summary.total_maintenance_spend),
-            fmtKES(summary.total_net_income),
-            fmtPct(summary.overall_ratio),
-          ],
-        ]
-      : []
+        ? [
+            [
+              'TOTALS',
+              '',
+              String(summary.year),
+              fmtKES(summary.total_collected),
+              fmtKES(summary.total_maintenance_spend),
+              fmtKES(summary.total_other_expenses || 0),
+              fmtKES(summary.total_net_income),
+              fmtPct(summary.overall_ratio),
+            ],
+          ]
+        : []
 
     if (format === 'pdf') {
       exportRowsAsPDF(filename, columns, visibleRows, {

@@ -83,6 +83,7 @@ export async function GET(request: NextRequest) {
       year: Number(row.year),
       rent_collected: Number(row.rent_collected || 0),
       maintenance_spend: Number(row.maintenance_spend || 0),
+      other_expenses: 0,
       net_income: Number(row.net_income || 0),
       maintenance_to_collections_ratio:
         row.maintenance_to_collections_ratio === null || row.maintenance_to_collections_ratio === undefined
@@ -121,12 +122,23 @@ export async function GET(request: NextRequest) {
     }
 
     const totalNet = totalCollected - totalSpend - totalOtherExpenses
+
+    const rowsWithOther = rows.map((row) => {
+      const share = totalCollected > 0 ? (row.rent_collected || 0) / totalCollected : 0
+      const allocatedOther = Number((totalOtherExpenses * share).toFixed(2))
+      const adjustedNet = (row.rent_collected || 0) - (row.maintenance_spend || 0) - allocatedOther
+      return {
+        ...row,
+        other_expenses: allocatedOther,
+        net_income: adjustedNet,
+      }
+    })
     const unitsWithZeroCollections = rows.filter((item) => (item.rent_collected || 0) <= 0).length
     const overallRatio = totalCollected > 0 ? totalSpend / totalCollected : null
 
     return NextResponse.json({
       success: true,
-      data: rows,
+      data: rowsWithOther,
       summary: {
         year,
         units: rows.length,
