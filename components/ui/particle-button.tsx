@@ -58,10 +58,12 @@ function ParticleButton({
     onSuccess,
     successDuration = 1000,
     className,
+    asChild,
     ...props
 }: ParticleButtonProps) {
     const [showParticles, setShowParticles] = useState(false);
     const buttonRef = useRef<HTMLButtonElement>(null);
+    const showIcon = !asChild;
 
     const handleClick = async (e: React.MouseEvent<HTMLButtonElement>) => {
         setShowParticles(true);
@@ -85,10 +87,11 @@ function ParticleButton({
                     "transition-transform duration-100",
                     className
                 )}
+                asChild={asChild}
                 {...props}
             >
                 {children}
-                <MousePointerClick className="h-4 w-4" />
+                {showIcon ? <MousePointerClick className="h-4 w-4" /> : null}
             </Button>
         </>
     );

@@ -16,6 +16,8 @@ export async function GET(req: NextRequest) {
     const period = url.searchParams.get('period') || 'quarter'
     const propertyId = url.searchParams.get('propertyId') || 'all'
     const groupByParam = (url.searchParams.get('groupBy') || '') as GroupBy | ''
+    const startDate = url.searchParams.get('startDate')
+    const endDate = url.searchParams.get('endDate')
 
     const supabase = await createClient()
     const {
@@ -47,7 +49,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'Organization not found.' }, { status: 403 })
     }
 
-    const range = resolveRange({ period, startDate: null, endDate: null })
+    const range = resolveRange({ period, startDate, endDate })
     const groupBy: GroupBy = groupByParam || defaultGroupBy(range.start, range.end)
 
     const { data: properties, error: propErr } = await admin

@@ -97,6 +97,8 @@ export default function ReportsOverviewPage() {
     period: 'quarter',
     propertyId: 'all',
     groupBy: 'month',
+    startDate: null,
+    endDate: null,
   })
 
   const [loading, setLoading] = React.useState(true)
@@ -111,6 +113,10 @@ export default function ReportsOverviewPage() {
         propertyId: filters.propertyId,
         groupBy: filters.groupBy,
       })
+      if (filters.period === 'custom' && filters.startDate && filters.endDate) {
+        qs.set('startDate', filters.startDate)
+        qs.set('endDate', filters.endDate)
+      }
 
       const res = await fetch(`/api/manager/reports/overview?${qs.toString()}`, { cache: 'no-store' })
       const json = await res.json().catch(() => ({}))
@@ -132,6 +138,20 @@ export default function ReportsOverviewPage() {
   React.useEffect(() => {
     load()
   }, [load])
+
+  const handleFiltersChange = React.useCallback((next: ReportFilterState) => {
+    if (next.period === 'custom' && (!next.startDate || !next.endDate)) {
+      const end = new Date()
+      const start = new Date()
+      start.setDate(start.getDate() - 30)
+      next = {
+        ...next,
+        startDate: next.startDate || start.toISOString().slice(0, 10),
+        endDate: next.endDate || end.toISOString().slice(0, 10),
+      }
+    }
+    setFilters(next)
+  }, [])
 
   const properties = payload?.properties || []
   const kpis = payload?.kpis
@@ -343,7 +363,7 @@ export default function ReportsOverviewPage() {
             </div>
           ) : (
             <>
-              <ReportFilters value={filters} onChange={setFilters} properties={properties} />
+              <ReportFilters value={filters} onChange={handleFiltersChange} properties={properties} />
 
               <KpiTiles
                 items={kpiTiles as any}
