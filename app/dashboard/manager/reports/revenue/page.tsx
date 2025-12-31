@@ -233,6 +233,7 @@ export default function RevenueReportPage() {
       { header: 'Arrears (Now)', accessor: (row: any) => row.arrearsNow },
     ]
 
+    const totalArrears = (payload.byProperty || []).reduce((sum, row) => sum + Number(row.arrearsNow || 0), 0)
     const summaryRows = [
       [
         'TOTAL',
@@ -241,7 +242,7 @@ export default function RevenueReportPage() {
         kes(payload.kpis.billedWater),
         kes(payload.kpis.collectedTotal),
         `${payload.kpis.collectionRate.toFixed(1)}%`,
-        '',
+        kes(totalArrears),
       ],
     ]
 
