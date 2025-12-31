@@ -18,6 +18,12 @@ import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { SkeletonLoader } from '@/components/ui/skeletons'
 import { ChronoSelect } from '@/components/ui/chrono-select'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { exportRowsAsCSV, exportRowsAsExcel, exportRowsAsPDF } from '@/lib/export/download'
 import {
   Dialog,
@@ -345,17 +351,19 @@ export default function MaintenancePerformanceReportPage() {
                   </p>
                 </div>
               </div>
-              <div className="flex flex-wrap items-center gap-2 md:justify-end">
-                <Button variant="outline" onClick={() => handleExport('pdf')}>
-                  <Download className="h-4 w-4 mr-2" /> PDF
-                </Button>
-                <Button variant="outline" onClick={() => handleExport('excel')}>
-                  <Download className="h-4 w-4 mr-2" /> Excel
-                </Button>
-                <Button variant="outline" onClick={() => handleExport('csv')}>
-                  <Download className="h-4 w-4 mr-2" /> CSV
-                </Button>
-              </div>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline">
+                    <Download className="h-4 w-4 mr-2" />
+                    Export
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => handleExport('pdf')}>Export PDF</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleExport('excel')}>Export Excel</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleExport('csv')}>Export CSV</DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
 
             <Card className="border-0 shadow-sm bg-white/90">
