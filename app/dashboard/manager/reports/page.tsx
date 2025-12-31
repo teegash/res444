@@ -164,9 +164,6 @@ export default function ReportsOverviewPage() {
       {
         label: 'Billed (period)',
         value: kes(kpis.billed),
-        subtext: payload?.range?.start
-          ? `${payload.range.start} to ${payload.range.end}`
-          : `Up to ${payload?.range?.end}`,
       },
       {
         label: 'Collected (period)',
