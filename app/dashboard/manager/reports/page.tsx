@@ -84,7 +84,7 @@ function kes(value: number) {
 }
 
 const performanceConfig = {
-  unpaid: { label: 'Rent unpaid', color: '#4c1d95' },
+  unpaid: { label: 'Bill unpaid', color: '#4c1d95' },
   collected: { label: 'Collected', color: '#16a34a' },
   expenses: { label: 'Expenses', color: '#ef4444' },
   net: { label: 'Net', color: '#1d4ed8' },
@@ -409,9 +409,9 @@ export default function ReportsOverviewPage() {
               <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
                 <Card className="border bg-background">
                   <CardHeader className="pb-2">
-                    <CardTitle className="text-base">Rent Unpaid vs Collected</CardTitle>
+                    <CardTitle className="text-base">Bill Unpaid vs Collected</CardTitle>
                     <CardDescription>
-                      Unpaid rent is invoiced rent that is pending confirmed payment.
+                      Unpaid bills are invoiced charges pending confirmed payment.
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="pt-2">
