@@ -48,6 +48,7 @@ type Summary = {
   units: number
   total_collected: number
   total_maintenance_spend: number
+  total_other_expenses: number
   total_net_income: number
   overall_ratio: number | null
   units_with_zero_collections: number
@@ -413,9 +414,10 @@ export default function MaintenancePerformanceReportPage() {
               <CardTitle>Snapshot</CardTitle>
               <CardDescription>Totals for the current filter scope.</CardDescription>
             </CardHeader>
-            <CardContent className="grid md:grid-cols-5 gap-4">
+            <CardContent className="grid md:grid-cols-6 gap-4">
               {loading || !summary ? (
                 <>
+                  <SkeletonLoader height={56} width="100%" />
                   <SkeletonLoader height={56} width="100%" />
                   <SkeletonLoader height={56} width="100%" />
                   <SkeletonLoader height={56} width="100%" />
@@ -434,6 +436,12 @@ export default function MaintenancePerformanceReportPage() {
                     <p className="text-xs text-muted-foreground">Maintenance spend</p>
                     <p className="text-2xl font-bold text-rose-700">
                       {fmtKES(summary.total_maintenance_spend)}
+                    </p>
+                  </div>
+                  <div className="p-4 rounded-xl bg-gradient-to-br from-orange-50 to-white border">
+                    <p className="text-xs text-muted-foreground">Other expenses</p>
+                    <p className="text-2xl font-bold text-orange-700">
+                      {fmtKES(summary.total_other_expenses)}
                     </p>
                   </div>
                   <div className="p-4 rounded-xl bg-gradient-to-br from-slate-50 to-white border">

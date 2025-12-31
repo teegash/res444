@@ -92,7 +92,35 @@ export async function GET(request: NextRequest) {
 
     const totalCollected = rows.reduce((sum, item) => sum + (item.rent_collected || 0), 0)
     const totalSpend = rows.reduce((sum, item) => sum + (item.maintenance_spend || 0), 0)
-    const totalNet = rows.reduce((sum, item) => sum + (item.net_income || 0), 0)
+    const scopePropertyId = propertyId || (unitId ? rows[0]?.property_id : null)
+    const yearStart = `${year}-01-01`
+    const yearEnd = `${year + 1}-01-01`
+
+    let totalOtherExpenses = 0
+    try {
+      let expQ = admin
+        .from('expenses')
+        .select('amount, category, incurred_at, created_at, property_id')
+        .eq('organization_id', orgId)
+        .neq('category', 'maintenance')
+
+      if (scopePropertyId) expQ = expQ.eq('property_id', scopePropertyId)
+
+      const { data: expenses, error: expError } = await expQ
+      if (expError) throw expError
+
+      totalOtherExpenses = (expenses || []).reduce((sum, item: any) => {
+        const rawDate = item.incurred_at || item.created_at
+        if (!rawDate) return sum
+        const iso = String(rawDate).slice(0, 10)
+        if (iso < yearStart || iso >= yearEnd) return sum
+        return sum + Number(item.amount || 0)
+      }, 0)
+    } catch (expErr) {
+      console.warn('[unit-maintenance-performance] other expenses lookup failed', expErr)
+    }
+
+    const totalNet = totalCollected - totalSpend - totalOtherExpenses
     const unitsWithZeroCollections = rows.filter((item) => (item.rent_collected || 0) <= 0).length
     const overallRatio = totalCollected > 0 ? totalSpend / totalCollected : null
 
@@ -104,6 +132,7 @@ export async function GET(request: NextRequest) {
         units: rows.length,
         total_collected: totalCollected,
         total_maintenance_spend: totalSpend,
+        total_other_expenses: totalOtherExpenses,
         total_net_income: totalNet,
         overall_ratio: overallRatio,
         units_with_zero_collections: unitsWithZeroCollections,
