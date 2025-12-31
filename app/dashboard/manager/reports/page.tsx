@@ -2,6 +2,7 @@
 
 import * as React from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { Sidebar } from '@/components/dashboard/sidebar'
 import { Header } from '@/components/dashboard/header'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -91,6 +92,7 @@ const performanceConfig = {
 
 export default function ReportsOverviewPage() {
   const { toast } = useToast()
+  const router = useRouter()
   const calendarRef = React.useRef<HTMLDivElement | null>(null)
 
   const [filters, setFilters] = React.useState<ReportFilterState>({
@@ -539,13 +541,11 @@ export default function ReportsOverviewPage() {
                     ].map((item) => (
                       <ParticleButton
                         key={item.href}
-                        asChild
                         variant="outline"
                         className="h-12 justify-between border-slate-200 bg-white/80 px-4 shadow-sm hover:bg-white"
+                        onClick={() => router.push(item.href)}
                       >
-                        <Link href={item.href}>
-                          <span>{item.label}</span>
-                        </Link>
+                        <span>{item.label}</span>
                       </ParticleButton>
                     ))}
                   </div>

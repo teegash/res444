@@ -90,8 +90,14 @@ function ParticleButton({
                 asChild={asChild}
                 {...props}
             >
-                {children}
-                {showIcon ? <MousePointerClick className="h-4 w-4" /> : null}
+                {showIcon ? (
+                    <>
+                        {children}
+                        <MousePointerClick className="h-4 w-4" />
+                    </>
+                ) : (
+                    children
+                )}
             </Button>
         </>
     );
