@@ -278,7 +278,7 @@ export default function MaintenancePerformanceReportPage() {
       .toISOString()
       .slice(0, 10)}`
     const generatedAtISO = new Date().toISOString()
-    const letterhead = { documentTitle: 'Maintenance Performance', generatedAtISO }
+    const letterhead = { documentTitle: 'Maintenance Report', generatedAtISO }
 
     const visibleRows: Row[] = []
     gridApiRef.current?.forEachNodeAfterFilterAndSort((node) => {
@@ -311,7 +311,7 @@ export default function MaintenancePerformanceReportPage() {
 
     if (format === 'pdf') {
       exportRowsAsPDF(filename, columns, visibleRows, {
-        title: 'Maintenance Performance',
+        title: 'Maintenance Report',
         subtitle: `Year: ${year}. Landlord maintenance spend vs verified rent collected per unit.`,
         summaryRows,
         letterhead,
@@ -338,7 +338,7 @@ export default function MaintenancePerformanceReportPage() {
                 </Button>
               </Link>
               <div>
-                <h1 className="text-3xl font-bold">Maintenance Performance</h1>
+                <h1 className="text-3xl font-bold">Maintenance Report</h1>
                 <p className="text-sm text-muted-foreground">
                   Annual landlord maintenance spend vs verified rent collected, per unit.
                 </p>
@@ -471,10 +471,9 @@ export default function MaintenancePerformanceReportPage() {
               <CardTitle>Snapshot</CardTitle>
               <CardDescription>Totals for the current filter scope.</CardDescription>
             </CardHeader>
-            <CardContent className="grid md:grid-cols-6 gap-4">
+            <CardContent className="grid md:grid-cols-5 gap-4">
               {loading || !summary ? (
                 <>
-                  <SkeletonLoader height={56} width="100%" />
                   <SkeletonLoader height={56} width="100%" />
                   <SkeletonLoader height={56} width="100%" />
                   <SkeletonLoader height={56} width="100%" />
@@ -509,12 +508,6 @@ export default function MaintenancePerformanceReportPage() {
                     <p className="text-xs text-muted-foreground">Overall ratio</p>
                     <p className="text-2xl font-bold text-blue-700">
                       {fmtPct(summary.overall_ratio)}
-                    </p>
-                  </div>
-                  <div className="p-4 rounded-xl bg-gradient-to-br from-amber-50 to-white border">
-                    <p className="text-xs text-muted-foreground">Units with 0 collections</p>
-                    <p className="text-2xl font-bold text-amber-700">
-                      {summary.units_with_zero_collections}
                     </p>
                   </div>
                 </>
