@@ -12,6 +12,8 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
+import { RainbowButton } from '@/components/ui/rainbow-button'
+import { CheckCircle2 } from 'lucide-react'
 import { useToast } from '@/components/ui/use-toast'
 import { useAuth } from '@/lib/auth/context'
 
@@ -440,36 +442,51 @@ export default function BulkWaterBillingPage() {
             )}
 
             {bulkComplete ? (
-              <Card className="border-0 shadow-lg bg-white">
-                <CardHeader className="bg-gradient-to-r from-[#1b4f72] via-[#2b6cb0] to-[#6ba4d9] text-white">
-                  <CardTitle>Bulk billing complete</CardTitle>
-                  <CardDescription className="text-white/90">
-                    All invoices were sent successfully. You can start a new batch or review statements.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="py-8 space-y-4">
-                  <div className="flex flex-col gap-2 text-sm text-muted-foreground">
-                    <span>Property: {propertyMeta?.name || autoLoadedProperty?.name || 'Selected property'}</span>
-                    <span>Total invoices sent: {progress.succeeded}</span>
-                  </div>
-                  <div className="flex flex-col gap-3 sm:flex-row">
-                    <Button
-                      onClick={() => {
-                        setBulkComplete(false)
-                        router.push('/dashboard/water-bills/bulk')
-                      }}
-                    >
-                      Create another bulk
-                    </Button>
-                    <Button
-                      variant="outline"
-                      onClick={() => router.push('/dashboard/water-bills/statements')}
-                    >
-                      Water bills statement
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
+              <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4 py-8 backdrop-blur-sm">
+                <Card className="w-full max-w-3xl border border-blue-100/80 bg-white shadow-2xl">
+                  <CardContent className="p-0">
+                    <div className="border-b border-blue-100/70 bg-gradient-to-r from-blue-50 via-white to-blue-50 px-6 py-5">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-100 text-[#4682B4] shadow-inner">
+                          <CheckCircle2 className="h-6 w-6" />
+                        </div>
+                        <div>
+                          <CardTitle className="text-xl text-slate-900">Bulk billing complete</CardTitle>
+                          <CardDescription className="text-slate-600">
+                            All invoices were sent successfully. You can start a new batch or review statements.
+                          </CardDescription>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="px-6 py-6 space-y-5">
+                      <div className="rounded-xl border border-blue-100/70 bg-blue-50/50 px-4 py-3 text-sm text-slate-600">
+                        <div className="flex flex-col gap-1">
+                          <span>
+                            Property: {propertyMeta?.name || autoLoadedProperty?.name || 'Selected property'}
+                          </span>
+                          <span>Total invoices sent: {progress.succeeded}</span>
+                        </div>
+                      </div>
+                      <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
+                        <Button
+                          onClick={() => {
+                            setBulkComplete(false)
+                            router.push('/dashboard/water-bills/bulk')
+                          }}
+                        >
+                          Create another bulk
+                        </Button>
+                        <Button
+                          variant="outline"
+                          onClick={() => router.push('/dashboard/water-bills/statements')}
+                        >
+                          Water bills statement
+                        </Button>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
             ) : (
               <>
                 <Card className="border-0 shadow bg-white">
@@ -503,12 +520,13 @@ export default function BulkWaterBillingPage() {
                     </Select>
                   </div>
 
-                  <Button
+                  <RainbowButton
                     onClick={() => selectedPropertyId && loadRows(selectedPropertyId)}
+                    className="w-full md:w-auto"
                     disabled={!selectedPropertyId || loadingRows || busy}
                   >
                     {loadingRows ? 'Loading...' : 'Load tenants'}
-                  </Button>
+                  </RainbowButton>
                 </CardContent>
               </Card>
 
