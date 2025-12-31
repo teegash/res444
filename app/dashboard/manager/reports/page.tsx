@@ -14,7 +14,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { Download, BarChart3 } from 'lucide-react'
+import { Download, BarChart3, ArrowUpRight } from 'lucide-react'
+import * as echarts from 'echarts'
 
 import { ReportFilters, type ReportFilterState } from '@/components/reports/ReportFilters'
 import { KpiTiles } from '@/components/reports/KpiTiles'
@@ -34,8 +35,6 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
-  Pie,
-  PieChart,
   RadialBar,
   RadialBarChart,
   XAxis,
@@ -78,22 +77,15 @@ function kes(value: number) {
 }
 
 const performanceConfig = {
-  billed: { label: 'Billed', color: 'var(--chart-2)' },
-  collected: { label: 'Collected', color: 'var(--chart-1)' },
-  expenses: { label: 'Expenses', color: 'var(--chart-3)' },
-  net: { label: 'Net', color: 'var(--chart-4)' },
-} satisfies ChartConfig
-
-const statusConfig = {
-  occupied: { label: 'Occupied', color: 'var(--chart-1)' },
-  notice: { label: 'Notice', color: 'var(--chart-2)' },
-  vacant: { label: 'Vacant', color: 'var(--chart-3)' },
-  renovating: { label: 'Renovating', color: 'var(--chart-4)' },
-  unknown: { label: 'Unknown', color: 'var(--chart-5)' },
+  unpaid: { label: 'Unpaid', color: '#4c1d95' },
+  collected: { label: 'Collected', color: '#16a34a' },
+  expenses: { label: 'Expenses', color: '#ef4444' },
+  net: { label: 'Net', color: '#1d4ed8' },
 } satisfies ChartConfig
 
 export default function ReportsOverviewPage() {
   const { toast } = useToast()
+  const sunburstRef = React.useRef<HTMLDivElement | null>(null)
 
   const [filters, setFilters] = React.useState<ReportFilterState>({
     period: 'quarter',
@@ -148,11 +140,19 @@ export default function ReportsOverviewPage() {
           ? `${payload.range.start} to ${payload.range.end}`
           : `Up to ${payload?.range?.end}`,
       },
-      { label: 'Collected (period)', value: kes(kpis.collected) },
+      {
+        label: 'Collected (period)',
+        value: kes(kpis.collected),
+        valueClassName: 'text-emerald-600 dark:text-emerald-400',
+      },
       { label: 'Collection rate', value: `${kpis.collectionRate.toFixed(1)}%` },
       { label: 'Expenses (period)', value: kes(kpis.expenses) },
       { label: 'Net (period)', value: kes(kpis.net) },
-      { label: 'Arrears outstanding (now)', value: kes(kpis.arrearsNow) },
+      {
+        label: 'Arrears outstanding (now)',
+        value: kes(kpis.arrearsNow),
+        valueClassName: 'text-rose-600 dark:text-rose-400',
+      },
       {
         label: 'Occupancy rate',
         value: `${kpis.occupancyRate.toFixed(1)}%`,
@@ -162,17 +162,76 @@ export default function ReportsOverviewPage() {
     ]
   }, [kpis, payload?.range])
 
-  const statusData = React.useMemo(() => {
-    const status = payload?.unitStatus || {}
-    const keys = ['occupied', 'notice', 'vacant', 'renovating']
-    const rows = keys.map((key) => ({ name: key, value: Number(status[key] || 0) }))
-    const unknown = Object.keys(status).reduce((acc, key) => {
-      if (keys.includes(key)) return acc
-      return acc + Number(status[key] || 0)
-    }, 0)
-    if (unknown) rows.push({ name: 'unknown', value: unknown })
-    return rows.filter((row) => row.value > 0)
-  }, [payload?.unitStatus])
+  const chartSeries = React.useMemo(() => {
+    return (payload?.timeseries || []).map((row) => ({
+      ...row,
+      unpaid: row.billed,
+    }))
+  }, [payload?.timeseries])
+
+  const sunburstData = React.useMemo(() => {
+    const rows = payload?.propertyRows || []
+    const children = rows.map((row) => ({
+      name: row.propertyName,
+      value: Number(row.collected || 0) + Number(row.billed || 0),
+      children: [
+        { name: 'Income', value: Number(row.collected || 0) },
+        { name: 'Revenue', value: Number(row.billed || 0) },
+      ],
+    }))
+
+    return [
+      {
+        name: 'Revenue',
+        value: children.reduce((sum, child) => sum + (child.value || 0), 0),
+        children,
+      },
+    ]
+  }, [payload?.propertyRows])
+
+  React.useEffect(() => {
+    const node = sunburstRef.current
+    if (!node) return
+
+    const chart = echarts.init(node)
+    const option: echarts.EChartsOption = {
+      tooltip: {
+        trigger: 'item',
+        formatter: (params: any) => {
+          if (!params?.name) return ''
+          const path = (params.treePathInfo || [])
+            .map((node: any) => node.name)
+            .filter(Boolean)
+            .join(' / ')
+          const value = typeof params.value === 'number' ? params.value : 0
+          return `${path}<br/>KES ${Math.round(value).toLocaleString()}`
+        },
+      },
+      series: {
+        type: 'sunburst',
+        data: sunburstData,
+        radius: [60, '90%'],
+        itemStyle: {
+          borderRadius: 7,
+          borderWidth: 2,
+          borderColor: '#ffffff',
+        },
+        label: {
+          show: false,
+        },
+      },
+    }
+
+    chart.setOption(option)
+
+    const handleResize = () => chart.resize()
+    window.addEventListener('resize', handleResize)
+
+    return () => {
+      window.removeEventListener('resize', handleResize)
+      chart.dispose()
+    }
+  }, [sunburstData])
 
   const exportRows = React.useMemo(() => {
     return (payload?.propertyRows || []).map((row) => ({
@@ -283,29 +342,32 @@ export default function ReportsOverviewPage() {
             <>
               <ReportFilters value={filters} onChange={setFilters} properties={properties} />
 
-              <KpiTiles items={kpiTiles as any} />
+              <KpiTiles
+                items={kpiTiles as any}
+                className="grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8"
+              />
 
               <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
                 <Card className="border bg-background">
                   <CardHeader className="pb-2">
-                    <CardTitle className="text-base">Billed vs Collected</CardTitle>
+                    <CardTitle className="text-base">Unpaid vs Collected</CardTitle>
                     <CardDescription>
-                      Billed is bucketed by invoice.period_start. Collected uses payments.payment_date.
+                      Unpaid is bucketed by invoice.period_start. Collected uses payments.payment_date.
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="pt-2">
                     <ChartContainer config={performanceConfig} className="h-[280px] w-full">
-                      <AreaChart data={payload?.timeseries || []} margin={{ left: 12, right: 12 }}>
+                      <AreaChart data={chartSeries} margin={{ left: 12, right: 12 }}>
                         <CartesianGrid vertical={false} />
                         <XAxis dataKey="period" tickLine={false} axisLine={false} tickMargin={8} minTickGap={24} />
                         <YAxis tickLine={false} axisLine={false} tickMargin={8} width={60} />
                         <ChartTooltip content={<ChartTooltipContent indicator="dot" />} />
                         <ChartLegend content={<ChartLegendContent />} />
                         <Area
-                          dataKey="billed"
+                          dataKey="unpaid"
                           type="monotone"
-                          fill="var(--color-billed)"
-                          stroke="var(--color-billed)"
+                          fill="var(--color-unpaid)"
+                          stroke="var(--color-unpaid)"
                           fillOpacity={0.25}
                         />
                         <Area
@@ -327,7 +389,7 @@ export default function ReportsOverviewPage() {
                   </CardHeader>
                   <CardContent className="pt-2">
                     <ChartContainer config={performanceConfig} className="h-[280px] w-full">
-                      <BarChart data={payload?.timeseries || []} margin={{ left: 12, right: 12 }}>
+                      <BarChart data={chartSeries} margin={{ left: 12, right: 12 }}>
                         <CartesianGrid vertical={false} />
                         <XAxis dataKey="period" tickLine={false} axisLine={false} tickMargin={8} minTickGap={24} />
                         <YAxis tickLine={false} axisLine={false} tickMargin={8} width={60} />
@@ -343,23 +405,13 @@ export default function ReportsOverviewPage() {
 
                 <Card className="border bg-background">
                   <CardHeader className="pb-2">
-                    <CardTitle className="text-base">Unit Status Distribution</CardTitle>
-                    <CardDescription>Snapshot of unit states in selected scope.</CardDescription>
+                    <CardTitle className="text-base">Revenue Sunburst</CardTitle>
+                    <CardDescription>
+                      Inner ring is revenue, then properties, then income vs revenue. Hover for details.
+                    </CardDescription>
                   </CardHeader>
                   <CardContent className="pt-2">
-                    <ChartContainer config={statusConfig} className="h-[280px] w-full">
-                      <PieChart>
-                        <ChartTooltip content={<ChartTooltipContent indicator="dot" />} />
-                        <Pie
-                          data={statusData}
-                          dataKey="value"
-                          nameKey="name"
-                          innerRadius={70}
-                          outerRadius={110}
-                          strokeWidth={2}
-                        />
-                      </PieChart>
-                    </ChartContainer>
+                    <div ref={sunburstRef} className="h-[280px] w-full" />
                   </CardContent>
                 </Card>
 
@@ -445,6 +497,36 @@ export default function ReportsOverviewPage() {
                       No property data found for this scope.
                     </div>
                   ) : null}
+                </CardContent>
+              </Card>
+
+              <Card className="border bg-background">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base">More reports</CardTitle>
+                  <CardDescription>Jump into specialized reports for deeper analysis.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                    {[
+                      { label: 'Revenue report', href: '/dashboard/manager/reports/revenue' },
+                      { label: 'Occupancy report', href: '/dashboard/manager/reports/occupancy' },
+                      { label: 'Maintenance report', href: '/dashboard/manager/reports/maintenance-performance' },
+                      { label: 'Financial statement', href: '/dashboard/manager/reports/financial-statement' },
+                      { label: 'Report preview', href: '/dashboard/manager/reports/preview' },
+                    ].map((item) => (
+                      <Button
+                        key={item.href}
+                        variant="outline"
+                        asChild
+                        className="h-12 justify-between border-slate-200 bg-white/80 shadow-sm hover:bg-white"
+                      >
+                        <Link href={item.href}>
+                          <span>{item.label}</span>
+                          <ArrowUpRight className="h-4 w-4 text-muted-foreground" />
+                        </Link>
+                      </Button>
+                    ))}
+                  </div>
                 </CardContent>
               </Card>
             </>

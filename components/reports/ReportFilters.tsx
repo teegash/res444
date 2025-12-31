@@ -22,8 +22,8 @@ export function ReportFilters(props: {
   return (
     <Card className="border bg-background">
       <CardContent className="p-4">
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-12">
-          <div className="md:col-span-4">
+        <div className="flex flex-wrap items-end gap-4">
+          <div className="min-w-[200px] flex-1">
             <Label className="text-xs text-muted-foreground">Time period</Label>
             <Select value={value.period} onValueChange={(v) => onChange({ ...value, period: v as any })}>
               <SelectTrigger className="mt-1">
@@ -39,7 +39,7 @@ export function ReportFilters(props: {
             </Select>
           </div>
 
-          <div className="md:col-span-5">
+          <div className="min-w-[220px] flex-[1.2]">
             <Label className="text-xs text-muted-foreground">Property scope</Label>
             <Select value={value.propertyId} onValueChange={(v) => onChange({ ...value, propertyId: v })}>
               <SelectTrigger className="mt-1">
@@ -56,7 +56,7 @@ export function ReportFilters(props: {
             </Select>
           </div>
 
-          <div className="md:col-span-3">
+          <div className="min-w-[180px] flex-1">
             <Label className="text-xs text-muted-foreground">Group by</Label>
             <Select value={value.groupBy} onValueChange={(v) => onChange({ ...value, groupBy: v as any })}>
               <SelectTrigger className="mt-1">

@@ -54,6 +54,7 @@
     "cmdk": "latest",
     "date-fns": "4.1.0",
     "dotenv": "^17.2.3",
+    "echarts": "^5.5.0",
     "embla-carousel-react": "latest",
     "exceljs": "^4.4.0",
     "file-saver": "^2.0.5",
