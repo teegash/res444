@@ -14,7 +14,10 @@ export function MnYrSwitch({ checked, onCheckedChange, className }: MnYrSwitchPr
   return (
     <Switch.Root
       checked={checked}
-      onCheckedChange={(details) => onCheckedChange(details.checked)}
+      onCheckedChange={(details) => {
+        const next = typeof details === "boolean" ? details : details?.checked
+        onCheckedChange(Boolean(next))
+      }}
       className={cn("flex items-center", className)}
     >
       <Switch.Context>

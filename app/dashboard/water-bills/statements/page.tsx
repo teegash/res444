@@ -368,7 +368,7 @@ export default function WaterBillStatementsPage() {
                 <div className="overflow-x-auto rounded-2xl border border-white/60 bg-white/70 shadow-[0_20px_50px_-35px_rgba(15,23,42,0.6)] backdrop-blur">
                   <table className="w-full text-sm">
                     <thead className="sticky top-0 z-10 bg-gradient-to-r from-slate-100/90 via-white/80 to-slate-100/90 backdrop-blur">
-                      <tr className="text-left text-[11px] uppercase tracking-wider text-slate-600 border-b border-slate-200/70">
+                      <tr className="text-left text-xs font-semibold uppercase tracking-wider text-slate-700 border-b border-slate-200/70">
                         <th className="py-3 px-3">Tenant</th>
                         <th className="py-3 px-3">Property</th>
                         <th className="py-3 px-3">Unit</th>

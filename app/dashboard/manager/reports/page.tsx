@@ -45,6 +45,7 @@ import {
 import { exportRowsAsCSV, exportRowsAsExcel, exportRowsAsPDF } from '@/lib/export/download'
 import { ParticleButton } from '@/components/ui/particle-button'
 import { MnYrSwitch } from '@/components/ui/switch-1'
+import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card'
 
 type OverviewPayload = {
   range: { start: string | null; end: string }
@@ -323,6 +324,22 @@ export default function ReportsOverviewPage() {
     }))
   }, [payload?.propertyRows])
 
+  const yearGrid = React.useMemo(() => {
+    const yearLabel = payload?.maintenanceCalendarYear?.year || new Date().getUTCFullYear().toString()
+    const months = payload?.maintenanceCalendarYear?.months || []
+    const map = new Map(months.map((month) => [month.key, month.count]))
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+    return monthNames.map((label, index) => {
+      const key = `${yearLabel}-${String(index + 1).padStart(2, '0')}`
+      return { key, label, count: map.get(key) || 0, year: yearLabel }
+    })
+  }, [payload?.maintenanceCalendarYear])
+
+  const yearGridMax = React.useMemo(() => {
+    if (!yearGrid.length) return 0
+    return yearGrid.reduce((max, month) => Math.max(max, month.count), 0)
+  }, [yearGrid])
+
   const handleExport = async (format: 'pdf' | 'excel' | 'csv') => {
     if (!payload) return
 
@@ -501,26 +518,36 @@ export default function ReportsOverviewPage() {
                       <div ref={calendarRef} className="h-[330px] w-full" />
                     ) : (
                       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-                        {(payload?.maintenanceCalendarYear?.months || []).map((month) => {
-                          const max = payload?.maintenanceCalendarYear?.max || 0
-                          const intensity = max > 0 ? month.count / max : 0
+                        {yearGrid.map((month) => {
+                          const intensity = yearGridMax > 0 ? month.count / yearGridMax : 0
                           const bg = `rgba(249, 115, 22, ${0.12 + intensity * 0.6})`
                           const shadow = `0 16px 28px -18px rgba(249,115,22, ${0.2 + intensity * 0.5})`
                           return (
-                            <div
-                              key={month.key}
-                              title={`${month.label} ${payload?.maintenanceCalendarYear?.year}: ${month.count} requests`}
-                              className="group rounded-xl border border-white/70 bg-white/60 p-4 shadow-sm backdrop-blur transition-transform hover:-translate-y-1"
-                              style={{ backgroundColor: bg, boxShadow: shadow }}
-                            >
-                              <div className="text-xs font-semibold uppercase tracking-wider text-slate-700">
-                                {month.label}
-                              </div>
-                              <div className="mt-3 text-2xl font-semibold text-slate-900">
-                                {month.count}
-                              </div>
-                              <div className="text-xs text-slate-600">requests</div>
-                            </div>
+                            <HoverCard key={month.key} openDelay={120} closeDelay={80}>
+                              <HoverCardTrigger asChild>
+                                <div
+                                  className="group rounded-xl border border-white/70 bg-white/60 p-4 shadow-sm backdrop-blur transition-transform hover:-translate-y-1"
+                                  style={{ backgroundColor: bg, boxShadow: shadow }}
+                                >
+                                  <div className="text-xs font-semibold uppercase tracking-wider text-slate-700">
+                                    {month.label}
+                                  </div>
+                                  <div className="mt-3 text-2xl font-semibold text-slate-900">
+                                    {month.count}
+                                  </div>
+                                  <div className="text-xs text-slate-600">requests</div>
+                                </div>
+                              </HoverCardTrigger>
+                              <HoverCardContent className="w-56">
+                                <div className="text-xs text-muted-foreground">Maintenance requests</div>
+                                <div className="mt-1 text-lg font-semibold text-slate-900">
+                                  {month.count}
+                                </div>
+                                <div className="text-xs text-muted-foreground">
+                                  {month.label} {month.year}
+                                </div>
+                              </HoverCardContent>
+                            </HoverCard>
                           )
                         })}
                       </div>
