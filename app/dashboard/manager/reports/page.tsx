@@ -220,7 +220,7 @@ export default function ReportsOverviewPage() {
         max: Math.max(maxValue, 1),
         show: false,
         inRange: {
-          color: ['#fff7ed', '#fdba74', '#fb923c', '#f97316', '#ea580c'],
+          color: ['#fff7ed', '#fed7aa', '#fdba74', '#fb923c', '#f97316', '#ea580c'],
         },
       },
       calendar: {
@@ -258,6 +258,22 @@ export default function ReportsOverviewPage() {
         type: 'heatmap',
         coordinateSystem: 'calendar',
         data: calendarData,
+        itemStyle: {
+          borderWidth: 1,
+          borderColor: '#fff7ed',
+          shadowBlur: 6,
+          shadowColor: 'rgba(249, 115, 22, 0.18)',
+          shadowOffsetY: 1,
+        },
+        emphasis: {
+          itemStyle: {
+            borderWidth: 2,
+            borderColor: '#fdba74',
+            shadowBlur: 12,
+            shadowColor: 'rgba(249, 115, 22, 0.45)',
+            shadowOffsetY: -3,
+          },
+        },
       },
     }
 
@@ -450,7 +466,7 @@ export default function ReportsOverviewPage() {
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="pt-2">
-                    <div ref={calendarRef} className="h-[360px] w-full" />
+                    <div ref={calendarRef} className="h-[330px] w-full" />
                   </CardContent>
                 </Card>
 

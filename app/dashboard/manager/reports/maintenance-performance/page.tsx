@@ -460,13 +460,16 @@ export default function MaintenancePerformanceReportPage() {
           <Card className="border-0 shadow-lg bg-white/90">
             <CardHeader>
               <CardTitle>Units</CardTitle>
-              <CardDescription>AG Grid table with sorting, filtering, and exports.</CardDescription>
+              <CardDescription>Table with sorting, filtering, and exports.</CardDescription>
             </CardHeader>
             <CardContent>
               {loading ? (
                 <SkeletonLoader height={520} width="100%" />
               ) : (
-                <div className="ag-theme-quartz" style={{ height: 560, width: '100%' }}>
+                <div
+                  className="ag-theme-quartz premium-grid w-full rounded-2xl border border-slate-200/70 bg-white shadow-[0_18px_40px_-30px_rgba(15,23,42,0.45)]"
+                  style={{ height: 560 }}
+                >
                   <AgGridReact<Row>
                     rowData={rows}
                     columnDefs={colDefs}

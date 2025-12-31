@@ -192,3 +192,25 @@
 .ag-theme-quartz .bulk-cell-placeholder {
   color: #94a3b8;
 }
+
+.ag-theme-quartz.premium-grid .ag-header {
+  background: linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%);
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.ag-theme-quartz.premium-grid .ag-header-cell-label {
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.ag-theme-quartz.premium-grid .ag-row-odd {
+  background-color: #fbfdff;
+}
+
+.ag-theme-quartz.premium-grid .ag-row-hover {
+  background-color: #f1f5f9;
+}
+
+.ag-theme-quartz.premium-grid .ag-root-wrapper {
+  border-radius: 16px;
+}
