@@ -1,265 +1,479 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
-import Link from 'next/link'
-import { ArrowLeft, Download, TrendingUp, Search } from 'lucide-react'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Badge } from '@/components/ui/badge'
+import * as React from 'react'
 import { Sidebar } from '@/components/dashboard/sidebar'
 import { Header } from '@/components/dashboard/header'
-import { exportRowsAsCSV, exportRowsAsExcel, exportRowsAsPDF } from '@/lib/export/download'
-import { Input } from '@/components/ui/input'
-import { SkeletonLoader, SkeletonTable } from '@/components/ui/skeletons'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { SkeletonLoader } from '@/components/ui/skeletons'
+import { useToast } from '@/components/ui/use-toast'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { Download, TrendingUp } from 'lucide-react'
 
-type RevenueRow = {
-  id?: string
-  property: string
-  propertyId?: string
-  period: string
-  month: string
-  amount: number
+import { ReportFilters, type ReportFilterState } from '@/components/reports/ReportFilters'
+import { KpiTiles } from '@/components/reports/KpiTiles'
+
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  ChartLegend,
+  ChartLegendContent,
+  type ChartConfig,
+} from '@/components/ui/chart'
+
+import {
+  Area,
+  AreaChart,
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Line,
+  LineChart,
+  XAxis,
+  YAxis,
+} from 'recharts'
+
+import { AgGridReact } from 'ag-grid-react'
+import type { ColDef, GridApi } from 'ag-grid-community'
+import { AllCommunityModule, ModuleRegistry } from 'ag-grid-community'
+import { exportRowsAsCSV, exportRowsAsExcel, exportRowsAsPDF } from '@/lib/export/download'
+
+ModuleRegistry.registerModules([AllCommunityModule])
+
+type RevenuePayload = {
+  range: { start: string | null; end: string }
+  groupBy: 'day' | 'week' | 'month'
+  properties: Array<{ id: string; name: string }>
+  kpis: {
+    billedTotal: number
+    collectedTotal: number
+    collectionRate: number
+    billedRent: number
+    billedWater: number
+    avgMonthlyCollected: number
+    bestProperty: { name: string; rate: number } | null
+    worstProperty: { name: string; rate: number } | null
+  }
+  timeseries: Array<{
+    period: string
+    billedTotal: number
+    billedRent: number
+    billedWater: number
+    collectedTotal: number
+    collectionRate: number
+  }>
+  byProperty: Array<{
+    propertyId: string
+    propertyName: string
+    billedTotal: number
+    billedRent: number
+    billedWater: number
+    collectedTotal: number
+    arrearsNow: number
+    collectionRate: number
+  }>
+  topProperties: Array<{ propertyId: string; propertyName: string; collectedTotal: number }>
 }
 
-const periods = [
-  { value: 'month', label: 'Last 30 days' },
-  { value: 'quarter', label: 'Quarter' },
-  { value: 'semi', label: '6 months' },
-  { value: 'year', label: 'Year' },
-  { value: 'all', label: 'All time' },
-]
+type PropertyRow = RevenuePayload['byProperty'][number]
+
+function kes(value: number) {
+  return `KES ${Math.round(value).toLocaleString()}`
+}
+
+const perfConfig = {
+  billedTotal: { label: 'Billed (Total)', color: 'var(--chart-2)' },
+  collectedTotal: { label: 'Collected', color: 'var(--chart-1)' },
+  billedRent: { label: 'Rent billed', color: 'var(--chart-3)' },
+  billedWater: { label: 'Water billed', color: 'var(--chart-4)' },
+  collectionRate: { label: 'Collection %', color: 'var(--chart-5)' },
+} satisfies ChartConfig
 
 export default function RevenueReportPage() {
-  const [period, setPeriod] = useState('quarter')
-  const [property, setProperty] = useState('all')
-  const [rows, setRows] = useState<RevenueRow[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [search, setSearch] = useState('')
+  const { toast } = useToast()
+  const gridApiRef = React.useRef<GridApi | null>(null)
 
-  const filtered = useMemo(() => {
-    const scope = property === 'all' ? rows : rows.filter((row) => row.property === property || row.propertyId === property)
-    const term = search.trim().toLowerCase()
-    if (!term) return scope
-    return scope.filter((row) =>
-      `${row.property} ${row.month}`.toLowerCase().includes(term)
-    )
-  }, [property, rows, search])
+  const [filters, setFilters] = React.useState<ReportFilterState>({
+    period: 'quarter',
+    propertyId: 'all',
+    groupBy: 'month',
+    startDate: null,
+    endDate: null,
+  })
 
-  const totals = useMemo(() => {
-    const total = filtered.reduce((sum, row) => sum + row.amount, 0)
-    const properties = Array.from(new Set(filtered.map((row) => row.property)))
-    return { total, properties }
-  }, [filtered])
+  const [loading, setLoading] = React.useState(true)
+  const [payload, setPayload] = React.useState<RevenuePayload | null>(null)
 
-  const byProperty = useMemo(() => {
-    const map = new Map<string, number>()
-    filtered.forEach((row) => {
-      map.set(row.property, (map.get(row.property) || 0) + row.amount)
-    })
-    return Array.from(map.entries())
-  }, [filtered])
-
-  const handleExport = (format: 'pdf' | 'excel' | 'csv') => {
-    const filename = `revenue-${period}-${property}-${new Date().toISOString().slice(0, 10)}`
-    const generatedAtISO = new Date().toISOString()
-    const letterhead = { documentTitle: 'Revenue Report', generatedAtISO }
-    const columns = [
-      { header: 'Property', accessor: (row: RevenueRow) => row.property },
-      { header: 'Period', accessor: (row: RevenueRow) => row.period },
-      { header: 'Month', accessor: (row: RevenueRow) => row.month },
-      { header: 'Debit (KES)', accessor: () => '' },
-      { header: 'Credit (KES)', accessor: (row: RevenueRow) => `KES ${row.amount.toLocaleString()}` },
-    ]
-    const total = filtered.reduce((sum, row) => sum + Number(row.amount || 0), 0)
-    const summaryRows = [['Total', '', '', '', `KES ${total.toLocaleString()}`]]
-    if (format === 'pdf') {
-      exportRowsAsPDF(filename, columns, filtered, {
-        title: 'Revenue Report',
-        subtitle: `Period: ${period}, Property: ${property}`,
-        summaryRows,
-        letterhead,
-      })
-    } else if (format === 'excel') {
-      exportRowsAsExcel(filename, columns, filtered, summaryRows, { letterhead })
-    } else {
-      exportRowsAsCSV(filename, columns, filtered, summaryRows, { letterhead })
+  const handleFiltersChange = React.useCallback((next: ReportFilterState) => {
+    if (next.period === 'custom' && (!next.startDate || !next.endDate)) {
+      const end = new Date()
+      const start = new Date()
+      start.setDate(start.getDate() - 30)
+      next = {
+        ...next,
+        startDate: next.startDate || start.toISOString().slice(0, 10),
+        endDate: next.endDate || end.toISOString().slice(0, 10),
+      }
     }
-  }
+    setFilters(next)
+  }, [])
 
-  const loadData = async () => {
+  const load = React.useCallback(async () => {
     try {
       setLoading(true)
-      setError(null)
-      const response = await fetch(
-        `/api/manager/reports/revenue?period=${period}&property=${encodeURIComponent(property)}`
-      )
-      const payload = await response.json()
-      if (!response.ok) {
-        throw new Error(payload.error || 'Failed to load revenue data.')
+      const qs = new URLSearchParams({
+        period: filters.period,
+        propertyId: filters.propertyId,
+        groupBy: filters.groupBy,
+      })
+      if (filters.period === 'custom' && filters.startDate && filters.endDate) {
+        qs.set('startDate', filters.startDate)
+        qs.set('endDate', filters.endDate)
       }
-      const mapped: RevenueRow[] =
-        (payload.data || []).map((row: any) => ({
-          id: row.id,
-          property: row.property,
-          propertyId: row.propertyId,
-          amount: row.amount,
-          period,
-          month: row.payment_date
-            ? new Date(row.payment_date).toLocaleString('default', { month: 'short' })
-            : '—',
-        })) || []
-      setRows(mapped)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unable to load revenue data.')
+
+      const res = await fetch(`/api/manager/reports/revenue?${qs.toString()}`, { cache: 'no-store' })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok || !json?.success) throw new Error(json?.error || 'Failed to load revenue report.')
+      setPayload(json.data)
+    } catch (e: any) {
+      toast({
+        title: 'Revenue report failed',
+        description: e?.message || 'Try again.',
+        variant: 'destructive',
+      })
+      setPayload(null)
     } finally {
       setLoading(false)
     }
+  }, [filters.period, filters.propertyId, filters.groupBy, filters.startDate, filters.endDate, toast])
+
+  React.useEffect(() => {
+    load()
+  }, [load])
+
+  const properties = payload?.properties || []
+  const k = payload?.kpis
+
+  const kpis = React.useMemo(() => {
+    if (!k || !payload) return []
+    const scopeLabel =
+      filters.propertyId === 'all'
+        ? 'Portfolio'
+        : properties.find((p) => p.id === filters.propertyId)?.name || 'Property'
+
+    return [
+      { label: 'Billed (period)', value: kes(k.billedTotal), subtext: scopeLabel },
+      { label: 'Collected (period)', value: kes(k.collectedTotal) },
+      { label: 'Collection rate', value: `${k.collectionRate.toFixed(1)}%` },
+      { label: 'Rent billed', value: kes(k.billedRent) },
+      { label: 'Water billed', value: kes(k.billedWater) },
+      { label: 'Avg monthly collected', value: kes(k.avgMonthlyCollected), subtext: 'Collected / month' },
+      {
+        label: 'Best property',
+        value: k.bestProperty ? `${k.bestProperty.rate.toFixed(1)}%` : '—',
+        subtext: k.bestProperty?.name || '',
+      },
+      {
+        label: 'Worst property',
+        value: k.worstProperty ? `${k.worstProperty.rate.toFixed(1)}%` : '—',
+        subtext: k.worstProperty?.name || '',
+      },
+    ]
+  }, [k, payload, filters.propertyId, properties])
+
+  const exportRows = React.useMemo(() => {
+    return (payload?.byProperty || []).map((row) => ({
+      property: row.propertyName,
+      billedTotal: kes(row.billedTotal),
+      billedRent: kes(row.billedRent),
+      billedWater: kes(row.billedWater),
+      collectedTotal: kes(row.collectedTotal),
+      collectionRate: `${row.collectionRate.toFixed(1)}%`,
+      arrearsNow: kes(row.arrearsNow),
+    }))
+  }, [payload?.byProperty])
+
+  const handleExport = (format: 'pdf' | 'excel' | 'csv') => {
+    if (!payload) return
+
+    const filename = `revenue-report-${filters.period}-${filters.propertyId}-${new Date()
+      .toISOString()
+      .slice(0, 10)}`
+    const letterhead = {
+      documentTitle: 'Revenue Report — Billed vs Collected',
+      generatedAtISO: new Date().toISOString(),
+      propertyName:
+        filters.propertyId !== 'all'
+          ? payload.properties.find((p) => p.id === filters.propertyId)?.name || undefined
+          : undefined,
+    }
+
+    const columns = [
+      { header: 'Property', accessor: (row: any) => row.property },
+      { header: 'Billed (Total)', accessor: (row: any) => row.billedTotal },
+      { header: 'Rent billed', accessor: (row: any) => row.billedRent },
+      { header: 'Water billed', accessor: (row: any) => row.billedWater },
+      { header: 'Collected', accessor: (row: any) => row.collectedTotal },
+      { header: 'Collection %', accessor: (row: any) => row.collectionRate },
+      { header: 'Arrears (Now)', accessor: (row: any) => row.arrearsNow },
+    ]
+
+    const summaryRows = [
+      [
+        'TOTAL',
+        kes(payload.kpis.billedTotal),
+        kes(payload.kpis.billedRent),
+        kes(payload.kpis.billedWater),
+        kes(payload.kpis.collectedTotal),
+        `${payload.kpis.collectionRate.toFixed(1)}%`,
+        '',
+      ],
+    ]
+
+    const subtitle =
+      `Paid invoices are status_text='paid'. Collected uses verified payments.payment_date. ` +
+      `Period: ${filters.period}. Scope: ${filters.propertyId === 'all' ? 'All properties' : 'Single property'}.`
+
+    if (format === 'pdf') {
+      exportRowsAsPDF(filename, columns, exportRows, {
+        title: 'Revenue Report — Billed vs Collected',
+        subtitle,
+        summaryRows,
+        letterhead,
+        orientation: 'landscape',
+      })
+    } else if (format === 'excel') {
+      exportRowsAsExcel(filename, columns, exportRows, summaryRows, { letterhead })
+    } else {
+      exportRowsAsCSV(filename, columns, exportRows, summaryRows, { letterhead })
+    }
   }
 
-  useEffect(() => {
-    loadData()
-  }, [period, property])
+  const columnDefs = React.useMemo<ColDef<PropertyRow>[]>(
+    () => [
+      { headerName: 'Property', field: 'propertyName', minWidth: 180, flex: 1 },
+      {
+        headerName: 'Billed (Total)',
+        field: 'billedTotal',
+        minWidth: 160,
+        valueFormatter: (p) => kes(Number(p.value || 0)),
+        filter: 'agNumberColumnFilter',
+      },
+      {
+        headerName: 'Rent billed',
+        field: 'billedRent',
+        minWidth: 140,
+        valueFormatter: (p) => kes(Number(p.value || 0)),
+        filter: 'agNumberColumnFilter',
+      },
+      {
+        headerName: 'Water billed',
+        field: 'billedWater',
+        minWidth: 140,
+        valueFormatter: (p) => kes(Number(p.value || 0)),
+        filter: 'agNumberColumnFilter',
+      },
+      {
+        headerName: 'Collected',
+        field: 'collectedTotal',
+        minWidth: 140,
+        valueFormatter: (p) => kes(Number(p.value || 0)),
+        filter: 'agNumberColumnFilter',
+      },
+      {
+        headerName: 'Collection %',
+        field: 'collectionRate',
+        minWidth: 140,
+        valueFormatter: (p) => `${Number(p.value || 0).toFixed(1)}%`,
+        filter: 'agNumberColumnFilter',
+      },
+      {
+        headerName: 'Arrears (Now)',
+        field: 'arrearsNow',
+        minWidth: 140,
+        valueFormatter: (p) => kes(Number(p.value || 0)),
+        filter: 'agNumberColumnFilter',
+      },
+    ],
+    []
+  )
 
   return (
-    <div className="flex min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50">
+    <div className="flex min-h-screen bg-muted/20">
       <Sidebar />
       <div className="flex-1 flex flex-col">
         <Header />
-        <main className="flex-1 p-8 overflow-auto space-y-6">
-          <div className="flex items-center justify-between">
+
+        <main className="flex-1 p-6 md:p-8 space-y-6 overflow-auto">
+          <div className="flex items-start justify-between gap-4">
             <div className="flex items-center gap-3">
-              <Link href="/dashboard/manager/reports">
-                <Button variant="ghost" size="icon">
-                  <ArrowLeft className="h-4 w-4" />
-                </Button>
-              </Link>
+              <div className="h-10 w-10 rounded-xl bg-muted flex items-center justify-center">
+                <TrendingUp className="h-5 w-5" />
+              </div>
               <div>
-                <h1 className="text-3xl font-bold">Revenue Report</h1>
-                <p className="text-sm text-muted-foreground">Trends by property with export options.</p>
+                <h1 className="text-2xl font-semibold tracking-tight">Revenue Report</h1>
+                <p className="text-sm text-muted-foreground">
+                  Billed vs collected performance, invoice type split, and property rankings.
+                </p>
               </div>
             </div>
-            <div className="flex gap-2 items-center">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  className="pl-9 w-48"
-                  placeholder="Search property or month"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                />
-              </div>
-              <Select value={period} onValueChange={setPeriod}>
-                <SelectTrigger className="w-[160px]">
-                  <SelectValue placeholder="Period" />
-                </SelectTrigger>
-                <SelectContent>
-                  {periods.map((p) => (
-                    <SelectItem key={p.value} value={p.value}>
-                      {p.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Select value={property} onValueChange={setProperty}>
-                <SelectTrigger className="w-[200px]">
-                  <SelectValue placeholder="Property" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All properties</SelectItem>
-                  {Array.from(new Set(rows.map((row) => row.property))).map((p) => (
-                    <SelectItem key={p} value={p}>
-                      {p}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Button variant="outline" onClick={() => handleExport('pdf')}>
-                <Download className="h-4 w-4 mr-2" />
-                PDF
-              </Button>
-              <Button variant="outline" onClick={() => handleExport('excel')}>
-                <Download className="h-4 w-4 mr-2" />
-                Excel
-              </Button>
-              <Button variant="outline" onClick={() => handleExport('csv')}>
-                <Download className="h-4 w-4 mr-2" />
-                CSV
-              </Button>
-            </div>
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline">
+                  <Download className="h-4 w-4 mr-2" />
+                  Export
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => handleExport('pdf')}>Export PDF</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleExport('excel')}>Export Excel</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleExport('csv')}>Export CSV</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
 
-          <Card className="border-0 shadow-lg bg-white/90">
-            <CardHeader>
-              <CardTitle>Snapshot</CardTitle>
-              <CardDescription>Aggregate totals for the selected period and property scope.</CardDescription>
-            </CardHeader>
-            <CardContent className="grid md:grid-cols-3 gap-4">
-              {loading ? (
-                <>
-                  <SkeletonLoader height={20} width="60%" />
-                  <SkeletonLoader height={20} width="40%" />
-                  <SkeletonLoader height={20} width="50%" />
-                </>
-              ) : (
-                <>
-                  <div className="p-4 rounded-xl bg-gradient-to-br from-emerald-50 to-white border">
-                    <p className="text-xs text-muted-foreground">Total revenue</p>
-                    <p className="text-3xl font-bold text-emerald-700">KES {totals.total.toLocaleString()}</p>
-                    <p className="text-xs text-emerald-600 mt-1 flex items-center gap-1">
-                      <TrendingUp className="h-3 w-3" /> Healthy upward trend
-                    </p>
-                  </div>
-                  <div className="p-4 rounded-xl bg-gradient-to-br from-blue-50 to-white border">
-                    <p className="text-xs text-muted-foreground">Properties</p>
-                    <p className="text-3xl font-bold text-blue-700">{totals.properties.length}</p>
-                    <p className="text-xs text-muted-foreground mt-1">Filtered scope</p>
-                  </div>
-                  <div className="p-4 rounded-xl bg-gradient-to-br from-slate-50 to-white border">
-                    <p className="text-xs text-muted-foreground">Period</p>
-                    <p className="text-lg font-semibold capitalize">{period}</p>
-                  </div>
-                </>
-              )}
-            </CardContent>
-          </Card>
+          {loading ? (
+            <SkeletonLoader />
+          ) : (
+            <>
+              <ReportFilters value={filters} onChange={handleFiltersChange} properties={properties} />
+              <KpiTiles items={kpis as any} className="grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-4 2xl:grid-cols-8" />
 
-          <Card className="border-0 shadow-lg bg-white/90">
-            <CardHeader>
-              <CardTitle>Property breakdown</CardTitle>
-              <CardDescription>Revenue summed per property.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {loading ? (
-                <>
-                  <SkeletonLoader height={16} width="40%" />
-                  <SkeletonTable rows={4} columns={3} />
-                </>
-              ) : error ? (
-                <div className="text-sm text-red-600">{error}</div>
-              ) : filtered.length === 0 ? (
-                <div className="text-sm text-muted-foreground">No revenue data.</div>
-              ) : null}
-              {byProperty.map(([name, amount]) => (
-                <div key={name} className="space-y-2">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="font-medium">{name}</span>
-                    <Badge variant="outline">KES {amount.toLocaleString()}</Badge>
-                  </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div
-                      className="h-2 rounded-full"
-                      style={{
-                        width: `${Math.min(100, amount / 600000 * 100)}%`,
-                        background: 'linear-gradient(90deg,#10b981,#2563eb)',
+              <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                <Card className="border bg-background">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-base">Billed vs Collected Trend</CardTitle>
+                    <CardDescription>
+                      Trend over {payload?.groupBy}. Billed from invoices.period_start; collected from payments.payment_date.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="pt-2">
+                    <ChartContainer config={perfConfig} className="h-[280px] w-full">
+                      <AreaChart data={payload?.timeseries || []} margin={{ left: 12, right: 12 }}>
+                        <CartesianGrid vertical={false} />
+                        <XAxis dataKey="period" tickLine={false} axisLine={false} tickMargin={8} minTickGap={24} />
+                        <YAxis tickLine={false} axisLine={false} tickMargin={8} width={60} />
+                        <ChartTooltip content={<ChartTooltipContent indicator="dot" />} />
+                        <ChartLegend content={<ChartLegendContent />} />
+                        <Area
+                          dataKey="billedTotal"
+                          type="monotone"
+                          stroke="var(--color-billedTotal)"
+                          fill="var(--color-billedTotal)"
+                          fillOpacity={0.22}
+                        />
+                        <Area
+                          dataKey="collectedTotal"
+                          type="monotone"
+                          stroke="var(--color-collectedTotal)"
+                          fill="var(--color-collectedTotal)"
+                          fillOpacity={0.22}
+                        />
+                      </AreaChart>
+                    </ChartContainer>
+                  </CardContent>
+                </Card>
+
+                <Card className="border bg-background">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-base">Billed Breakdown (Rent vs Water)</CardTitle>
+                    <CardDescription>Stacked billed values by invoice type.</CardDescription>
+                  </CardHeader>
+                  <CardContent className="pt-2">
+                    <ChartContainer config={perfConfig} className="h-[280px] w-full">
+                      <BarChart data={payload?.timeseries || []} margin={{ left: 12, right: 12 }}>
+                        <CartesianGrid vertical={false} />
+                        <XAxis dataKey="period" tickLine={false} axisLine={false} tickMargin={8} minTickGap={24} />
+                        <YAxis tickLine={false} axisLine={false} tickMargin={8} width={60} />
+                        <ChartTooltip content={<ChartTooltipContent indicator="dot" />} />
+                        <ChartLegend content={<ChartLegendContent />} />
+                        <Bar dataKey="billedRent" stackId="billed" fill="var(--color-billedRent)" radius={[6, 6, 0, 0]} />
+                        <Bar dataKey="billedWater" stackId="billed" fill="var(--color-billedWater)" radius={[6, 6, 0, 0]} />
+                      </BarChart>
+                    </ChartContainer>
+                  </CardContent>
+                </Card>
+
+                <Card className="border bg-background">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-base">Collection Rate Trend</CardTitle>
+                    <CardDescription>Collected / billed per time bucket.</CardDescription>
+                  </CardHeader>
+                  <CardContent className="pt-2">
+                    <ChartContainer config={perfConfig} className="h-[280px] w-full">
+                      <LineChart data={payload?.timeseries || []} margin={{ left: 12, right: 12 }}>
+                        <CartesianGrid vertical={false} />
+                        <XAxis dataKey="period" tickLine={false} axisLine={false} tickMargin={8} minTickGap={24} />
+                        <YAxis tickLine={false} axisLine={false} tickMargin={8} width={60} domain={[0, 100]} />
+                        <ChartTooltip content={<ChartTooltipContent indicator="dot" />} />
+                        <Line dataKey="collectionRate" stroke="var(--color-collectionRate)" strokeWidth={2} dot={false} />
+                      </LineChart>
+                    </ChartContainer>
+                  </CardContent>
+                </Card>
+
+                <Card className="border bg-background">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-base">Top Properties by Collected</CardTitle>
+                    <CardDescription>Top 10 properties ranked by collected amount.</CardDescription>
+                  </CardHeader>
+                  <CardContent className="pt-2">
+                    <ChartContainer config={perfConfig} className="h-[280px] w-full">
+                      <BarChart data={payload?.topProperties || []} layout="vertical" margin={{ left: 12, right: 12 }}>
+                        <CartesianGrid horizontal={false} />
+                        <XAxis type="number" tickLine={false} axisLine={false} tickMargin={8} />
+                        <YAxis type="category" dataKey="propertyName" tickLine={false} axisLine={false} width={140} />
+                        <ChartTooltip content={<ChartTooltipContent indicator="dot" />} />
+                        <Bar dataKey="collectedTotal" fill="var(--color-collectedTotal)" radius={[0, 6, 6, 0]} />
+                      </BarChart>
+                    </ChartContainer>
+                  </CardContent>
+                </Card>
+              </div>
+
+              <Card className="border bg-background">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base">Property Revenue Table</CardTitle>
+                  <CardDescription>Sortable table; use exports for finance packs and board reporting.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div
+                    className="ag-theme-quartz premium-grid glass-grid w-full rounded-2xl border border-white/60 bg-white/70 shadow-[0_24px_60px_-40px_rgba(15,23,42,0.6)] backdrop-blur"
+                    style={{ height: 520 }}
+                  >
+                    <AgGridReact<PropertyRow>
+                      rowData={payload?.byProperty || []}
+                      columnDefs={columnDefs}
+                      defaultColDef={{
+                        sortable: true,
+                        resizable: true,
+                        filter: true,
+                        floatingFilter: true,
+                      }}
+                      pagination
+                      paginationPageSize={25}
+                      animateRows
+                      onGridReady={(params) => {
+                        gridApiRef.current = params.api
+                        params.api.sizeColumnsToFit()
                       }}
                     />
                   </div>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
+
+                  {!payload?.byProperty?.length ? (
+                    <div className="mt-3 text-sm text-muted-foreground">No property revenue data found for this scope.</div>
+                  ) : null}
+                </CardContent>
+              </Card>
+            </>
+          )}
         </main>
       </div>
     </div>
