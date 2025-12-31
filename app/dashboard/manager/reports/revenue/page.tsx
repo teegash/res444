@@ -13,7 +13,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { Download, TrendingUp } from 'lucide-react'
+import Link from 'next/link'
+import { ArrowLeft, Download, TrendingUp } from 'lucide-react'
 
 import { ReportFilters, type ReportFilterState } from '@/components/reports/ReportFilters'
 import { KpiTiles } from '@/components/reports/KpiTiles'
@@ -28,13 +29,10 @@ import {
 } from '@/components/ui/chart'
 
 import {
-  Area,
-  AreaChart,
   Bar,
   BarChart,
   CartesianGrid,
-  Line,
-  LineChart,
+  LabelList,
   XAxis,
   YAxis,
 } from 'recharts'
@@ -85,6 +83,15 @@ type PropertyRow = RevenuePayload['byProperty'][number]
 
 function kes(value: number) {
   return `KES ${Math.round(value).toLocaleString()}`
+}
+
+function kesAbbrev(value: number) {
+  const abs = Math.abs(value)
+  const sign = value < 0 ? '-' : ''
+  if (abs >= 1_000_000_000) return `${sign}KES ${(abs / 1_000_000_000).toFixed(1)}B`
+  if (abs >= 1_000_000) return `${sign}KES ${(abs / 1_000_000).toFixed(1)}M`
+  if (abs >= 1_000) return `${sign}KES ${(abs / 1_000).toFixed(1)}K`
+  return `${sign}KES ${Math.round(abs).toLocaleString()}`
 }
 
 const perfConfig = {
@@ -178,11 +185,13 @@ export default function RevenueReportPage() {
         label: 'Best property',
         value: k.bestProperty ? `${k.bestProperty.rate.toFixed(1)}%` : '—',
         subtext: k.bestProperty?.name || '',
+        valueClassName: 'text-emerald-600 dark:text-emerald-400',
       },
       {
         label: 'Worst property',
         value: k.worstProperty ? `${k.worstProperty.rate.toFixed(1)}%` : '—',
         subtext: k.worstProperty?.name || '',
+        valueClassName: 'text-yellow-700 dark:text-yellow-400',
       },
     ]
   }, [k, payload, filters.propertyId, properties])
@@ -313,6 +322,11 @@ export default function RevenueReportPage() {
         <main className="flex-1 p-6 md:p-8 space-y-6 overflow-auto">
           <div className="flex items-start justify-between gap-4">
             <div className="flex items-center gap-3">
+              <Link href="/dashboard/manager/reports">
+                <Button variant="ghost" size="icon">
+                  <ArrowLeft className="h-4 w-4" />
+                </Button>
+              </Link>
               <div className="h-10 w-10 rounded-xl bg-muted flex items-center justify-center">
                 <TrendingUp className="h-5 w-5" />
               </div>
@@ -349,40 +363,6 @@ export default function RevenueReportPage() {
               <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
                 <Card className="border bg-background">
                   <CardHeader className="pb-2">
-                    <CardTitle className="text-base">Billed vs Collected Trend</CardTitle>
-                    <CardDescription>
-                      Trend over {payload?.groupBy}. Billed from invoices.period_start; collected from payments.payment_date.
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="pt-2">
-                    <ChartContainer config={perfConfig} className="h-[280px] w-full">
-                      <AreaChart data={payload?.timeseries || []} margin={{ left: 12, right: 12 }}>
-                        <CartesianGrid vertical={false} />
-                        <XAxis dataKey="period" tickLine={false} axisLine={false} tickMargin={8} minTickGap={24} />
-                        <YAxis tickLine={false} axisLine={false} tickMargin={8} width={60} />
-                        <ChartTooltip content={<ChartTooltipContent indicator="dot" />} />
-                        <ChartLegend content={<ChartLegendContent />} />
-                        <Area
-                          dataKey="billedTotal"
-                          type="monotone"
-                          stroke="var(--color-billedTotal)"
-                          fill="var(--color-billedTotal)"
-                          fillOpacity={0.22}
-                        />
-                        <Area
-                          dataKey="collectedTotal"
-                          type="monotone"
-                          stroke="var(--color-collectedTotal)"
-                          fill="var(--color-collectedTotal)"
-                          fillOpacity={0.22}
-                        />
-                      </AreaChart>
-                    </ChartContainer>
-                  </CardContent>
-                </Card>
-
-                <Card className="border bg-background">
-                  <CardHeader className="pb-2">
                     <CardTitle className="text-base">Billed Breakdown (Rent vs Water)</CardTitle>
                     <CardDescription>Stacked billed values by invoice type.</CardDescription>
                   </CardHeader>
@@ -403,35 +383,44 @@ export default function RevenueReportPage() {
 
                 <Card className="border bg-background">
                   <CardHeader className="pb-2">
-                    <CardTitle className="text-base">Collection Rate Trend</CardTitle>
-                    <CardDescription>Collected / billed per time bucket.</CardDescription>
-                  </CardHeader>
-                  <CardContent className="pt-2">
-                    <ChartContainer config={perfConfig} className="h-[280px] w-full">
-                      <LineChart data={payload?.timeseries || []} margin={{ left: 12, right: 12 }}>
-                        <CartesianGrid vertical={false} />
-                        <XAxis dataKey="period" tickLine={false} axisLine={false} tickMargin={8} minTickGap={24} />
-                        <YAxis tickLine={false} axisLine={false} tickMargin={8} width={60} domain={[0, 100]} />
-                        <ChartTooltip content={<ChartTooltipContent indicator="dot" />} />
-                        <Line dataKey="collectionRate" stroke="var(--color-collectionRate)" strokeWidth={2} dot={false} />
-                      </LineChart>
-                    </ChartContainer>
-                  </CardContent>
-                </Card>
-
-                <Card className="border bg-background">
-                  <CardHeader className="pb-2">
                     <CardTitle className="text-base">Top Properties by Collected</CardTitle>
                     <CardDescription>Top 10 properties ranked by collected amount.</CardDescription>
                   </CardHeader>
                   <CardContent className="pt-2">
                     <ChartContainer config={perfConfig} className="h-[280px] w-full">
-                      <BarChart data={payload?.topProperties || []} layout="vertical" margin={{ left: 12, right: 12 }}>
+                      <BarChart
+                        data={payload?.topProperties || []}
+                        layout="vertical"
+                        margin={{ left: 12, right: 16 }}
+                      >
                         <CartesianGrid horizontal={false} />
-                        <XAxis type="number" tickLine={false} axisLine={false} tickMargin={8} />
-                        <YAxis type="category" dataKey="propertyName" tickLine={false} axisLine={false} width={140} />
-                        <ChartTooltip content={<ChartTooltipContent indicator="dot" />} />
-                        <Bar dataKey="collectedTotal" fill="var(--color-collectedTotal)" radius={[0, 6, 6, 0]} />
+                        <YAxis
+                          dataKey="propertyName"
+                          type="category"
+                          tickLine={false}
+                          axisLine={false}
+                          tickMargin={10}
+                          hide
+                        />
+                        <XAxis type="number" tickLine={false} axisLine={false} tickMargin={8} hide />
+                        <ChartTooltip cursor={false} content={<ChartTooltipContent indicator="line" />} />
+                        <Bar dataKey="collectedTotal" fill="#2563eb" radius={6}>
+                          <LabelList
+                            dataKey="propertyName"
+                            position="insideLeft"
+                            offset={8}
+                            className="fill-white"
+                            fontSize={12}
+                          />
+                          <LabelList
+                            dataKey="collectedTotal"
+                            position="insideRight"
+                            offset={8}
+                            className="fill-white"
+                            fontSize={12}
+                            formatter={(value: number) => kesAbbrev(Number(value || 0))}
+                          />
+                        </Bar>
                       </BarChart>
                     </ChartContainer>
                   </CardContent>
