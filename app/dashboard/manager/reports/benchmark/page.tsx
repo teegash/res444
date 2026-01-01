@@ -35,6 +35,8 @@ type Row = {
   collectionRate: number
   arrearsNow: number
   occupancyRate: number
+  unitCount: number
+  occupiedLikeCount: number
   expenses: number
   noi: number
   noiMargin: number
@@ -289,26 +291,29 @@ export default function BenchmarkReportPage() {
         acc.billed += Number(row.billed || 0)
         acc.arrears += Number(row.arrearsNow || 0)
         acc.noi += Number(row.noi || 0)
-        acc.occupancySum += Number(row.occupancyRate || 0)
+        acc.units += Number(row.unitCount || 0)
+        acc.occupiedLike += Number(row.occupiedLikeCount || 0)
         return acc
       },
-      { collected: 0, billed: 0, arrears: 0, noi: 0, occupancySum: 0 }
+      { collected: 0, billed: 0, arrears: 0, noi: 0, units: 0, occupiedLike: 0 }
     )
 
-    const avgOccupancy = rows.length ? totals.occupancySum / rows.length : 0
+    const portfolioOccupancy = totals.units ? (totals.occupiedLike / totals.units) * 100 : 0
     const collectionRate = safePct(totals.collected, totals.billed)
     const noiMargin = safePct(totals.noi, totals.collected)
     const billedBaseline = Math.max(1, totals.billed)
+    const collectedBaseline = Math.max(1, totals.collected)
 
     return {
       totalCollected: totals.collected,
       totalBilled: totals.billed,
       totalArrears: totals.arrears,
       totalNOI: totals.noi,
-      avgOccupancy,
+      portfolioOccupancy,
       collectionRate,
       noiMargin,
       billedBaseline,
+      collectedBaseline,
     }
   }, [payload?.rows, safePct])
 
@@ -396,7 +401,7 @@ export default function BenchmarkReportPage() {
                 <Trophy className="h-5 w-5" />
               </div>
               <div>
-                <h1 className="text-2xl font-semibold tracking-tight">Property Report</h1>
+                <h1 className="text-2xl font-semibold tracking-tight">Peer Benchmark</h1>
                 <p className="text-sm text-muted-foreground">
                   Compare performance across properties: collection efficiency, arrears exposure, occupancy and NOI.
                 </p>
@@ -467,11 +472,11 @@ export default function BenchmarkReportPage() {
                 />
                 <RadialMiniKpi
                   title="Occupancy"
-                  subtitle="Avg across properties"
-                  value={radial.avgOccupancy}
+                  subtitle="Portfolio weighted"
+                  value={radial.portfolioOccupancy}
                   max={100}
                   ringLabel="%"
-                  valueFormatter={(n) => `${Math.round(n)}%`}
+                  valueFormatter={(n) => `${Number(n).toFixed(1)}%`}
                 />
                 <RadialMiniKpi
                   title="NOI Margin"
@@ -479,7 +484,7 @@ export default function BenchmarkReportPage() {
                   value={radial.noiMargin}
                   max={100}
                   ringLabel="%"
-                  valueFormatter={(n) => `${Math.round(n)}%`}
+                  valueFormatter={(n) => `${Number(n).toFixed(1)}%`}
                 />
               </div>
 

@@ -421,7 +421,7 @@ export default function ReportsOverviewPage() {
     { label: 'Occupancy Report', href: '/dashboard/manager/reports/occupancy' },
     { label: 'Maintenance Report', href: '/dashboard/manager/reports/maintenance-performance' },
     { label: 'Financial Report', href: '/dashboard/manager/reports/financial' },
-    { label: 'Property Report', href: '/dashboard/manager/reports/benchmark' },
+    { label: 'Peer Benchmark', href: '/dashboard/manager/reports/benchmark' },
     { label: 'Arrears Report', href: '/dashboard/manager/reports/arrears' },
   ]
 
