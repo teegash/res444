@@ -442,13 +442,13 @@ export default function BenchmarkReportPage() {
                 />
                 <RadialMiniKpi
                   title="Arrears Exposure"
-                  subtitle="Snapshot now"
+                  subtitle="Overdue unpaid / billed"
                   value={radial?.totalArrears || 0}
-                  max={Math.max(1, (radial?.totalCollected || 1) * 1.2)}
+                  max={Math.max(1, radial?.totalBilled || 1)}
                   ringLabel="KES"
                   valueFormatter={(n) => Math.round(n).toLocaleString()}
-                  remainderColor="hsl(142 72% 45%)"
-                  remainderLabel="Paid"
+                  remainderColor="#4169E1"
+                  remainderLabel="Invoiced"
                 />
                 <RadialMiniKpi
                   title="Occupancy"
