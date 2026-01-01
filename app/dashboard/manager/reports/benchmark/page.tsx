@@ -302,7 +302,6 @@ export default function BenchmarkReportPage() {
     const collectionRate = safePct(totals.collected, totals.billed)
     const noiMargin = safePct(totals.noi, totals.collected)
     const billedBaseline = Math.max(1, totals.billed)
-    const collectedBaseline = Math.max(1, totals.collected)
 
     return {
       totalCollected: totals.collected,
@@ -313,7 +312,6 @@ export default function BenchmarkReportPage() {
       collectionRate,
       noiMargin,
       billedBaseline,
-      collectedBaseline,
     }
   }, [payload?.rows, safePct])
 
