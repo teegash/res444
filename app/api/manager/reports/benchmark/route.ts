@@ -172,6 +172,7 @@ export async function GET(req: NextRequest) {
         total_paid,
         status_text,
         due_date,
+        created_at,
         period_start,
         invoice_type,
         lease:leases!invoices_lease_org_fk (
@@ -202,6 +203,7 @@ export async function GET(req: NextRequest) {
         total_paid,
         status_text,
         due_date,
+        created_at,
         period_start,
         invoice_type,
         lease:leases!invoices_lease_org_fk (
@@ -216,10 +218,9 @@ export async function GET(req: NextRequest) {
       .neq("status_text", "void")
       .gt("amount", 0)
       .is("period_start", null)
-      .not("due_date", "is", null)
 
-    if (range.start) fallbackInvoiceQuery = fallbackInvoiceQuery.gte("due_date", range.start)
-    fallbackInvoiceQuery = fallbackInvoiceQuery.lte("due_date", range.end)
+    if (range.start) fallbackInvoiceQuery = fallbackInvoiceQuery.gte("created_at", range.start)
+    fallbackInvoiceQuery = fallbackInvoiceQuery.lte("created_at", range.end)
 
     const { data: invoicesWithDueDate, error: fallbackErr } = await fallbackInvoiceQuery
     if (fallbackErr) throw fallbackErr
