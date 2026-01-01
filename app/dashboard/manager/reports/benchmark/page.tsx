@@ -418,7 +418,7 @@ export default function BenchmarkReportPage() {
                   value={radial?.collectionRate || 0}
                   max={100}
                   ringLabel="%"
-                  valueFormatter={(n) => `${Math.round(n)}%`}
+                  valueFormatter={(n) => `${Number(n).toFixed(1)}%`}
                   valueColor="hsl(0 84% 60%)"
                   remainderColor="hsl(142 72% 45%)"
                 />
