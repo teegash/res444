@@ -34,6 +34,16 @@ function isRentPrepaid(inv: any) {
   return paidUntil >= periodStart
 }
 
+function monthStartUtc(dateIso: string) {
+  const d = new Date(`${dateIso.slice(0, 10)}T00:00:00Z`)
+  if (Number.isNaN(d.getTime())) return null
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1))
+}
+
+function addMonthsUtc(date: Date, months: number) {
+  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + months, 1))
+}
+
 export async function GET(req: NextRequest) {
   try {
     const url = new URL(req.url)
@@ -201,9 +211,47 @@ export async function GET(req: NextRequest) {
       ? expenses.filter((item: any) => item.property_id === scopePropertyId)
       : expenses
 
+    const { data: recurringExpenses, error: recurringError } = await admin
+      .from('recurring_expenses')
+      .select('id, property_id, amount, next_run, active')
+      .eq('organization_id', orgId)
+      .eq('active', true)
+
+    if (recurringError) {
+      throw recurringError
+    }
+
+    const recurringEntries: Array<{ property_id: string | null; amount: number; incurred_at: string }> = []
+    const rangeStartIso = range.start || range.end
+    const startMonth = rangeStartIso ? monthStartUtc(rangeStartIso) : null
+    const endMonth = monthStartUtc(range.end)
+
+    if (startMonth && endMonth) {
+      for (const recurring of recurringExpenses || []) {
+        if (!recurring) continue
+        const nextRunIso = recurring.next_run ? String(recurring.next_run).slice(0, 10) : null
+        const nextRunMonth = nextRunIso ? monthStartUtc(nextRunIso) : null
+        let cursor = nextRunMonth && nextRunMonth > startMonth ? nextRunMonth : startMonth
+
+        while (cursor <= endMonth) {
+          recurringEntries.push({
+            property_id: recurring.property_id || null,
+            amount: Number(recurring.amount || 0),
+            incurred_at: cursor.toISOString(),
+          })
+          cursor = addMonthsUtc(cursor, 1)
+        }
+      }
+    }
+
+    const scopedRecurringEntries = scopePropertyId
+      ? recurringEntries.filter((item) => item.property_id === scopePropertyId)
+      : recurringEntries
+    const combinedExpenses = [...scopedExpenses, ...scopedRecurringEntries]
+
     const billed = scopedInvoices.reduce((sum: number, row: any) => sum + Number(row.amount || 0), 0)
     const collected = scopedPayments.reduce((sum: number, row: any) => sum + Number(row.amount_paid || 0), 0)
-    const totalExpenses = scopedExpenses.reduce((sum: number, row: any) => sum + Number(row.amount || 0), 0)
+    const totalExpenses = combinedExpenses.reduce((sum: number, row: any) => sum + Number(row.amount || 0), 0)
     const net = collected - totalExpenses
     const collectionRate = safePct(collected, billed)
 
@@ -249,7 +297,7 @@ export async function GET(req: NextRequest) {
       series[key].collected += Number(payment.amount_paid || 0)
     }
 
-    for (const expense of scopedExpenses) {
+    for (const expense of combinedExpenses) {
       const d = isoDate(expense.incurred_at) || isoDate(expense.created_at)
       if (!d) continue
       const key = bucketKey(d, groupBy)
@@ -316,7 +364,7 @@ export async function GET(req: NextRequest) {
       byProperty[pid].collected += Number(payment.amount_paid || 0)
     }
 
-    for (const expense of scopedExpenses) {
+    for (const expense of combinedExpenses) {
       const pid = expense.property_id
       if (!pid) continue
       byProperty[pid] ||= {
