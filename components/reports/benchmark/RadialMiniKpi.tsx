@@ -17,6 +17,8 @@ type Props = {
   max: number
   valueFormatter?: (n: number) => string
   ringLabel?: string
+  valueColor?: string
+  remainderColor?: string
 }
 
 export function RadialMiniKpi({
@@ -26,6 +28,8 @@ export function RadialMiniKpi({
   max,
   valueFormatter,
   ringLabel,
+  valueColor,
+  remainderColor,
 }: Props) {
   const safeMax = Math.max(1, max)
   const clamped = Math.min(safeMax, Math.max(0, value))
@@ -33,8 +37,8 @@ export function RadialMiniKpi({
   const chartData = [{ key: 'kpi', value: clamped, remainder: safeMax - clamped }]
 
   const chartConfig = {
-    value: { label: ringLabel || title, color: 'var(--chart-1)' },
-    remainder: { label: 'Remainder', color: 'var(--muted)' },
+    value: { label: ringLabel || title, color: valueColor || 'var(--chart-1)' },
+    remainder: { label: 'Remainder', color: remainderColor || 'hsl(270 100% 94%)' },
   } satisfies ChartConfig
 
   const display = valueFormatter ? valueFormatter(value) : String(value)
@@ -65,14 +69,14 @@ export function RadialMiniKpi({
                       <tspan
                         x={viewBox.cx}
                         y={(viewBox.cy || 0) - 4}
-                        className="fill-foreground text-xl font-semibold"
+                        className="fill-foreground text-sm font-semibold"
                       >
                         {display}
                       </tspan>
                       <tspan
                         x={viewBox.cx}
                         y={(viewBox.cy || 0) + 16}
-                        className="fill-muted-foreground text-xs"
+                        className="fill-muted-foreground text-[10px]"
                       >
                         {ringLabel || 'KPI'}
                       </tspan>

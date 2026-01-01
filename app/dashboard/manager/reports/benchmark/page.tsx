@@ -15,7 +15,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { Download, Trophy } from 'lucide-react'
+import { ArrowLeft, Download, Trophy } from 'lucide-react'
+import { useRouter } from 'next/navigation'
 
 import { EChart, type EChartsOption } from '@/components/charts/EChart'
 import { RadialMiniKpi } from '@/components/reports/benchmark/RadialMiniKpi'
@@ -116,66 +117,14 @@ function buildPolarOption(rows: Row[]): EChartsOption {
     polar: { radius: [30, '80%'] },
     angleAxis: { max: 100, startAngle: 90 },
     radiusAxis: { type: 'category', data: labels },
-    tooltip: {},
+    tooltip: {
+      formatter: (p: any) => `${labels[p.dataIndex]}: ${Number(p.value).toFixed(1)}%`,
+    },
     series: [
       {
         type: 'bar',
         data: values,
         coordinateSystem: 'polar',
-        label: {
-          show: true,
-          position: 'middle',
-          formatter: (p: any) => `${labels[p.dataIndex]}: ${values[p.dataIndex]}%`,
-        },
-      },
-    ],
-  }
-}
-
-function buildQuadrantOption(rows: Row[], medianCollectionRate: number): EChartsOption {
-  const data = rows.map((row) => ({
-    name: row.propertyName,
-    value: [row.occupancyRate, row.collectionRate, row.collected],
-    arrearsNow: row.arrearsNow,
-    noiMargin: row.noiMargin,
-  }))
-
-  return {
-    title: { text: 'Peer Quadrant — Occupancy vs Collection (bubble = collected)' },
-    tooltip: {
-      formatter: (p: any) => {
-        const d = p.data
-        return `
-          <b>${d.name}</b><br/>
-          Occupancy: ${d.value[0].toFixed(1)}%<br/>
-          Collection: ${d.value[1].toFixed(1)}%<br/>
-          Collected: ${kes(d.value[2])}<br/>
-          Arrears: ${kes(d.arrearsNow)}<br/>
-          NOI Margin: ${d.noiMargin.toFixed(1)}%
-        `
-      },
-    },
-    xAxis: { name: 'Occupancy %', min: 0, max: 100 },
-    yAxis: { name: 'Collection %', min: 0, max: 100 },
-    series: [
-      {
-        type: 'scatter',
-        data,
-        symbolSize: (val: any) => {
-          const collected = val[2]
-          const size = Math.sqrt(collected) / 80
-          return Math.min(60, Math.max(10, size))
-        },
-      },
-      {
-        type: 'line',
-        name: 'Median collection',
-        data: [
-          [0, medianCollectionRate],
-          [100, medianCollectionRate],
-        ],
-        showSymbol: false,
-        lineStyle: { type: 'dashed' },
       },
     ],
   }
@@ -183,6 +132,7 @@ function buildQuadrantOption(rows: Row[], medianCollectionRate: number): ECharts
 
 export default function BenchmarkReportPage() {
   const { toast } = useToast()
+  const router = useRouter()
   const [filters, setFilters] = React.useState<ReportFilterState>({
     period: 'year',
     propertyId: 'all',
@@ -254,11 +204,13 @@ export default function BenchmarkReportPage() {
       {
         label: 'Top Property',
         value: b.topProperty ? `${b.topProperty.rate.toFixed(1)}%` : '—',
+        valueClassName: 'text-emerald-600',
         subtext: b.topProperty?.name || '',
       },
       {
         label: 'Bottom Property',
         value: b.bottomProperty ? `${b.bottomProperty.rate.toFixed(1)}%` : '—',
+        valueClassName: 'text-rose-600',
         subtext: b.bottomProperty?.name || '',
       },
       { label: 'Spread', value: `${b.spread.toFixed(1)}%`, subtext: 'Top − Bottom' },
@@ -314,11 +266,6 @@ export default function BenchmarkReportPage() {
     if (!payload?.rows?.length) return {} as EChartsOption
     return buildPolarOption(payload.rows)
   }, [payload?.rows])
-
-  const quadrantOption = React.useMemo(() => {
-    if (!payload?.rows?.length) return {} as EChartsOption
-    return buildQuadrantOption(payload.rows, payload.benchmarks.medianCollectionRate)
-  }, [payload?.rows, payload?.benchmarks.medianCollectionRate])
 
   const radial = React.useMemo(() => {
     if (!payload?.rows?.length) return null
@@ -414,6 +361,14 @@ export default function BenchmarkReportPage() {
         <main className="flex-1 p-6 md:p-8 space-y-6 overflow-auto">
           <div className="flex items-start justify-between gap-4">
             <div className="flex items-center gap-3">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-9 w-9"
+                onClick={() => router.push('/dashboard/manager/reports')}
+              >
+                <ArrowLeft className="h-4 w-4" />
+              </Button>
               <div className="h-10 w-10 rounded-xl bg-muted flex items-center justify-center">
                 <Trophy className="h-5 w-5" />
               </div>
@@ -445,7 +400,7 @@ export default function BenchmarkReportPage() {
           ) : (
             <>
               <ReportFilters value={filters} onChange={handleFiltersChange} properties={payload?.properties || []} />
-              <KpiTiles items={kpis as any} />
+              <KpiTiles items={kpis as any} className="grid-cols-1 sm:grid-cols-2 lg:grid-cols-6" />
 
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-6">
                 <RadialMiniKpi
@@ -462,7 +417,8 @@ export default function BenchmarkReportPage() {
                   value={radial?.totalCollected || 0}
                   max={Math.max(1, radial?.totalBilled || 1)}
                   ringLabel="KES"
-                  valueFormatter={(n) => kes(n)}
+                  valueFormatter={(n) => Math.round(n).toLocaleString()}
+                  valueColor="hsl(142 72% 45%)"
                 />
                 <RadialMiniKpi
                   title="Billed"
@@ -470,7 +426,7 @@ export default function BenchmarkReportPage() {
                   value={radial?.totalBilled || 0}
                   max={Math.max(1, radial?.totalBilled || 1)}
                   ringLabel="KES"
-                  valueFormatter={(n) => kes(n)}
+                  valueFormatter={(n) => Math.round(n).toLocaleString()}
                 />
                 <RadialMiniKpi
                   title="Arrears Exposure"
@@ -478,7 +434,7 @@ export default function BenchmarkReportPage() {
                   value={radial?.totalArrears || 0}
                   max={Math.max(1, (radial?.totalCollected || 1) * 1.2)}
                   ringLabel="KES"
-                  valueFormatter={(n) => kes(n)}
+                  valueFormatter={(n) => Math.round(n).toLocaleString()}
                 />
                 <RadialMiniKpi
                   title="Occupancy"
@@ -516,16 +472,6 @@ export default function BenchmarkReportPage() {
                   </CardHeader>
                   <CardContent>
                     <EChart option={polarOption} className="h-[320px] w-full" />
-                  </CardContent>
-                </Card>
-
-                <Card className="border bg-background lg:col-span-2">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-base">Peer Quadrant</CardTitle>
-                    <CardDescription>Occupancy vs Collection. Bubble size = Collected amount.</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <EChart option={quadrantOption} className="h-[360px] w-full" />
                   </CardContent>
                 </Card>
               </div>

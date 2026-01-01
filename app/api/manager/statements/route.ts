@@ -111,6 +111,11 @@ function isRentPrepaid(inv: any, rentPaidUntil: string | null | undefined) {
   return paidUntil >= periodStart
 }
 
+function isPastDue(dueIso: string | null, todayIso: string) {
+  if (!dueIso) return false
+  return dueIso < todayIso
+}
+
 function sortByBalanceAndOldestDue(rows: StatementSummaryRow[]) {
   return rows.sort((a, b) => {
     const aBal = Number(a.current_balance || 0)
@@ -292,16 +297,17 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    const aggByLease = new Map<
-      string,
-      { openCount: number; oldestDue: string | null; balance: number }
-    >()
+    const aggByLease = new Map<string, { openCount: number; oldestDue: string | null; balance: number }>()
+    const todayIso = new Date().toISOString().slice(0, 10)
 
     for (const inv of invoiceRows) {
       const leaseId = inv?.lease_id
       if (!leaseId) continue
-      if (String(inv?.invoice_type || '') !== 'rent') continue
+      const invoiceType = String(inv?.invoice_type || '')
+      if (invoiceType !== 'rent' && invoiceType !== 'water') continue
       if (String(inv?.status_text || '').toLowerCase() === 'void') continue
+      const dueIso = normalizeIsoDate(inv?.due_date)
+      if (!isPastDue(dueIso, todayIso)) continue
       const rentPaidUntil = rentPaidUntilByLease.get(leaseId)
       if (isRentPrepaid(inv, rentPaidUntil)) continue
       if (isInvoiceEffectivelyPaid(inv)) continue
@@ -314,11 +320,8 @@ export async function GET(request: NextRequest) {
       const next = aggByLease.get(leaseId) || { openCount: 0, oldestDue: null, balance: 0 }
       next.openCount += 1
       next.balance += outstanding
-      const dueIso = normalizeIsoDate(inv?.due_date)
-      if (dueIso) {
-        if (!next.oldestDue || new Date(dueIso).getTime() < new Date(next.oldestDue).getTime()) {
-          next.oldestDue = dueIso
-        }
+      if (dueIso && (!next.oldestDue || new Date(dueIso).getTime() < new Date(next.oldestDue).getTime())) {
+        next.oldestDue = dueIso
       }
       aggByLease.set(leaseId, next)
     }
