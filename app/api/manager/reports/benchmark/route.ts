@@ -76,6 +76,12 @@ export async function GET(req: NextRequest) {
     const orgId = membership.organization_id
     const range = resolveRange({ period, startDate, endDate })
     const scopePropertyId = propertyId !== "all" ? propertyId : null
+    const rangeStartTs = range.start ? new Date(`${range.start}T00:00:00Z`).toISOString() : null
+    const rangeEndExclusiveTs = (() => {
+      const end = new Date(`${range.end}T00:00:00Z`)
+      end.setUTCDate(end.getUTCDate() + 1)
+      return end.toISOString()
+    })()
 
     /* =========================================================
        1) Properties
@@ -219,8 +225,8 @@ export async function GET(req: NextRequest) {
       .gt("amount", 0)
       .is("period_start", null)
 
-    if (range.start) fallbackInvoiceQuery = fallbackInvoiceQuery.gte("created_at", range.start)
-    fallbackInvoiceQuery = fallbackInvoiceQuery.lte("created_at", range.end)
+    if (rangeStartTs) fallbackInvoiceQuery = fallbackInvoiceQuery.gte("created_at", rangeStartTs)
+    fallbackInvoiceQuery = fallbackInvoiceQuery.lt("created_at", rangeEndExclusiveTs)
 
     const { data: invoicesWithDueDate, error: fallbackErr } = await fallbackInvoiceQuery
     if (fallbackErr) throw fallbackErr
