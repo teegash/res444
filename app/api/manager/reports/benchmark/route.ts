@@ -76,12 +76,6 @@ export async function GET(req: NextRequest) {
     const orgId = membership.organization_id
     const range = resolveRange({ period, startDate, endDate })
     const scopePropertyId = propertyId !== "all" ? propertyId : null
-    const rangeStartTs = range.start ? new Date(`${range.start}T00:00:00Z`).toISOString() : null
-    const rangeEndExclusiveTs = (() => {
-      const end = new Date(`${range.end}T00:00:00Z`)
-      end.setUTCDate(end.getUTCDate() + 1)
-      return end.toISOString()
-    })()
 
     /* =========================================================
        1) Properties
@@ -223,8 +217,8 @@ export async function GET(req: NextRequest) {
       .gt("amount", 0)
       .is("period_start", null)
 
-    if (rangeStartTs) fallbackInvoiceQuery = fallbackInvoiceQuery.gte("created_at", rangeStartTs)
-    fallbackInvoiceQuery = fallbackInvoiceQuery.lt("created_at", rangeEndExclusiveTs)
+    if (range.start) fallbackInvoiceQuery = fallbackInvoiceQuery.gte("due_date", range.start)
+    fallbackInvoiceQuery = fallbackInvoiceQuery.lte("due_date", range.end)
 
     const { data: invoicesWithDueDate, error: fallbackErr } = await fallbackInvoiceQuery
     if (fallbackErr) throw fallbackErr
@@ -258,6 +252,7 @@ export async function GET(req: NextRequest) {
         payment_date,
         verified,
         invoice:invoices!payments_invoice_org_fk (
+          id,
           invoice_type,
           status_text,
           lease:leases!invoices_lease_org_fk (
@@ -281,16 +276,37 @@ export async function GET(req: NextRequest) {
       ? (paymentsRaw || []).filter((p: any) => p.invoice?.lease?.unit?.building?.id === scopePropertyId)
       : paymentsRaw || []
 
-    for (const p of scopedPayments) {
+    const validPayments = scopedPayments.filter((p: any) => {
       const invType = String(p.invoice?.invoice_type || "").toLowerCase()
       const invStatus = String(p.invoice?.status_text || "").toLowerCase()
-      if (invStatus === "void") continue
-      if (invType && invType !== "rent" && invType !== "water") continue
+      if (invStatus === "void") return false
+      if (invType && invType !== "rent" && invType !== "water") return false
+      return true
+    })
 
+    for (const p of validPayments) {
       const pid = p.invoice?.lease?.unit?.building?.id
       if (!pid) continue
       const row = ensureRow(pid, p.invoice?.lease?.unit?.building?.name)
       row.collected += Number(p.amount_paid || 0)
+    }
+
+    const paidInvoiceIds = new Set<string>(
+      validPayments
+        .map((p: any) => p.invoice?.id)
+        .filter((id: string | null | undefined): id is string => Boolean(id))
+    )
+    const paidInvoiceFallbacks = scopedInvoices.filter((inv: any) => {
+      const statusText = String(inv.status_text || "").toLowerCase()
+      if (statusText !== "paid") return false
+      return !paidInvoiceIds.has(inv.id)
+    })
+
+    for (const inv of paidInvoiceFallbacks) {
+      const pid = inv.lease?.unit?.building?.id
+      if (!pid) continue
+      const row = ensureRow(pid, inv.lease?.unit?.building?.name)
+      row.collected += Number(inv.amount || 0)
     }
 
     /* =========================================================

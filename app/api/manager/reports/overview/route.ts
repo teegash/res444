@@ -188,6 +188,16 @@ export async function GET(req: NextRequest) {
       if (invType && invType !== 'rent' && invType !== 'water') return false
       return true
     })
+    const paidInvoiceIds = new Set<string>(
+      validPayments
+        .map((p: any) => p.invoice?.id)
+        .filter((id: string | null | undefined): id is string => Boolean(id))
+    )
+    const paidInvoiceFallbacks = scopedInvoices.filter((inv: any) => {
+      const statusText = String(inv.status_text || '').toLowerCase()
+      if (statusText !== 'paid') return false
+      return !paidInvoiceIds.has(inv.id)
+    })
 
     const { data: expensesRaw, error: expensesError } = await admin
       .from('expenses')
@@ -246,7 +256,9 @@ export async function GET(req: NextRequest) {
     const combinedExpenses = [...scopedExpenses, ...scopedRecurringEntries]
 
     const billed = scopedInvoices.reduce((sum: number, row: any) => sum + Number(row.amount || 0), 0)
-    const collected = validPayments.reduce((sum: number, row: any) => sum + Number(row.amount_paid || 0), 0)
+    const collected =
+      validPayments.reduce((sum: number, row: any) => sum + Number(row.amount_paid || 0), 0) +
+      paidInvoiceFallbacks.reduce((sum: number, inv: any) => sum + Number(inv.amount || 0), 0)
     const totalExpenses = combinedExpenses.reduce((sum: number, row: any) => sum + Number(row.amount || 0), 0)
     const net = collected - totalExpenses
     const collectionRate = safePct(collected, billed)
@@ -291,6 +303,13 @@ export async function GET(req: NextRequest) {
       const key = bucketKey(d, groupBy)
       series[key] ||= { period: key, billed: 0, unpaid: 0, collected: 0, expenses: 0, net: 0 }
       series[key].collected += Number(payment.amount_paid || 0)
+    }
+    for (const inv of paidInvoiceFallbacks) {
+      const d = isoDate(inv.period_start) || isoDate(inv.due_date)
+      if (!d) continue
+      const key = bucketKey(d, groupBy)
+      series[key] ||= { period: key, billed: 0, unpaid: 0, collected: 0, expenses: 0, net: 0 }
+      series[key].collected += Number(inv.amount || 0)
     }
 
     for (const expense of combinedExpenses) {
@@ -358,6 +377,21 @@ export async function GET(req: NextRequest) {
         collectionRate: 0,
       }
       byProperty[pid].collected += Number(payment.amount_paid || 0)
+    }
+    for (const inv of paidInvoiceFallbacks) {
+      const pid = inv.lease?.unit?.building?.id
+      if (!pid) continue
+      byProperty[pid] ||= {
+        propertyId: pid,
+        propertyName: propNameById.get(pid) || 'Property',
+        billed: 0,
+        collected: 0,
+        expenses: 0,
+        net: 0,
+        arrearsNow: 0,
+        collectionRate: 0,
+      }
+      byProperty[pid].collected += Number(inv.amount || 0)
     }
 
     for (const expense of combinedExpenses) {
