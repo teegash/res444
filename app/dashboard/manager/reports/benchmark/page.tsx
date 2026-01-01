@@ -134,11 +134,7 @@ function buildPolarOption(rows: Row[]): EChartsOption {
       type: 'bar',
       data: values,
       coordinateSystem: 'polar',
-      label: {
-        show: true,
-        position: 'middle',
-        formatter: (p: any) => `${labels[p.dataIndex]}: ${Math.round(Number(p.value))}%`,
-      },
+      label: { show: false },
     },
   }
 }
