@@ -158,6 +158,8 @@ export async function GET(req: NextRequest) {
         payment_date,
         invoice:invoices!payments_invoice_org_fk (
           id,
+          invoice_type,
+          status_text,
           lease:leases!invoices_lease_org_fk (
             unit:apartment_units (
               building:apartment_buildings!apartment_units_building_org_fk ( id, name )
@@ -179,6 +181,13 @@ export async function GET(req: NextRequest) {
       scopePropertyId
         ? (payments || []).filter((p: any) => p.invoice?.lease?.unit?.building?.id === scopePropertyId)
         : payments || []
+    const validPayments = scopedPayments.filter((p: any) => {
+      const invType = String(p.invoice?.invoice_type || '').toLowerCase()
+      const invStatus = String(p.invoice?.status_text || '').toLowerCase()
+      if (invStatus === 'void') return false
+      if (invType && invType !== 'rent' && invType !== 'water') return false
+      return true
+    })
 
     const { data: expensesRaw, error: expensesError } = await admin
       .from('expenses')
@@ -237,7 +246,7 @@ export async function GET(req: NextRequest) {
     const combinedExpenses = [...scopedExpenses, ...scopedRecurringEntries]
 
     const billed = scopedInvoices.reduce((sum: number, row: any) => sum + Number(row.amount || 0), 0)
-    const collected = scopedPayments.reduce((sum: number, row: any) => sum + Number(row.amount_paid || 0), 0)
+    const collected = validPayments.reduce((sum: number, row: any) => sum + Number(row.amount_paid || 0), 0)
     const totalExpenses = combinedExpenses.reduce((sum: number, row: any) => sum + Number(row.amount || 0), 0)
     const net = collected - totalExpenses
     const collectionRate = safePct(collected, billed)
@@ -276,7 +285,7 @@ export async function GET(req: NextRequest) {
       series[key].unpaid += unpaidAmount
     }
 
-    for (const payment of scopedPayments) {
+    for (const payment of validPayments) {
       const d = isoDate(payment.payment_date)
       if (!d) continue
       const key = bucketKey(d, groupBy)
@@ -335,7 +344,7 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    for (const payment of scopedPayments) {
+    for (const payment of validPayments) {
       const pid = payment.invoice?.lease?.unit?.building?.id
       if (!pid) continue
       byProperty[pid] ||= {

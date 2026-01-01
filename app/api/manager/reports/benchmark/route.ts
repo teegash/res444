@@ -285,7 +285,7 @@ export async function GET(req: NextRequest) {
       const invType = String(p.invoice?.invoice_type || "").toLowerCase()
       const invStatus = String(p.invoice?.status_text || "").toLowerCase()
       if (invStatus === "void") continue
-      if (invType !== "rent" && invType !== "water") continue
+      if (invType && invType !== "rent" && invType !== "water") continue
 
       const pid = p.invoice?.lease?.unit?.building?.id
       if (!pid) continue
