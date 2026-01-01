@@ -449,7 +449,6 @@ export default function BenchmarkReportPage() {
                   valueFormatter={(n) => Math.round(n).toLocaleString()}
                   remainderColor="#4169E1"
                   remainderLabel="Invoiced"
-                  remainderValueOverride={radial?.totalBilled || 0}
                 />
                 <RadialMiniKpi
                   title="Occupancy"

@@ -20,7 +20,6 @@ type Props = {
   valueColor?: string
   remainderColor?: string
   remainderLabel?: string
-  remainderValueOverride?: number
 }
 
 export function RadialMiniKpi({
@@ -33,17 +32,11 @@ export function RadialMiniKpi({
   valueColor,
   remainderColor,
   remainderLabel,
-  remainderValueOverride,
 }: Props) {
   const safeMax = Math.max(1, max)
   const clamped = Math.min(safeMax, Math.max(0, value))
 
-  const remainderValue =
-    remainderValueOverride !== undefined
-      ? Math.max(0, remainderValueOverride)
-      : Math.max(0, safeMax - clamped)
-
-  const chartData = [{ key: 'kpi', value: clamped, remainder: remainderValue }]
+  const chartData = [{ key: 'kpi', value: clamped, remainder: safeMax - clamped }]
 
   const chartConfig = {
     value: { label: ringLabel || title, color: valueColor || 'var(--chart-1)' },
@@ -96,15 +89,15 @@ export function RadialMiniKpi({
             </PolarRadiusAxis>
 
             <RadialBar
-              dataKey="remainder"
-              cornerRadius={8}
-              fill="var(--color-remainder)"
-              className="stroke-transparent stroke-2"
-            />
-            <RadialBar
               dataKey="value"
               cornerRadius={8}
               fill="var(--color-value)"
+              className="stroke-transparent stroke-2"
+            />
+            <RadialBar
+              dataKey="remainder"
+              cornerRadius={8}
+              fill="var(--color-remainder)"
               className="stroke-transparent stroke-2"
             />
           </RadialBarChart>
