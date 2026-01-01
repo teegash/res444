@@ -432,6 +432,7 @@ export default function BenchmarkReportPage() {
                   ringLabel="KES"
                   valueFormatter={(n) => Math.round(n).toLocaleString()}
                   valueColor="hsl(142 72% 45%)"
+                  remainderColor="hsl(0 84% 60%)"
                 />
                 <RadialMiniKpi
                   title="Billed"
