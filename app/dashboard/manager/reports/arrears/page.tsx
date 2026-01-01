@@ -13,7 +13,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { Download, AlertTriangle } from 'lucide-react'
+import { ArrowLeft, Download, AlertTriangle } from 'lucide-react'
+import { useRouter } from 'next/navigation'
 
 import { ReportFilters, type ReportFilterState } from '@/components/reports/ReportFilters'
 import { KpiTiles } from '@/components/reports/KpiTiles'
@@ -78,16 +79,23 @@ function kes(value: number) {
   return `KES ${Math.round(value).toLocaleString()}`
 }
 
-const cfg = {
-  amount: { label: 'Amount', color: '#f97316' },
+const arrearsConfig = {
   arrearsTotal: { label: 'Arrears', color: '#dc2626' },
   arrearsRent: { label: 'Rent arrears', color: '#f97316' },
   arrearsWater: { label: 'Water arrears', color: '#0ea5e9' },
 } satisfies ChartConfig
 
+const ageingConfig = {
+  '0-30': { label: '0-30 days', color: '#22c55e' },
+  '31-60': { label: '31-60 days', color: '#f59e0b' },
+  '61-90': { label: '61-90 days', color: '#f97316' },
+  '90+': { label: '90+ days', color: '#dc2626' },
+} satisfies ChartConfig
+
 export default function ArrearsReportPage() {
   const { toast } = useToast()
   const gridApiRef = React.useRef<GridApi | null>(null)
+  const router = useRouter()
 
   const [filters, setFilters] = React.useState<ReportFilterState>({
     period: 'quarter',
@@ -160,8 +168,13 @@ export default function ArrearsReportPage() {
         label: 'Total arrears',
         value: kes(k.arrearsTotal),
         subtext: `${scopeLabel} • snapshot as of ${payload.todayISO}`,
+        valueClassName: 'text-rose-600 dark:text-rose-400',
       },
-      { label: 'Rent arrears', value: kes(k.arrearsRent) },
+      {
+        label: 'Rent arrears',
+        value: kes(k.arrearsRent),
+        valueClassName: 'text-rose-600 dark:text-rose-400',
+      },
       { label: 'Water arrears', value: kes(k.arrearsWater) },
       {
         label: 'Defaulters',
@@ -278,7 +291,7 @@ export default function ArrearsReportPage() {
       },
       { headerName: 'Invoices', field: 'openInvoices', width: 110 },
       { headerName: 'Oldest due', field: 'oldestDueDate', width: 140 },
-      { headerName: 'Max days overdue', field: 'maxDaysOverdue', width: 150 },
+      { headerName: 'Days overdue', field: 'maxDaysOverdue', width: 140 },
     ],
     []
   )
@@ -292,6 +305,14 @@ export default function ArrearsReportPage() {
         <main className="flex-1 p-6 md:p-8 space-y-6 overflow-auto">
           <div className="flex items-start justify-between gap-4">
             <div className="flex items-center gap-3">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-9 w-9"
+                onClick={() => router.push('/dashboard/manager/reports')}
+              >
+                <ArrowLeft className="h-4 w-4" />
+              </Button>
               <div className="h-10 w-10 rounded-xl bg-muted flex items-center justify-center">
                 <AlertTriangle className="h-5 w-5" />
               </div>
@@ -325,20 +346,21 @@ export default function ArrearsReportPage() {
               <ReportFilters value={filters} onChange={handleFiltersChange} properties={properties} />
               <KpiTiles items={kpis as any} className="grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6" />
 
-              <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-                <Card className="border bg-background">
+              <div className="grid grid-cols-1 gap-4 lg:grid-cols-4">
+                <Card className="border bg-background lg:col-span-1">
                   <CardHeader className="pb-2">
                     <CardTitle className="text-base">Arrears Ageing</CardTitle>
                     <CardDescription>Outstanding amount bucketed by days overdue.</CardDescription>
                   </CardHeader>
                   <CardContent className="pt-2">
-                    <ChartContainer config={cfg} className="h-[280px] w-full">
+                    <ChartContainer config={ageingConfig} className="h-[280px] w-full">
                       <PieChart>
                         <ChartTooltip content={<ChartTooltipContent indicator="dot" />} />
                         <Pie
                           data={(payload?.ageing || []).map((row) => ({
                             name: row.bucket,
                             amount: row.amount,
+                            fill: ageingConfig[row.bucket as keyof typeof ageingConfig]?.color || '#94a3b8',
                           }))}
                           dataKey="amount"
                           nameKey="name"
@@ -346,19 +368,19 @@ export default function ArrearsReportPage() {
                           outerRadius={110}
                           strokeWidth={2}
                         />
-                        <ChartLegend content={<ChartLegendContent />} />
+                        <ChartLegend content={<ChartLegendContent nameKey="name" />} />
                       </PieChart>
                     </ChartContainer>
                   </CardContent>
                 </Card>
 
-                <Card className="border bg-background">
+                <Card className="border bg-background lg:col-span-1">
                   <CardHeader className="pb-2">
                     <CardTitle className="text-base">Arrears Exposure by Property</CardTitle>
                     <CardDescription>Ranked by total arrears amount.</CardDescription>
                   </CardHeader>
                   <CardContent className="pt-2">
-                    <ChartContainer config={cfg} className="h-[280px] w-full">
+                    <ChartContainer config={arrearsConfig} className="h-[280px] w-full">
                       <BarChart
                         data={payload?.byProperty?.slice(0, 10) || []}
                         layout="vertical"
@@ -366,9 +388,17 @@ export default function ArrearsReportPage() {
                       >
                         <CartesianGrid horizontal={false} />
                         <XAxis type="number" tickLine={false} axisLine={false} />
-                        <YAxis type="category" dataKey="propertyName" tickLine={false} axisLine={false} width={160} />
+                        <YAxis type="category" dataKey="propertyName" tickLine={false} axisLine={false} hide />
                         <ChartTooltip content={<ChartTooltipContent indicator="dot" />} />
-                        <Bar dataKey="arrearsTotal" fill="var(--color-arrearsTotal)" radius={[0, 6, 6, 0]} />
+                        <Bar dataKey="arrearsTotal" fill="var(--color-arrearsTotal)" radius={[0, 6, 6, 0]}>
+                          <LabelList
+                            dataKey="propertyName"
+                            position="insideLeft"
+                            offset={8}
+                            className="fill-white"
+                            fontSize={12}
+                          />
+                        </Bar>
                       </BarChart>
                     </ChartContainer>
                   </CardContent>
@@ -380,7 +410,7 @@ export default function ArrearsReportPage() {
                     <CardDescription>Highlights what is driving exposure per property.</CardDescription>
                   </CardHeader>
                   <CardContent className="pt-2">
-                    <ChartContainer config={cfg} className="h-[320px] w-full">
+                    <ChartContainer config={arrearsConfig} className="h-[320px] w-full">
                       <BarChart data={payload?.byProperty?.slice(0, 12) || []} margin={{ left: 12, right: 12 }}>
                         <CartesianGrid vertical={false} />
                         <XAxis dataKey="propertyName" tickLine={false} axisLine={false} tickMargin={8} minTickGap={24} />
@@ -415,12 +445,13 @@ export default function ArrearsReportPage() {
                         floatingFilter: true,
                       }}
                       pagination
-                      paginationPageSize={25}
+                      paginationPageSize={20}
                       animateRows
                       onGridReady={(params) => {
                         gridApiRef.current = params.api
                         params.api.sizeColumnsToFit()
                       }}
+                      onGridSizeChanged={(params) => params.api.sizeColumnsToFit()}
                     />
                   </div>
 
