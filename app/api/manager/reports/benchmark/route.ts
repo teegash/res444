@@ -160,8 +160,8 @@ export async function GET(req: NextRequest) {
 
     /* =========================================================
        4) Invoices (Billed + Arrears source)
-       - IMPORTANT: align to Overview-style integrity:
-         period_start is the canonical period bucket for billing.
+       - Primary bucket: period_start (canonical).
+       - Fallback: due_date only when period_start is null.
     ========================================================= */
     let invoiceQuery = admin
       .from("invoices")
@@ -190,12 +190,45 @@ export async function GET(req: NextRequest) {
     if (range.start) invoiceQuery = invoiceQuery.gte("period_start", range.start)
     invoiceQuery = invoiceQuery.lte("period_start", range.end)
 
-    const { data: invoicesRaw, error: invErr } = await invoiceQuery
+    const { data: invoicesWithPeriod, error: invErr } = await invoiceQuery
     if (invErr) throw invErr
 
+    let fallbackInvoiceQuery = admin
+      .from("invoices")
+      .select(
+        `
+        id,
+        amount,
+        total_paid,
+        status_text,
+        due_date,
+        period_start,
+        invoice_type,
+        lease:leases!invoices_lease_org_fk (
+          unit:apartment_units (
+            building:apartment_buildings!apartment_units_building_org_fk ( id, name )
+          )
+        )
+      `
+      )
+      .eq("organization_id", orgId)
+      .in("invoice_type", ["rent", "water"])
+      .neq("status_text", "void")
+      .gt("amount", 0)
+      .is("period_start", null)
+      .not("due_date", "is", null)
+
+    if (range.start) fallbackInvoiceQuery = fallbackInvoiceQuery.gte("due_date", range.start)
+    fallbackInvoiceQuery = fallbackInvoiceQuery.lte("due_date", range.end)
+
+    const { data: invoicesWithDueDate, error: fallbackErr } = await fallbackInvoiceQuery
+    if (fallbackErr) throw fallbackErr
+
+    const invoicesRaw = [...(invoicesWithPeriod || []), ...(invoicesWithDueDate || [])]
+
     const scopedInvoices = scopePropertyId
-      ? (invoicesRaw || []).filter((inv: any) => inv.lease?.unit?.building?.id === scopePropertyId)
-      : invoicesRaw || []
+      ? invoicesRaw.filter((inv: any) => inv.lease?.unit?.building?.id === scopePropertyId)
+      : invoicesRaw
 
     for (const inv of scopedInvoices) {
       const pid = inv.lease?.unit?.building?.id
