@@ -19,6 +19,7 @@ create index IF not exists idx_buildings_org_id on public.apartment_buildings us
 
 
 
+
 create table public.apartment_units (
   id uuid not null default gen_random_uuid (),
   building_id uuid not null,
@@ -68,6 +69,8 @@ where
 
 
 
+
+
 create table public.app_settings (
   id uuid not null default gen_random_uuid (),
   organization_id uuid not null,
@@ -103,7 +106,6 @@ create index IF not exists idx_bulk_building_id on public.bulk_unit_creation_log
 create index IF not exists idx_bulk_group_id on public.bulk_unit_creation_logs using btree (bulk_group_id) TABLESPACE pg_default;
 
 create index IF not exists idx_bulk_logs_org_id on public.bulk_unit_creation_logs using btree (organization_id) TABLESPACE pg_default;
-
 
 
 
@@ -163,6 +165,8 @@ execute FUNCTION set_communications_org_from_sender ();
 
 
 
+
+
 create table public.cron_runs (
   id uuid not null default gen_random_uuid (),
   organization_id uuid null,
@@ -201,6 +205,7 @@ where
 
 
 
+
 create table public.cron_state (
   function_name text not null,
   state jsonb not null default '{}'::jsonb,
@@ -211,6 +216,7 @@ create table public.cron_state (
 create trigger trg_touch_cron_state_updated_at BEFORE
 update on cron_state for EACH row
 execute FUNCTION touch_cron_state_updated_at ();
+
 
 
 
@@ -260,40 +266,15 @@ create index IF not exists idx_expenses_property on public.expenses using btree 
 
 create index IF not exists idx_expenses_incurred_at on public.expenses using btree (incurred_at) TABLESPACE pg_default;
 
-create unique INDEX IF not exists uq_expenses_recurring_idempotent on public.expenses using btree (
-  organization_id,
-  recurring_expense_id,
-  incurred_at
-) TABLESPACE pg_default
-where
-  (recurring_expense_id is not null);
-
 create unique INDEX IF not exists uq_expenses_maintenance_request_idempotent on public.expenses using btree (organization_id, maintenance_request_id) TABLESPACE pg_default
 where
   (maintenance_request_id is not null);
 
-
-
-
-
-
-create table public.invite_codes (
-  id uuid not null default gen_random_uuid (),
-  code text not null,
-  expires_at timestamp with time zone not null,
-  max_uses integer not null default 1,
-  used_count integer not null default 0,
-  active boolean not null default true,
-  created_at timestamp with time zone null default now(),
-  constraint invite_codes_pkey primary key (id),
-  constraint invite_codes_code_key unique (code)
+create unique INDEX IF not exists uq_expenses_recurring_idempotent on public.expenses using btree (
+  organization_id,
+  recurring_expense_id,
+  incurred_at
 ) TABLESPACE pg_default;
-
-create index IF not exists idx_invite_codes_active on public.invite_codes using btree (active) TABLESPACE pg_default;
-
-create index IF not exists idx_invite_codes_expires on public.invite_codes using btree (expires_at) TABLESPACE pg_default;
-
-create index IF not exists idx_invite_codes_usage on public.invite_codes using btree (used_count, max_uses) TABLESPACE pg_default;
 
 
 
@@ -397,6 +378,7 @@ create index IF not exists idx_invoices_org_invoice_type on public.invoices usin
 
 
 
+
 create table public.lease_renewal_events (
   id uuid not null default gen_random_uuid (),
   renewal_id uuid not null,
@@ -412,6 +394,7 @@ create table public.lease_renewal_events (
 ) TABLESPACE pg_default;
 
 create index IF not exists idx_lease_renewal_events_renewal on public.lease_renewal_events using btree (renewal_id) TABLESPACE pg_default;
+
 
 
 
@@ -704,7 +687,6 @@ create index IF not exists idx_mpesa_audit_org_id on public.mpesa_verification_a
 
 
 
-
 create table public.organization_members (
   id uuid not null default gen_random_uuid (),
   user_id uuid not null,
@@ -748,9 +730,6 @@ execute FUNCTION enforce_single_org_membership ();
 
 
 
-
-
-
 create table public.organizations (
   id uuid not null default gen_random_uuid (),
   name text not null,
@@ -766,8 +745,6 @@ create table public.organizations (
 ) TABLESPACE pg_default;
 
 create index IF not exists idx_organizations_id on public.organizations using btree (id) TABLESPACE pg_default;
-
-
 
 
 
@@ -892,7 +869,6 @@ execute FUNCTION apply_rent_prepayment_on_payment_verify ();
 
 
 
-
 create table public.recurring_expenses (
   id uuid not null default gen_random_uuid (),
   property_id uuid not null,
@@ -908,7 +884,28 @@ create table public.recurring_expenses (
   constraint recurring_expenses_created_by_fkey foreign KEY (created_by) references auth.users (id),
   constraint recurring_expenses_org_fk foreign KEY (organization_id) references organizations (id) on delete CASCADE,
   constraint recurring_expenses_property_org_fk foreign KEY (property_id, organization_id) references apartment_buildings (id, organization_id) on delete CASCADE,
-  constraint recurring_expenses_amount_check check ((amount >= (0)::numeric))
+  constraint recurring_expenses_amount_check check ((amount >= (0)::numeric)),
+  constraint recurring_expenses_category_check check (
+    (
+      lower(
+        TRIM(
+          both
+          from
+            category
+        )
+      ) = any (
+        array[
+          'maintenance'::text,
+          'utilities'::text,
+          'taxes'::text,
+          'staff'::text,
+          'insurance'::text,
+          'marketing'::text,
+          'other'::text
+        ]
+      )
+    )
+  )
 ) TABLESPACE pg_default;
 
 create index IF not exists idx_recurring_expenses_org_id on public.recurring_expenses using btree (organization_id) TABLESPACE pg_default;
@@ -916,8 +913,6 @@ create index IF not exists idx_recurring_expenses_org_id on public.recurring_exp
 create index IF not exists idx_recurring_expenses_next_run on public.recurring_expenses using btree (next_run) TABLESPACE pg_default;
 
 create index IF not exists idx_recurring_expenses_property on public.recurring_expenses using btree (property_id) TABLESPACE pg_default;
-
-
 
 
 
@@ -1029,6 +1024,7 @@ execute FUNCTION set_reminder_scheduled_day ();
 
 
 
+
 create table public.reports (
   id uuid not null default gen_random_uuid (),
   organization_id uuid not null,
@@ -1092,6 +1088,8 @@ create unique INDEX IF not exists uq_sms_templates_org_key on public.sms_templat
 
 
 
+
+
 create table public.technician_profession_map (
   technician_id uuid not null,
   profession_id uuid not null,
@@ -1112,6 +1110,7 @@ create index IF not exists idx_tech_map_prof on public.technician_profession_map
 
 
 
+
 create table public.technician_professions (
   id uuid not null default gen_random_uuid (),
   organization_id uuid not null,
@@ -1123,6 +1122,7 @@ create table public.technician_professions (
 ) TABLESPACE pg_default;
 
 create index IF not exists idx_tech_prof_org on public.technician_professions using btree (organization_id) TABLESPACE pg_default;
+
 
 
 
@@ -1150,7 +1150,6 @@ create index IF not exists idx_tech_active on public.technicians using btree (or
 create trigger trg_technicians_touch_updated_at BEFORE
 update on technicians for EACH row
 execute FUNCTION touch_updated_at ();
-
 
 
 
@@ -1270,8 +1269,6 @@ create trigger trg_validate_transition_case_state BEFORE INSERT
 or
 update on tenant_transition_cases for EACH row
 execute FUNCTION validate_transition_case_state ();
-
-
 
 
 
@@ -1462,8 +1459,6 @@ execute FUNCTION set_tenant_org_from_creator ();
 
 
 
-
-
 create view public.v_technicians_with_professions as
 select
   t.id,
@@ -1493,6 +1488,7 @@ from
   and p.organization_id = t.organization_id
 group by
   t.id;
+
 
 
 
@@ -1607,7 +1603,6 @@ where
 
 
 
-
 create view public.vw_manager_statement_summary as
 select
   d.organization_id,
@@ -1695,6 +1690,7 @@ from
   vw_tenant_risk_summary r
   left join active_rent ar on ar.organization_id = r.organization_id
   and ar.tenant_user_id = r.tenant_user_id;
+
 
 
 
@@ -1817,8 +1813,6 @@ group by
 
 
 
-
-
 create view public.vw_tenant_risk_summary as
 select
   a.organization_id,
@@ -1832,7 +1826,6 @@ from
   vw_tenant_arrears a
   left join vw_tenant_payment_timeliness t on t.organization_id = a.organization_id
   and t.tenant_user_id = a.tenant_user_id;
-
 
 
 
@@ -1944,6 +1937,7 @@ from
 
 
 
+
 create view public.vw_unit_financial_performance_yearly as
 select
   COALESCE(c.organization_id, m.organization_id) as organization_id,
@@ -1991,7 +1985,6 @@ from
   and u.organization_id = v.organization_id
   join apartment_buildings b on b.id = v.property_id
   and b.organization_id = v.organization_id;
-
 
 
 
@@ -2053,8 +2046,6 @@ group by
 
 
 
-
-
 create view public.vw_unit_rent_coverage_months_yearly as
 select
   l.organization_id,
@@ -2078,7 +2069,6 @@ group by
   l.unit_id,
   au.building_id,
   (date_part('year'::text, p.payment_date)::integer);
-
 
 
 
@@ -2127,3 +2117,6 @@ create index IF not exists idx_water_bills_billing_month on public.water_bills u
 create index IF not exists idx_water_bills_status on public.water_bills using btree (status) TABLESPACE pg_default;
 
 create index IF not exists idx_water_bills_org_id on public.water_bills using btree (organization_id) TABLESPACE pg_default;
+
+
+

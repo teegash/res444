@@ -190,7 +190,6 @@ export async function GET(req: NextRequest) {
       )
       .eq("organization_id", orgId)
       .in("invoice_type", ["rent", "water"])
-      .neq("status_text", "void")
       .gt("amount", 0)
       .not("period_start", "is", null)
 
@@ -221,7 +220,6 @@ export async function GET(req: NextRequest) {
       )
       .eq("organization_id", orgId)
       .in("invoice_type", ["rent", "water"])
-      .neq("status_text", "void")
       .gt("amount", 0)
       .is("period_start", null)
 
@@ -238,6 +236,7 @@ export async function GET(req: NextRequest) {
       : invoicesRaw
 
     for (const inv of scopedInvoices) {
+      if (String(inv.status_text || "").toLowerCase() === "void") continue
       const pid = inv.lease?.unit?.building?.id
       if (!pid) continue
       const row = ensureRow(pid, inv.lease?.unit?.building?.name)
