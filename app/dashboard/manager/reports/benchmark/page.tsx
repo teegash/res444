@@ -282,25 +282,33 @@ export default function BenchmarkReportPage() {
   }, [])
 
   const radial = React.useMemo(() => {
-    if (!payload?.rows?.length) return null
+    const rows = payload?.rows || []
+    const totals = rows.reduce(
+      (acc, row) => {
+        acc.collected += Number(row.collected || 0)
+        acc.billed += Number(row.billed || 0)
+        acc.arrears += Number(row.arrearsNow || 0)
+        acc.noi += Number(row.noi || 0)
+        acc.occupancySum += Number(row.occupancyRate || 0)
+        return acc
+      },
+      { collected: 0, billed: 0, arrears: 0, noi: 0, occupancySum: 0 }
+    )
 
-    const rows = payload.rows
-    const totalCollected = rows.reduce((sum, row) => sum + row.collected, 0)
-    const totalBilled = rows.reduce((sum, row) => sum + row.billed, 0)
-    const totalArrears = rows.reduce((sum, row) => sum + row.arrearsNow, 0)
-    const avgOccupancy = rows.length ? rows.reduce((sum, row) => sum + row.occupancyRate, 0) / rows.length : 0
-    const totalNOI = rows.reduce((sum, row) => sum + row.noi, 0)
-    const noiMargin = safePct(totalNOI, totalCollected)
-    const collectionRate = safePct(totalCollected, totalBilled)
+    const avgOccupancy = rows.length ? totals.occupancySum / rows.length : 0
+    const collectionRate = safePct(totals.collected, totals.billed)
+    const noiMargin = safePct(totals.noi, totals.collected)
+    const billedBaseline = Math.max(1, totals.billed)
 
     return {
-      totalCollected,
-      totalBilled,
-      collectionRate,
-      totalArrears,
+      totalCollected: totals.collected,
+      totalBilled: totals.billed,
+      totalArrears: totals.arrears,
+      totalNOI: totals.noi,
       avgOccupancy,
-      totalNOI,
+      collectionRate,
       noiMargin,
+      billedBaseline,
     }
   }, [payload?.rows, safePct])
 
@@ -421,7 +429,7 @@ export default function BenchmarkReportPage() {
                 <RadialMiniKpi
                   title="Collection Rate"
                   subtitle="Portfolio (YTD/period)"
-                  value={radial?.collectionRate || 0}
+                  value={radial.collectionRate}
                   max={100}
                   ringLabel="%"
                   valueFormatter={(n) => `${Number(n).toFixed(1)}%`}
@@ -431,8 +439,8 @@ export default function BenchmarkReportPage() {
                 <RadialMiniKpi
                   title="Collected"
                   subtitle="Cash inflow"
-                  value={radial?.totalCollected || 0}
-                  max={Math.max(1, radial?.totalBilled || 1)}
+                  value={radial.totalCollected}
+                  max={radial.billedBaseline}
                   ringLabel="KES"
                   valueFormatter={(n) => Math.round(n).toLocaleString()}
                   valueColor="hsl(142 72% 45%)"
@@ -441,26 +449,26 @@ export default function BenchmarkReportPage() {
                 <RadialMiniKpi
                   title="Billed"
                   subtitle="Invoice issuance"
-                  value={radial?.totalBilled || 0}
-                  max={Math.max(1, radial?.totalBilled || 1)}
+                  value={radial.totalBilled}
+                  max={radial.billedBaseline}
                   ringLabel="KES"
                   valueFormatter={(n) => Math.round(n).toLocaleString()}
                 />
                 <RadialMiniKpi
                   title="Arrears Exposure"
                   subtitle="Overdue unpaid / billed"
-                  value={radial?.totalArrears || 0}
-                  max={Math.max(1, radial?.totalBilled || 1)}
+                  value={radial.totalArrears}
+                  max={radial.billedBaseline}
                   ringLabel="KES"
                   valueFormatter={(n) => Math.round(n).toLocaleString()}
                   remainderColor="#4169E1"
                   remainderLabel="Invoiced"
-                  tooltipRemainderValue={radial?.totalBilled || 0}
+                  tooltipRemainderValue={radial.totalBilled}
                 />
                 <RadialMiniKpi
                   title="Occupancy"
                   subtitle="Avg across properties"
-                  value={radial?.avgOccupancy || 0}
+                  value={radial.avgOccupancy}
                   max={100}
                   ringLabel="%"
                   valueFormatter={(n) => `${Math.round(n)}%`}
@@ -468,7 +476,7 @@ export default function BenchmarkReportPage() {
                 <RadialMiniKpi
                   title="NOI Margin"
                   subtitle="NOI / Collected"
-                  value={radial?.noiMargin || 0}
+                  value={radial.noiMargin}
                   max={100}
                   ringLabel="%"
                   valueFormatter={(n) => `${Math.round(n)}%`}
