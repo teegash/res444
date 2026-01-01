@@ -63,7 +63,14 @@ type OverviewPayload = {
     occupancyRate: number
   }
   unitStatus: Record<string, number>
-  timeseries: Array<{ period: string; billed: number; collected: number; expenses: number; net: number }>
+  timeseries: Array<{
+    period: string
+    billed: number
+    unpaid?: number
+    collected: number
+    expenses: number
+    net: number
+  }>
   propertyRows: Array<{
     propertyId: string
     propertyName: string
@@ -199,7 +206,7 @@ export default function ReportsOverviewPage() {
   const chartSeries = React.useMemo(() => {
     return (payload?.timeseries || []).map((row) => ({
       ...row,
-      unpaid: row.billed,
+      unpaid: row.unpaid ?? row.billed,
     }))
   }, [payload?.timeseries])
 
@@ -449,7 +456,8 @@ export default function ReportsOverviewPage() {
                   <CardHeader className="pb-2">
                     <CardTitle className="text-base">Bill Unpaid vs Collected</CardTitle>
                     <CardDescription>
-                      Unpaid bills are invoiced charges pending confirmed payment.
+                      Unpaid bills are invoiced charges pending confirmed payment (prepaid rent excluded). Collected
+                      reflects payments received in the period.
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="pt-2">

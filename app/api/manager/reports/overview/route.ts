@@ -10,6 +10,30 @@ function isoDate(value: string | null | undefined) {
   return value.length >= 10 ? value.slice(0, 10) : null
 }
 
+function monthStartIso(value: string | null | undefined) {
+  if (!value) return null
+  const date = new Date(`${value.slice(0, 10)}T00:00:00Z`)
+  if (Number.isNaN(date.getTime())) return null
+  const year = date.getUTCFullYear()
+  const month = String(date.getUTCMonth() + 1).padStart(2, '0')
+  return `${year}-${month}-01`
+}
+
+function isEffectivelyPaid(inv: any) {
+  const amount = Number(inv.amount || 0)
+  const totalPaid = Number(inv.total_paid || 0)
+  const statusText = String(inv.status_text || '').toLowerCase()
+  return statusText === 'paid' || totalPaid >= amount - 0.05
+}
+
+function isRentPrepaid(inv: any) {
+  if (String(inv.invoice_type || '') !== 'rent') return false
+  const paidUntil = monthStartIso(inv.lease?.rent_paid_until)
+  const periodStart = monthStartIso(inv.period_start)
+  if (!paidUntil || !periodStart) return false
+  return paidUntil >= periodStart
+}
+
 export async function GET(req: NextRequest) {
   try {
     const url = new URL(req.url)
@@ -87,11 +111,13 @@ export async function GET(req: NextRequest) {
         `
         id,
         amount,
+        total_paid,
         invoice_type,
         status_text,
         due_date,
         period_start,
         lease:leases!invoices_lease_org_fk (
+          rent_paid_until,
           unit:apartment_units (
             building:apartment_buildings!apartment_units_building_org_fk ( id, name )
           )
@@ -199,22 +225,27 @@ export async function GET(req: NextRequest) {
 
     const series: Record<
       string,
-      { period: string; billed: number; collected: number; expenses: number; net: number }
+      { period: string; billed: number; unpaid: number; collected: number; expenses: number; net: number }
     > = {}
 
     for (const inv of scopedInvoices) {
       const d = isoDate(inv.period_start)
       if (!d) continue
       const key = bucketKey(d, groupBy)
-      series[key] ||= { period: key, billed: 0, collected: 0, expenses: 0, net: 0 }
-      series[key].billed += Number(inv.amount || 0)
+      series[key] ||= { period: key, billed: 0, unpaid: 0, collected: 0, expenses: 0, net: 0 }
+      const amount = Number(inv.amount || 0)
+      const unpaidAmount = isEffectivelyPaid(inv) || isRentPrepaid(inv)
+        ? 0
+        : Math.max(amount - Number(inv.total_paid || 0), 0)
+      series[key].billed += amount
+      series[key].unpaid += unpaidAmount
     }
 
     for (const payment of scopedPayments) {
       const d = isoDate(payment.payment_date)
       if (!d) continue
       const key = bucketKey(d, groupBy)
-      series[key] ||= { period: key, billed: 0, collected: 0, expenses: 0, net: 0 }
+      series[key] ||= { period: key, billed: 0, unpaid: 0, collected: 0, expenses: 0, net: 0 }
       series[key].collected += Number(payment.amount_paid || 0)
     }
 
@@ -222,7 +253,7 @@ export async function GET(req: NextRequest) {
       const d = isoDate(expense.incurred_at) || isoDate(expense.created_at)
       if (!d) continue
       const key = bucketKey(d, groupBy)
-      series[key] ||= { period: key, billed: 0, collected: 0, expenses: 0, net: 0 }
+      series[key] ||= { period: key, billed: 0, unpaid: 0, collected: 0, expenses: 0, net: 0 }
       series[key].expenses += Number(expense.amount || 0)
     }
 

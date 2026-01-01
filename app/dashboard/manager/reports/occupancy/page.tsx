@@ -434,10 +434,17 @@ export default function OccupancyReportPage() {
                   <ChartContainer config={statusConfig} className="h-[280px] w-full">
                     <BarChart data={propertyStackData} layout="vertical" margin={{ left: 12, right: 12 }}>
                       <CartesianGrid horizontal={false} />
-                      <XAxis type="number" domain={[0, 100]} tickLine={false} axisLine={false} hide />
+                      <XAxis
+                        type="number"
+                        domain={[0, 100]}
+                        tickLine={false}
+                        axisLine={false}
+                        tickMargin={6}
+                        tickFormatter={(value) => `${value}%`}
+                      />
                       <YAxis type="category" dataKey="propertyName" tickLine={false} axisLine={false} width={140} hide />
                       <ChartTooltip content={<ChartTooltipContent indicator="dot" />} />
-                      <Bar dataKey="occupancyRate" fill="#1f2937" radius={6}>
+                      <Bar dataKey="occupancyRate" fill="#1d4ed8" radius={6}>
                         <LabelList
                           dataKey="propertyName"
                           position="insideLeft"
