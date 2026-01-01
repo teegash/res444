@@ -148,9 +148,17 @@ export async function GET(req: NextRequest) {
       )
       .eq('organization_id', orgId)
       .in('invoice_type', ['rent', 'water'])
+      .neq('status_text', 'void')
 
-    if (range.start) invoiceQuery = invoiceQuery.gte('period_start', range.start)
-    invoiceQuery = invoiceQuery.lte('period_start', range.end)
+    if (range.start) {
+      invoiceQuery = invoiceQuery.or(
+        `and(period_start.gte.${range.start},period_start.lte.${range.end}),and(period_start.is.null,due_date.gte.${range.start},due_date.lte.${range.end})`
+      )
+    } else {
+      invoiceQuery = invoiceQuery.or(
+        `period_start.lte.${range.end},and(period_start.is.null,due_date.lte.${range.end})`
+      )
+    }
 
     const { data: invoices, error: invErr } = await invoiceQuery
     if (invErr) throw invErr
