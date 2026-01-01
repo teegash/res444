@@ -597,6 +597,10 @@ export default function FinancialReportPage() {
                         filter: true,
                         floatingFilter: true,
                       }}
+                      rowClassRules={{
+                        'ledger-row-income': (params) => params.data?.type === 'income',
+                        'ledger-row-expense': (params) => params.data?.type === 'expense',
+                      }}
                       pagination
                       paginationPageSize={25}
                       animateRows

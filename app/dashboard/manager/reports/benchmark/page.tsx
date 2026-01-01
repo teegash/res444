@@ -69,7 +69,7 @@ function buildGaugeOption(rows: Row[], activeIndex: number): EChartsOption {
         text: row ? row.propertyName : '—',
         left: 'left',
         top: 28,
-        textStyle: { fontSize: 12, fontWeight: 'normal' },
+        textStyle: { fontSize: 14, fontWeight: 'normal' },
       },
     ],
     tooltip: { formatter: '{a}<br/>{b}: {c}%' },
@@ -113,10 +113,21 @@ function buildPolarOption(rows: Row[]): EChartsOption {
   const values = top.map((x) => Number(x.collectionRate.toFixed(2)))
 
   return {
-    title: { text: 'Top Properties — Polar Benchmark (Collection %)' },
     polar: { radius: [30, '80%'] },
-    angleAxis: { max: 100, startAngle: 90 },
-    radiusAxis: { type: 'category', data: labels },
+    angleAxis: {
+      max: 100,
+      startAngle: 90,
+      axisLabel: { show: false },
+      axisLine: { show: false },
+      axisTick: { show: false },
+    },
+    radiusAxis: {
+      type: 'category',
+      data: labels,
+      axisLabel: { show: false },
+      axisLine: { show: false },
+      axisTick: { show: false },
+    },
     tooltip: {
       formatter: (p: any) => `${labels[p.dataIndex]}: ${Number(p.value).toFixed(1)}%`,
     },
@@ -409,7 +420,8 @@ export default function BenchmarkReportPage() {
                   value={radial?.collectionRate || 0}
                   max={100}
                   ringLabel="%"
-                  valueFormatter={(n) => `${n.toFixed(1)}%`}
+                  valueFormatter={(n) => `${Math.round(n)}%`}
+                  valueColor={Math.round(radial?.collectionRate || 0) >= 100 ? 'hsl(142 72% 45%)' : undefined}
                 />
                 <RadialMiniKpi
                   title="Collected"
@@ -442,7 +454,7 @@ export default function BenchmarkReportPage() {
                   value={radial?.avgOccupancy || 0}
                   max={100}
                   ringLabel="%"
-                  valueFormatter={(n) => `${n.toFixed(1)}%`}
+                  valueFormatter={(n) => `${Math.round(n)}%`}
                 />
                 <RadialMiniKpi
                   title="NOI Margin"
@@ -450,7 +462,7 @@ export default function BenchmarkReportPage() {
                   value={radial?.noiMargin || 0}
                   max={100}
                   ringLabel="%"
-                  valueFormatter={(n) => `${n.toFixed(1)}%`}
+                  valueFormatter={(n) => `${Math.round(n)}%`}
                 />
               </div>
 

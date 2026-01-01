@@ -3,12 +3,8 @@
 import * as React from 'react'
 import { Label, PolarRadiusAxis, RadialBar, RadialBarChart } from 'recharts'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import {
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-  type ChartConfig,
-} from '@/components/ui/chart'
+import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card'
+import { ChartContainer, type ChartConfig } from '@/components/ui/chart'
 
 type Props = {
   title: string
@@ -38,69 +34,80 @@ export function RadialMiniKpi({
 
   const chartConfig = {
     value: { label: ringLabel || title, color: valueColor || 'var(--chart-1)' },
-    remainder: { label: 'Remainder', color: remainderColor || 'hsl(270 100% 94%)' },
+    remainder: { label: 'Remainder', color: remainderColor || 'hsl(270 85% 88%)' },
   } satisfies ChartConfig
 
   const display = valueFormatter ? valueFormatter(value) : String(value)
 
   return (
-    <Card className="border bg-background">
-      <CardHeader className="pb-0">
-        <CardTitle className="text-sm">{title}</CardTitle>
+    <HoverCard openDelay={0}>
+      <HoverCardTrigger asChild>
+        <Card className="border bg-background">
+          <CardHeader className="pb-0">
+            <CardTitle className="text-sm">{title}</CardTitle>
+            {subtitle ? <div className="mt-1 text-xs text-muted-foreground">{subtitle}</div> : null}
+          </CardHeader>
+
+          <CardContent className="flex items-center justify-center pt-3">
+            <ChartContainer config={chartConfig} className="aspect-square w-full max-w-[180px]">
+              <RadialBarChart
+                data={chartData}
+                endAngle={-270}
+                startAngle={90}
+                innerRadius={66}
+                outerRadius={92}
+              >
+                <PolarRadiusAxis tick={false} tickLine={false} axisLine={false}>
+                  <Label
+                    content={({ viewBox }) => {
+                      if (!viewBox || !('cx' in viewBox) || !('cy' in viewBox)) return null
+                      return (
+                        <text x={viewBox.cx} y={viewBox.cy} textAnchor="middle">
+                          <tspan
+                            x={viewBox.cx}
+                            y={(viewBox.cy || 0) - 4}
+                            className="fill-foreground text-sm font-semibold"
+                          >
+                            {display}
+                          </tspan>
+                          <tspan
+                            x={viewBox.cx}
+                            y={(viewBox.cy || 0) + 16}
+                            className="fill-muted-foreground text-[10px]"
+                          >
+                            {ringLabel || 'KPI'}
+                          </tspan>
+                        </text>
+                      )
+                    }}
+                  />
+                </PolarRadiusAxis>
+
+                <RadialBar
+                  dataKey="value"
+                  cornerRadius={8}
+                  fill="var(--color-value)"
+                  className="stroke-transparent stroke-2"
+                />
+                <RadialBar
+                  dataKey="remainder"
+                  cornerRadius={8}
+                  fill="var(--color-remainder)"
+                  className="stroke-transparent stroke-2"
+                />
+              </RadialBarChart>
+            </ChartContainer>
+          </CardContent>
+        </Card>
+      </HoverCardTrigger>
+      <HoverCardContent className="w-52">
+        <div className="text-xs text-muted-foreground">{title}</div>
+        <div className="mt-1 text-lg font-semibold">{display}</div>
+        <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+          {ringLabel || 'KPI'}
+        </div>
         {subtitle ? <div className="mt-1 text-xs text-muted-foreground">{subtitle}</div> : null}
-      </CardHeader>
-
-      <CardContent className="flex items-center justify-center pt-3">
-        <ChartContainer config={chartConfig} className="aspect-square w-full max-w-[180px]">
-          <RadialBarChart
-            data={chartData}
-            endAngle={-270}
-            startAngle={90}
-            innerRadius={66}
-            outerRadius={92}
-          >
-            <ChartTooltip cursor={false} content={<ChartTooltipContent hideLabel />} />
-            <PolarRadiusAxis tick={false} tickLine={false} axisLine={false}>
-              <Label
-                content={({ viewBox }) => {
-                  if (!viewBox || !('cx' in viewBox) || !('cy' in viewBox)) return null
-                  return (
-                    <text x={viewBox.cx} y={viewBox.cy} textAnchor="middle">
-                      <tspan
-                        x={viewBox.cx}
-                        y={(viewBox.cy || 0) - 4}
-                        className="fill-foreground text-sm font-semibold"
-                      >
-                        {display}
-                      </tspan>
-                      <tspan
-                        x={viewBox.cx}
-                        y={(viewBox.cy || 0) + 16}
-                        className="fill-muted-foreground text-[10px]"
-                      >
-                        {ringLabel || 'KPI'}
-                      </tspan>
-                    </text>
-                  )
-                }}
-              />
-            </PolarRadiusAxis>
-
-            <RadialBar
-              dataKey="value"
-              cornerRadius={8}
-              fill="var(--color-value)"
-              className="stroke-transparent stroke-2"
-            />
-            <RadialBar
-              dataKey="remainder"
-              cornerRadius={8}
-              fill="var(--color-remainder)"
-              className="stroke-transparent stroke-2"
-            />
-          </RadialBarChart>
-        </ChartContainer>
-      </CardContent>
-    </Card>
+      </HoverCardContent>
+    </HoverCard>
   )
 }

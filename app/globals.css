@@ -237,3 +237,11 @@
 .ag-theme-quartz.glass-grid .ag-row-hover {
   background-color: rgba(226, 232, 240, 0.7);
 }
+
+.ag-theme-quartz .ag-row.ledger-row-income {
+  background-color: rgba(16, 185, 129, 0.08);
+}
+
+.ag-theme-quartz .ag-row.ledger-row-expense {
+  background-color: rgba(244, 63, 94, 0.08);
+}
