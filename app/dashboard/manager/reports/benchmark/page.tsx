@@ -298,7 +298,7 @@ export default function BenchmarkReportPage() {
       { collected: 0, billed: 0, arrears: 0, noi: 0, units: 0, occupiedLike: 0 }
     )
 
-    const portfolioOccupancy = totals.units ? (totals.occupiedLike / totals.units) * 100 : 0
+    const avgOccupancy = totals.units ? safePct(totals.occupiedLike, totals.units) : 0
     const collectionRate = safePct(totals.collected, totals.billed)
     const noiMargin = safePct(totals.noi, totals.collected)
     const billedBaseline = Math.max(1, totals.billed)
@@ -309,7 +309,7 @@ export default function BenchmarkReportPage() {
       totalBilled: totals.billed,
       totalArrears: totals.arrears,
       totalNOI: totals.noi,
-      portfolioOccupancy,
+      avgOccupancy,
       collectionRate,
       noiMargin,
       billedBaseline,
@@ -473,7 +473,7 @@ export default function BenchmarkReportPage() {
                 <RadialMiniKpi
                   title="Occupancy"
                   subtitle="Portfolio weighted"
-                  value={radial.portfolioOccupancy}
+                  value={radial.avgOccupancy}
                   max={100}
                   ringLabel="%"
                   valueFormatter={(n) => `${Number(n).toFixed(1)}%`}
