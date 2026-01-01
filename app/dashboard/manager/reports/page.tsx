@@ -417,12 +417,12 @@ export default function ReportsOverviewPage() {
   }
 
   const actionLinks = [
-    { label: 'Revenue report', href: '/dashboard/manager/reports/revenue' },
-    { label: 'Occupancy report', href: '/dashboard/manager/reports/occupancy' },
-    { label: 'Maintenance report', href: '/dashboard/manager/reports/maintenance-performance' },
+    { label: 'Revenue Report', href: '/dashboard/manager/reports/revenue' },
+    { label: 'Occupancy Report', href: '/dashboard/manager/reports/occupancy' },
+    { label: 'Maintenance Report', href: '/dashboard/manager/reports/maintenance-performance' },
     { label: 'Financial Report', href: '/dashboard/manager/reports/financial' },
-    { label: 'Property report', href: '/dashboard/manager/reports/benchmark' },
-    { label: 'Arrears report', href: '/dashboard/manager/reports/arrears' },
+    { label: 'Property Report', href: '/dashboard/manager/reports/benchmark' },
+    { label: 'Arrears Report', href: '/dashboard/manager/reports/arrears' },
   ]
 
   return (
@@ -449,7 +449,7 @@ export default function ReportsOverviewPage() {
                         key={item.href}
                         variant="outline"
                         size="sm"
-                        className="h-8 rounded-full border-slate-200/70 bg-white/70 text-xs font-semibold text-slate-700 shadow-sm hover:bg-white"
+                        className="h-8 rounded-full border-slate-200/70 bg-white/70 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-900 hover:text-white"
                         onClick={() => router.push(item.href)}
                       >
                         {item.label}
