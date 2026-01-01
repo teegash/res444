@@ -27,9 +27,8 @@ export function rentDueDateForPeriod(periodStart: Date): string {
 }
 
 export function waterPeriodStartForCreatedAt(createdAt: Date): Date {
-  // Previous month consumption period
-  const thisMonthStart = startOfMonthUtc(createdAt)
-  return addMonthsUtc(thisMonthStart, -1)
+  // Current month billing period
+  return startOfMonthUtc(createdAt)
 }
 
 export function waterDueDateForCreatedAt(createdAt: Date): string {

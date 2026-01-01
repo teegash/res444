@@ -683,7 +683,7 @@ export default function ReportsOverviewPage() {
                       { label: 'Revenue report', href: '/dashboard/manager/reports/revenue' },
                       { label: 'Occupancy report', href: '/dashboard/manager/reports/occupancy' },
                       { label: 'Maintenance report', href: '/dashboard/manager/reports/maintenance-performance' },
-                      { label: 'Financial statement', href: '/dashboard/manager/reports/financial-statement' },
+                      { label: 'Financial Report', href: '/dashboard/manager/reports/financial' },
                       { label: 'Arrears report', href: '/dashboard/manager/reports/arrears' },
                     ].map((item) => (
                       <ParticleButton

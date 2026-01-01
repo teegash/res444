@@ -403,7 +403,13 @@ export default function RevenueReportPage() {
                           tickMargin={10}
                           hide
                         />
-                        <XAxis type="number" tickLine={false} axisLine={false} tickMargin={8} hide />
+                        <XAxis
+                          type="number"
+                          tickLine={false}
+                          axisLine={false}
+                          tickMargin={8}
+                          tickFormatter={(value) => `KES ${kesAbbrev(Number(value || 0))}`}
+                        />
                         <ChartTooltip cursor={false} content={<ChartTooltipContent indicator="line" />} />
                         <Bar dataKey="collectedTotal" fill="#2563eb" radius={6}>
                           <LabelList

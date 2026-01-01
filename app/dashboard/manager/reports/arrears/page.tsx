@@ -86,10 +86,10 @@ const arrearsConfig = {
 } satisfies ChartConfig
 
 const ageingConfig = {
-  '0-30': { label: '0-30 days', color: '#22c55e' },
-  '31-60': { label: '31-60 days', color: '#f59e0b' },
-  '61-90': { label: '61-90 days', color: '#f97316' },
-  '90+': { label: '90+ days', color: '#dc2626' },
+  '0-30': { label: '0-30', color: '#22c55e' },
+  '31-60': { label: '31-60', color: '#f59e0b' },
+  '61-90': { label: '61-90', color: '#f97316' },
+  '90+': { label: '90+', color: '#dc2626' },
 } satisfies ChartConfig
 
 export default function ArrearsReportPage() {

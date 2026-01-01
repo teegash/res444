@@ -180,32 +180,19 @@ export async function GET(req: NextRequest) {
         ? (payments || []).filter((p: any) => p.invoice?.lease?.unit?.building?.id === scopePropertyId)
         : payments || []
 
-    let expenses: any[] = []
-    try {
-      let expQuery = admin
-        .from('expenses')
-        .select('id, amount, incurred_at, created_at, property_id, organization_id')
-        .eq('organization_id', orgId)
+    const { data: expensesRaw, error: expensesError } = await admin
+      .from('expenses')
+      .select('id, amount, incurred_at, created_at, property_id, organization_id')
+      .eq('organization_id', orgId)
 
-      if (range.start) expQuery = expQuery.gte('created_at', range.start)
-      expQuery = expQuery.lte('created_at', range.end)
+    if (expensesError) throw expensesError
 
-      const res = await expQuery
-      if (res.error) throw res.error
-      expenses = res.data || []
-    } catch (err) {
-      let expQuery = admin
-        .from('expenses')
-        .select('id, amount, incurred_at, property_id, organization_id')
-        .eq('organization_id', orgId)
-
-      if (range.start) expQuery = expQuery.gte('incurred_at', range.start)
-      expQuery = expQuery.lte('incurred_at', range.end)
-
-      const res = await expQuery
-      if (res.error) throw res.error
-      expenses = res.data || []
-    }
+    const expenses = (expensesRaw || []).filter((item: any) => {
+      const date = isoDate(item.incurred_at) || isoDate(item.created_at)
+      if (!date) return false
+      if (range.start && date < range.start) return false
+      return date <= range.end
+    })
 
     const scopedExpenses = scopePropertyId
       ? expenses.filter((item: any) => item.property_id === scopePropertyId)
