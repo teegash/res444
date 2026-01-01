@@ -584,7 +584,7 @@ export default function MaintenancePage() {
       <div className="flex-1 flex flex-col">
         <Header />
         <main className="flex-1 overflow-auto bg-slate-50 pb-12">
-          <section className="bg-gradient-to-r from-[#3f6fb1] via-[#5B9BD5] to-[#74b8f0] text-white">
+          <section className="bg-gradient-to-r from-[#f59e0b] via-[#f97316] to-[#fb923c] text-white">
             <div className="max-w-7xl mx-auto px-4 md:px-6 lg:px-8 py-8">
               <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
                 <div className="space-y-3">
@@ -899,8 +899,8 @@ export default function MaintenancePage() {
                             variant="outline"
                             className="rounded-full border-slate-200 bg-white/80 shadow-sm transition-transform duration-200 ease-out hover:-translate-y-0.5 hover:scale-[1.02] hover:shadow-md active:scale-[0.98]"
                           >
-                            <Link href="/dashboard/manager/reports/maintenance-performance">
-                              View Maintenance Performance
+                            <Link href="/dashboard/manager/reports/maintenance-performance?returnTo=/dashboard/maintenance">
+                              View Maintenance Report
                             </Link>
                           </Button>
                           <Button

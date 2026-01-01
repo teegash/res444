@@ -224,6 +224,9 @@ export default function TenantLeaseManagementPage() {
   const tenantId = Array.isArray(tenantIdParam) ? tenantIdParam[0] : tenantIdParam
   const router = useRouter()
   const searchParams = useSearchParams()
+  const returnTo = searchParams.get('returnTo')
+  const backHref = returnTo && returnTo.startsWith('/dashboard') ? returnTo : '/dashboard/tenants'
+  const backLabel = backHref === '/dashboard/tenants' ? 'Back to tenants' : 'Back to report'
   const vacateNoticeRef = useRef<HTMLDivElement | null>(null)
   const { toast } = useToast()
 
@@ -775,9 +778,9 @@ export default function TenantLeaseManagementPage() {
     <div className="min-h-screen bg-gradient-to-b from-blue-50/30 via-white to-white">
       <div className="max-w-6xl mx-auto p-4 md:p-6 lg:p-8 space-y-6">
         <div className="flex items-center gap-3">
-          <Button variant="ghost" size="sm" onClick={() => router.push('/dashboard/tenants')}>
+          <Button variant="ghost" size="sm" onClick={() => router.push(backHref)}>
             <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to tenants
+            {backLabel}
           </Button>
           <h1 className="text-2xl font-bold">Lease Management</h1>
         </div>

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { ArrowLeft, Download, Search } from 'lucide-react'
 import { AgGridReact } from 'ag-grid-react'
 import type { ColDef, GridApi } from 'ag-grid-community'
@@ -87,6 +87,10 @@ export default function MaintenancePerformanceReportPage() {
   )
 
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const returnTo = searchParams.get('returnTo')
+  const backHref =
+    returnTo && returnTo.startsWith('/dashboard') ? returnTo : '/dashboard/manager/reports'
   const gridApiRef = useRef<GridApi | null>(null)
 
   const [year, setYear] = useState(String(nowYear))
@@ -339,7 +343,7 @@ export default function MaintenancePerformanceReportPage() {
           <div className="space-y-4">
             <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
               <div className="flex items-center gap-3">
-                <Link href="/dashboard/manager/reports">
+                <Link href={backHref}>
                   <Button variant="ghost" size="icon">
                     <ArrowLeft className="h-4 w-4" />
                   </Button>

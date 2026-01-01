@@ -95,6 +95,13 @@ export async function GET(req: NextRequest) {
         leases.find((l: any) => l.end_date && l.end_date >= nowIso) ||
         leases[0] ||
         null
+      let leaseStatus = activeLease?.status || null
+      if (activeLease?.end_date && activeLease.end_date < nowIso) {
+        const normalized = String(leaseStatus || '').toLowerCase()
+        if (!normalized || !['ended', 'cancelled', 'expired'].includes(normalized)) {
+          leaseStatus = 'expired'
+        }
+      }
 
       return {
         id: unit.id,
@@ -106,7 +113,7 @@ export async function GET(req: NextRequest) {
         lease_id: activeLease?.id || null,
         lease_start: activeLease?.start_date || null,
         lease_end: activeLease?.end_date || null,
-        lease_status: activeLease?.status || null,
+        lease_status: leaseStatus,
         tenant_user_id: activeLease?.tenant_user_id || null,
         tenant_name: null as string | null,
       }

@@ -2,6 +2,7 @@
 
 import * as React from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { Sidebar } from '@/components/dashboard/sidebar'
 import { Header } from '@/components/dashboard/header'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -14,7 +15,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { Download, Home } from 'lucide-react'
+import { ArrowLeft, Download, Home } from 'lucide-react'
 
 import { ReportFilters, type ReportFilterState } from '@/components/reports/ReportFilters'
 import { KpiTiles } from '@/components/reports/KpiTiles'
@@ -28,9 +29,14 @@ import {
   type ChartConfig,
 } from '@/components/ui/chart'
 
-import { Bar, BarChart, CartesianGrid, Pie, PieChart, XAxis, YAxis } from 'recharts'
+import { Bar, BarChart, CartesianGrid, LabelList, Pie, PieChart, XAxis, YAxis } from 'recharts'
+import { AgGridReact } from 'ag-grid-react'
+import type { ColDef, GridApi } from 'ag-grid-community'
+import { AllCommunityModule, ModuleRegistry } from 'ag-grid-community'
 
 import { exportRowsAsCSV, exportRowsAsExcel, exportRowsAsPDF } from '@/lib/export/download'
+
+ModuleRegistry.registerModules([AllCommunityModule])
 
 type OccupancyPayload = {
   range: { start: string | null; end: string }
@@ -72,19 +78,42 @@ type OccupancyPayload = {
 }
 
 const statusConfig = {
-  occupied: { label: 'Occupied', color: 'var(--chart-1)' },
-  notice: { label: 'Notice', color: 'var(--chart-2)' },
-  vacant: { label: 'Vacant', color: 'var(--chart-3)' },
-  renovating: { label: 'Renovating', color: 'var(--chart-4)' },
-  unknown: { label: 'Unknown', color: 'var(--chart-5)' },
+  occupied: { label: 'Occupied', color: '#22c55e' },
+  notice: { label: 'Notice', color: '#8b5cf6' },
+  vacant: { label: 'Vacant', color: '#facc15' },
+  renovating: { label: 'Maintenance', color: '#f97316' },
+  unknown: { label: 'Unknown', color: '#94a3b8' },
 } satisfies ChartConfig
 
 function pct(value: number) {
   return `${value.toFixed(1)}%`
 }
 
+function occupancyTone(rate: number) {
+  if (rate <= 50) return 'text-rose-600 dark:text-rose-400'
+  if (rate <= 70) return 'text-orange-500 dark:text-orange-400'
+  if (rate <= 90) return 'text-amber-500 dark:text-amber-400'
+  return 'text-emerald-600 dark:text-emerald-400'
+}
+
+function formatStatus(value: string | null | undefined) {
+  if (!value) return '—'
+  if (value === 'renovating') return 'maintenance'
+  return value.replace(/_/g, ' ')
+}
+
+function formatLeaseStatus(value: string | null | undefined) {
+  if (!value) return '—'
+  if (value === 'renovating') return 'maintenance'
+  return value.replace(/_/g, ' ')
+}
+
+const RETURN_TO_OCCUPANCY = encodeURIComponent('/dashboard/manager/reports/occupancy')
+
 export default function OccupancyReportPage() {
   const { toast } = useToast()
+  const router = useRouter()
+  const gridApiRef = React.useRef<GridApi | null>(null)
 
   const [filters, setFilters] = React.useState<ReportFilterState>({
     period: 'quarter',
@@ -153,12 +182,17 @@ export default function OccupancyReportPage() {
         : properties.find((p) => p.id === filters.propertyId)?.name || 'Property'
 
     return [
-      { label: 'Occupancy rate', value: pct(k.occupancyRate), subtext: scopeLabel },
+      {
+        label: 'Occupancy rate',
+        value: pct(k.occupancyRate),
+        subtext: scopeLabel,
+        valueClassName: occupancyTone(k.occupancyRate),
+      },
       { label: 'Total units', value: k.totalUnits.toLocaleString() },
       { label: 'Occupied', value: k.occupied.toLocaleString() },
       { label: 'Notice', value: k.notice.toLocaleString(), subtext: 'Vacate date tracked' },
       { label: 'Vacant', value: k.vacant.toLocaleString() },
-      { label: 'Renovating', value: k.renovating.toLocaleString() },
+      { label: 'Maintenance', value: k.renovating.toLocaleString() },
     ]
   }, [k, payload, filters.propertyId, properties])
 
@@ -195,7 +229,7 @@ export default function OccupancyReportPage() {
       { header: 'Occupied', accessor: (row: any) => String(row.occupied) },
       { header: 'Notice', accessor: (row: any) => String(row.notice) },
       { header: 'Vacant', accessor: (row: any) => String(row.vacant) },
-      { header: 'Renovating', accessor: (row: any) => String(row.renovating) },
+      { header: 'Maintenance', accessor: (row: any) => String(row.renovating) },
     ]
 
     const summaryRows = [
@@ -230,6 +264,91 @@ export default function OccupancyReportPage() {
   }
 
   const propertyStackData = payload?.byProperty || []
+  const statusDonut = React.useMemo(() => {
+    return (payload?.statusDonut || [])
+      .filter((item) => item.name !== 'unknown')
+      .map((item) => ({
+        ...item,
+        fill: statusConfig[item.name]?.color || '#94a3b8',
+      }))
+  }, [payload?.statusDonut])
+
+  const columnDefs = React.useMemo<ColDef<OccupancyPayload['units'][number]>[]>(
+    () => [
+      {
+        headerName: 'Property',
+        field: 'building_name',
+        minWidth: 180,
+        filter: true,
+      },
+      {
+        headerName: 'Unit',
+        field: 'unit_number',
+        width: 110,
+        filter: true,
+      },
+      {
+        headerName: 'Tenant',
+        field: 'tenant_name',
+        minWidth: 180,
+        filter: true,
+      },
+      {
+        headerName: 'Status',
+        field: 'status',
+        width: 140,
+        valueFormatter: (params) => formatStatus(params.value),
+        cellClass: 'capitalize',
+        filter: true,
+      },
+      {
+        headerName: 'Notice vacate',
+        field: 'notice_vacate_date',
+        width: 150,
+        filter: 'agDateColumnFilter',
+      },
+      {
+        headerName: 'Lease start',
+        field: 'lease_start',
+        width: 140,
+        filter: 'agDateColumnFilter',
+      },
+      {
+        headerName: 'Lease end',
+        field: 'lease_end',
+        width: 140,
+        filter: 'agDateColumnFilter',
+      },
+      {
+        headerName: 'Lease status',
+        field: 'lease_status',
+        width: 140,
+        valueFormatter: (params) => formatLeaseStatus(params.value),
+        cellClass: 'capitalize',
+        filter: true,
+      },
+      {
+        headerName: 'Actions',
+        field: 'tenant_user_id',
+        minWidth: 140,
+        cellRenderer: (params: any) => {
+          const row = params.data as OccupancyPayload['units'][number]
+          if (!row?.tenant_user_id) {
+            return <span className="text-sm text-muted-foreground">No lease</span>
+          }
+          return (
+            <Link
+              href={`/dashboard/tenants/${row.tenant_user_id}/lease?returnTo=${RETURN_TO_OCCUPANCY}`}
+              className="text-sm font-medium text-primary hover:underline"
+            >
+              View lease
+            </Link>
+          )
+        },
+      },
+    ],
+    []
+  )
 
   return (
     <div className="flex min-h-screen bg-muted/20">
@@ -240,6 +359,14 @@ export default function OccupancyReportPage() {
         <main className="flex-1 p-6 md:p-8 space-y-6 overflow-auto">
           <div className="flex items-start justify-between gap-4">
             <div className="flex items-center gap-3">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-9 w-9"
+                onClick={() => router.push('/dashboard/manager/reports')}
+              >
+                <ArrowLeft className="h-4 w-4" />
+              </Button>
               <div className="h-10 w-10 rounded-xl bg-muted flex items-center justify-center">
                 <Home className="h-5 w-5" />
               </div>
@@ -272,20 +399,20 @@ export default function OccupancyReportPage() {
             <>
               <ReportFilters value={filters} onChange={handleFiltersChange} properties={properties} />
 
-              <KpiTiles items={kpis as any} />
+              <KpiTiles items={kpis as any} className="grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6" />
 
               <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
                 <Card className="border bg-background">
                   <CardHeader className="pb-2">
                     <CardTitle className="text-base">Unit Status Distribution</CardTitle>
-                    <CardDescription>Portfolio snapshot across vacant, renovating, occupied and notice.</CardDescription>
+                    <CardDescription>Portfolio snapshot across vacant, maintenance, occupied and notice.</CardDescription>
                   </CardHeader>
                   <CardContent className="pt-2">
                     <ChartContainer config={statusConfig} className="h-[280px] w-full">
                       <PieChart>
                         <ChartTooltip content={<ChartTooltipContent indicator="dot" />} />
                         <Pie
-                          data={payload?.statusDonut || []}
+                          data={statusDonut}
                           dataKey="value"
                           nameKey="name"
                           innerRadius={70}
@@ -300,21 +427,37 @@ export default function OccupancyReportPage() {
 
                 <Card className="border bg-background">
                   <CardHeader className="pb-2">
-                    <CardTitle className="text-base">Occupancy Rate by Property</CardTitle>
-                    <CardDescription>Ranked percentage: (occupied + notice) / total units.</CardDescription>
-                  </CardHeader>
-                  <CardContent className="pt-2">
-                    <ChartContainer config={statusConfig} className="h-[280px] w-full">
-                      <BarChart data={propertyStackData} layout="vertical" margin={{ left: 12, right: 12 }}>
-                        <CartesianGrid horizontal={false} />
-                        <XAxis type="number" domain={[0, 100]} tickLine={false} axisLine={false} />
-                        <YAxis type="category" dataKey="propertyName" tickLine={false} axisLine={false} width={140} />
-                        <ChartTooltip content={<ChartTooltipContent indicator="dot" />} />
-                        <Bar dataKey="occupancyRate" fill="var(--color-occupied)" radius={[0, 6, 6, 0]} />
-                      </BarChart>
-                    </ChartContainer>
-                  </CardContent>
-                </Card>
+                  <CardTitle className="text-base">Occupancy Rate by Property</CardTitle>
+                  <CardDescription>Ranked percentage: (occupied + notice) / total units.</CardDescription>
+                </CardHeader>
+                <CardContent className="pt-2">
+                  <ChartContainer config={statusConfig} className="h-[280px] w-full">
+                    <BarChart data={propertyStackData} layout="vertical" margin={{ left: 12, right: 12 }}>
+                      <CartesianGrid horizontal={false} />
+                      <XAxis type="number" domain={[0, 100]} tickLine={false} axisLine={false} hide />
+                      <YAxis type="category" dataKey="propertyName" tickLine={false} axisLine={false} width={140} hide />
+                      <ChartTooltip content={<ChartTooltipContent indicator="dot" />} />
+                      <Bar dataKey="occupancyRate" fill="#1f2937" radius={6}>
+                        <LabelList
+                          dataKey="propertyName"
+                          position="insideLeft"
+                          offset={8}
+                          className="fill-white"
+                          fontSize={12}
+                        />
+                        <LabelList
+                          dataKey="occupancyRate"
+                          position="insideRight"
+                          offset={8}
+                          className="fill-white"
+                          fontSize={12}
+                          formatter={(value: number) => `${Number(value || 0).toFixed(1)}%`}
+                        />
+                      </Bar>
+                    </BarChart>
+                  </ChartContainer>
+                </CardContent>
+              </Card>
 
                 <Card className="border bg-background lg:col-span-2">
                   <CardHeader className="pb-2">
@@ -333,7 +476,6 @@ export default function OccupancyReportPage() {
                         <Bar dataKey="notice" stackId="s" fill="var(--color-notice)" />
                         <Bar dataKey="vacant" stackId="s" fill="var(--color-vacant)" />
                         <Bar dataKey="renovating" stackId="s" fill="var(--color-renovating)" />
-                        <Bar dataKey="unknown" stackId="s" fill="var(--color-unknown)" />
                       </BarChart>
                     </ChartContainer>
                   </CardContent>
@@ -348,50 +490,27 @@ export default function OccupancyReportPage() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="w-full overflow-auto">
-                    <table className="w-full text-sm">
-                      <thead className="sticky top-0 bg-background">
-                        <tr className="border-b">
-                          <th className="py-2 text-left">Property</th>
-                          <th className="py-2 text-left">Unit</th>
-                          <th className="py-2 text-left">Tenant</th>
-                          <th className="py-2 text-left">Status</th>
-                          <th className="py-2 text-left">Notice vacate date</th>
-                          <th className="py-2 text-left">Lease start</th>
-                          <th className="py-2 text-left">Lease end</th>
-                          <th className="py-2 text-left">Lease status</th>
-                          <th className="py-2 text-left">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {(payload?.units || [])
-                          .sort((a, b) => (a.building_name + a.unit_number).localeCompare(b.building_name + b.unit_number))
-                          .map((unit) => (
-                            <tr key={unit.id} className="border-b hover:bg-muted/40">
-                              <td className="py-2 font-medium">{unit.building_name}</td>
-                              <td className="py-2">{unit.unit_number}</td>
-                              <td className="py-2">{unit.tenant_name || '—'}</td>
-                              <td className="py-2 capitalize">{unit.status}</td>
-                              <td className="py-2">{unit.notice_vacate_date || '—'}</td>
-                              <td className="py-2">{unit.lease_start || '—'}</td>
-                              <td className="py-2">{unit.lease_end || '—'}</td>
-                              <td className="py-2">{unit.lease_status || '—'}</td>
-                              <td className="py-2">
-                                {unit.tenant_user_id ? (
-                                  <Link
-                                    href={`/dashboard/tenants/${unit.tenant_user_id}/lease`}
-                                    className="text-sm font-medium hover:underline"
-                                  >
-                                    View lease
-                                  </Link>
-                                ) : (
-                                  <span className="text-sm text-muted-foreground">No lease</span>
-                                )}
-                              </td>
-                            </tr>
-                          ))}
-                      </tbody>
-                    </table>
+                  <div
+                    className="ag-theme-quartz premium-grid glass-grid w-full rounded-2xl border border-white/60 bg-white/70 shadow-[0_24px_60px_-40px_rgba(15,23,42,0.6)] backdrop-blur"
+                    style={{ height: 520 }}
+                  >
+                    <AgGridReact<OccupancyPayload['units'][number]>
+                      rowData={payload?.units || []}
+                      columnDefs={columnDefs}
+                      defaultColDef={{
+                        sortable: true,
+                        resizable: true,
+                        filter: true,
+                        floatingFilter: true,
+                      }}
+                      pagination
+                      paginationPageSize={25}
+                      animateRows
+                      onGridReady={(params) => {
+                        gridApiRef.current = params.api
+                        params.api.sizeColumnsToFit()
+                      }}
+                    />
                   </div>
 
                   {!payload?.units?.length ? (
