@@ -107,6 +107,8 @@ const performanceConfig = {
 export default function ReportsOverviewPage() {
   const { toast } = useToast()
   const router = useRouter()
+  const mainRef = React.useRef<HTMLElement | null>(null)
+  const [showFloatingActions, setShowFloatingActions] = React.useState(true)
   const calendarRef = React.useRef<HTMLDivElement | null>(null)
   const calendarChartRef = React.useRef<echarts.ECharts | null>(null)
   const [calendarView, setCalendarView] = React.useState<'month' | 'year'>('month')
@@ -156,6 +158,19 @@ export default function ReportsOverviewPage() {
   React.useEffect(() => {
     load()
   }, [load])
+
+  React.useEffect(() => {
+    const target = mainRef.current
+    if (!target) return
+    const handleScroll = () => {
+      setShowFloatingActions(target.scrollTop < 24)
+    }
+    handleScroll()
+    target.addEventListener('scroll', handleScroll, { passive: true })
+    return () => {
+      target.removeEventListener('scroll', handleScroll)
+    }
+  }, [])
 
   const handleFiltersChange = React.useCallback((next: ReportFilterState) => {
     if (next.period === 'custom' && (!next.startDate || !next.endDate)) {
@@ -401,13 +416,22 @@ export default function ReportsOverviewPage() {
     }
   }
 
+  const actionLinks = [
+    { label: 'Revenue report', href: '/dashboard/manager/reports/revenue' },
+    { label: 'Occupancy report', href: '/dashboard/manager/reports/occupancy' },
+    { label: 'Maintenance report', href: '/dashboard/manager/reports/maintenance-performance' },
+    { label: 'Financial Report', href: '/dashboard/manager/reports/financial' },
+    { label: 'Property report', href: '/dashboard/manager/reports/financial-statement' },
+    { label: 'Arrears report', href: '/dashboard/manager/reports/arrears' },
+  ]
+
   return (
     <div className="flex min-h-screen bg-muted/20">
       <Sidebar />
       <div className="flex-1 flex flex-col">
         <Header />
 
-        <main className="flex-1 p-6 md:p-8 space-y-6 overflow-auto">
+        <main ref={mainRef} className="flex-1 p-6 md:p-8 space-y-6 overflow-auto">
           <div className="flex items-start justify-between gap-4">
             <div className="flex items-center gap-3">
               <div className="h-10 w-10 rounded-xl bg-muted flex items-center justify-center">
@@ -678,14 +702,8 @@ export default function ReportsOverviewPage() {
                   <CardDescription>Jump into specialized reports for deeper analysis.</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="grid grid-cols-1 gap-2 md:grid-cols-5">
-                    {[
-                      { label: 'Revenue report', href: '/dashboard/manager/reports/revenue' },
-                      { label: 'Occupancy report', href: '/dashboard/manager/reports/occupancy' },
-                      { label: 'Maintenance report', href: '/dashboard/manager/reports/maintenance-performance' },
-                      { label: 'Financial Report', href: '/dashboard/manager/reports/financial' },
-                      { label: 'Arrears report', href: '/dashboard/manager/reports/arrears' },
-                    ].map((item) => (
+                  <div className="grid grid-cols-1 gap-2 md:grid-cols-6">
+                    {actionLinks.map((item) => (
                       <ParticleButton
                         key={item.href}
                         variant="default"
@@ -698,6 +716,31 @@ export default function ReportsOverviewPage() {
                   </div>
                 </CardContent>
               </Card>
+
+              {showFloatingActions ? (
+                <div className="pointer-events-none sticky bottom-4 z-30 flex justify-center">
+                  <div className="pointer-events-auto w-full max-w-5xl rounded-2xl border border-white/40 bg-white/70 p-3 shadow-[0_20px_60px_-35px_rgba(15,23,42,0.6)] backdrop-blur">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                        Actions
+                      </span>
+                      <div className="flex flex-wrap items-center justify-end gap-2">
+                        {actionLinks.map((item) => (
+                          <Button
+                            key={item.href}
+                            variant="outline"
+                            size="sm"
+                            className="h-9 rounded-full border-slate-200/70 bg-white/70 text-xs font-semibold text-slate-700 shadow-sm hover:bg-white"
+                            onClick={() => router.push(item.href)}
+                          >
+                            {item.label}
+                          </Button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
             </>
           )}
         </main>
