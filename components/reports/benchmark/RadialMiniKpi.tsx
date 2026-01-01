@@ -20,6 +20,7 @@ type Props = {
   valueColor?: string
   remainderColor?: string
   remainderLabel?: string
+  tooltipRemainderValue?: number
 }
 
 export function RadialMiniKpi({
@@ -32,6 +33,7 @@ export function RadialMiniKpi({
   valueColor,
   remainderColor,
   remainderLabel,
+  tooltipRemainderValue,
 }: Props) {
   const safeMax = Math.max(1, max)
   const clamped = Math.min(safeMax, Math.max(0, value))
@@ -44,6 +46,27 @@ export function RadialMiniKpi({
   } satisfies ChartConfig
 
   const display = valueFormatter ? valueFormatter(value) : String(value)
+  const formatValue = (val: number) => (valueFormatter ? valueFormatter(val) : String(val))
+  const tooltipFormatter = (
+    rawValue: any,
+    name: any,
+    item: { dataKey?: string; color?: string; payload?: { fill?: string } }
+  ) => {
+    const key = String(item?.dataKey || name || '')
+    const isRemainder = key === 'remainder'
+    const displayValue =
+      isRemainder && tooltipRemainderValue !== undefined ? tooltipRemainderValue : Number(rawValue || 0)
+    const label = isRemainder ? remainderLabel || 'Remainder' : ringLabel || title
+    const color = item?.color || item?.payload?.fill || 'currentColor'
+
+    return (
+      <div className="flex w-full items-center gap-2">
+        <span className="h-2 w-2 rounded-[2px]" style={{ background: color }} />
+        <span className="text-xs text-muted-foreground">{label}</span>
+        <span className="ml-auto text-xs font-semibold text-foreground">{formatValue(displayValue)}</span>
+      </div>
+    )
+  }
 
   return (
     <Card className="border bg-background">
@@ -61,7 +84,10 @@ export function RadialMiniKpi({
             innerRadius={66}
             outerRadius={92}
           >
-            <ChartTooltip cursor={false} content={<ChartTooltipContent hideLabel />} />
+            <ChartTooltip
+              cursor={false}
+              content={<ChartTooltipContent hideLabel formatter={tooltipFormatter} />}
+            />
             <PolarRadiusAxis tick={false} tickLine={false} axisLine={false}>
               <Label
                 content={({ viewBox }) => {

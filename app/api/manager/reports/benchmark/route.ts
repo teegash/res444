@@ -149,6 +149,7 @@ export async function GET(req: NextRequest) {
       .eq('organization_id', orgId)
       .in('invoice_type', ['rent', 'water'])
       .neq('status_text', 'void')
+      .gt('amount', 0)
 
     if (range.start) {
       invoiceQuery = invoiceQuery.or(
