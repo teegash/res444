@@ -421,7 +421,7 @@ export default function ReportsOverviewPage() {
     { label: 'Occupancy report', href: '/dashboard/manager/reports/occupancy' },
     { label: 'Maintenance report', href: '/dashboard/manager/reports/maintenance-performance' },
     { label: 'Financial Report', href: '/dashboard/manager/reports/financial' },
-    { label: 'Property report', href: '/dashboard/manager/reports/financial-statement' },
+    { label: 'Property report', href: '/dashboard/manager/reports/benchmark' },
     { label: 'Arrears report', href: '/dashboard/manager/reports/arrears' },
   ]
 
@@ -442,6 +442,21 @@ export default function ReportsOverviewPage() {
                 <p className="text-sm text-muted-foreground">
                   Enterprise portfolio KPIs, trends, property comparisons, and exports.
                 </p>
+                {showFloatingActions ? (
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    {actionLinks.map((item) => (
+                      <Button
+                        key={item.href}
+                        variant="outline"
+                        size="sm"
+                        className="h-8 rounded-full border-slate-200/70 bg-white/70 text-xs font-semibold text-slate-700 shadow-sm hover:bg-white"
+                        onClick={() => router.push(item.href)}
+                      >
+                        {item.label}
+                      </Button>
+                    ))}
+                  </div>
+                ) : null}
               </div>
             </div>
 
@@ -459,31 +474,6 @@ export default function ReportsOverviewPage() {
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
-
-          {showFloatingActions ? (
-            <div className="pointer-events-none sticky top-4 z-30 flex justify-center">
-              <div className="pointer-events-auto w-full max-w-5xl rounded-2xl border border-white/40 bg-white/70 p-3 shadow-[0_20px_60px_-35px_rgba(15,23,42,0.6)] backdrop-blur">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <span className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-                    Actions
-                  </span>
-                  <div className="flex flex-wrap items-center justify-end gap-2">
-                    {actionLinks.map((item) => (
-                      <Button
-                        key={item.href}
-                        variant="outline"
-                        size="sm"
-                        className="h-9 rounded-full border-slate-200/70 bg-white/70 text-xs font-semibold text-slate-700 shadow-sm hover:bg-white"
-                        onClick={() => router.push(item.href)}
-                      >
-                        {item.label}
-                      </Button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-          ) : null}
 
           {loading ? (
             <div className="space-y-4">
