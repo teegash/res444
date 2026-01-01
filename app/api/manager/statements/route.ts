@@ -85,6 +85,32 @@ function normalizeIsoDate(value: string | null | undefined) {
   return parsed.toISOString().slice(0, 10)
 }
 
+function monthStartIso(value: string | null | undefined) {
+  if (!value) return null
+  const parsed = new Date(`${value.slice(0, 10)}T00:00:00Z`)
+  if (Number.isNaN(parsed.getTime())) return null
+  const year = parsed.getUTCFullYear()
+  const month = String(parsed.getUTCMonth() + 1).padStart(2, '0')
+  return `${year}-${month}-01`
+}
+
+function isInvoiceEffectivelyPaid(inv: any) {
+  const amount = Number(inv?.amount ?? 0)
+  const totalPaid = Number(inv?.total_paid ?? 0)
+  const statusText = String(inv?.status_text || '').toLowerCase()
+  if (statusText === 'paid') return true
+  if (inv?.status === true) return true
+  return totalPaid >= amount - 0.05
+}
+
+function isRentPrepaid(inv: any, rentPaidUntil: string | null | undefined) {
+  if (String(inv?.invoice_type || '') !== 'rent') return false
+  const paidUntil = monthStartIso(rentPaidUntil)
+  const periodStart = monthStartIso(inv?.period_start || inv?.due_date)
+  if (!paidUntil || !periodStart) return false
+  return paidUntil >= periodStart
+}
+
 function sortByBalanceAndOldestDue(rows: StatementSummaryRow[]) {
   return rows.sort((a, b) => {
     const aBal = Number(a.current_balance || 0)
@@ -203,39 +229,54 @@ export async function GET(request: NextRequest) {
     const leases = (leaseRows || []) as any[]
     const missingLeases = leases.filter((lease) => lease?.id && !existingLeaseIds.has(lease.id))
 
-    if (missingLeases.length === 0) {
-      const finalRows = sortByBalanceAndOldestDue(viewRows)
-      return NextResponse.json({ success: true, rows: finalRows, data: finalRows })
-    }
-
     const missingLeaseIds = missingLeases.map((lease) => lease.id).filter(Boolean)
     const missingTenantIds = Array.from(
       new Set(missingLeases.map((lease) => lease.tenant_user_id).filter(Boolean))
     )
 
-    const { data: tenantProfiles, error: profileError } = await admin
-      .from('user_profiles')
-      .select('id, full_name, phone_number')
-      .eq('organization_id', orgId)
-      .in('id', missingTenantIds)
+    let tenantProfiles: any[] = []
+    if (missingTenantIds.length) {
+      const { data, error: profileError } = await admin
+        .from('user_profiles')
+        .select('id, full_name, phone_number')
+        .eq('organization_id', orgId)
+        .in('id', missingTenantIds)
 
-    if (profileError) {
-      console.error('[ManagerStatementsList] Failed to load tenant profiles for completeness', profileError)
+      if (profileError) {
+        console.error('[ManagerStatementsList] Failed to load tenant profiles for completeness', profileError)
+      } else {
+        tenantProfiles = data || []
+      }
     }
 
     const profileMap = new Map<string, { name: string | null; phone: string | null }>(
-      (tenantProfiles || []).map((p: any) => [
-        p.id,
-        { name: p.full_name || null, phone: p.phone_number || null },
-      ])
+      tenantProfiles.map((p: any) => [p.id, { name: p.full_name || null, phone: p.phone_number || null }])
+    )
+
+    const leaseIdsForBalance = Array.from(
+      new Set([...viewRows.map((row) => row.lease_id), ...missingLeaseIds].filter(Boolean))
+    )
+
+    const { data: leaseMeta, error: leaseMetaError } = await admin
+      .from('leases')
+      .select('id, rent_paid_until')
+      .eq('organization_id', orgId)
+      .in('id', leaseIdsForBalance.length ? leaseIdsForBalance : ['00000000-0000-0000-0000-000000000000'])
+
+    if (leaseMetaError) {
+      console.error('[ManagerStatementsList] Failed to load lease prepayment markers', leaseMetaError)
+    }
+
+    const rentPaidUntilByLease = new Map(
+      (leaseMeta || []).map((lease: any) => [lease.id, lease.rent_paid_until || null])
     )
 
     const { data: invoices, error: invoiceError } = await admin
       .from('invoices')
-      .select('id, lease_id, due_date, amount, total_paid, status, status_text')
+      .select('id, lease_id, due_date, period_start, amount, total_paid, status, status_text, invoice_type')
       .eq('organization_id', orgId)
-      .in('lease_id', missingLeaseIds)
-      .limit(10000)
+      .in('lease_id', leaseIdsForBalance.length ? leaseIdsForBalance : ['00000000-0000-0000-0000-000000000000'])
+      .limit(20000)
 
     if (invoiceError) {
       console.error('[ManagerStatementsList] Failed to load invoices for completeness', invoiceError)
@@ -256,18 +297,14 @@ export async function GET(request: NextRequest) {
       { openCount: number; oldestDue: string | null; balance: number }
     >()
 
-    const isInvoiceOpen = (inv: any) => {
-      const statusText = String(inv?.status_text || '').toLowerCase()
-      if (statusText === 'void') return false
-      if (statusText === 'paid') return false
-      if (inv?.status === true) return false
-      return true
-    }
-
     for (const inv of invoiceRows) {
       const leaseId = inv?.lease_id
       if (!leaseId) continue
-      if (!isInvoiceOpen(inv)) continue
+      if (String(inv?.invoice_type || '') !== 'rent') continue
+      if (String(inv?.status_text || '').toLowerCase() === 'void') continue
+      const rentPaidUntil = rentPaidUntilByLease.get(leaseId)
+      if (isRentPrepaid(inv, rentPaidUntil)) continue
+      if (isInvoiceEffectivelyPaid(inv)) continue
 
       const amount = Number(inv?.amount ?? 0)
       const totalPaid = Number(inv?.total_paid ?? 0)
@@ -345,7 +382,17 @@ export async function GET(request: NextRequest) {
       .filter((row) => Boolean(row.tenant_user_id && row.lease_id))
       .filter(matchesSearch)
 
-    const finalRows = sortByBalanceAndOldestDue([...viewRows, ...computedRows]).slice(0, 500)
+    const adjustedViewRows = viewRows.map((row) => {
+      const agg = aggByLease.get(row.lease_id) || { openCount: 0, oldestDue: null, balance: 0 }
+      return {
+        ...row,
+        current_balance: Number(agg.balance || 0),
+        open_invoices_count: Number(agg.openCount || 0),
+        oldest_due_date: agg.oldestDue || null,
+      }
+    })
+
+    const finalRows = sortByBalanceAndOldestDue([...adjustedViewRows, ...computedRows]).slice(0, 500)
 
     return NextResponse.json({ success: true, rows: finalRows, data: finalRows })
   } catch (error) {
