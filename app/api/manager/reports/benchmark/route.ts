@@ -40,7 +40,7 @@ function isEffectivelyPaid(inv: any) {
 function isRentPrepaid(inv: any) {
   if (String(inv.invoice_type || '') !== 'rent') return false
   const paidUntil = monthStartIso(inv.lease?.rent_paid_until)
-  const periodStart = monthStartIso(inv.period_start)
+  const periodStart = monthStartIso(inv.period_start || inv.due_date)
   if (!paidUntil || !periodStart) return false
   return paidUntil >= periodStart
 }
@@ -266,7 +266,10 @@ export async function GET(req: NextRequest) {
       .in('invoice_type', ['rent', 'water'])
 
     const todayIso = new Date().toISOString().slice(0, 10)
-    arrearsQuery = arrearsQuery.lt('due_date', todayIso).neq('status_text', 'paid')
+    arrearsQuery = arrearsQuery
+      .lt('due_date', todayIso)
+      .neq('status_text', 'paid')
+      .neq('status_text', 'void')
 
     const { data: arrearsInvoices, error: arrearsErr } = await arrearsQuery
     if (arrearsErr) throw arrearsErr
