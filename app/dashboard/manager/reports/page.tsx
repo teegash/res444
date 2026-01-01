@@ -684,7 +684,7 @@ export default function ReportsOverviewPage() {
                       { label: 'Occupancy report', href: '/dashboard/manager/reports/occupancy' },
                       { label: 'Maintenance report', href: '/dashboard/manager/reports/maintenance-performance' },
                       { label: 'Financial statement', href: '/dashboard/manager/reports/financial-statement' },
-                      { label: 'Report preview', href: '/dashboard/manager/reports/preview' },
+                      { label: 'Arrears report', href: '/dashboard/manager/reports/arrears' },
                     ].map((item) => (
                       <ParticleButton
                         key={item.href}
