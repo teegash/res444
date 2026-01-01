@@ -276,6 +276,11 @@ export default function BenchmarkReportPage() {
     return buildPolarOption(payload.rows)
   }, [payload?.rows])
 
+  const safePct = React.useCallback((n: number, d: number) => {
+    if (!d || d <= 0) return 0
+    return (n / d) * 100
+  }, [])
+
   const radial = React.useMemo(() => {
     if (!payload?.rows?.length) return null
 
@@ -285,18 +290,19 @@ export default function BenchmarkReportPage() {
     const totalArrears = rows.reduce((sum, row) => sum + row.arrearsNow, 0)
     const avgOccupancy = rows.length ? rows.reduce((sum, row) => sum + row.occupancyRate, 0) / rows.length : 0
     const totalNOI = rows.reduce((sum, row) => sum + row.noi, 0)
-    const noiMargin = totalCollected > 0 ? (totalNOI / totalCollected) * 100 : 0
+    const noiMargin = safePct(totalNOI, totalCollected)
+    const collectionRate = safePct(totalCollected, totalBilled)
 
     return {
       totalCollected,
       totalBilled,
-      collectionRate: totalBilled > 0 ? (totalCollected / totalBilled) * 100 : 0,
+      collectionRate,
       totalArrears,
       avgOccupancy,
       totalNOI,
       noiMargin,
     }
-  }, [payload?.rows])
+  }, [payload?.rows, safePct])
 
   const columnDefs = React.useMemo<ColDef<Row>[]>(
     () => [
