@@ -120,6 +120,7 @@ function buildPolarOption(rows: Row[]): EChartsOption {
       axisLabel: { show: false },
       axisLine: { show: false },
       axisTick: { show: false },
+      splitLine: { show: false },
     },
     radiusAxis: {
       type: 'category',
@@ -127,6 +128,7 @@ function buildPolarOption(rows: Row[]): EChartsOption {
       axisLabel: { show: false },
       axisLine: { show: false },
       axisTick: { show: false },
+      splitLine: { show: false },
     },
     tooltip: {
       formatter: (p: any) => `${labels[p.dataIndex]}: ${Number(p.value).toFixed(1)}%`,
@@ -420,8 +422,8 @@ export default function BenchmarkReportPage() {
                   value={radial?.collectionRate || 0}
                   max={100}
                   ringLabel="%"
-                  valueFormatter={(n) => `${Math.round(n)}%`}
-                  valueColor={Math.round(radial?.collectionRate || 0) >= 100 ? 'hsl(142 72% 45%)' : undefined}
+                  valueFormatter={(n) => `${n.toFixed(1)}%`}
+                  valueColor={(radial?.collectionRate || 0) >= 100 ? 'hsl(142 72% 45%)' : undefined}
                 />
                 <RadialMiniKpi
                   title="Collected"
@@ -454,7 +456,7 @@ export default function BenchmarkReportPage() {
                   value={radial?.avgOccupancy || 0}
                   max={100}
                   ringLabel="%"
-                  valueFormatter={(n) => `${Math.round(n)}%`}
+                  valueFormatter={(n) => `${n.toFixed(1)}%`}
                 />
                 <RadialMiniKpi
                   title="NOI Margin"
@@ -462,7 +464,7 @@ export default function BenchmarkReportPage() {
                   value={radial?.noiMargin || 0}
                   max={100}
                   ringLabel="%"
-                  valueFormatter={(n) => `${Math.round(n)}%`}
+                  valueFormatter={(n) => `${n.toFixed(1)}%`}
                 />
               </div>
 
