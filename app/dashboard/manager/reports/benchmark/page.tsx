@@ -225,7 +225,12 @@ export default function BenchmarkReportPage() {
         subtext: b.bottomProperty?.name || '',
       },
       { label: 'Spread', value: `${b.spread.toFixed(1)}%`, subtext: 'Top − Bottom' },
-      { label: 'Underperformers', value: String(b.underperformers), subtext: 'Below portfolio median' },
+      {
+        label: 'Underperformers',
+        value: String(b.underperformers),
+        subtext: 'Below portfolio median',
+        cardClassName: 'bg-rose-50/80 border-rose-100 dark:bg-rose-950/20 dark:border-rose-900/50',
+      },
     ]
   }, [payload])
 

@@ -9,6 +9,7 @@ export type KpiItem = {
   label: string
   value: string
   valueClassName?: string
+  cardClassName?: string
   subtext?: string
   trend?: {
     direction: 'up' | 'down' | 'flat'
@@ -22,7 +23,10 @@ export function KpiTiles(props: { items: KpiItem[]; className?: string }) {
       {props.items.map((kpi, idx) => (
         <Card
           key={idx}
-          className="border border-slate-200/70 bg-gradient-to-br from-white to-slate-50/80 shadow-sm dark:border-slate-800 dark:from-slate-900 dark:to-slate-950"
+          className={cn(
+            "border border-slate-200/70 bg-gradient-to-br from-white to-slate-50/80 shadow-sm dark:border-slate-800 dark:from-slate-900 dark:to-slate-950",
+            kpi.cardClassName
+          )}
         >
           <CardContent className="p-4">
             <div className="text-xs text-muted-foreground">{kpi.label}</div>
