@@ -241,24 +241,51 @@ export default function FinancialReportPage() {
 
   const columnDefs = React.useMemo<ColDef<FinancialPayload['byProperty'][number]>[]>(
     () => [
-      { headerName: 'Property', field: 'propertyName', minWidth: 180, filter: true },
+      { headerName: 'Property', field: 'propertyName', minWidth: 200, flex: 2, filter: true },
       {
         headerName: 'Income',
         field: 'income',
-        width: 140,
+        minWidth: 140,
+        flex: 1,
         valueFormatter: (params) => kes(Number(params.value || 0)),
       },
       {
         headerName: 'Expenses',
         field: 'expenses',
-        width: 140,
+        minWidth: 140,
+        flex: 1,
         valueFormatter: (params) => kes(Number(params.value || 0)),
       },
       {
         headerName: 'NOI',
         field: 'noi',
-        width: 140,
+        minWidth: 140,
+        flex: 1,
         valueFormatter: (params) => kes(Number(params.value || 0)),
+      },
+      {
+        headerName: 'Expense ratio',
+        minWidth: 150,
+        flex: 1,
+        valueGetter: (params) => {
+          const income = Number(params.data?.income || 0)
+          const expenses = Number(params.data?.expenses || 0)
+          if (!income) return 0
+          return (expenses / income) * 100
+        },
+        valueFormatter: (params) => `${Number(params.value || 0).toFixed(1)}%`,
+      },
+      {
+        headerName: 'Performance ratio',
+        minWidth: 170,
+        flex: 1,
+        valueGetter: (params) => {
+          const income = Number(params.data?.income || 0)
+          const noi = Number(params.data?.noi || 0)
+          if (!income) return 0
+          return (noi / income) * 100
+        },
+        valueFormatter: (params) => `${Number(params.value || 0).toFixed(1)}%`,
       },
     ],
     []
@@ -274,20 +301,22 @@ export default function FinancialReportPage() {
 
   const ledgerDefs = React.useMemo<ColDef<FinancialPayload['ledger'][number]>[]>(
     () => [
-      { headerName: 'Date', field: 'date', width: 130, filter: 'agDateColumnFilter' },
-      { headerName: 'Type', field: 'type', width: 120, filter: true },
-      { headerName: 'Category', field: 'category', minWidth: 140, filter: true },
-      { headerName: 'Property', field: 'propertyName', minWidth: 180, filter: true },
+      { headerName: 'Date', field: 'date', minWidth: 130, flex: 1, filter: 'agDateColumnFilter' },
+      { headerName: 'Type', field: 'type', minWidth: 120, flex: 1, filter: true },
+      { headerName: 'Category', field: 'category', minWidth: 140, flex: 1, filter: true },
+      { headerName: 'Property', field: 'propertyName', minWidth: 180, flex: 2, filter: true },
       {
         headerName: 'Amount',
         field: 'amount',
-        width: 140,
+        minWidth: 140,
+        flex: 1,
         valueFormatter: (params) => kes(Number(params.value || 0)),
       },
       {
         headerName: 'Receipt',
         field: 'receipt',
-        width: 120,
+        minWidth: 120,
+        flex: 1,
         cellRenderer: (params: { data?: FinancialPayload['ledger'][number] }) => {
           if (!params.data) return null
           return (
@@ -431,9 +460,9 @@ export default function FinancialReportPage() {
           <div className="flex items-start justify-between gap-4">
             <div className="flex items-center gap-3">
               <Button
-                variant="outline"
+                variant="ghost"
                 size="icon"
-                className="h-10 w-10 rounded-full"
+                className="h-9 w-9"
                 onClick={() => router.back()}
               >
                 <ArrowLeft className="h-4 w-4" />
@@ -511,7 +540,6 @@ export default function FinancialReportPage() {
                           stroke="#f8fafc"
                           strokeWidth={2}
                         />
-                        <ChartLegend content={<ChartLegendContent nameKey="key" />} />
                       </PieChart>
                     </ChartContainer>
                   </CardContent>
