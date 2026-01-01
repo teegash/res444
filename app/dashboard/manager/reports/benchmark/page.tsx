@@ -423,7 +423,7 @@ export default function BenchmarkReportPage() {
                   max={100}
                   ringLabel="%"
                   valueFormatter={(n) => `${Math.round(n)}%`}
-                  valueColor="hsl(142 72% 45%)"
+                  valueColor="hsl(0 84% 60%)"
                   remainderColor="hsl(142 72% 45%)"
                 />
                 <RadialMiniKpi
