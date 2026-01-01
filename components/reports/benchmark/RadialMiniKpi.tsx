@@ -19,6 +19,7 @@ type Props = {
   ringLabel?: string
   valueColor?: string
   remainderColor?: string
+  remainderLabel?: string
 }
 
 export function RadialMiniKpi({
@@ -30,6 +31,7 @@ export function RadialMiniKpi({
   ringLabel,
   valueColor,
   remainderColor,
+  remainderLabel,
 }: Props) {
   const safeMax = Math.max(1, max)
   const clamped = Math.min(safeMax, Math.max(0, value))
@@ -38,7 +40,7 @@ export function RadialMiniKpi({
 
   const chartConfig = {
     value: { label: ringLabel || title, color: valueColor || 'var(--chart-1)' },
-    remainder: { label: 'Remainder', color: remainderColor || 'hsl(270 85% 88%)' },
+    remainder: { label: remainderLabel || 'Remainder', color: remainderColor || 'hsl(270 85% 88%)' },
   } satisfies ChartConfig
 
   const display = valueFormatter ? valueFormatter(value) : String(value)

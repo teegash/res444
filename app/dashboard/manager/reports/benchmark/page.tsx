@@ -129,14 +129,16 @@ function buildPolarOption(rows: Row[]): EChartsOption {
       type: 'category',
       data: labels,
     },
-    tooltip: {
-      formatter: (p: any) => `${labels[p.dataIndex]}: ${Math.round(Number(p.value))}%`,
-    },
+    tooltip: {},
     series: {
       type: 'bar',
       data: values,
       coordinateSystem: 'polar',
-      label: { show: false },
+      label: {
+        show: true,
+        position: 'middle',
+        formatter: (p: any) => `${labels[p.dataIndex]}: ${Math.round(Number(p.value))}%`,
+      },
     },
   }
 }
@@ -449,6 +451,8 @@ export default function BenchmarkReportPage() {
                   max={Math.max(1, (radial?.totalCollected || 1) * 1.2)}
                   ringLabel="KES"
                   valueFormatter={(n) => Math.round(n).toLocaleString()}
+                  remainderColor="hsl(142 72% 45%)"
+                  remainderLabel="Paid"
                 />
                 <RadialMiniKpi
                   title="Occupancy"
