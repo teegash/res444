@@ -113,34 +113,33 @@ function buildPolarOption(rows: Row[]): EChartsOption {
   const values = top.map((x) => Number(x.collectionRate.toFixed(2)))
 
   return {
-    title: { text: 'Property Collection % (comparison)' },
-    polar: { radius: [30, '80%'] },
+    title: [
+      {
+        text: 'Property Collection %',
+      },
+    ],
+    polar: {
+      radius: [30, '80%'],
+    },
     angleAxis: {
       max: 100,
-      startAngle: 90,
-      axisLabel: { show: true, formatter: '{value}%' },
-      axisLine: { show: true },
-      axisTick: { show: true },
-      splitLine: { show: true },
+      startAngle: 75,
     },
     radiusAxis: {
       type: 'category',
       data: labels,
-      axisLabel: { show: true },
-      axisLine: { show: true },
-      axisTick: { show: true },
-      splitLine: { show: true },
     },
-    tooltip: {
-      formatter: (p: any) => `${labels[p.dataIndex]}: ${Number(p.value).toFixed(1)}%`,
-    },
-    series: [
-      {
-        type: 'bar',
-        data: values,
-        coordinateSystem: 'polar',
+    tooltip: {},
+    series: {
+      type: 'bar',
+      data: values,
+      coordinateSystem: 'polar',
+      label: {
+        show: true,
+        position: 'middle',
+        formatter: (p: any) => `${labels[p.dataIndex]}: ${Math.round(Number(p.value))}%`,
       },
-    ],
+    },
   }
 }
 
