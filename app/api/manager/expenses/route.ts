@@ -47,6 +47,7 @@ export async function GET(request: NextRequest) {
         id,
         amount,
         incurred_at,
+        created_at,
         category,
         notes,
         property_id,

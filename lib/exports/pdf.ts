@@ -51,13 +51,19 @@ function computeHeaderHeight(meta: LetterheadMeta, subtitle?: string) {
 
 export function drawLetterhead(
   doc: jsPDF,
-  opts: { meta: LetterheadMeta; subtitle?: string; headerHeight: number }
+  opts: {
+    meta: LetterheadMeta
+    subtitle?: string
+    headerHeight: number
+    accentColor?: [number, number, number]
+  }
 ) {
-  const { meta, subtitle, headerHeight } = opts
+  const { meta, subtitle, headerHeight, accentColor } = opts
   const pageWidth = doc.internal.pageSize.getWidth()
+  const brandColor = accentColor || BRAND_PRIMARY_RGB
 
   // Top bar
-  doc.setFillColor(...BRAND_PRIMARY_RGB)
+  doc.setFillColor(...brandColor)
   doc.rect(0, 0, pageWidth, 52, 'F')
 
   // Org name

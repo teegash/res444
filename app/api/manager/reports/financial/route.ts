@@ -76,7 +76,16 @@ export async function GET(request: NextRequest) {
         amount_paid,
         payment_date,
         verified,
+        payment_method,
+        mpesa_receipt_number,
+        bank_reference_number,
+        deposit_slip_url,
+        months_paid,
+        applied_to_prepayment,
+        tenant_user_id,
+        created_at,
         invoice:invoices!payments_invoice_org_fk (
+          id,
           invoice_type,
           lease:leases!invoices_lease_org_fk (
             unit:apartment_units (
@@ -116,6 +125,15 @@ export async function GET(request: NextRequest) {
       amount: number
       source: string
       sourceId: string | null
+      reference: string | null
+      paymentMethod: string | null
+      receiptUrl: string | null
+      tenantUserId: string | null
+      invoiceType: string | null
+      monthsPaid: number | null
+      isPrepayment: boolean
+      createdAt: string | null
+      notes: string | null
     }> = []
 
     for (const payment of scopedPayments) {
@@ -151,6 +169,14 @@ export async function GET(request: NextRequest) {
         incomeSeriesMap.set(bucket, entry)
       }
 
+      const reference =
+        payment.mpesa_receipt_number ||
+        payment.bank_reference_number ||
+        payment.id ||
+        null
+      const monthsPaid = payment.months_paid ? Number(payment.months_paid) : null
+      const isPrepayment = Boolean(payment.applied_to_prepayment || (monthsPaid && monthsPaid > 1))
+
       ledger.push({
         date: paidDate || '',
         type: 'income',
@@ -160,6 +186,15 @@ export async function GET(request: NextRequest) {
         amount,
         source: 'payment',
         sourceId: payment.id || null,
+        reference,
+        paymentMethod: payment.payment_method || null,
+        receiptUrl: payment.deposit_slip_url || null,
+        tenantUserId: payment.tenant_user_id || null,
+        invoiceType: payment.invoice?.invoice_type || null,
+        monthsPaid,
+        isPrepayment,
+        createdAt: payment.created_at || null,
+        notes: null,
       })
     }
 
@@ -176,6 +211,7 @@ export async function GET(request: NextRequest) {
           created_at,
           property_id,
           maintenance_request_id,
+          notes,
           property:apartment_buildings ( id, name )
         `
         )
@@ -199,6 +235,7 @@ export async function GET(request: NextRequest) {
           created_at,
           property_id,
           maintenance_request_id,
+          notes,
           property:apartment_buildings ( id, name )
         `
         )
@@ -297,6 +334,15 @@ export async function GET(request: NextRequest) {
         amount,
         source: 'expense',
         sourceId: expense.id || null,
+        reference: expense.id || null,
+        paymentMethod: null,
+        receiptUrl: null,
+        tenantUserId: null,
+        invoiceType: null,
+        monthsPaid: null,
+        isPrepayment: false,
+        createdAt: expense.created_at || expense.incurred_at || null,
+        notes: expense.notes || null,
       })
     }
 

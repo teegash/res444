@@ -6,36 +6,23 @@ import { fetchCurrentOrganizationBrand } from '@/lib/exports/letterhead'
 import type { LetterheadMeta } from '@/lib/exports/letterhead'
 import { drawLetterhead, getLetterheadHeight } from '@/lib/exports/pdf'
 
-type ReceiptPdfPayload = {
-  payment: {
+type ExpenseReceiptPdfPayload = {
+  expense: {
     id: string
     amount: number
-    method: string | null
-    status: string
-    payment_date: string | null
-    created_at: string | null
-    mpesa_receipt_number: string | null
-    bank_reference_number: string | null
-    months_paid: number
-    coverage_label: string
+    category: string | null
+    incurred_at?: string | null
+    created_at?: string | null
+    notes?: string | null
+    reference?: string | null
   }
-  invoice?: {
-    description: string | null
-    type: string | null
-    due_date: string | null
-  } | null
   property?: {
     property_name: string | null
-    unit_number: string | null
   } | null
-  tenant: {
-    name: string
-    phone_number: string | null
-  }
 }
 
 const PAGE_MARGIN = 48
-const RECEIPT_GREEN: [number, number, number] = [22, 163, 74]
+const EXPENSE_ORANGE: [number, number, number] = [234, 88, 12]
 
 function safeDateLabel(iso: string | null | undefined) {
   if (!iso) return ''
@@ -49,17 +36,14 @@ function safeMoney(value: number) {
   return `KES ${amount.toLocaleString('en-KE', { maximumFractionDigits: 0 })}`
 }
 
-export async function downloadReceiptPdf(receipt: ReceiptPdfPayload) {
+export async function downloadExpenseReceiptPdf(receipt: ExpenseReceiptPdfPayload) {
   const org = await fetchCurrentOrganizationBrand()
   const meta: LetterheadMeta = {
     organizationName: org?.name || 'RES',
     organizationLocation: org?.location ?? undefined,
     organizationPhone: org?.phone ?? undefined,
-    tenantName: receipt.tenant.name || undefined,
-    tenantPhone: receipt.tenant.phone_number || undefined,
     propertyName: receipt.property?.property_name || undefined,
-    unitNumber: receipt.property?.unit_number || undefined,
-    documentTitle: 'Payment Receipt',
+    documentTitle: 'Expense Receipt',
     generatedAtISO: new Date().toISOString(),
   }
   const headerHeight = getLetterheadHeight(meta, undefined)
@@ -68,43 +52,26 @@ export async function downloadReceiptPdf(receipt: ReceiptPdfPayload) {
   const pageWidth = doc.internal.pageSize.getWidth()
 
   const drawHeader = () => {
-    drawLetterhead(doc, { meta, headerHeight, accentColor: RECEIPT_GREEN })
+    drawLetterhead(doc, { meta, headerHeight, accentColor: EXPENSE_ORANGE })
   }
 
   drawHeader()
 
-  const status = (receipt.payment.status || '').toLowerCase()
-  const statusLabel =
-    status === 'verified' ? 'VERIFIED' : status === 'failed' ? 'FAILED' : 'PENDING'
+  const expenseDate =
+    safeDateLabel(receipt.expense.incurred_at) ||
+    safeDateLabel(receipt.expense.created_at)
 
   doc.setTextColor('#0f172a')
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(14)
-  doc.text(safeMoney(receipt.payment.amount), PAGE_MARGIN, headerHeight + 34)
+  doc.text(safeMoney(receipt.expense.amount), PAGE_MARGIN, headerHeight + 34)
 
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(10)
-  doc.text(`Status: ${statusLabel}`, PAGE_MARGIN, headerHeight + 52)
+  doc.text('Expense Recorded', PAGE_MARGIN, headerHeight + 52)
 
-  const reference =
-    receipt.payment.mpesa_receipt_number ||
-    receipt.payment.bank_reference_number ||
-    receipt.payment.id
-
-  const methodLabel = receipt.payment.method
-    ? receipt.payment.method.replace(/_/g, ' ')
-    : '—'
-
-  const paymentDate =
-    safeDateLabel(receipt.payment.payment_date) ||
-    safeDateLabel(receipt.payment.created_at)
-
-  const propertyLabel = [
-    receipt.property?.property_name,
-    receipt.property?.unit_number ? `Unit ${receipt.property.unit_number}` : null,
-  ]
-    .filter(Boolean)
-    .join(' • ')
+  const reference = receipt.expense.reference || receipt.expense.id
+  const propertyLabel = receipt.property?.property_name || '—'
 
   const didDrawPage = () => {
     drawHeader()
@@ -116,13 +83,11 @@ export async function downloadReceiptPdf(receipt: ReceiptPdfPayload) {
     theme: 'grid',
     head: [['Field', 'Value']],
     body: [
-      ['Tenant', receipt.tenant.name || 'Tenant'],
-      ['Phone', receipt.tenant.phone_number || '—'],
-      ['Date', paymentDate || '—'],
-      ['Method', methodLabel ? methodLabel.charAt(0).toUpperCase() + methodLabel.slice(1) : '—'],
+      ['Date', expenseDate || '—'],
+      ['Category', receipt.expense.category || 'Uncategorized'],
       ['Reference', reference],
-      ['Property', propertyLabel || '—'],
-      ['Coverage', receipt.payment.coverage_label || '—'],
+      ['Property', propertyLabel],
+      ['Notes', receipt.expense.notes || '—'],
     ],
     styles: {
       fontSize: 10,
@@ -131,7 +96,7 @@ export async function downloadReceiptPdf(receipt: ReceiptPdfPayload) {
       lineColor: [226, 232, 240],
     },
     headStyles: {
-      fillColor: RECEIPT_GREEN as any,
+      fillColor: EXPENSE_ORANGE as any,
       textColor: [255, 255, 255],
       fontStyle: 'bold',
     },
@@ -142,23 +107,21 @@ export async function downloadReceiptPdf(receipt: ReceiptPdfPayload) {
     didDrawPage,
   })
 
-  const description =
-    receipt.invoice?.description ||
-    (receipt.invoice?.type === 'water' ? 'Water bill payment' : 'Rent payment')
+  const description = receipt.expense.notes || receipt.expense.category || 'Expense'
 
   autoTable(doc, {
     startY: (doc as any).lastAutoTable?.finalY ? (doc as any).lastAutoTable.finalY + 18 : 420,
     margin: { left: PAGE_MARGIN, right: PAGE_MARGIN },
     theme: 'striped',
     head: [['Description', 'Amount']],
-    body: [[description, safeMoney(receipt.payment.amount)]],
+    body: [[description, safeMoney(receipt.expense.amount)]],
     styles: {
       fontSize: 10,
       cellPadding: 6,
       lineColor: [226, 232, 240],
     },
     headStyles: {
-      fillColor: RECEIPT_GREEN as any,
+      fillColor: EXPENSE_ORANGE as any,
       textColor: [255, 255, 255],
       fontStyle: 'bold',
     },
@@ -179,5 +142,5 @@ export async function downloadReceiptPdf(receipt: ReceiptPdfPayload) {
     { maxWidth: pageWidth - PAGE_MARGIN * 2 }
   )
 
-  doc.save(`receipt-${receipt.payment.id.slice(0, 8).toLowerCase()}.pdf`)
+  doc.save(`expense-receipt-${receipt.expense.id.slice(0, 8).toLowerCase()}.pdf`)
 }

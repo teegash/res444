@@ -39,6 +39,7 @@ type Expense = {
   id: string
   amount: number
   incurred_at: string | null
+  created_at?: string | null
   category: string
   notes?: string | null
   property_id: string
@@ -77,6 +78,7 @@ export default function ExpensesPage() {
   const [properties, setProperties] = useState<PropertyOption[]>([])
   const [propertyFilter, setPropertyFilter] = useState('all')
   const [sourceFilter, setSourceFilter] = useState('all')
+  const [periodFilter, setPeriodFilter] = useState('this_month')
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -103,18 +105,74 @@ export default function ExpensesPage() {
     recurring: false,
   })
 
+  const resolvePeriodRange = (period: string) => {
+    const now = new Date()
+    const end = now.toISOString().slice(0, 10)
+
+    if (period === 'all') {
+      return { start: null, end }
+    }
+
+    if (period === 'this_month') {
+      const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1))
+      return { start: start.toISOString().slice(0, 10), end }
+    }
+
+    if (period === 'last_3_months') {
+      const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1))
+      start.setUTCMonth(start.getUTCMonth() - 3)
+      return { start: start.toISOString().slice(0, 10), end }
+    }
+
+    if (period === 'last_6_months') {
+      const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1))
+      start.setUTCMonth(start.getUTCMonth() - 6)
+      return { start: start.toISOString().slice(0, 10), end }
+    }
+
+    if (period === 'last_year') {
+      const start = new Date(Date.UTC(now.getUTCFullYear() - 1, now.getUTCMonth(), 1))
+      return { start: start.toISOString().slice(0, 10), end }
+    }
+
+    return { start: null, end }
+  }
+
+  const periodLabel = (period: string) => {
+    switch (period) {
+      case 'this_month':
+        return 'This month'
+      case 'last_3_months':
+        return 'Last 3 months'
+      case 'last_6_months':
+        return 'Last 6 months'
+      case 'last_year':
+        return 'Last year'
+      default:
+        return 'All time'
+    }
+  }
+
   const filteredExpenses = useMemo(() => {
     const term = search.trim().toLowerCase()
+    const { start, end } = resolvePeriodRange(periodFilter)
     const scoped =
       propertyFilter === 'all'
         ? expenses
         : expenses.filter((exp) => exp.property_id === propertyFilter)
-    if (!term) return scoped
-    return scoped.filter((exp) => {
+    const rangeFiltered = scoped.filter((exp) => {
+      if (!start) return true
+      const dateIso = (exp.incurred_at || exp.created_at || '').slice(0, 10)
+      if (!dateIso) return false
+      if (start && dateIso < start) return false
+      return dateIso <= end
+    })
+    if (!term) return rangeFiltered
+    return rangeFiltered.filter((exp) => {
       const name = exp.apartment_buildings?.name || ''
       return `${name} ${exp.category} ${exp.notes || ''}`.toLowerCase().includes(term)
     })
-  }, [expenses, propertyFilter, search])
+  }, [expenses, periodFilter, propertyFilter, search])
 
   const filteredOneTimeExpenses = useMemo(() => {
     return filteredExpenses.filter((exp) => !recurringMarkerFromNotes(exp.notes))
@@ -444,7 +502,7 @@ export default function ExpensesPage() {
     if (format === 'pdf') {
       exportRowsAsPDF(filename, columns, filteredOneTimeExpenses, {
         title: 'Expenses',
-        subtitle: `Property: ${propertyFilter} · Source: ${sourceFilter}`,
+        subtitle: `Property: ${propertyFilter} · Source: ${sourceFilter} · Period: ${periodLabel(periodFilter)}`,
         summaryRows,
         letterhead,
       })
@@ -486,6 +544,18 @@ export default function ExpensesPage() {
                       {p.name}
                     </SelectItem>
                   ))}
+                </SelectContent>
+              </Select>
+              <Select value={periodFilter} onValueChange={setPeriodFilter}>
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="Period" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="this_month">This month</SelectItem>
+                  <SelectItem value="last_3_months">Last 3 months</SelectItem>
+                  <SelectItem value="last_6_months">Last 6 months</SelectItem>
+                  <SelectItem value="last_year">Last year</SelectItem>
+                  <SelectItem value="all">All time</SelectItem>
                 </SelectContent>
               </Select>
               <Select value={sourceFilter} onValueChange={setSourceFilter}>

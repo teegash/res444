@@ -5,15 +5,25 @@ import { Sidebar } from '@/components/dashboard/sidebar'
 import { Header } from '@/components/dashboard/header'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import { SkeletonLoader } from '@/components/ui/skeletons'
 import { useToast } from '@/components/ui/use-toast'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { Download, WalletCards } from 'lucide-react'
+import { ArrowLeft, Download, WalletCards } from 'lucide-react'
+import { useRouter } from 'next/navigation'
 
 import { ReportFilters, type ReportFilterState } from '@/components/reports/ReportFilters'
 import { KpiTiles } from '@/components/reports/KpiTiles'
@@ -30,6 +40,8 @@ import {
 import { Bar, BarChart, CartesianGrid, Pie, PieChart, XAxis, YAxis } from 'recharts'
 
 import { exportRowsAsCSV, exportRowsAsExcel, exportRowsAsPDF } from '@/lib/export/download'
+import { downloadReceiptPdf } from '@/lib/payments/receiptPdf'
+import { downloadExpenseReceiptPdf } from '@/lib/expenses/expenseReceiptPdf'
 import { AgGridReact } from 'ag-grid-react'
 import type { ColDef, GridApi } from 'ag-grid-community'
 import { AllCommunityModule, ModuleRegistry } from 'ag-grid-community'
@@ -60,6 +72,15 @@ type FinancialPayload = {
     amount: number
     source: string
     sourceId: string | null
+    reference: string | null
+    paymentMethod: string | null
+    receiptUrl: string | null
+    tenantUserId: string | null
+    invoiceType: string | null
+    monthsPaid: number | null
+    isPrepayment: boolean
+    createdAt: string | null
+    notes: string | null
   }>
 }
 
@@ -73,16 +94,12 @@ const cashflowConfig = {
   noi: { label: 'NOI', color: '#2563eb' },
 } satisfies ChartConfig
 
-const incomeConfig = {
-  rent: { label: 'Rent income', color: '#16a34a' },
-  water: { label: 'Water income', color: '#0ea5e9' },
-  other: { label: 'Other income', color: '#a855f7' },
-} satisfies ChartConfig
-
 export default function FinancialReportPage() {
   const { toast } = useToast()
   const gridApiRef = React.useRef<GridApi | null>(null)
   const ledgerApiRef = React.useRef<GridApi | null>(null)
+  const router = useRouter()
+  const [receiptRow, setReceiptRow] = React.useState<FinancialPayload['ledger'][number] | null>(null)
 
   const [filters, setFilters] = React.useState<ReportFilterState>({
     period: 'month',
@@ -152,8 +169,17 @@ export default function FinancialReportPage() {
         : properties.find((p) => p.id === filters.propertyId)?.name || 'Property'
 
     return [
-      { label: 'Total income', value: kes(k.totalIncome), subtext: scopeLabel },
-      { label: 'Total expenses', value: kes(k.totalExpenses) },
+      {
+        label: 'Total income',
+        value: kes(k.totalIncome),
+        subtext: scopeLabel,
+        valueClassName: 'text-emerald-600 dark:text-emerald-400',
+      },
+      {
+        label: 'Total expenses',
+        value: kes(k.totalExpenses),
+        valueClassName: 'text-rose-600 dark:text-rose-400',
+      },
       { label: 'Net operating income', value: kes(k.netOperatingIncome) },
       { label: 'Expense ratio', value: `${k.expenseRatio.toFixed(1)}%` },
     ]
@@ -184,26 +210,23 @@ export default function FinancialReportPage() {
       .sort((a, b) => a.period.localeCompare(b.period))
   }, [payload?.incomeSeries, payload?.expenseSeries])
 
-  const incomeBreakdown = React.useMemo(() => {
-    if (!payload?.incomeBreakdown) return []
-    return [
-      { key: 'rent', value: payload.incomeBreakdown.rent, fill: incomeConfig.rent.color },
-      { key: 'water', value: payload.incomeBreakdown.water, fill: incomeConfig.water.color },
-      { key: 'other', value: payload.incomeBreakdown.other, fill: incomeConfig.other.color },
-    ].filter((row) => row.value > 0)
-  }, [payload?.incomeBreakdown])
-
   const expenseBreakdown = React.useMemo(() => {
     const categories = payload?.expenseBreakdown?.categories || {}
-    const palette = ['#f97316', '#f59e0b', '#ef4444', '#e11d48', '#0ea5e9', '#6366f1', '#a855f7']
-    return Object.entries(categories)
-      .map(([name, value], index) => ({
-        key: `cat-${index}`,
+    const palette = ['#7f1d1d', '#c2410c', '#fb923c', '#f59e0b', '#fde047', '#fef3c7', '#ffffff']
+    const entries = Object.entries(categories)
+      .map(([name, value]) => ({
         label: name,
         value: Number(value || 0),
-        fill: palette[index % palette.length],
       }))
       .filter((row) => row.value > 0)
+      .sort((a, b) => b.value - a.value)
+
+    return entries.map((row, index) => ({
+      key: `cat-${index}`,
+      label: row.label,
+      value: row.value,
+      fill: palette[Math.min(index, palette.length - 1)],
+    }))
   }, [payload?.expenseBreakdown])
 
   const expenseConfig = React.useMemo(() => {
@@ -241,6 +264,14 @@ export default function FinancialReportPage() {
     []
   )
 
+  const handleOpenReceipt = React.useCallback((row: FinancialPayload['ledger'][number]) => {
+    setReceiptRow(row)
+  }, [])
+
+  const handleCloseReceipt = React.useCallback(() => {
+    setReceiptRow(null)
+  }, [])
+
   const ledgerDefs = React.useMemo<ColDef<FinancialPayload['ledger'][number]>[]>(
     () => [
       { headerName: 'Date', field: 'date', width: 130, filter: 'agDateColumnFilter' },
@@ -253,9 +284,93 @@ export default function FinancialReportPage() {
         width: 140,
         valueFormatter: (params) => kes(Number(params.value || 0)),
       },
+      {
+        headerName: 'Receipt',
+        field: 'receipt',
+        width: 120,
+        cellRenderer: (params: { data?: FinancialPayload['ledger'][number] }) => {
+          if (!params.data) return null
+          return (
+            <button
+              type="button"
+              onClick={() => handleOpenReceipt(params.data!)}
+              className="text-xs font-semibold text-slate-700 hover:text-slate-900 underline underline-offset-4"
+            >
+              View receipt
+            </button>
+          )
+        },
+      },
     ],
-    []
+    [handleOpenReceipt]
   )
+
+  const receiptDetails = React.useMemo(() => {
+    if (!receiptRow) return null
+    const dateLabel = receiptRow.date ? new Date(receiptRow.date).toLocaleDateString() : '—'
+    const typeLabel = receiptRow.type === 'income' ? 'Income' : 'Expense'
+    const sourceLabel = receiptRow.source === 'payment' ? 'Payment' : 'Expense'
+    const reference =
+      receiptRow.reference ||
+      receiptRow.sourceId ||
+      receiptRow.tenantUserId ||
+      '—'
+    const method = receiptRow.paymentMethod ? receiptRow.paymentMethod.replace(/_/g, ' ') : '—'
+
+    return {
+      title: receiptRow.type === 'income' ? 'Payment Receipt' : 'Expense Receipt',
+      dateLabel,
+      typeLabel,
+      sourceLabel,
+      reference,
+      method,
+    }
+  }, [receiptRow])
+
+  const handleDownloadReceipt = React.useCallback(() => {
+    if (!receiptRow) return
+    const run = async () => {
+      try {
+        if (receiptRow.type === 'income') {
+          if (!receiptRow.sourceId) {
+            throw new Error('Payment reference not found for this receipt.')
+          }
+          const res = await fetch(`/api/manager/receipts/${receiptRow.sourceId}`, { cache: 'no-store' })
+          const json = await res.json().catch(() => ({}))
+          if (!res.ok || !json?.success) {
+            throw new Error(json?.error || 'Failed to load receipt details.')
+          }
+          await downloadReceiptPdf(json.data)
+          return
+        }
+
+        const payload = {
+          expense: {
+            id: receiptRow.sourceId || receiptRow.source || '',
+            amount: Number(receiptRow.amount || 0),
+            category: receiptRow.category || null,
+            incurred_at: receiptRow.date || null,
+            created_at: receiptRow.createdAt || null,
+            notes: receiptRow.notes || null,
+            reference: receiptRow.reference || receiptRow.sourceId || null,
+          },
+          property: {
+            property_name: receiptRow.propertyName || null,
+          },
+        }
+
+        await downloadExpenseReceiptPdf(payload)
+      } catch (error) {
+        toast({
+          title: 'Receipt download failed',
+          description: error instanceof Error ? error.message : 'Unable to download receipt.',
+          variant: 'destructive',
+        })
+      }
+    }
+
+    void run()
+  }, [receiptRow, toast])
 
   const handleExport = (format: 'pdf' | 'excel' | 'csv') => {
     if (!payload) return
@@ -315,6 +430,14 @@ export default function FinancialReportPage() {
         <main className="flex-1 p-6 md:p-8 space-y-6 overflow-auto">
           <div className="flex items-start justify-between gap-4">
             <div className="flex items-center gap-3">
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-10 w-10 rounded-full"
+                onClick={() => router.back()}
+              >
+                <ArrowLeft className="h-4 w-4" />
+              </Button>
               <div className="h-10 w-10 rounded-xl bg-muted flex items-center justify-center">
                 <WalletCards className="h-5 w-5" />
               </div>
@@ -348,54 +471,46 @@ export default function FinancialReportPage() {
               <ReportFilters value={filters} onChange={handleFiltersChange} properties={properties} />
               <KpiTiles items={kpis as any} className="grid-cols-1 sm:grid-cols-2 lg:grid-cols-4" />
 
-              <Card className="border bg-background">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-base">Income vs Expenses vs NOI</CardTitle>
-                  <CardDescription>Cashflow by period using payment and expense dates.</CardDescription>
-                </CardHeader>
-                <CardContent className="pt-2">
-                  <ChartContainer config={cashflowConfig} className="h-[300px] w-full">
-                    <BarChart data={cashflowSeries} margin={{ left: 12, right: 12 }}>
-                      <CartesianGrid vertical={false} />
-                      <XAxis dataKey="period" tickLine={false} axisLine={false} tickMargin={8} minTickGap={24} />
-                      <YAxis tickLine={false} axisLine={false} tickMargin={8} width={60} />
-                      <ChartTooltip content={<ChartTooltipContent indicator="dot" />} />
-                      <ChartLegend content={<ChartLegendContent />} />
-                      <Bar dataKey="income" fill="var(--color-income)" radius={[6, 6, 0, 0]} />
-                      <Bar dataKey="expenses" fill="var(--color-expenses)" radius={[6, 6, 0, 0]} />
-                      <Bar dataKey="noi" fill="var(--color-noi)" radius={[6, 6, 0, 0]} />
-                    </BarChart>
-                  </ChartContainer>
-                </CardContent>
-              </Card>
-
-              <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-                <Card className="border bg-background">
+              <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+                <Card className="border bg-background lg:col-span-2">
                   <CardHeader className="pb-2">
-                    <CardTitle className="text-base">Income Breakdown</CardTitle>
-                    <CardDescription>Rent vs water vs other income sources.</CardDescription>
+                    <CardTitle className="text-base">Income vs Expenses vs NOI</CardTitle>
+                    <CardDescription>Cashflow by period using payment and expense dates.</CardDescription>
                   </CardHeader>
                   <CardContent className="pt-2">
-                    <ChartContainer config={incomeConfig} className="h-[280px] w-full">
-                      <PieChart>
-                        <ChartTooltip content={<ChartTooltipContent indicator="dot" nameKey="key" />} />
-                        <Pie data={incomeBreakdown} dataKey="value" nameKey="key" innerRadius={70} outerRadius={110} />
-                        <ChartLegend content={<ChartLegendContent nameKey="key" />} />
-                      </PieChart>
+                    <ChartContainer config={cashflowConfig} className="h-[300px] w-full">
+                      <BarChart data={cashflowSeries} margin={{ left: 12, right: 12 }}>
+                        <CartesianGrid vertical={false} />
+                        <XAxis dataKey="period" tickLine={false} axisLine={false} tickMargin={8} minTickGap={24} />
+                        <YAxis tickLine={false} axisLine={false} tickMargin={8} width={60} />
+                        <ChartTooltip content={<ChartTooltipContent indicator="dot" />} />
+                        <ChartLegend content={<ChartLegendContent />} />
+                        <Bar dataKey="income" fill="var(--color-income)" radius={[6, 6, 0, 0]} />
+                        <Bar dataKey="expenses" fill="var(--color-expenses)" radius={[6, 6, 0, 0]} />
+                        <Bar dataKey="noi" fill="var(--color-noi)" radius={[6, 6, 0, 0]} />
+                      </BarChart>
                     </ChartContainer>
                   </CardContent>
                 </Card>
 
-                <Card className="border bg-background">
+                <Card className="border bg-background lg:col-span-1">
                   <CardHeader className="pb-2">
                     <CardTitle className="text-base">Expense Breakdown</CardTitle>
                     <CardDescription>Expense totals by category in the selected period.</CardDescription>
                   </CardHeader>
                   <CardContent className="pt-2">
-                    <ChartContainer config={expenseConfig} className="h-[280px] w-full">
+                    <ChartContainer config={expenseConfig} className="h-[300px] w-full">
                       <PieChart>
                         <ChartTooltip content={<ChartTooltipContent indicator="dot" nameKey="key" />} />
-                        <Pie data={expenseBreakdown} dataKey="value" nameKey="key" innerRadius={70} outerRadius={110} />
+                        <Pie
+                          data={expenseBreakdown}
+                          dataKey="value"
+                          nameKey="key"
+                          innerRadius={70}
+                          outerRadius={110}
+                          stroke="#f8fafc"
+                          strokeWidth={2}
+                        />
                         <ChartLegend content={<ChartLegendContent nameKey="key" />} />
                       </PieChart>
                     </ChartContainer>
@@ -403,7 +518,7 @@ export default function FinancialReportPage() {
                 </Card>
               </div>
 
-              <Card className="border bg-background">
+              <Card className="border bg-blue-50/60">
                 <CardHeader className="pb-2">
                   <CardTitle className="text-base">Property P&amp;L</CardTitle>
                   <CardDescription>Income, expenses, and NOI per property.</CardDescription>
@@ -466,6 +581,100 @@ export default function FinancialReportPage() {
                   </div>
                 </CardContent>
               </Card>
+
+              <Dialog open={!!receiptRow} onOpenChange={(open) => (!open ? handleCloseReceipt() : null)}>
+                <DialogContent className="max-w-2xl">
+                  <DialogHeader>
+                    <DialogTitle>{receiptDetails?.title || 'Transaction Receipt'}</DialogTitle>
+                    <DialogDescription>Formal transaction summary for audit and reconciliation.</DialogDescription>
+                  </DialogHeader>
+
+                  {receiptRow ? (
+                    <div className="space-y-5">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="space-y-1">
+                          <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Amount</p>
+                          <p className="text-2xl font-semibold">{kes(Number(receiptRow.amount || 0))}</p>
+                          <p className="text-xs text-muted-foreground">{receiptDetails?.dateLabel}</p>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          {receiptRow.isPrepayment ? (
+                            <Badge className="bg-amber-100 text-amber-800">Prepayment</Badge>
+                          ) : null}
+                          <Badge
+                            className={
+                              receiptRow.type === 'income'
+                                ? 'bg-emerald-100 text-emerald-700'
+                                : 'bg-rose-100 text-rose-700'
+                            }
+                          >
+                            {receiptDetails?.typeLabel}
+                          </Badge>
+                        </div>
+                      </div>
+
+                      <div className="grid gap-4 rounded-xl border border-slate-200/70 bg-slate-50/80 p-4 text-sm">
+                        <div className="grid gap-2 md:grid-cols-2">
+                          <div>
+                            <p className="text-xs text-muted-foreground">Property</p>
+                            <p className="font-medium">{receiptRow.propertyName || 'Property'}</p>
+                          </div>
+                          <div className="md:text-right">
+                            <p className="text-xs text-muted-foreground">Category</p>
+                            <p className="font-medium capitalize">{receiptRow.category || '—'}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground">Source</p>
+                            <p className="font-medium capitalize">{receiptDetails?.sourceLabel}</p>
+                          </div>
+                          <div className="md:text-right">
+                            <p className="text-xs text-muted-foreground">Reference</p>
+                            <p className="font-mono text-xs break-all">{receiptDetails?.reference}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground">Method</p>
+                            <p className="font-medium capitalize">{receiptDetails?.method}</p>
+                          </div>
+                          <div className="md:text-right">
+                            <p className="text-xs text-muted-foreground">Receipt ID</p>
+                            <p className="font-mono text-xs break-all">{receiptRow.sourceId || '—'}</p>
+                          </div>
+                        </div>
+
+                        {receiptRow.notes ? (
+                          <div className="border-t border-slate-200/70 pt-3 text-xs text-muted-foreground">
+                            <span className="font-semibold text-slate-700">Notes: </span>
+                            {receiptRow.notes}
+                          </div>
+                        ) : null}
+
+                        {receiptRow.receiptUrl ? (
+                          <div className="text-xs">
+                            <a
+                              href={receiptRow.receiptUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-primary underline underline-offset-4"
+                            >
+                              View receipt attachment
+                            </a>
+                          </div>
+                        ) : null}
+                      </div>
+                    </div>
+                  ) : null}
+
+                  <DialogFooter className="gap-2 sm:gap-3">
+                    <Button variant="outline" onClick={handleCloseReceipt}>
+                      Close
+                    </Button>
+                    <Button onClick={handleDownloadReceipt}>
+                      <Download className="mr-2 h-4 w-4" />
+                      Download PDF
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
             </>
           )}
         </main>
