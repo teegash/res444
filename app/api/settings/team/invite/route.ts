@@ -1,36 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import nodemailer from 'nodemailer'
+import { sendEmail } from '@/lib/email/resendClient'
 
 const ALLOWED_ROLES = ['manager', 'caretaker']
 
-function buildEmailTransport() {
-  const smtpHost = process.env.SMTP_HOST
-  const smtpPort = process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : 587
-  const smtpUser = process.env.SMTP_USER
-  const smtpPass = process.env.SMTP_PASS
-  const smtpFrom = process.env.SMTP_FROM || process.env.SMTP_USER
-
-  if (!smtpHost || !smtpUser || !smtpPass || !smtpFrom) {
-    throw new Error('SMTP configuration is missing. Please set SMTP_HOST, SMTP_USER, SMTP_PASS and SMTP_FROM.')
-  }
-
-  const transport = nodemailer.createTransport({
-    host: smtpHost,
-    port: smtpPort,
-    secure: smtpPort === 465,
-    auth: {
-      user: smtpUser,
-      pass: smtpPass,
-    },
-  })
-
-  return { transport, from: smtpFrom }
-}
-
 async function sendInviteEmail(to: string, name: string, password: string, role: string) {
-  const { transport, from } = buildEmailTransport()
   const friendlyName = name || 'Team member'
 
   const html = `
@@ -57,8 +32,7 @@ async function sendInviteEmail(to: string, name: string, password: string, role:
     </div>
   `
 
-  await transport.sendMail({
-    from,
+  await sendEmail({
     to,
     subject: `Your RES ${role} access`,
     html,
@@ -183,7 +157,7 @@ export async function POST(request: NextRequest) {
     } catch (err) {
       console.error('[Settings.Team.Invite.POST] failed to send invite email', err)
       return NextResponse.json(
-        { success: false, error: 'Invite created but email could not be sent. Check SMTP settings.' },
+        { success: false, error: 'Invite created but email could not be sent. Check Resend settings.' },
         { status: 500 }
       )
     }

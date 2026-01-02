@@ -1,35 +1,15 @@
 import crypto from 'crypto'
-import nodemailer from 'nodemailer'
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { sendEmail } from '@/lib/email/resendClient'
 
-const ADMIN_EMAIL = 'nategadgets@gmail.com'
-
-const smtpHost = process.env.SMTP_HOST
-const smtpPort = process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : 587
-const smtpUser = process.env.SMTP_USER
-const smtpPass = process.env.SMTP_PASS
-const smtpFrom = process.env.SMTP_FROM || process.env.SMTP_USER
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'nategadgets@gmail.com'
 
 function generateCode() {
   return crypto.randomBytes(4).toString('hex').toUpperCase()
 }
 
 async function sendCodeEmail(code: string, expiresAt: Date) {
-  if (!smtpHost || !smtpUser || !smtpPass || !smtpFrom) {
-    throw new Error('SMTP configuration is incomplete. Please set SMTP_HOST, SMTP_USER, SMTP_PASS, and SMTP_FROM.')
-  }
-
-  const transporter = nodemailer.createTransport({
-    host: smtpHost,
-    port: smtpPort,
-    secure: smtpPort === 465,
-    auth: {
-      user: smtpUser,
-      pass: smtpPass,
-    },
-  })
-
   const expiresFriendly = expiresAt.toUTCString()
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
   const gateUrl = `${siteUrl.replace(/\/$/, '')}/get-started`
@@ -51,8 +31,7 @@ async function sendCodeEmail(code: string, expiresAt: Date) {
     </div>
   `
 
-  await transporter.sendMail({
-    from: smtpFrom,
+  await sendEmail({
     to: ADMIN_EMAIL,
     subject: 'New signup access code',
     text,

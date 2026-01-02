@@ -1,4 +1,4 @@
-import nodemailer from 'nodemailer'
+import { sendEmail } from '@/lib/email/resendClient'
 
 interface TenantCredentialEmailPayload {
   tenantName: string
@@ -6,12 +6,6 @@ interface TenantCredentialEmailPayload {
   generatedPassword: string
   loginPath?: string
 }
-
-const smtpHost = process.env.SMTP_HOST
-const smtpPort = process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : 587
-const smtpUser = process.env.SMTP_USER
-const smtpPass = process.env.SMTP_PASS
-const smtpFrom = process.env.SMTP_FROM || process.env.SMTP_USER
 
 function getLoginUrl(pathOverride?: string) {
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
@@ -28,20 +22,6 @@ export async function sendTenantCredentialsEmail({
   generatedPassword,
   loginPath = '/auth/login',
 }: TenantCredentialEmailPayload) {
-  if (!smtpHost || !smtpUser || !smtpPass || !smtpFrom) {
-    throw new Error('SMTP configuration is incomplete. Please set SMTP_HOST, SMTP_USER, SMTP_PASS, and SMTP_FROM.')
-  }
-
-  const transporter = nodemailer.createTransport({
-    host: smtpHost,
-    port: smtpPort,
-    secure: smtpPort === 465,
-    auth: {
-      user: smtpUser,
-      pass: smtpPass,
-    },
-  })
-
   const loginUrl = getLoginUrl(loginPath)
   const friendlyName = tenantName || 'Tenant'
 
@@ -110,8 +90,7 @@ export async function sendTenantCredentialsEmail({
     </div>
   `
 
-  await transporter.sendMail({
-    from: smtpFrom,
+  await sendEmail({
     to: tenantEmail,
     subject: 'Your tenant portal credentials',
     text: textBody,

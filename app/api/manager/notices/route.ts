@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import nodemailer from 'nodemailer'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sendSMSWithLogging } from '@/lib/sms/smsService'
+import { sendEmail } from '@/lib/email/resendClient'
 
 const MANAGER_ROLES = new Set(['admin', 'manager', 'caretaker'])
 
@@ -76,39 +76,12 @@ async function fetchTenantEmails(
   return emailMap
 }
 
-function buildEmailTransport() {
-  const smtpHost = process.env.SMTP_HOST
-  const smtpPort = process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : 587
-  const smtpUser = process.env.SMTP_USER
-  const smtpPass = process.env.SMTP_PASS
-  const smtpFrom = process.env.SMTP_FROM || process.env.SMTP_USER
-
-  if (!smtpHost || !smtpUser || !smtpPass || !smtpFrom) {
-    throw new Error(
-      'SMTP configuration is missing. Please set SMTP_HOST, SMTP_USER, SMTP_PASS and SMTP_FROM.'
-    )
-  }
-
-  const transport = nodemailer.createTransport({
-    host: smtpHost,
-    port: smtpPort,
-    secure: smtpPort === 465,
-    auth: {
-      user: smtpUser,
-      pass: smtpPass,
-    },
-  })
-
-  return { transport, from: smtpFrom }
-}
-
 async function sendNoticeEmail(
   to: string,
   subject: string,
   message: string,
   recipientName?: string | null
 ) {
-  const { transport, from } = buildEmailTransport()
   const friendlyName = recipientName || 'Tenant'
 
   const html = `
@@ -131,8 +104,7 @@ async function sendNoticeEmail(
     </div>
   `
 
-  await transport.sendMail({
-    from,
+  await sendEmail({
     to,
     subject,
     html,
