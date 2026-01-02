@@ -85,6 +85,8 @@ export async function POST(request: NextRequest) {
         registration_number: registration_number?.trim() || null,
         location: location?.trim() || address?.trim() || null,
         logo_url: body.logo_url?.trim() || null, // Support logo URL from client upload
+        // Ensures automated communications always have a sender
+        system_user_id: user.id,
       })
       .select()
       .single()
@@ -159,6 +161,13 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Belt-and-suspenders: ensure system_user_id is set if it was ever missed.
+    await adminSupabase
+      .from('organizations')
+      .update({ system_user_id: user.id })
+      .eq('id', organization.id)
+      .is('system_user_id', null)
+
     return NextResponse.json(
       {
         success: true,
@@ -183,4 +192,3 @@ export async function POST(request: NextRequest) {
     )
   }
 }
-
