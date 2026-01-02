@@ -90,10 +90,20 @@ export async function sendTenantCredentialsEmail({
     </div>
   `
 
-  await sendEmail({
+  console.log('[TENANT EMAIL] About to send tenant credentials', {
     to: tenantEmail,
-    subject: 'Your tenant portal credentials',
-    text: textBody,
-    html: htmlBody,
   })
+
+  try {
+    const result = await sendEmail({
+      to: tenantEmail,
+      subject: 'Your tenant portal credentials',
+      text: textBody,
+      html: htmlBody,
+    })
+    console.log('[TENANT EMAIL] Resend message ID', result?.id)
+  } catch (err) {
+    console.error('[TENANT EMAIL] FAILED', err)
+    throw err
+  }
 }
