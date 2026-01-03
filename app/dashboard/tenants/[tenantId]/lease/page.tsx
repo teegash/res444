@@ -756,6 +756,7 @@ export default function TenantLeaseManagementPage() {
       summary,
       sections,
       notes,
+      compact: true,
       letterhead: {
         tenantName: tenant.full_name || undefined,
         tenantPhone: tenant.phone_number || undefined,

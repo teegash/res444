@@ -18,6 +18,7 @@ export interface LeasePdfOptions {
   sections: LeasePdfSection[]
   notes?: string[]
   letterhead?: Partial<LetterheadMeta>
+  compact?: boolean
 }
 
 const DARK = '#0f172a'
@@ -38,17 +39,45 @@ const ensureSpace = (
   return cursorY
 }
 
-const writeRow = (doc: jsPDF, label: string, value: string, x: number, y: number, maxWidth: number) => {
-  doc.setFontSize(11)
+const writeRow = (
+  doc: jsPDF,
+  label: string,
+  value: string,
+  x: number,
+  y: number,
+  maxWidth: number,
+  config: { fontSize: number; lineHeight: number; wrapLineHeight: number }
+) => {
+  doc.setFontSize(config.fontSize)
   doc.setTextColor(MUTED)
   doc.text(`${label}:`, x, y)
   doc.setTextColor(DARK)
   const wrapped = doc.splitTextToSize(value || '—', maxWidth)
   doc.text(wrapped, x + 130, y, { maxWidth })
-  return y + 18 + (wrapped.length > 1 ? 12 * (wrapped.length - 1) : 0)
+  return y + config.lineHeight + (wrapped.length > 1 ? config.wrapLineHeight * (wrapped.length - 1) : 0)
 }
 
 export async function exportLeasePdf(options: LeasePdfOptions) {
+  const layout = {
+    summaryRowHeight: options.compact ? 50 : 60,
+    summaryMinHeight: options.compact ? 96 : 120,
+    summaryLabelSize: options.compact ? 10 : 12,
+    summaryValueSize: options.compact ? 11 : 12,
+    sectionTitleSize: options.compact ? 13 : 15,
+    sectionHeaderHeight: options.compact ? 48 : 60,
+    sectionDividerGap: options.compact ? 12 : 16,
+    rowHeight: options.compact ? 26 : 32,
+    rowFontSize: options.compact ? 9 : 11,
+    rowLineHeight: options.compact ? 14 : 18,
+    rowWrapLineHeight: options.compact ? 10 : 12,
+    summarySpacing: options.compact ? 18 : 24,
+    noteHeaderHeight: options.compact ? 60 : 80,
+    noteRowHeight: options.compact ? 28 : 40,
+    noteTitleSize: options.compact ? 12 : 14,
+    noteFontSize: options.compact ? 9 : 11,
+    noteLineHeight: options.compact ? 12 : 14,
+  }
+
   const org = await fetchCurrentOrganizationBrand()
   const generatedAtISO = options.letterhead?.generatedAtISO || new Date().toISOString()
 
@@ -87,7 +116,7 @@ export async function exportLeasePdf(options: LeasePdfOptions) {
 
   // Summary card
   const summaryRows = Math.max(1, Math.ceil(options.summary.length / 2))
-  const summaryHeight = Math.max(120, summaryRows * 60)
+  const summaryHeight = Math.max(layout.summaryMinHeight, summaryRows * layout.summaryRowHeight)
   const summaryTop = cursorY
   const summaryWidth = pageWidth - PAGE_MARGIN * 2
 
@@ -95,7 +124,7 @@ export async function exportLeasePdf(options: LeasePdfOptions) {
   doc.roundedRect(PAGE_MARGIN, summaryTop, summaryWidth, summaryHeight, 12, 12, 'F')
   doc.setDrawColor(226, 232, 240)
   doc.roundedRect(PAGE_MARGIN, summaryTop, summaryWidth, summaryHeight, 12, 12, 'S')
-  doc.setFontSize(12)
+  doc.setFontSize(layout.summaryLabelSize)
   doc.setTextColor(DARK)
 
   const columnWidth = summaryWidth / 2
@@ -103,23 +132,25 @@ export async function exportLeasePdf(options: LeasePdfOptions) {
     const column = index % 2
     const rowIndex = Math.floor(index / 2)
     const x = PAGE_MARGIN + column * columnWidth
-    const yBase = summaryTop + 28 + rowIndex * 60
+    const yBase = summaryTop + 24 + rowIndex * layout.summaryRowHeight
 
     doc.setTextColor(MUTED)
     doc.text(item.label, x + 14, yBase)
     doc.setTextColor(DARK)
     doc.setFont('helvetica', 'bold')
+    doc.setFontSize(layout.summaryValueSize)
     const value = item.value || '—'
     const wrapped = doc.splitTextToSize(value, columnWidth - 40)
     doc.text(wrapped, x + 14, yBase + 18)
     doc.setFont('helvetica', 'normal')
+    doc.setFontSize(layout.summaryLabelSize)
   })
 
-  cursorY = summaryTop + summaryHeight + 24
+  cursorY = summaryTop + summaryHeight + layout.summarySpacing
 
   options.sections.forEach((section) => {
-    cursorY = ensureSpace(doc, cursorY, 60, newPageCursor)
-    doc.setFontSize(15)
+    cursorY = ensureSpace(doc, cursorY, layout.sectionHeaderHeight, newPageCursor)
+    doc.setFontSize(layout.sectionTitleSize)
     doc.setTextColor(DARK)
     doc.setFont('helvetica', 'bold')
     doc.text(section.title, PAGE_MARGIN, cursorY)
@@ -127,31 +158,43 @@ export async function exportLeasePdf(options: LeasePdfOptions) {
     doc.setDrawColor(226, 232, 240)
     doc.setLineWidth(0.8)
     doc.line(PAGE_MARGIN, cursorY, pageWidth - PAGE_MARGIN, cursorY)
-    cursorY += 16
+    cursorY += layout.sectionDividerGap
     doc.setFont('helvetica', 'normal')
 
     section.rows.forEach((row) => {
-      cursorY = ensureSpace(doc, cursorY, 32, newPageCursor)
-      cursorY = writeRow(doc, row.label, row.value, PAGE_MARGIN, cursorY, pageWidth - PAGE_MARGIN * 2 - 140)
+      cursorY = ensureSpace(doc, cursorY, layout.rowHeight, newPageCursor)
+      cursorY = writeRow(
+        doc,
+        row.label,
+        row.value,
+        PAGE_MARGIN,
+        cursorY,
+        pageWidth - PAGE_MARGIN * 2 - 140,
+        {
+          fontSize: layout.rowFontSize,
+          lineHeight: layout.rowLineHeight,
+          wrapLineHeight: layout.rowWrapLineHeight,
+        }
+      )
     })
 
     cursorY += 6
   })
 
   if (options.notes?.length) {
-    cursorY = ensureSpace(doc, cursorY, 80, newPageCursor)
+    cursorY = ensureSpace(doc, cursorY, layout.noteHeaderHeight, newPageCursor)
     doc.setFont('helvetica', 'bold')
-    doc.setFontSize(14)
+    doc.setFontSize(layout.noteTitleSize)
     doc.setTextColor(DARK)
     doc.text('Notes', PAGE_MARGIN, cursorY)
     doc.setFont('helvetica', 'normal')
-    doc.setFontSize(11)
-    cursorY += 18
+    doc.setFontSize(layout.noteFontSize)
+    cursorY += layout.noteLineHeight + 4
     options.notes.forEach((note) => {
-      cursorY = ensureSpace(doc, cursorY, 40, newPageCursor)
+      cursorY = ensureSpace(doc, cursorY, layout.noteRowHeight, newPageCursor)
       const text = doc.splitTextToSize(`• ${note}`, pageWidth - PAGE_MARGIN * 2)
       doc.text(text, PAGE_MARGIN, cursorY)
-      cursorY += text.length * 14 + 4
+      cursorY += text.length * layout.noteLineHeight + 4
     })
   }
 
