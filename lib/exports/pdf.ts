@@ -4,6 +4,7 @@ import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import type { LetterheadMeta } from './letterhead'
 import { buildLetterheadLines, formatGeneratedAt, safeFilename } from './letterhead'
+import { EXPORT_THEME } from './theme'
 
 export type PdfTableColumn = {
   header: string
@@ -27,14 +28,17 @@ export type PdfExportTableOptions = {
   }>
 }
 
-// Brand primary: elegant blend of previous blue + #606975.
-const BRAND_PRIMARY_RGB: [number, number, number] = [72, 103, 164] // #4867A4
-const BRAND_DARK_RGB: [number, number, number] = [15, 23, 42]
-const BRAND_MUTED_RGB: [number, number, number] = [71, 85, 105]
-const BORDER_RGB: [number, number, number] = [226, 232, 240]
+const PAGE_MARGIN_X = EXPORT_THEME.page.marginX
+const FOOTER_HEIGHT = EXPORT_THEME.page.footerHeight
 
-const PAGE_MARGIN_X = 40
-const FOOTER_HEIGHT = 46
+const TEXT_RGB = EXPORT_THEME.colors.text
+const MUTED_RGB = EXPORT_THEME.colors.muted
+const SUBTLE_RGB = EXPORT_THEME.colors.subtle
+const BORDER_RGB = EXPORT_THEME.colors.border
+const HEADER_FILL_RGB = EXPORT_THEME.colors.headerFill
+const ZEBRA_RGB = EXPORT_THEME.colors.zebraFill
+const SUMMARY_FILL_RGB = EXPORT_THEME.colors.summaryFill
+const ACCENT_RGB = EXPORT_THEME.colors.accent
 
 function resolveOrientation(option: PdfExportTableOptions['orientation'], columnCount: number) {
   if (option === 'portrait' || option === 'landscape') return option
@@ -45,7 +49,7 @@ function computeHeaderHeight(meta: LetterheadMeta, subtitle?: string) {
   const { left, right } = buildLetterheadLines(meta)
   const lineCount = Math.max(left.length, right.length)
   const extraSubtitle = subtitle ? 1 : 0
-  const base = 84
+  const base = 88
   return base + (lineCount + extraSubtitle) * 12
 }
 
@@ -60,43 +64,40 @@ export function drawLetterhead(
 ) {
   const { meta, subtitle, headerHeight, accentColor } = opts
   const pageWidth = doc.internal.pageSize.getWidth()
-  const brandColor = accentColor || BRAND_PRIMARY_RGB
+  const brandColor = accentColor || ACCENT_RGB
 
-  // Top bar
-  doc.setFillColor(...brandColor)
-  doc.rect(0, 0, pageWidth, 52, 'F')
+  doc.setDrawColor(...BORDER_RGB)
+  doc.setLineWidth(0.8)
+  doc.line(PAGE_MARGIN_X, EXPORT_THEME.page.headerTopPad, pageWidth - PAGE_MARGIN_X, EXPORT_THEME.page.headerTopPad)
 
-  // Org name
-  doc.setTextColor('#ffffff')
+  doc.setDrawColor(...brandColor)
+  doc.setLineWidth(2.2)
+  doc.line(PAGE_MARGIN_X, EXPORT_THEME.page.headerTopPad, PAGE_MARGIN_X + 120, EXPORT_THEME.page.headerTopPad)
+
+  doc.setTextColor(...TEXT_RGB)
   doc.setFont('helvetica', 'bold')
-  doc.setFontSize(18)
-  doc.text(meta.organizationName || 'Organization', PAGE_MARGIN_X, 30, {
+  doc.setFontSize(EXPORT_THEME.pdf.orgSize)
+  doc.text(meta.organizationName || 'Organization', PAGE_MARGIN_X, 48, {
     maxWidth: pageWidth - PAGE_MARGIN_X * 2,
   })
-  doc.setFont('helvetica', 'italic')
-  doc.setFontSize(11)
-  doc.text('Property Management', PAGE_MARGIN_X, 44, {
-    maxWidth: pageWidth - PAGE_MARGIN_X * 2,
-  })
-
-  // Title row
-  doc.setTextColor(...BRAND_DARK_RGB)
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(13)
-  doc.text(meta.documentTitle || 'Document', PAGE_MARGIN_X, 74)
 
   doc.setFont('helvetica', 'normal')
-  doc.setFontSize(9.5)
-  doc.setTextColor(...BRAND_MUTED_RGB)
-  doc.text(`Generated: ${formatGeneratedAt(meta.generatedAtISO)}`, pageWidth - PAGE_MARGIN_X, 74, {
+  doc.setFontSize(EXPORT_THEME.pdf.metaSize)
+  doc.setTextColor(...MUTED_RGB)
+  doc.text(`Generated: ${formatGeneratedAt(meta.generatedAtISO)}`, pageWidth - PAGE_MARGIN_X, 48, {
     align: 'right',
   })
 
-  let cursorY = 92
+  doc.setTextColor(...TEXT_RGB)
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(EXPORT_THEME.pdf.titleSize)
+  doc.text(meta.documentTitle || 'Document', PAGE_MARGIN_X, 70)
+
+  let cursorY = 88
   if (subtitle) {
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(10)
-    doc.setTextColor(...BRAND_MUTED_RGB)
+    doc.setTextColor(...SUBTLE_RGB)
     doc.text(subtitle, PAGE_MARGIN_X, cursorY, {
       maxWidth: pageWidth - PAGE_MARGIN_X * 2,
     })
@@ -107,7 +108,7 @@ export function drawLetterhead(
   const lines = Math.max(left.length, right.length)
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(10)
-  doc.setTextColor(...BRAND_DARK_RGB)
+  doc.setTextColor(...TEXT_RGB)
 
   for (let i = 0; i < lines; i += 1) {
     const leftText = left[i]
@@ -121,7 +122,6 @@ export function drawLetterhead(
     cursorY += 12
   }
 
-  // Divider line
   doc.setDrawColor(...BORDER_RGB)
   doc.line(PAGE_MARGIN_X, headerHeight - 12, pageWidth - PAGE_MARGIN_X, headerHeight - 12)
 }
@@ -130,18 +130,21 @@ export function getLetterheadHeight(meta: LetterheadMeta, subtitle?: string) {
   return computeHeaderHeight(meta, subtitle)
 }
 
-function drawFooter(doc: jsPDF, footerNote?: string) {
+function drawFooter(doc: jsPDF, meta: LetterheadMeta, footerNote?: string) {
   const pageWidth = doc.internal.pageSize.getWidth()
   const pageHeight = doc.internal.pageSize.getHeight()
   const y = pageHeight - 24
 
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(9)
-  doc.setTextColor(...BRAND_MUTED_RGB)
+  doc.setTextColor(...MUTED_RGB)
+
+  const orgName = meta.organizationName || 'Organization'
+  doc.text(`Generated by ${orgName} System`, PAGE_MARGIN_X, y)
 
   if (footerNote) {
-    doc.text(footerNote, PAGE_MARGIN_X, y, {
-      maxWidth: pageWidth - PAGE_MARGIN_X * 2 - 70,
+    doc.text(footerNote, PAGE_MARGIN_X + 170, y, {
+      maxWidth: pageWidth - PAGE_MARGIN_X * 2 - 240,
     })
   }
 
@@ -176,36 +179,34 @@ export function exportTablePdf(options: PdfExportTableOptions) {
     body: rows,
     styles: {
       font: 'helvetica',
-      fontSize: 9.5,
-      cellPadding: 5,
+      fontSize: EXPORT_THEME.pdf.bodySize,
+      cellPadding: EXPORT_THEME.pdf.table.cellPadding,
       overflow: 'linebreak',
       cellWidth: 'wrap',
       valign: 'top',
-      textColor: BRAND_DARK_RGB as any,
+      textColor: TEXT_RGB as any,
       lineColor: BORDER_RGB as any,
-      lineWidth: 0.5,
+      lineWidth: EXPORT_THEME.pdf.table.lineWidth,
       ...(options.tableStyles || {}),
     },
     headStyles: {
-      fillColor: BRAND_PRIMARY_RGB as any,
-      textColor: [255, 255, 255],
+      fillColor: HEADER_FILL_RGB as any,
+      textColor: TEXT_RGB as any,
       fontStyle: 'bold',
       ...(options.tableStyles?.fontSize ? { fontSize: options.tableStyles.fontSize } : {}),
     },
     alternateRowStyles: {
-      fillColor: [248, 250, 252],
+      fillColor: ZEBRA_RGB as any,
     },
     didParseCell: (data) => {
-      // Align columns
       const col = options.columns[data.column.index]
       if (col?.align) {
         data.cell.styles.halign = col.align
       }
 
-      // Summary rows
       if (data.section === 'body' && data.row.index >= summaryStartIndex) {
         data.cell.styles.fontStyle = 'bold'
-        data.cell.styles.fillColor = [241, 245, 249]
+        data.cell.styles.fillColor = SUMMARY_FILL_RGB as any
       }
     },
     didDrawPage: () => {
@@ -214,7 +215,7 @@ export function exportTablePdf(options: PdfExportTableOptions) {
         subtitle: options.subtitle,
         headerHeight,
       })
-      drawFooter(doc, options.footerNote)
+      drawFooter(doc, options.meta, options.footerNote)
     },
   })
 

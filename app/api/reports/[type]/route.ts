@@ -11,26 +11,16 @@ import {
   generateRentCollectionReport,
   ReportType,
 } from '@/lib/reports/generators'
-import {
-  generateMonthlyReportCSV,
-  generateFinancialReportCSV,
-  generateOccupancyReportCSV,
-  generateRevenueReportCSV,
-  generateUtilityReportCSV,
-  generatePerformanceReportCSV,
-  generateRentCollectionReportCSV,
-  generatePDFHTML,
-} from '@/lib/reports/exports'
 import { createClient } from '@/lib/supabase/server'
+
+// NOTE: CSV/PDF generation is handled client-side via the unified export layer
+// (lib/export/download.ts) to keep styling consistent across the system.
 
 /**
  * Dynamic reports API endpoint
  * Supports: monthly, financial, occupancy, revenue, utility, performance, rent
  */
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { type: string } }
-) {
+export async function GET(request: NextRequest, { params }: { params: { type: string } }) {
   try {
     const reportType = params.type as ReportType
 
@@ -77,90 +67,48 @@ export async function GET(
     const startDate = searchParams.get('start_date') || undefined
     const endDate = searchParams.get('end_date') || undefined
     const buildingId = searchParams.get('building_id') || undefined
-    const format = (searchParams.get('format') || 'json') as 'json' | 'csv' | 'pdf'
+
+    const requestedFormat = (searchParams.get('format') || 'json').toLowerCase()
+    if (requestedFormat !== 'json') {
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            'Unsupported format. Use format=json and export via the dashboard export buttons (PDF/Excel/CSV) for consistent styling.',
+        },
+        { status: 400 }
+      )
+    }
+
+    const format: 'json' = 'json'
 
     // 5. Generate report based on type
     let reportData: any
 
     switch (reportType) {
       case 'monthly':
-        reportData = await generateMonthlyReport({
-          organizationId,
-          startDate,
-          endDate,
-          buildingId,
-          format,
-        })
+        reportData = await generateMonthlyReport({ organizationId, startDate, endDate, buildingId, format })
         break
-
       case 'financial':
-        reportData = await generateFinancialReport({
-          organizationId,
-          startDate,
-          endDate,
-          buildingId,
-          format,
-        })
+        reportData = await generateFinancialReport({ organizationId, startDate, endDate, buildingId, format })
         break
-
       case 'occupancy':
-        reportData = await generateOccupancyReport({
-          organizationId,
-          startDate,
-          endDate,
-          buildingId,
-          format,
-        })
+        reportData = await generateOccupancyReport({ organizationId, startDate, endDate, buildingId, format })
         break
-
       case 'revenue':
-        reportData = await generateRevenueReport({
-          organizationId,
-          startDate,
-          endDate,
-          buildingId,
-          format,
-        })
+        reportData = await generateRevenueReport({ organizationId, startDate, endDate, buildingId, format })
         break
-
       case 'utility':
-        reportData = await generateUtilityReport({
-          organizationId,
-          startDate,
-          endDate,
-          buildingId,
-          format,
-        })
+        reportData = await generateUtilityReport({ organizationId, startDate, endDate, buildingId, format })
         break
-
       case 'performance':
-        reportData = await generatePerformanceReport({
-          organizationId,
-          startDate,
-          endDate,
-          buildingId,
-          format,
-        })
+        reportData = await generatePerformanceReport({ organizationId, startDate, endDate, buildingId, format })
         break
-
       case 'rent':
-        reportData = await generateRentCollectionReport({
-          organizationId,
-          startDate,
-          endDate,
-          buildingId,
-          format,
-        })
+        reportData = await generateRentCollectionReport({ organizationId, startDate, endDate, buildingId, format })
         break
-
       default:
-        return NextResponse.json(
-          {
-            success: false,
-            error: 'Invalid report type',
-          },
-          { status: 400 }
-        )
+        return NextResponse.json({ success: false, error: 'Invalid report type' }, { status: 400 })
     }
 
     // 6. Save report to database (optional)
@@ -175,74 +123,19 @@ export async function GET(
         created_by: userId,
       })
     } catch (error) {
-      // Log but don't fail the request
       console.error('Error saving report to database:', error)
     }
 
-    // 7. Format response based on requested format
-    if (format === 'csv') {
-      let csvContent: string
-
-      switch (reportType) {
-        case 'monthly':
-          csvContent = generateMonthlyReportCSV(reportData)
-          break
-        case 'financial':
-          csvContent = generateFinancialReportCSV(reportData)
-          break
-        case 'occupancy':
-          csvContent = generateOccupancyReportCSV(reportData)
-          break
-        case 'revenue':
-          csvContent = generateRevenueReportCSV(reportData)
-          break
-        case 'utility':
-          csvContent = generateUtilityReportCSV(reportData)
-          break
-        case 'performance':
-          csvContent = generatePerformanceReportCSV(reportData)
-          break
-        case 'rent':
-          csvContent = generateRentCollectionReportCSV(reportData)
-          break
-        default:
-          csvContent = ''
-      }
-
-      const filename = `${reportType}_report_${new Date().toISOString().split('T')[0]}.csv`
-
-      return new NextResponse(csvContent, {
-        status: 200,
-        headers: {
-          'Content-Type': 'text/csv',
-          'Content-Disposition': `attachment; filename="${filename}"`,
-        },
-      })
-    } else if (format === 'pdf') {
-      const htmlContent = generatePDFHTML(reportData, reportType)
-      const filename = `${reportType}_report_${new Date().toISOString().split('T')[0]}.html`
-
-      // Note: For actual PDF generation, you would use a library like puppeteer or pdfkit
-      // For now, return HTML that can be converted to PDF client-side or via a service
-      return new NextResponse(htmlContent, {
-        status: 200,
-        headers: {
-          'Content-Type': 'text/html',
-          'Content-Disposition': `attachment; filename="${filename}"`,
-        },
-      })
-    } else {
-      // JSON format (default)
-      return NextResponse.json(
-        {
-          success: true,
-          report_type: reportType,
-          data: reportData,
-          generated_at: new Date().toISOString(),
-        },
-        { status: 200 }
-      )
-    }
+    // 7. JSON response (exports are generated client-side via lib/export/download.ts)
+    return NextResponse.json(
+      {
+        success: true,
+        report_type: reportType,
+        data: reportData,
+        generated_at: new Date().toISOString(),
+      },
+      { status: 200 }
+    )
   } catch (error) {
     const err = error as Error
     console.error('Error generating report:', err)
@@ -258,14 +151,9 @@ export async function GET(
   }
 }
 
-// Handle unsupported methods
 export async function POST() {
   return NextResponse.json(
-    {
-      success: false,
-      error: 'Method not allowed. Use GET to retrieve reports.',
-    },
+    { success: false, error: 'Method not allowed. Use GET to retrieve reports.' },
     { status: 405 }
   )
 }
-

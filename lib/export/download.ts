@@ -84,6 +84,9 @@ async function resolveLetterheadMeta(args: {
     tenantPhone: args.letterhead?.tenantPhone,
     propertyName: args.letterhead?.propertyName,
     unitNumber: args.letterhead?.unitNumber,
+    reportingPeriod: args.letterhead?.reportingPeriod,
+    referenceNumber: args.letterhead?.referenceNumber,
+    preparedBy: args.letterhead?.preparedBy,
     documentTitle: args.letterhead?.documentTitle || baseTitle,
     generatedAtISO: args.letterhead?.generatedAtISO || nowIso,
   }

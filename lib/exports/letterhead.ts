@@ -11,6 +11,10 @@ export type LetterheadMeta = {
   propertyName?: string
   unitNumber?: string
 
+  reportingPeriod?: string
+  referenceNumber?: string
+  preparedBy?: string
+
   documentTitle: string
   generatedAtISO: string
 }
@@ -42,18 +46,26 @@ export async function fetchCurrentOrganizationBrand(): Promise<ResolvedOrganizat
 }
 
 export function safeFilename(value: string) {
-  return value
-    .trim()
-    .replace(/[^\w\-]+/g, '_')
-    .replace(/_+/g, '_')
-    .replace(/^_+|_+$/g, '')
-    .slice(0, 120) || 'export'
+  return (
+    value
+      .trim()
+      .replace(/[^\w\-]+/g, '_')
+      .replace(/_+/g, '_')
+      .replace(/^_+|_+$/g, '')
+      .slice(0, 120) || 'export'
+  )
 }
 
 export function formatGeneratedAt(iso: string) {
   const parsed = new Date(iso)
   if (Number.isNaN(parsed.getTime())) return new Date().toLocaleString()
-  return parsed.toLocaleString()
+  return parsed.toLocaleString(undefined, {
+    year: 'numeric',
+    month: 'short',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
 }
 
 export function buildLetterheadLines(meta: LetterheadMeta) {
@@ -63,6 +75,10 @@ export function buildLetterheadLines(meta: LetterheadMeta) {
   if (meta.organizationLocation) left.push(String(meta.organizationLocation))
   if (meta.organizationPhone) left.push(String(meta.organizationPhone))
 
+  if (meta.referenceNumber) left.push(`Ref: ${meta.referenceNumber}`)
+  if (meta.reportingPeriod) left.push(`Period: ${meta.reportingPeriod}`)
+  if (meta.preparedBy) left.push(`Prepared by: ${meta.preparedBy}`)
+
   if (meta.tenantName) right.push(`Tenant: ${meta.tenantName}`)
   if (meta.tenantPhone) right.push(`Phone: ${meta.tenantPhone}`)
   if (meta.propertyName) right.push(`Property: ${meta.propertyName}`)
@@ -70,4 +86,3 @@ export function buildLetterheadLines(meta: LetterheadMeta) {
 
   return { left, right }
 }
-
