@@ -49,7 +49,7 @@ function computeHeaderHeight(meta: LetterheadMeta, subtitle?: string) {
   const { left, right } = buildLetterheadLines(meta)
   const lineCount = Math.max(left.length, right.length)
   const extraSubtitle = subtitle ? 1 : 0
-  const base = 96
+  const base = 108
   return base + (lineCount + extraSubtitle) * 12
 }
 
@@ -69,10 +69,6 @@ export function drawLetterhead(
   doc.setDrawColor(...BORDER_RGB)
   doc.setLineWidth(0.8)
   doc.line(PAGE_MARGIN_X, EXPORT_THEME.page.headerTopPad, pageWidth - PAGE_MARGIN_X, EXPORT_THEME.page.headerTopPad)
-
-  doc.setDrawColor(...brandColor)
-  doc.setLineWidth(2.2)
-  doc.line(PAGE_MARGIN_X, EXPORT_THEME.page.headerTopPad, PAGE_MARGIN_X + 120, EXPORT_THEME.page.headerTopPad)
 
   doc.setTextColor(...TEXT_RGB)
   doc.setFont('helvetica', 'bold')
@@ -123,7 +119,7 @@ export function drawLetterhead(
   }
 
   doc.setDrawColor(...BORDER_RGB)
-  doc.line(PAGE_MARGIN_X, headerHeight - 12, pageWidth - PAGE_MARGIN_X, headerHeight - 12)
+  doc.line(PAGE_MARGIN_X, headerHeight - 6, pageWidth - PAGE_MARGIN_X, headerHeight - 6)
 }
 
 export function getLetterheadHeight(meta: LetterheadMeta, subtitle?: string) {
