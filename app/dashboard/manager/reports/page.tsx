@@ -115,6 +115,7 @@ export default function ReportsOverviewPage() {
   const calendarChartRef = React.useRef<echarts.ECharts | null>(null)
   const [calendarView, setCalendarView] = React.useState<'month' | 'year'>('month')
   const { isPrinting, triggerPrint } = usePrintMode()
+  const [organizationName, setOrganizationName] = React.useState<string>('')
 
   const [filters, setFilters] = React.useState<ReportFilterState>({
     period: 'quarter',
@@ -161,6 +162,25 @@ export default function ReportsOverviewPage() {
   React.useEffect(() => {
     load()
   }, [load])
+
+  React.useEffect(() => {
+    let active = true
+    const fetchOrgName = async () => {
+      try {
+        const res = await fetch('/api/organizations/current', { cache: 'no-store' })
+        if (!res.ok) return
+        const json = await res.json().catch(() => ({}))
+        const name = json?.data?.name
+        if (active && name) setOrganizationName(String(name))
+      } catch (error) {
+        console.warn('[ReportsOverview] failed to load organization name', error)
+      }
+    }
+    fetchOrgName()
+    return () => {
+      active = false
+    }
+  }, [])
 
   React.useEffect(() => {
     const target = mainRef.current
@@ -457,6 +477,9 @@ export default function ReportsOverviewPage() {
                 <BarChart3 className="h-5 w-5" />
               </div>
               <div>
+                <div className="text-xs font-semibold text-muted-foreground">
+                  {organizationName || 'Organization'}
+                </div>
                 <h1 className="text-2xl font-semibold tracking-tight">Reports Overview</h1>
                 <p className="text-sm text-muted-foreground">
                   Enterprise portfolio KPIs, trends, property comparisons, and exports.
@@ -499,6 +522,9 @@ export default function ReportsOverviewPage() {
 
           <section id="print-root" className="print-root space-y-6">
             <div className="print-only print-letterhead">
+              <div className="text-base font-semibold text-slate-900">
+                {organizationName || 'Organization'}
+              </div>
               <div className="text-lg font-semibold">Reports Overview</div>
               <div className="text-xs text-slate-600">Generated: {new Date().toLocaleString()}</div>
               <div className="mt-1 text-xs text-slate-600">
