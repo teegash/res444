@@ -433,7 +433,7 @@ export default function FinancialReportPage() {
 
     const periodLabel =
       filters.period === 'custom' && filters.startDate && filters.endDate
-        ? `${filters.startDate} → ${filters.endDate}`
+        ? `${filters.startDate} to ${filters.endDate}`
         : filters.period
     const scopeLabel =
       filters.propertyId === 'all'
