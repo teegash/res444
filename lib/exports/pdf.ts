@@ -49,7 +49,7 @@ function computeHeaderHeight(meta: LetterheadMeta, subtitle?: string) {
   const { left, right } = buildLetterheadLines(meta)
   const lineCount = Math.max(left.length, right.length)
   const extraSubtitle = subtitle ? 1 : 0
-  const base = 88
+  const base = 96
   return base + (lineCount + extraSubtitle) * 12
 }
 
@@ -163,7 +163,7 @@ export function exportTablePdf(options: PdfExportTableOptions) {
   const margin = {
     left: PAGE_MARGIN_X,
     right: PAGE_MARGIN_X,
-    top: headerHeight + 8,
+    top: headerHeight + 20,
     bottom: FOOTER_HEIGHT,
   }
 
