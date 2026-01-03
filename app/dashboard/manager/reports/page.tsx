@@ -20,6 +20,8 @@ import * as echarts from 'echarts'
 
 import { ReportFilters, type ReportFilterState } from '@/components/reports/ReportFilters'
 import { KpiTiles } from '@/components/reports/KpiTiles'
+import { usePrintMode } from '@/components/reports/usePrintMode'
+import { SSExportButton } from '@/components/reports/SSExportButton'
 
 import {
   ChartContainer,
@@ -112,6 +114,7 @@ export default function ReportsOverviewPage() {
   const calendarRef = React.useRef<HTMLDivElement | null>(null)
   const calendarChartRef = React.useRef<echarts.ECharts | null>(null)
   const [calendarView, setCalendarView] = React.useState<'month' | 'year'>('month')
+  const { isPrinting, triggerPrint } = usePrintMode()
 
   const [filters, setFilters] = React.useState<ReportFilterState>({
     period: 'quarter',
@@ -229,7 +232,12 @@ export default function ReportsOverviewPage() {
     const node = calendarRef.current
     if (!node) return
 
-    const chart = calendarChartRef.current || echarts.init(node)
+    if (calendarChartRef.current) {
+      calendarChartRef.current.dispose()
+      calendarChartRef.current = null
+    }
+
+    const chart = echarts.init(node, undefined, { renderer: isPrinting ? 'svg' : 'canvas' })
     calendarChartRef.current = chart
     const calendarData = payload?.maintenanceCalendar?.data || []
     const monthKey = payload?.maintenanceCalendar?.month || new Date().toISOString().slice(0, 7)
@@ -320,8 +328,12 @@ export default function ReportsOverviewPage() {
 
     return () => {
       window.removeEventListener('resize', handleResize)
+      chart.dispose()
+      if (calendarChartRef.current === chart) {
+        calendarChartRef.current = null
+      }
     }
-  }, [payload?.maintenanceCalendar])
+  }, [payload?.maintenanceCalendar, isPrinting])
 
   React.useEffect(() => {
     if (calendarView === 'month') {
@@ -439,7 +451,7 @@ export default function ReportsOverviewPage() {
         <Header />
 
         <main ref={mainRef} className="flex-1 p-6 md:p-8 space-y-6 overflow-auto">
-          <div className="flex items-start justify-between gap-4">
+          <div className="no-print flex items-start justify-between gap-4">
             <div className="flex items-center gap-3">
               <div className="h-10 w-10 rounded-xl bg-muted flex items-center justify-center">
                 <BarChart3 className="h-5 w-5" />
@@ -467,35 +479,52 @@ export default function ReportsOverviewPage() {
               </div>
             </div>
 
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" className="shrink-0">
-                  <Download className="h-4 w-4 mr-2" />
-                  Export
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => handleExport('pdf')}>Export PDF</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleExport('excel')}>Export Excel</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleExport('csv')}>Export CSV</DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <div className="flex items-center gap-2">
+              <SSExportButton onClick={triggerPrint} ariaLabel="Export reports overview" />
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" className="shrink-0">
+                    <Download className="h-4 w-4 mr-2" />
+                    Export
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => handleExport('pdf')}>Export PDF</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleExport('excel')}>Export Excel</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleExport('csv')}>Export CSV</DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
           </div>
 
-          {loading ? (
-            <div className="space-y-4">
-              <SkeletonLoader height={20} width="60%" />
-              <SkeletonLoader height={16} width="40%" />
-              <SkeletonTable rows={4} columns={4} />
+          <section id="print-root" className="print-root space-y-6">
+            <div className="print-only print-letterhead">
+              <div className="text-lg font-semibold">Reports Overview</div>
+              <div className="text-xs text-slate-600">Generated: {new Date().toLocaleString()}</div>
+              <div className="mt-1 text-xs text-slate-600">
+                Scope: {filters.propertyId === 'all' ? 'All properties' : 'Single property'} • Period: {filters.period}
+                {filters.period === 'custom' && filters.startDate && filters.endDate
+                  ? ` (${filters.startDate} → ${filters.endDate})`
+                  : ''}
+              </div>
             </div>
-          ) : (
-            <>
-              <ReportFilters value={filters} onChange={handleFiltersChange} properties={properties} />
 
-              <KpiTiles
-                items={kpiTiles as any}
-                className="grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8"
-              />
+            {loading ? (
+              <div className="space-y-4">
+                <SkeletonLoader height={20} width="60%" />
+                <SkeletonLoader height={16} width="40%" />
+                <SkeletonTable rows={4} columns={4} />
+              </div>
+            ) : (
+              <>
+                <div className="no-print">
+                  <ReportFilters value={filters} onChange={handleFiltersChange} properties={properties} />
+                </div>
+
+                <KpiTiles
+                  items={kpiTiles as any}
+                  className="grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8"
+                />
 
               <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
                 <Card className="border bg-background">
@@ -718,29 +747,31 @@ export default function ReportsOverviewPage() {
                 </CardContent>
               </Card>
 
-              <Card className="border bg-background">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-base">Actions</CardTitle>
-                  <CardDescription>Jump into specialized reports for deeper analysis.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-1 gap-2 md:grid-cols-6">
-                    {actionLinks.map((item) => (
-                      <ParticleButton
-                        key={item.href}
-                        variant="default"
-                        className="h-10 w-full justify-center gap-2 whitespace-nowrap rounded-lg bg-gradient-to-b from-neutral-700 via-neutral-900 to-black px-3 text-xs text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.25),0_10px_20px_-12px_rgba(0,0,0,0.8)] ring-1 ring-black/40 hover:from-neutral-600 hover:via-neutral-800 hover:to-neutral-950 sm:text-sm"
-                        onClick={() => router.push(item.href)}
-                      >
-                        <span>{item.label}</span>
-                      </ParticleButton>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-
+              <div className="no-print">
+                <Card className="border bg-background">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-base">Actions</CardTitle>
+                    <CardDescription>Jump into specialized reports for deeper analysis.</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-1 gap-2 md:grid-cols-6">
+                      {actionLinks.map((item) => (
+                        <ParticleButton
+                          key={item.href}
+                          variant="default"
+                          className="h-10 w-full justify-center gap-2 whitespace-nowrap rounded-lg bg-gradient-to-b from-neutral-700 via-neutral-900 to-black px-3 text-xs text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.25),0_10px_20px_-12px_rgba(0,0,0,0.8)] ring-1 ring-black/40 hover:from-neutral-600 hover:via-neutral-800 hover:to-neutral-950 sm:text-sm"
+                          onClick={() => router.push(item.href)}
+                        >
+                          <span>{item.label}</span>
+                        </ParticleButton>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
             </>
           )}
+          </section>
         </main>
       </div>
     </div>

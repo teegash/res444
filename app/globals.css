@@ -245,3 +245,107 @@
 .ag-theme-quartz .ag-row.ledger-row-expense {
   background-color: rgba(244, 63, 94, 0.08);
 }
+
+/* ===========================
+   Report Print Export (global)
+   =========================== */
+
+.ss-btn {
+  background: #000;
+  color: #fff;
+  border: 0;
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.ss-btn:hover {
+  opacity: 0.92;
+}
+
+.print-only {
+  display: none;
+}
+
+@media print {
+  @page {
+    size: A4;
+    margin: 12mm 12mm 14mm 12mm;
+  }
+
+  html,
+  body {
+    background: #fff !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  body * {
+    visibility: hidden !important;
+  }
+
+  #print-root,
+  #print-root * {
+    visibility: visible !important;
+  }
+
+  #print-root {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100% !important;
+  }
+
+  .no-print,
+  .no-print * {
+    display: none !important;
+  }
+
+  button,
+  input,
+  select,
+  textarea {
+    display: none !important;
+  }
+
+  .report-card,
+  .kpi-card,
+  .chart-card,
+  .section-card {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .print-only {
+    display: block !important;
+  }
+
+  .print-letterhead {
+    margin-bottom: 10mm;
+    padding-bottom: 4mm;
+    border-bottom: 1px solid #e5e7eb;
+  }
+
+  .ag-body-viewport,
+  .ag-center-cols-viewport {
+    overflow: visible !important;
+    max-height: none !important;
+  }
+
+  .ag-root-wrapper,
+  .ag-root-wrapper-body,
+  .ag-body {
+    height: auto !important;
+  }
+
+  .ag-paging-panel,
+  .ag-header-cell-menu-button,
+  .ag-tool-panel-wrapper,
+  .ag-side-bar,
+  .ag-status-bar,
+  .ag-floating-filter {
+    display: none !important;
+  }
+}
