@@ -60,9 +60,10 @@ export default function FinancialStatementPage() {
       { header: 'Net', accessor: (row: StatementRow) => `KES ${(row.income - row.expenses).toLocaleString()}` },
     ]
     if (format === 'pdf') {
+      const scopeLabel = property === 'all' ? 'All properties' : property
       exportRowsAsPDF(filename, columns, filtered, {
         title: 'Financial Statement',
-        subtitle: `Period: ${period}, Property: ${property}`,
+        subtitle: `Period: ${period}. Scope: ${scopeLabel}.`,
         letterhead,
       })
     } else if (format === 'excel') {

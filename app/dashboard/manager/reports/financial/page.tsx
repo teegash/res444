@@ -431,9 +431,15 @@ export default function FinancialReportPage() {
       ],
     ]
 
-    const subtitle =
-      `Income uses verified payments. Expenses use recorded expenses (including landlord-paid maintenance). ` +
-      `NOI = Income - Expenses.`
+    const periodLabel =
+      filters.period === 'custom' && filters.startDate && filters.endDate
+        ? `${filters.startDate} → ${filters.endDate}`
+        : filters.period
+    const scopeLabel =
+      filters.propertyId === 'all'
+        ? 'All properties'
+        : payload.properties.find((p) => p.id === filters.propertyId)?.name || 'Single property'
+    const subtitle = `Period: ${periodLabel}. Scope: ${scopeLabel}.`
 
     if (format === 'pdf') {
       exportRowsAsPDF(filename, columns, propertyRows, {

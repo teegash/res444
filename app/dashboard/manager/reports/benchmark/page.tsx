@@ -258,10 +258,20 @@ export default function BenchmarkReportPage() {
       { header: 'NOI Margin %', accessor: (r: any) => `${r.noiMargin.toFixed(1)}%` },
     ]
 
+    const periodLabel =
+      filters.period === 'custom' && filters.startDate && filters.endDate
+        ? `${filters.startDate} → ${filters.endDate}`
+        : filters.period
+    const scopeLabel =
+      filters.propertyId === 'all'
+        ? 'All properties'
+        : payload.properties.find((p) => p.id === filters.propertyId)?.name || 'Single property'
+    const subtitle = `Period: ${periodLabel}. Scope: ${scopeLabel}.`
+
     if (format === 'pdf') {
       exportRowsAsPDF(filename, columns, payload.rows, {
         title: 'Peer Benchmark Report — Property Performance',
-        subtitle: 'Comparative analytics across properties (YTD/period).',
+        subtitle,
         summaryRows: [],
         letterhead,
         orientation: 'landscape',

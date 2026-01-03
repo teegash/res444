@@ -250,9 +250,15 @@ export default function ArrearsReportPage() {
       ],
     ]
 
-    const subtitle =
-      `Arrears = invoices where status_text != 'paid' and due_date < today. ` +
-      `Outstanding computed as amount - total_paid. Snapshot as of ${payload.todayISO}.`
+    const periodLabel =
+      filters.period === 'custom' && filters.startDate && filters.endDate
+        ? `${filters.startDate} → ${filters.endDate}`
+        : filters.period
+    const scopeLabel =
+      filters.propertyId === 'all'
+        ? 'All properties'
+        : payload.properties.find((p) => p.id === filters.propertyId)?.name || 'Single property'
+    const subtitle = `Period: ${periodLabel}. Scope: ${scopeLabel}.`
 
     if (format === 'pdf') {
       exportRowsAsPDF(filename, columns, exportRows, {

@@ -241,14 +241,20 @@ export default function RevenueReportPage() {
         kes(payload.kpis.billedRent),
         kes(payload.kpis.billedWater),
         kes(payload.kpis.collectedTotal),
-        `${payload.kpis.collectionRate.toFixed(1)}%`,
+        '',
         kes(totalArrears),
       ],
     ]
 
-    const subtitle =
-      `Paid invoices are status_text='paid'. Collected uses verified payments.payment_date. ` +
-      `Period: ${filters.period}. Scope: ${filters.propertyId === 'all' ? 'All properties' : 'Single property'}.`
+    const periodLabel =
+      filters.period === 'custom' && filters.startDate && filters.endDate
+        ? `${filters.startDate} → ${filters.endDate}`
+        : filters.period
+    const scopeLabel =
+      filters.propertyId === 'all'
+        ? 'All properties'
+        : payload.properties.find((p) => p.id === filters.propertyId)?.name || 'Single property'
+    const subtitle = `Period: ${periodLabel}. Scope: ${scopeLabel}.`
 
     if (format === 'pdf') {
       exportRowsAsPDF(filename, columns, exportRows, {

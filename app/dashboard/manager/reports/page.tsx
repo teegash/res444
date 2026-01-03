@@ -392,19 +392,26 @@ export default function ReportsOverviewPage() {
         'TOTAL',
         kes(payload.kpis.billed),
         kes(payload.kpis.collected),
-        `${payload.kpis.collectionRate.toFixed(1)}%`,
+        '',
         kes(payload.kpis.expenses),
         kes(payload.kpis.net),
         kes(payload.kpis.arrearsNow),
       ],
     ]
 
+    const periodLabel =
+      filters.period === 'custom' && filters.startDate && filters.endDate
+        ? `${filters.startDate} → ${filters.endDate}`
+        : filters.period
+    const scopeLabel =
+      filters.propertyId === 'all'
+        ? 'All properties'
+        : payload.properties.find((p) => p.id === filters.propertyId)?.name || 'Single property'
+
     if (format === 'pdf') {
       await exportRowsAsPDF(filename, columns, exportRows, {
         title: 'Reports Overview - Portfolio Performance',
-        subtitle: `Period: ${filters.period}. Scope: ${
-          filters.propertyId === 'all' ? 'All properties' : 'Single property'
-        }. Paid invoices are status_text='paid'. Payments use payment_date.`,
+        subtitle: `Period: ${periodLabel}. Scope: ${scopeLabel}.`,
         summaryRows,
         letterhead,
         orientation: 'landscape',

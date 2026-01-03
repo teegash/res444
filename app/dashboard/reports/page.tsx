@@ -79,8 +79,7 @@ export default function ReportsPage() {
       case 'pdf':
         exportRowsAsPDF(fileBase, columns, rows, {
           title: 'Dashboard Snapshot',
-          subtitle: 'Revenue, occupancy, and payment performance',
-          footerNote: `Generated on ${new Date().toLocaleString()}`,
+          subtitle: `Period: ${new Date().toISOString().slice(0, 10)}. Scope: Portfolio.`,
           letterhead,
         })
         break

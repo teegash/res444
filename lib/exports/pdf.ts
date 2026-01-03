@@ -49,8 +49,8 @@ function computeHeaderHeight(meta: LetterheadMeta, subtitle?: string) {
   const { left, right } = buildLetterheadLines(meta)
   const lineCount = Math.max(left.length, right.length)
   const extraSubtitle = subtitle ? 1 : 0
-  const base = 108
-  return base + (lineCount + extraSubtitle) * 12
+  const base = 140
+  return base + lineCount * 16 + extraSubtitle * 20
 }
 
 export function drawLetterhead(
@@ -64,32 +64,29 @@ export function drawLetterhead(
 ) {
   const { meta, subtitle, headerHeight, accentColor } = opts
   const pageWidth = doc.internal.pageSize.getWidth()
-  const brandColor = accentColor || ACCENT_RGB
-
-  doc.setDrawColor(...BORDER_RGB)
-  doc.setLineWidth(0.8)
-  doc.line(PAGE_MARGIN_X, EXPORT_THEME.page.headerTopPad, pageWidth - PAGE_MARGIN_X, EXPORT_THEME.page.headerTopPad)
+  void accentColor
+  void ACCENT_RGB
 
   doc.setTextColor(...TEXT_RGB)
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(EXPORT_THEME.pdf.orgSize)
-  doc.text(meta.organizationName || 'Organization', PAGE_MARGIN_X, 48, {
+  doc.text(meta.organizationName || 'Organization', PAGE_MARGIN_X, 60, {
     maxWidth: pageWidth - PAGE_MARGIN_X * 2,
   })
 
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(EXPORT_THEME.pdf.metaSize)
   doc.setTextColor(...MUTED_RGB)
-  doc.text(`Generated: ${formatGeneratedAt(meta.generatedAtISO)}`, pageWidth - PAGE_MARGIN_X, 48, {
+  doc.text(`Generated: ${formatGeneratedAt(meta.generatedAtISO)}`, pageWidth - PAGE_MARGIN_X, 60, {
     align: 'right',
   })
 
   doc.setTextColor(...TEXT_RGB)
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(EXPORT_THEME.pdf.titleSize)
-  doc.text(meta.documentTitle || 'Document', PAGE_MARGIN_X, 70)
+  doc.text(meta.documentTitle || 'Document', PAGE_MARGIN_X, 92)
 
-  let cursorY = 88
+  let cursorY = 116
   if (subtitle) {
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(10)
@@ -97,7 +94,7 @@ export function drawLetterhead(
     doc.text(subtitle, PAGE_MARGIN_X, cursorY, {
       maxWidth: pageWidth - PAGE_MARGIN_X * 2,
     })
-    cursorY += 16
+    cursorY += 20
   }
 
   const { left, right } = buildLetterheadLines(meta)
@@ -115,11 +112,13 @@ export function drawLetterhead(
     if (rightText) {
       doc.text(rightText, pageWidth - PAGE_MARGIN_X, cursorY, { align: 'right' })
     }
-    cursorY += 12
+    cursorY += 16
   }
 
   doc.setDrawColor(...BORDER_RGB)
-  doc.line(PAGE_MARGIN_X, headerHeight - 6, pageWidth - PAGE_MARGIN_X, headerHeight - 6)
+  doc.setLineWidth(0.6)
+  const lineY = Math.max(headerHeight - 8, cursorY + 6)
+  doc.line(PAGE_MARGIN_X, lineY, pageWidth - PAGE_MARGIN_X, lineY)
 }
 
 export function getLetterheadHeight(meta: LetterheadMeta, subtitle?: string) {
@@ -159,7 +158,7 @@ export function exportTablePdf(options: PdfExportTableOptions) {
   const margin = {
     left: PAGE_MARGIN_X,
     right: PAGE_MARGIN_X,
-    top: headerHeight + 20,
+    top: headerHeight + 36,
     bottom: FOOTER_HEIGHT,
   }
 

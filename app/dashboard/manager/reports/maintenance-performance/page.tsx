@@ -314,15 +314,26 @@ export default function MaintenancePerformanceReportPage() {
             fmtKES(summary.total_collected),
             fmtKES(summary.total_maintenance_spend),
             fmtKES(summary.total_net_income),
-            fmtPct(summary.overall_ratio),
+            '',
           ],
         ]
       : []
 
+    const scopeProperty =
+      propertyId === 'all'
+        ? 'All properties'
+        : properties.find((property) => property.id === propertyId)?.name || 'Single property'
+    const scopeUnit =
+      unitId === 'all'
+        ? ''
+        : units.find((unit) => unit.id === unitId)?.unit_number || 'Selected unit'
+    const scopeLabel = scopeUnit ? `${scopeProperty} (${scopeUnit})` : scopeProperty
+    const subtitle = `Period: ${year}. Scope: ${scopeLabel}.`
+
     if (format === 'pdf') {
       exportRowsAsPDF(filename, columns, visibleRows, {
         title: 'Maintenance Report',
-        subtitle: `Year: ${year}. Landlord maintenance spend vs verified rent collected per unit.`,
+        subtitle,
         summaryRows,
         letterhead,
         orientation: 'landscape',

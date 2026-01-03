@@ -236,7 +236,7 @@ export default function OccupancyReportPage() {
       [
         'TOTAL / PORTFOLIO',
         String(payload.kpis.totalUnits),
-        `${payload.kpis.occupancyRate.toFixed(1)}%`,
+        '',
         String(payload.kpis.occupied),
         String(payload.kpis.notice),
         String(payload.kpis.vacant),
@@ -244,9 +244,15 @@ export default function OccupancyReportPage() {
       ],
     ]
 
-    const subtitle =
-      `Snapshot report. Units in "notice" include notice_vacate_date. ` +
-      `Period filter is for consistency across reports; occupancy is current state.`
+    const periodLabel =
+      filters.period === 'custom' && filters.startDate && filters.endDate
+        ? `${filters.startDate} → ${filters.endDate}`
+        : filters.period
+    const scopeLabel =
+      filters.propertyId === 'all'
+        ? 'All properties'
+        : payload.properties.find((p) => p.id === filters.propertyId)?.name || 'Single property'
+    const subtitle = `Period: ${periodLabel}. Scope: ${scopeLabel}.`
 
     if (format === 'pdf') {
       exportRowsAsPDF(filename, columns, exportRows, {
