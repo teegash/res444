@@ -63,7 +63,23 @@ function toDateOnlyIso(raw: string) {
 
 export async function POST(req: NextRequest, ctx: { params: { id: string } }) {
   try {
-    const tenantId = String(ctx?.params?.id || '').trim()
+    let tenantId =
+      ctx?.params?.id ||
+      req.nextUrl.searchParams.get('tenantId') ||
+      req.nextUrl.searchParams.get('id') ||
+      null
+
+    if (!tenantId) {
+      const segments = req.nextUrl.pathname.split('/').filter(Boolean)
+      const tenantsIndex = segments.indexOf('tenants')
+      if (tenantsIndex >= 0 && segments[tenantsIndex + 1]) {
+        tenantId = segments[tenantsIndex + 1]
+      } else if (segments.length >= 2 && segments[segments.length - 1] === 'import-past-data') {
+        tenantId = segments[segments.length - 2]
+      }
+    }
+
+    tenantId = String(tenantId || '').trim()
     if (!tenantId) {
       return NextResponse.json({ success: false, error: 'Tenant id is required.' }, { status: 400 })
     }
