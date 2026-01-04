@@ -562,6 +562,7 @@ export default function MaintenancePerformanceReportPage() {
                   style={{ height: 560 }}
                 >
                   <AgGridReact<Row>
+                    theme="legacy"
                     rowData={rows}
                     columnDefs={colDefs}
                     defaultColDef={{

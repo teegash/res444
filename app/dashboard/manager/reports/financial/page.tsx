@@ -563,6 +563,7 @@ export default function FinancialReportPage() {
                     style={{ height: 520 }}
                   >
                     <AgGridReact<FinancialPayload['byProperty'][number]>
+                      theme="legacy"
                       rowData={propertyRows}
                       columnDefs={columnDefs}
                       defaultColDef={{
@@ -595,6 +596,7 @@ export default function FinancialReportPage() {
                     style={{ height: 520 }}
                   >
                     <AgGridReact<FinancialPayload['ledger'][number]>
+                      theme="legacy"
                       rowData={payload?.ledger || []}
                       columnDefs={ledgerDefs}
                       defaultColDef={{

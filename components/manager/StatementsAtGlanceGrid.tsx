@@ -320,6 +320,7 @@ export function StatementsAtGlanceGrid() {
           }}
         >
           <AgGridReact<Row>
+            theme="legacy"
             ref={gridRef}
             rowData={rows}
             columnDefs={columnDefs}

@@ -54,7 +54,7 @@ type ImportRow = {
   maintenance_description?: string
   priority_level?: 'low' | 'medium' | 'high' | 'urgent'
   maintenance_cost?: number
-  maintenance_cost_paid_by?: 'tenant' | 'manager'
+  maintenance_cost_paid_by?: 'tenant' | 'landlord'
   maintenance_cost_notes?: string
   assigned_technician_name?: string
   assigned_technician_phone?: string
@@ -280,7 +280,7 @@ export default function ImportPastDataPage() {
       { header: 'description [REQUIRED]', key: 'description', width: 34 },
       { header: 'priority_level (low|medium|high|urgent) [REQUIRED]', key: 'priority_level', width: 46 },
       { header: 'maintenance_cost [REQUIRED] (>= 0)', key: 'maintenance_cost', width: 30 },
-      { header: 'maintenance_cost_paid_by (tenant|manager) [REQUIRED]', key: 'maintenance_cost_paid_by', width: 46 },
+      { header: 'maintenance_cost_paid_by (tenant|landlord) [REQUIRED]', key: 'maintenance_cost_paid_by', width: 46 },
       { header: 'maintenance_cost_notes (optional)', key: 'maintenance_cost_notes', width: 30 },
       { header: 'assigned_technician_name (optional)', key: 'assigned_technician_name', width: 30 },
       { header: 'assigned_technician_phone (optional)', key: 'assigned_technician_phone', width: 30 },
@@ -291,7 +291,7 @@ export default function ImportPastDataPage() {
       description: 'Kitchen tap leaking; replaced washer',
       priority_level: 'medium',
       maintenance_cost: 1500,
-      maintenance_cost_paid_by: 'manager',
+      maintenance_cost_paid_by: 'landlord',
       maintenance_cost_notes: 'Plumber visit',
       assigned_technician_name: 'John Doe',
       assigned_technician_phone: '+2547XXXXXXXX',
@@ -351,8 +351,8 @@ export default function ImportPastDataPage() {
         errs.push('priority_level invalid')
       }
       if (typeof r.maintenance_cost !== 'number' || r.maintenance_cost < 0) errs.push('maintenance_cost must be >= 0')
-      if (!r.maintenance_cost_paid_by || !['tenant', 'manager'].includes(r.maintenance_cost_paid_by)) {
-        errs.push('maintenance_cost_paid_by must be tenant|manager')
+      if (!r.maintenance_cost_paid_by || !['tenant', 'landlord'].includes(r.maintenance_cost_paid_by)) {
+        errs.push('maintenance_cost_paid_by must be tenant|landlord')
       }
     }
 
@@ -517,7 +517,12 @@ export default function ImportPastDataPage() {
           maintenance_description: asStr(row['description [REQUIRED]'] ?? row['description']),
           priority_level: asStr(row['priority_level (low|medium|high|urgent) [REQUIRED]'] ?? row['priority_level']).toLowerCase() as any,
           maintenance_cost: asNumber(row['maintenance_cost [REQUIRED] (>= 0)'] ?? row['maintenance_cost']),
-          maintenance_cost_paid_by: asStr(row['maintenance_cost_paid_by (tenant|manager) [REQUIRED]'] ?? row['maintenance_cost_paid_by']).toLowerCase() as any,
+          maintenance_cost_paid_by: (() => {
+            const raw = asStr(
+              row['maintenance_cost_paid_by (tenant|landlord) [REQUIRED]'] ?? row['maintenance_cost_paid_by']
+            ).toLowerCase()
+            return (raw === 'manager' ? 'landlord' : raw) as any
+          })(),
           maintenance_cost_notes: asStr(row['maintenance_cost_notes (optional)'] ?? row['maintenance_cost_notes']),
           assigned_technician_name: asStr(row['assigned_technician_name (optional)'] ?? row['assigned_technician_name']),
           assigned_technician_phone: asStr(row['assigned_technician_phone (optional)'] ?? row['assigned_technician_phone']),
@@ -724,6 +729,7 @@ export default function ImportPastDataPage() {
               <CardContent className="space-y-4">
                 <div className="ag-theme-quartz" style={{ width: '100%', height: 520 }}>
                   <AgGridReact
+                    theme="legacy"
                     rowData={rows}
                     columnDefs={columnDefs}
                     onGridReady={(p) => (gridApiRef.current = p.api)}

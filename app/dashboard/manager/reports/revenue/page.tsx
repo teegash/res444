@@ -451,6 +451,7 @@ export default function RevenueReportPage() {
                     style={{ height: 520 }}
                   >
                     <AgGridReact<PropertyRow>
+                      theme="legacy"
                       rowData={payload?.byProperty || []}
                       columnDefs={columnDefs}
                       defaultColDef={{

@@ -508,6 +508,7 @@ export default function OccupancyReportPage() {
                     style={{ height: 520 }}
                   >
                     <AgGridReact<OccupancyPayload['units'][number]>
+                      theme="legacy"
                       rowData={payload?.units || []}
                       columnDefs={columnDefs}
                       defaultColDef={{

@@ -18,6 +18,7 @@ import {
   Activity,
   CheckCircle2,
   Clock3,
+  Calendar,
 } from 'lucide-react'
 import {
   Dialog,
@@ -148,6 +149,8 @@ export default function MaintenancePage() {
   const [statusFilter, setStatusFilter] = useState('all')
   const [priorityFilter, setPriorityFilter] = useState('all')
   const [categoryFilter, setCategoryFilter] = useState('all')
+  const [startDate, setStartDate] = useState('')
+  const [endDate, setEndDate] = useState('')
   const [professionOptions, setProfessionOptions] = useState<ProfessionOption[]>([])
   const [technicianOptions, setTechnicianOptions] = useState<TechnicianOption[]>([])
   const [assignProfessionId, setAssignProfessionId] = useState('')
@@ -249,9 +252,24 @@ export default function MaintenancePage() {
         return false
       }
 
+      if (startDate || endDate) {
+        const createdMs = new Date(request.created_at).getTime()
+        if (Number.isNaN(createdMs)) {
+          return false
+        }
+        const startMs = startDate ? new Date(`${startDate}T00:00:00`).getTime() : null
+        const endMs = endDate ? new Date(`${endDate}T23:59:59.999`).getTime() : null
+        if (startMs && createdMs < startMs) {
+          return false
+        }
+        if (endMs && createdMs > endMs) {
+          return false
+        }
+      }
+
       return true
     })
-  }, [requests, searchTerm, statusFilter, priorityFilter, categoryFilter])
+  }, [requests, searchTerm, statusFilter, priorityFilter, categoryFilter, startDate, endDate])
 
   useEffect(() => {
     const fetchRequests = async () => {
@@ -626,13 +644,13 @@ export default function MaintenancePage() {
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                   <div>
                     <h2 className="text-lg font-semibold">Filter queue</h2>
-                    <p className="text-xs text-muted-foreground">Refine by status, priority, or category</p>
-                  </div>
+                  <p className="text-xs text-muted-foreground">Refine by status, priority, category, or date range</p>
+                </div>
                   <Button variant="outline" size="sm" className="rounded-full text-xs">
                     Save view
                   </Button>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div className="grid grid-cols-1 lg:grid-cols-[minmax(220px,1.4fr)_repeat(3,1fr)_minmax(260px,1.4fr)] gap-4">
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                     <Input
@@ -680,6 +698,30 @@ export default function MaintenancePage() {
                       <SelectItem value="general">General</SelectItem>
                     </SelectContent>
                   </Select>
+                  <div className="flex items-center gap-2">
+                    <div className="relative flex-1">
+                      <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                      <Input
+                        type="date"
+                        className="h-11 pl-9"
+                        value={startDate}
+                        max={endDate || undefined}
+                        onChange={(event) => setStartDate(event.target.value)}
+                        aria-label="Start date"
+                      />
+                    </div>
+                    <div className="relative flex-1">
+                      <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                      <Input
+                        type="date"
+                        className="h-11 pl-9"
+                        value={endDate}
+                        min={startDate || undefined}
+                        onChange={(event) => setEndDate(event.target.value)}
+                        aria-label="End date"
+                      />
+                    </div>
+                  </div>
                 </div>
               </CardContent>
             </Card>

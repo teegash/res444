@@ -446,6 +446,7 @@ export default function ArrearsReportPage() {
                     style={{ height: 520 }}
                   >
                     <AgGridReact<ArrearsPayload['defaulters'][number]>
+                      theme="legacy"
                       rowData={payload?.defaulters || []}
                       columnDefs={columnDefs}
                       defaultColDef={{

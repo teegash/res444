@@ -29,7 +29,7 @@ type ImportRow = {
   maintenance_description?: string
   priority_level?: 'low' | 'medium' | 'high' | 'urgent'
   maintenance_cost?: number
-  maintenance_cost_paid_by?: 'tenant' | 'manager'
+  maintenance_cost_paid_by?: 'tenant' | 'landlord' | 'manager'
   maintenance_cost_notes?: string
   assigned_technician_name?: string
   assigned_technician_phone?: string
@@ -203,6 +203,8 @@ export async function POST(req: NextRequest, ctx: { params: { id: string } }) {
     for (const r of sorted) {
       const kind = r.kind
       const rowIndex = Number(r.rowIndex || 0)
+      const normalizedMaintenancePaidBy =
+        r.maintenance_cost_paid_by === 'manager' ? 'landlord' : r.maintenance_cost_paid_by
 
       // Build row_hash for idempotency
       const hashBasis =
@@ -212,7 +214,7 @@ export async function POST(req: NextRequest, ctx: { params: { id: string } }) {
           ? `pay|${orgId}|${tenantId}|${lease.id}|${r.invoice_type}|${r.period_start}|${r.amount_paid}|${r.payment_date}|${r.payment_method}|${r.mpesa_receipt_number || ''}|${r.bank_reference_number || ''}`
           : kind === 'expense'
           ? `exp|${orgId}|${tenantId}|${lease.id}|${r.expense_incurred_at}|${r.expense_category}|${r.expense_amount}|${r.expense_notes || ''}`
-          : `mnt|${orgId}|${tenantId}|${lease.id}|${r.request_date}|${r.title}|${r.maintenance_cost}|${r.maintenance_cost_paid_by}`
+          : `mnt|${orgId}|${tenantId}|${lease.id}|${r.request_date}|${r.title}|${r.maintenance_cost}|${normalizedMaintenancePaidBy}`
 
       const rowHash = sha256Hex(hashBasis)
 
@@ -428,13 +430,14 @@ export async function POST(req: NextRequest, ctx: { params: { id: string } }) {
           const desc = String(r.maintenance_description || '').trim()
           const priority = String(r.priority_level || '').trim()
           const cost = Number(r.maintenance_cost ?? 0)
-          const paidBy = String(r.maintenance_cost_paid_by || '').trim()
+          const paidByRaw = String(r.maintenance_cost_paid_by || '').trim().toLowerCase()
+          const paidBy = paidByRaw === 'manager' ? 'landlord' : paidByRaw
 
           if (!requestDate || !title || !desc) {
             throw new Error('Invalid maintenance row (missing request_date/title/description).')
           }
           if (!['low', 'medium', 'high', 'urgent'].includes(priority)) throw new Error('Invalid priority_level.')
-          if (!['tenant', 'manager'].includes(paidBy)) throw new Error('Invalid maintenance_cost_paid_by.')
+          if (!['tenant', 'landlord'].includes(paidBy)) throw new Error('Invalid maintenance_cost_paid_by.')
           if (!Number.isFinite(cost) || cost < 0) throw new Error('maintenance_cost must be >= 0.')
 
           const createdIso = toIsoAtNoonEAT(requestDate)
@@ -460,7 +463,9 @@ export async function POST(req: NextRequest, ctx: { params: { id: string } }) {
             .select('id')
             .single()
 
-          if (mrErr || !mr?.id) throw new Error('Failed to insert maintenance request.')
+          if (mrErr || !mr?.id) {
+            throw new Error(mrErr?.message || 'Failed to insert maintenance request.')
+          }
 
           await admin
             .from('tenant_past_data_import_rows')

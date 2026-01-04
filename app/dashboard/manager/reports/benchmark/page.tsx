@@ -578,6 +578,7 @@ export default function BenchmarkReportPage() {
                     style={{ height: isPrinting ? undefined : 520 }}
                   >
                     <AgGridReact<Row>
+                      theme="legacy"
                       rowData={payload?.rows || []}
                       columnDefs={columnDefs}
                       defaultColDef={{
