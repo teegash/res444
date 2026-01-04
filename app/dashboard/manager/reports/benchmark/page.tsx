@@ -1,6 +1,8 @@
 'use client'
 
 import * as React from 'react'
+import { usePrintMode } from '@/components/reports/usePrintMode'
+import { SSExportButton } from '@/components/reports/SSExportButton'
 import { Sidebar } from '@/components/dashboard/sidebar'
 import { Header } from '@/components/dashboard/header'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -155,6 +157,12 @@ export default function BenchmarkReportPage() {
   const [payload, setPayload] = React.useState<Payload | null>(null)
   const [spotlightIndex, setSpotlightIndex] = React.useState(0)
   const gridApiRef = React.useRef<GridApi | null>(null)
+  const { isPrinting, triggerPrint } = usePrintMode({
+    onBeforePrint: () => {
+      window.dispatchEvent(new Event('resize'))
+    },
+    printDelayMs: 120,
+  })
 
   const handleFiltersChange = React.useCallback((next: ReportFilterState) => {
     if (next.period === 'custom' && (!next.startDate || !next.endDate)) {
@@ -400,7 +408,7 @@ export default function BenchmarkReportPage() {
         <Header />
 
         <main className="flex-1 p-6 md:p-8 space-y-6 overflow-auto">
-          <div className="flex items-start justify-between gap-4">
+          <div className="no-print flex items-start justify-between gap-4">
             <div className="flex items-center gap-3">
               <Button
                 variant="ghost"
@@ -421,27 +429,48 @@ export default function BenchmarkReportPage() {
               </div>
             </div>
 
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline">
-                  <Download className="h-4 w-4 mr-2" />
-                  Export
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => handleExport('pdf')}>Export PDF</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleExport('excel')}>Export Excel</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleExport('csv')}>Export CSV</DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <div className="flex items-center gap-2">
+              <SSExportButton onClick={triggerPrint} ariaLabel="Export peer benchmark" />
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline">
+                    <Download className="h-4 w-4 mr-2" />
+                    Export
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => handleExport('pdf')}>Export PDF</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleExport('excel')}>Export Excel</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleExport('csv')}>Export CSV</DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
           </div>
 
-          {loading ? (
-            <SkeletonLoader />
-          ) : (
-            <>
-              <ReportFilters value={filters} onChange={handleFiltersChange} properties={payload?.properties || []} />
-              <KpiTiles items={kpis as any} className="grid-cols-1 sm:grid-cols-2 lg:grid-cols-6" />
+          <section id="print-root" className="space-y-6">
+            <div className="print-only print-letterhead">
+              <div className="text-lg font-semibold">Peer Benchmark</div>
+              <div className="text-xs text-slate-600">Generated: {new Date().toLocaleString()}</div>
+              <div className="mt-1 text-xs text-slate-600">
+                Scope:{' '}
+                {filters.propertyId === 'all'
+                  ? 'All properties'
+                  : payload?.properties?.find((p) => p.id === filters.propertyId)?.name || 'Selected property'}{' '}
+                • Period: {filters.period}
+                {filters.period === 'custom' && filters.startDate && filters.endDate
+                  ? ` (${filters.startDate} → ${filters.endDate})`
+                  : ''}
+              </div>
+            </div>
+
+            {loading ? (
+              <SkeletonLoader />
+            ) : (
+              <>
+                <div className="no-print">
+                  <ReportFilters value={filters} onChange={handleFiltersChange} properties={payload?.properties || []} />
+                </div>
+                <KpiTiles items={kpis as any} className="grid-cols-1 sm:grid-cols-2 lg:grid-cols-6" />
 
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-6">
                 <RadialMiniKpi
@@ -502,7 +531,7 @@ export default function BenchmarkReportPage() {
               </div>
 
               <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-                <Card className="border bg-background">
+                <Card className="border bg-background report-card">
                   <CardHeader className="pb-2">
                     <CardTitle className="text-base">Spotlight Gauge (Auto-rotating)</CardTitle>
                     <CardDescription>Cycles through properties to highlight collection performance.</CardDescription>
@@ -512,7 +541,7 @@ export default function BenchmarkReportPage() {
                   </CardContent>
                 </Card>
 
-                <Card className="border bg-background">
+                <Card className="border bg-background report-card">
                   <CardHeader className="pb-2">
                     <CardTitle className="text-base">Polar Benchmark</CardTitle>
                     <CardDescription>High-visibility comparative chart of top collection rates.</CardDescription>
@@ -523,7 +552,7 @@ export default function BenchmarkReportPage() {
                 </Card>
               </div>
 
-              <Card className="border bg-background">
+              <Card className="border bg-background report-card">
                 <CardHeader className="pb-2">
                   <CardTitle className="text-base">Benchmark Table</CardTitle>
                   <CardDescription>
@@ -533,7 +562,7 @@ export default function BenchmarkReportPage() {
                 <CardContent>
                   <div
                     className="ag-theme-quartz premium-grid glass-grid w-full rounded-2xl border border-white/60 bg-white/70 shadow-[0_24px_60px_-40px_rgba(15,23,42,0.6)] backdrop-blur"
-                    style={{ height: 520 }}
+                    style={{ height: isPrinting ? undefined : 520 }}
                   >
                     <AgGridReact<Row>
                       rowData={payload?.rows || []}
@@ -544,7 +573,8 @@ export default function BenchmarkReportPage() {
                         filter: true,
                         floatingFilter: true,
                       }}
-                      pagination
+                      domLayout={isPrinting ? 'print' : 'normal'}
+                      pagination={!isPrinting}
                       paginationPageSize={25}
                       animateRows
                       onGridReady={(params) => {
@@ -556,8 +586,9 @@ export default function BenchmarkReportPage() {
                   </div>
                 </CardContent>
               </Card>
-            </>
-          )}
+              </>
+            )}
+          </section>
         </main>
       </div>
     </div>
