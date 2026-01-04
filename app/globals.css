@@ -338,6 +338,37 @@
     border-bottom: 1px solid #e5e7eb;
   }
 
+  #print-root .peer-radials {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 12px !important;
+  }
+
+  #print-root .peer-charts {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 12px !important;
+    align-items: start;
+  }
+
+  #print-root .ag-theme-quartz {
+    --ag-font-size: 9px;
+    --ag-header-font-size: 9px;
+    --ag-row-height: 24px;
+    --ag-header-height: 26px;
+    font-size: 9px !important;
+  }
+
+  #print-root .ag-theme-quartz .ag-header-cell,
+  #print-root .ag-theme-quartz .ag-cell {
+    padding-left: 4px !important;
+    padding-right: 4px !important;
+  }
+
+  #print-root .ag-theme-quartz .ag-header-cell-text,
+  #print-root .ag-theme-quartz .ag-cell-value {
+    font-size: 9px !important;
+    line-height: 1.2;
+  }
+
   .ag-body-viewport,
   .ag-center-cols-viewport {
     overflow: visible !important;

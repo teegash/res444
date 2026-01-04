@@ -472,7 +472,7 @@ export default function BenchmarkReportPage() {
                 </div>
                 <KpiTiles items={kpis as any} className="grid-cols-1 sm:grid-cols-2 lg:grid-cols-6" />
 
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-6">
+              <div className="peer-radials grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-6">
                 <RadialMiniKpi
                   title="Collection Rate"
                   subtitle="Portfolio (YTD/period)"
@@ -530,7 +530,7 @@ export default function BenchmarkReportPage() {
                 />
               </div>
 
-              <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+              <div className="peer-charts grid grid-cols-1 gap-4 lg:grid-cols-2">
                 <Card className="border bg-background report-card">
                   <CardHeader className="pb-2">
                     <CardTitle className="text-base">Spotlight Gauge (Auto-rotating)</CardTitle>
