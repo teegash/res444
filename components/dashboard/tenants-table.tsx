@@ -203,6 +203,11 @@ function TenantActions({
         <DropdownMenuItem asChild>
           <Link href={`/dashboard/tenants/${tenant.tenant_user_id}/lease`}>Lease</Link>
         </DropdownMenuItem>
+        <DropdownMenuItem asChild>
+          <Link href={`/dashboard/tenants/${tenant.tenant_user_id}/import-past-data`}>
+            Import past data
+          </Link>
+        </DropdownMenuItem>
         <DropdownMenuItem
           onClick={() => onRemove(tenant)}
           className="text-destructive focus:text-destructive"
