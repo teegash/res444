@@ -431,13 +431,16 @@ export async function POST(req: NextRequest, ctx: { params: { id: string } }) {
           const priority = String(r.priority_level || '').trim()
           const cost = Number(r.maintenance_cost ?? 0)
           const paidByRaw = String(r.maintenance_cost_paid_by || '').trim().toLowerCase()
-          const paidBy = paidByRaw === 'manager' ? 'landlord' : paidByRaw
+          const paidByNormalized = paidByRaw === 'manager' ? 'landlord' : paidByRaw
+          const paidBy = cost > 0 ? 'landlord' : 'tenant'
 
           if (!requestDate || !title || !desc) {
             throw new Error('Invalid maintenance row (missing request_date/title/description).')
           }
           if (!['low', 'medium', 'high', 'urgent'].includes(priority)) throw new Error('Invalid priority_level.')
-          if (!['tenant', 'landlord'].includes(paidBy)) throw new Error('Invalid maintenance_cost_paid_by.')
+          if (!['tenant', 'landlord'].includes(paidByNormalized) && paidByRaw) {
+            throw new Error('Invalid maintenance_cost_paid_by.')
+          }
           if (!Number.isFinite(cost) || cost < 0) throw new Error('maintenance_cost must be >= 0.')
 
           const createdIso = toIsoAtNoonEAT(requestDate)

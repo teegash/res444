@@ -280,7 +280,11 @@ export default function ImportPastDataPage() {
       { header: 'description [REQUIRED]', key: 'description', width: 34 },
       { header: 'priority_level (low|medium|high|urgent) [REQUIRED]', key: 'priority_level', width: 46 },
       { header: 'maintenance_cost [REQUIRED] (>= 0)', key: 'maintenance_cost', width: 30 },
-      { header: 'maintenance_cost_paid_by (tenant|landlord) [REQUIRED]', key: 'maintenance_cost_paid_by', width: 46 },
+      {
+        header: 'maintenance_cost_paid_by (tenant|landlord) [OPTIONAL - auto from cost]',
+        key: 'maintenance_cost_paid_by',
+        width: 56,
+      },
       { header: 'maintenance_cost_notes (optional)', key: 'maintenance_cost_notes', width: 30 },
       { header: 'assigned_technician_name (optional)', key: 'assigned_technician_name', width: 30 },
       { header: 'assigned_technician_phone (optional)', key: 'assigned_technician_phone', width: 30 },
@@ -351,6 +355,14 @@ export default function ImportPastDataPage() {
         errs.push('priority_level invalid')
       }
       if (typeof r.maintenance_cost !== 'number' || r.maintenance_cost < 0) errs.push('maintenance_cost must be >= 0')
+      if (typeof r.maintenance_cost === 'number') {
+        const expectedPaidBy = r.maintenance_cost > 0 ? 'landlord' : 'tenant'
+        if (!r.maintenance_cost_paid_by) {
+          r.maintenance_cost_paid_by = expectedPaidBy
+        } else if (r.maintenance_cost_paid_by !== expectedPaidBy) {
+          r.maintenance_cost_paid_by = expectedPaidBy
+        }
+      }
       if (!r.maintenance_cost_paid_by || !['tenant', 'landlord'].includes(r.maintenance_cost_paid_by)) {
         errs.push('maintenance_cost_paid_by must be tenant|landlord')
       }
@@ -519,7 +531,8 @@ export default function ImportPastDataPage() {
           maintenance_cost: asNumber(row['maintenance_cost [REQUIRED] (>= 0)'] ?? row['maintenance_cost']),
           maintenance_cost_paid_by: (() => {
             const raw = asStr(
-              row['maintenance_cost_paid_by (tenant|landlord) [REQUIRED]'] ?? row['maintenance_cost_paid_by']
+              row['maintenance_cost_paid_by (tenant|landlord) [OPTIONAL - auto from cost]'] ??
+                row['maintenance_cost_paid_by']
             ).toLowerCase()
             return (raw === 'manager' ? 'landlord' : raw) as any
           })(),
@@ -529,6 +542,9 @@ export default function ImportPastDataPage() {
           validation_status: 'Valid',
           errors: '',
           import_status: 'Pending',
+        }
+        if (typeof mapped.maintenance_cost === 'number') {
+          mapped.maintenance_cost_paid_by = mapped.maintenance_cost > 0 ? 'landlord' : 'tenant'
         }
         if (!mapped.maintenance_cost_notes) delete mapped.maintenance_cost_notes
         if (!mapped.assigned_technician_name) delete mapped.assigned_technician_name
