@@ -357,16 +357,36 @@
     font-size: 9px !important;
   }
 
+  #print-root .benchmark-grid {
+    --ag-font-size: 8px;
+    --ag-header-font-size: 8px;
+    --ag-row-height: 22px;
+    --ag-header-height: 24px;
+    font-size: 8px !important;
+  }
+
   #print-root .ag-theme-quartz .ag-header-cell,
   #print-root .ag-theme-quartz .ag-cell {
     padding-left: 4px !important;
     padding-right: 4px !important;
   }
 
+  #print-root .benchmark-grid .ag-header-cell,
+  #print-root .benchmark-grid .ag-cell {
+    padding-left: 2px !important;
+    padding-right: 2px !important;
+  }
+
   #print-root .ag-theme-quartz .ag-header-cell-text,
   #print-root .ag-theme-quartz .ag-cell-value {
     font-size: 9px !important;
     line-height: 1.2;
+  }
+
+  #print-root .benchmark-grid .ag-header-cell-text,
+  #print-root .benchmark-grid .ag-cell-value {
+    font-size: 8px !important;
+    line-height: 1.1;
   }
 
   .ag-body-viewport,

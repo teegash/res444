@@ -160,6 +160,10 @@ export default function BenchmarkReportPage() {
   const { isPrinting, triggerPrint } = usePrintMode({
     onBeforePrint: () => {
       window.dispatchEvent(new Event('resize'))
+      gridApiRef.current?.sizeColumnsToFit()
+    },
+    onAfterPrint: () => {
+      gridApiRef.current?.sizeColumnsToFit()
     },
     printDelayMs: 120,
   })
@@ -338,68 +342,77 @@ export default function BenchmarkReportPage() {
     }
   }, [payload?.rows, safePct])
 
-  const columnDefs = React.useMemo<ColDef<Row>[]>(
-    () => [
-      { headerName: 'Property', field: 'propertyName', minWidth: 200, flex: 2, filter: true },
+  const columnDefs = React.useMemo<ColDef<Row>[]>(() => {
+    const sizes = isPrinting
+      ? { property: 90, money: 55, pct: 50, margin: 60 }
+      : { property: 200, money: 140, pct: 140, margin: 150 }
+
+    return [
+      {
+        headerName: 'Property',
+        field: 'propertyName',
+        minWidth: sizes.property,
+        flex: isPrinting ? 1 : 2,
+        filter: true,
+      },
       {
         headerName: 'Collected',
         field: 'collected',
-        minWidth: 140,
+        minWidth: sizes.money,
         flex: 1,
         valueFormatter: (params) => kes(Number(params.value || 0)),
       },
       {
         headerName: 'Billed',
         field: 'billed',
-        minWidth: 140,
+        minWidth: sizes.money,
         flex: 1,
         valueFormatter: (params) => kes(Number(params.value || 0)),
       },
       {
         headerName: 'Collection %',
         field: 'collectionRate',
-        minWidth: 140,
+        minWidth: sizes.pct,
         flex: 1,
         valueFormatter: (params) => `${Number(params.value || 0).toFixed(1)}%`,
       },
       {
         headerName: 'Arrears',
         field: 'arrearsNow',
-        minWidth: 140,
+        minWidth: sizes.money,
         flex: 1,
         valueFormatter: (params) => kes(Number(params.value || 0)),
       },
       {
         headerName: 'Occupancy %',
         field: 'occupancyRate',
-        minWidth: 140,
+        minWidth: sizes.pct,
         flex: 1,
         valueFormatter: (params) => `${Number(params.value || 0).toFixed(1)}%`,
       },
       {
         headerName: 'Expenses',
         field: 'expenses',
-        minWidth: 140,
+        minWidth: sizes.money,
         flex: 1,
         valueFormatter: (params) => kes(Number(params.value || 0)),
       },
       {
         headerName: 'NOI',
         field: 'noi',
-        minWidth: 140,
+        minWidth: sizes.money,
         flex: 1,
         valueFormatter: (params) => kes(Number(params.value || 0)),
       },
       {
         headerName: 'NOI Margin %',
         field: 'noiMargin',
-        minWidth: 150,
+        minWidth: sizes.margin,
         flex: 1,
         valueFormatter: (params) => `${Number(params.value || 0).toFixed(1)}%`,
       },
-    ],
-    []
-  )
+    ]
+  }, [isPrinting])
 
   return (
     <div className="flex min-h-screen bg-muted/20">
@@ -561,7 +574,7 @@ export default function BenchmarkReportPage() {
                 </CardHeader>
                 <CardContent>
                   <div
-                    className="ag-theme-quartz premium-grid glass-grid w-full rounded-2xl border border-white/60 bg-white/70 shadow-[0_24px_60px_-40px_rgba(15,23,42,0.6)] backdrop-blur"
+                    className="ag-theme-quartz premium-grid glass-grid benchmark-grid w-full rounded-2xl border border-white/60 bg-white/70 shadow-[0_24px_60px_-40px_rgba(15,23,42,0.6)] backdrop-blur"
                     style={{ height: isPrinting ? undefined : 520 }}
                   >
                     <AgGridReact<Row>
