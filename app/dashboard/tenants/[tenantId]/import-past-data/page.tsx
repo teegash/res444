@@ -22,7 +22,7 @@ import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Loader2, ArrowLeft, Download } from 'lucide-react'
 
-type ImportKind = 'invoice' | 'payment' | 'maintenance'
+type ImportKind = 'invoice' | 'payment' | 'maintenance' | 'expense'
 
 type ImportRow = {
   rowIndex: number
@@ -58,6 +58,12 @@ type ImportRow = {
   maintenance_cost_notes?: string
   assigned_technician_name?: string
   assigned_technician_phone?: string
+
+  // expense fields
+  expense_incurred_at?: string
+  expense_category?: 'maintenance' | 'utilities' | 'taxes' | 'staff' | 'insurance' | 'marketing' | 'other'
+  expense_amount?: number
+  expense_notes?: string
 
   validation_status: 'Valid' | 'Invalid'
   errors: string
@@ -198,6 +204,10 @@ export default function ImportPastDataPage() {
       { headerName: 'maintenance_cost', field: 'maintenance_cost', width: 150 },
       { headerName: 'paid_by', field: 'maintenance_cost_paid_by', width: 120 },
 
+      { headerName: 'expense_incurred_at', field: 'expense_incurred_at', width: 150 },
+      { headerName: 'expense_category', field: 'expense_category', width: 160 },
+      { headerName: 'expense_amount', field: 'expense_amount', width: 140 },
+
       { headerName: 'Valid', field: 'validation_status', width: 110 },
       { headerName: 'Errors', field: 'errors', flex: 1, minWidth: 260 },
       { headerName: 'Import', field: 'import_status', width: 120 },
@@ -287,6 +297,25 @@ export default function ImportPastDataPage() {
       assigned_technician_phone: '+2547XXXXXXXX',
     })
 
+    const expenses = wb.addWorksheet('Expenses')
+    expenses.columns = [
+      { header: 'incurred_at (YYYY-MM-DD) [REQUIRED]', key: 'incurred_at', width: 32 },
+      {
+        header: 'category (maintenance|utilities|taxes|staff|insurance|marketing|other) [REQUIRED]',
+        key: 'category',
+        width: 74,
+      },
+      { header: 'amount [REQUIRED] (>= 0)', key: 'amount', width: 22 },
+      { header: 'notes (optional)', key: 'notes', width: 34 },
+    ]
+
+    expenses.addRow({
+      incurred_at: '2024-01-15',
+      category: 'utilities',
+      amount: 5000,
+      notes: 'Generator fuel',
+    })
+
     const buf = await wb.xlsx.writeBuffer()
     saveAs(new Blob([buf]), `tenant-past-data-template.xlsx`)
   }
@@ -325,6 +354,21 @@ export default function ImportPastDataPage() {
       if (!r.maintenance_cost_paid_by || !['tenant', 'manager'].includes(r.maintenance_cost_paid_by)) {
         errs.push('maintenance_cost_paid_by must be tenant|manager')
       }
+    }
+
+    if (r.kind === 'expense') {
+      if (!r.expense_incurred_at || !isoDateRe.test(r.expense_incurred_at)) {
+        errs.push('incurred_at must be YYYY-MM-DD')
+      }
+      if (
+        !r.expense_category ||
+        !['maintenance', 'utilities', 'taxes', 'staff', 'insurance', 'marketing', 'other'].includes(
+          r.expense_category
+        )
+      ) {
+        errs.push('category invalid')
+      }
+      if (typeof r.expense_amount !== 'number' || r.expense_amount < 0) errs.push('amount must be >= 0')
     }
 
     return errs
@@ -400,6 +444,7 @@ export default function ImportPastDataPage() {
       const invRaw = readSheet('Invoices')
       const payRaw = readSheet('Payments')
       const maintRaw = readSheet('MaintenanceRequests')
+      const expRaw = readSheet('Expenses')
 
       const out: ImportRow[] = []
 
@@ -490,11 +535,39 @@ export default function ImportPastDataPage() {
         out.push(mapped)
       }
 
+      // Expenses
+      for (let i = 0; i < expRaw.length; i++) {
+        const row = expRaw[i]
+        const mapped: ImportRow = {
+          rowIndex: out.length + 1,
+          kind: 'expense',
+          expense_incurred_at: normalizeDateCell(row['incurred_at (YYYY-MM-DD) [REQUIRED]'] ?? row['incurred_at']),
+          expense_category: asStr(
+            row[
+              'category (maintenance|utilities|taxes|staff|insurance|marketing|other) [REQUIRED]'
+            ] ?? row['category']
+          ).toLowerCase() as any,
+          expense_amount: asNumber(row['amount [REQUIRED] (>= 0)'] ?? row['amount']),
+          expense_notes: asStr(row['notes (optional)'] ?? row['notes']),
+          validation_status: 'Valid',
+          errors: '',
+          import_status: 'Pending',
+        }
+        if (!mapped.expense_notes) delete mapped.expense_notes
+
+        const errs = validateSingleRow(mapped)
+        mapped.validation_status = errs.length ? 'Invalid' : 'Valid'
+        mapped.errors = errs.join('; ')
+        out.push(mapped)
+      }
+
       // Cross-sheet enforcement: NO partial payments
       validateNoPartialsAcrossSheets(out)
 
       setRows(out)
-      if (out.length === 0) setError('No rows found. Ensure sheet names: Invoices, Payments, MaintenanceRequests.')
+      if (out.length === 0) {
+        setError('No rows found. Ensure sheet names: Invoices, Payments, MaintenanceRequests, Expenses.')
+      }
     } catch (e: any) {
       setError(e?.message || 'Failed to parse file.')
     } finally {
@@ -601,7 +674,7 @@ export default function ImportPastDataPage() {
                 <CardTitle>1) Download template</CardTitle>
                 <CardDescription>
                   This template enforces <b>NO partial payments</b>. Use exact sheet names:
-                  <b> Invoices</b>, <b>Payments</b>, <b>MaintenanceRequests</b>.
+                  <b> Invoices</b>, <b>Payments</b>, <b>MaintenanceRequests</b>, <b>Expenses</b>.
                 </CardDescription>
               </CardHeader>
               <CardContent className="flex flex-wrap gap-3 items-center">

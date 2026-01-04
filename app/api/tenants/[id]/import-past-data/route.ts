@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 
-type ImportKind = 'invoice' | 'payment' | 'maintenance'
+type ImportKind = 'invoice' | 'payment' | 'maintenance' | 'expense'
 
 type ImportRow = {
   rowIndex: number
@@ -33,6 +33,11 @@ type ImportRow = {
   maintenance_cost_notes?: string
   assigned_technician_name?: string
   assigned_technician_phone?: string
+
+  expense_incurred_at?: string
+  expense_category?: 'maintenance' | 'utilities' | 'taxes' | 'staff' | 'insurance' | 'marketing' | 'other'
+  expense_amount?: number
+  expense_notes?: string
 }
 
 const MANAGER_ROLES = new Set(['admin', 'manager', 'caretaker'])
@@ -150,6 +155,21 @@ export async function POST(req: NextRequest, ctx: { params: { id: string } }) {
       return NextResponse.json({ success: false, error: 'Tenant lease not found.' }, { status: 404 })
     }
 
+    const { data: unit } = await admin
+      .from('apartment_units')
+      .select('building_id')
+      .eq('organization_id', orgId)
+      .eq('id', lease.unit_id)
+      .maybeSingle()
+
+    const propertyId = unit?.building_id || null
+    if (!propertyId) {
+      return NextResponse.json(
+        { success: false, error: 'Could not resolve property for tenant unit.' },
+        { status: 500 }
+      )
+    }
+
     // Create batch (audit)
     const { data: batch, error: bErr } = await admin
       .from('tenant_past_data_import_batches')
@@ -190,6 +210,8 @@ export async function POST(req: NextRequest, ctx: { params: { id: string } }) {
           ? `inv|${orgId}|${tenantId}|${lease.id}|${r.invoice_type}|${r.period_start}|${r.due_date}|${r.amount}|${r.paid}`
           : kind === 'payment'
           ? `pay|${orgId}|${tenantId}|${lease.id}|${r.invoice_type}|${r.period_start}|${r.amount_paid}|${r.payment_date}|${r.payment_method}|${r.mpesa_receipt_number || ''}|${r.bank_reference_number || ''}`
+          : kind === 'expense'
+          ? `exp|${orgId}|${tenantId}|${lease.id}|${r.expense_incurred_at}|${r.expense_category}|${r.expense_amount}|${r.expense_notes || ''}`
           : `mnt|${orgId}|${tenantId}|${lease.id}|${r.request_date}|${r.title}|${r.maintenance_cost}|${r.maintenance_cost_paid_by}`
 
       const rowHash = sha256Hex(hashBasis)
@@ -357,6 +379,46 @@ export async function POST(req: NextRequest, ctx: { params: { id: string } }) {
 
           insertedCount++
           results.push({ rowIndex, status: 'inserted', message: 'Payment imported (invoice paid).' })
+          continue
+        }
+
+        if (kind === 'expense') {
+          const incurred = String(r.expense_incurred_at || '').trim()
+          const category = String(r.expense_category || '').trim()
+          const amount = Number(r.expense_amount ?? NaN)
+          const notes = r.expense_notes ? String(r.expense_notes) : null
+
+          if (!incurred || incurred.length !== 10) throw new Error('Invalid expense incurred_at.')
+          if (!['maintenance', 'utilities', 'taxes', 'staff', 'insurance', 'marketing', 'other'].includes(category)) {
+            throw new Error('Invalid expense category.')
+          }
+          if (!Number.isFinite(amount) || amount < 0) throw new Error('Expense amount must be >= 0.')
+
+          const incurredIso = `${incurred}T12:00:00+03:00`
+
+          const { data: exp, error: expErr } = await admin
+            .from('expenses')
+            .insert({
+              organization_id: orgId,
+              property_id: propertyId,
+              category,
+              amount,
+              incurred_at: incurredIso,
+              notes,
+              created_by: user.id,
+            })
+            .select('id')
+            .single()
+
+          if (expErr || !exp?.id) throw new Error('Failed to insert expense.')
+
+          await admin
+            .from('tenant_past_data_import_rows')
+            .update({ status: 'inserted', created_expense_id: exp.id })
+            .eq('id', importRowId)
+
+          insertedCount++
+          results.push({ rowIndex, status: 'inserted', message: 'Expense imported.' })
           continue
         }
 
