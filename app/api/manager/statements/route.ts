@@ -168,13 +168,30 @@ export async function GET(request: NextRequest) {
       .limit(500)
 
     const viewRes = await query
-    const viewRows = ((viewRes.data || []) as any[]).map((row) => ({
-      ...(row as any),
-      current_balance: Number((row as any).current_balance ?? 0),
-      open_invoices_count: Number((row as any).open_invoices_count ?? 0),
-      last_payment_date: normalizeIsoDate((row as any).last_payment_date),
-      oldest_due_date: normalizeIsoDate((row as any).oldest_due_date),
-    })) as StatementSummaryRow[]
+
+    const { data: archiveRows, error: archiveError } = await admin
+      .from('tenant_archives')
+      .select('tenant_user_id')
+      .eq('organization_id', orgId)
+      .eq('is_active', true)
+
+    if (archiveError) {
+      console.error('[ManagerStatementsList] Failed to load tenant archives', archiveError)
+    }
+
+    const archivedTenantIds = new Set(
+      (archiveRows || []).map((row: any) => row.tenant_user_id).filter(Boolean)
+    )
+
+    const viewRows = ((viewRes.data || []) as any[])
+      .map((row) => ({
+        ...(row as any),
+        current_balance: Number((row as any).current_balance ?? 0),
+        open_invoices_count: Number((row as any).open_invoices_count ?? 0),
+        last_payment_date: normalizeIsoDate((row as any).last_payment_date),
+        oldest_due_date: normalizeIsoDate((row as any).oldest_due_date),
+      }))
+      .filter((row) => !archivedTenantIds.has(row.tenant_user_id)) as StatementSummaryRow[]
 
     const viewError = viewRes.error
     if (viewError) {
@@ -231,7 +248,8 @@ export async function GET(request: NextRequest) {
       console.error('[ManagerStatementsList] Failed to load leases for completeness', leaseError)
     }
 
-    const leases = (leaseRows || []) as any[]
+    const leases = (leaseRows || [])
+      .filter((lease: any) => !archivedTenantIds.has(lease?.tenant_user_id)) as any[]
     const missingLeases = leases.filter((lease) => lease?.id && !existingLeaseIds.has(lease.id))
 
     const missingLeaseIds = missingLeases.map((lease) => lease.id).filter(Boolean)
