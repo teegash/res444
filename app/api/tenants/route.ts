@@ -144,6 +144,20 @@ export async function GET(request: NextRequest) {
 
     const tenantIds = profiles.map((profile) => profile.id).filter(Boolean)
 
+    const archiveMap = new Map<string, { archived_at: string | null }>()
+    if (tenantIds.length > 0) {
+      const { data: archives } = await adminSupabase
+        .from('tenant_archives')
+        .select('tenant_user_id, archived_at')
+        .eq('organization_id', membership.organization_id)
+        .eq('is_active', true)
+        .in('tenant_user_id', tenantIds)
+
+      ;(archives || []).forEach((row: any) => {
+        archiveMap.set(row.tenant_user_id, { archived_at: row.archived_at || null })
+      })
+    }
+
     const authMap = new Map<string, { email: string | null; created_at: string | null }>()
     if (tenantIds.length > 0) {
       const authResults = await Promise.all(
@@ -451,6 +465,7 @@ export async function GET(request: NextRequest) {
       const risk = riskMap.get(profile.id)
       const rating = ratingMap.get(profile.id)
       const kickout = kickoutMap.get(profile.id)
+      const archiveMeta = archiveMap.get(profile.id)
 
       return {
         lease_id: lease?.id || null,
@@ -492,6 +507,8 @@ export async function GET(request: NextRequest) {
         scored_items_count: rating?.scored_items_count ?? 0,
         kick_out_candidate: kickout?.kick_out_candidate ?? false,
         kickout_monthly_rent: kickout?.monthly_rent ?? null,
+        is_archived: Boolean(archiveMeta),
+        archived_at: archiveMeta?.archived_at ?? null,
       }
     })
 

@@ -33,6 +33,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { useToast } from '@/components/ui/use-toast'
 import { Loader2, MoreVertical, Copy, Phone, ChevronDown, Check } from 'lucide-react'
@@ -67,6 +68,8 @@ type TenantRecord = {
   scored_items_count?: number
   kick_out_candidate?: boolean
   kickout_monthly_rent?: number | null
+  is_archived?: boolean
+  archived_at?: string | null
 }
 
 interface TenantsTableProps {
@@ -162,6 +165,9 @@ const paymentBadgeVariant = (status: string) => {
 const buildStatementHref = (tenantId?: string | null) =>
   tenantId ? `/dashboard/manager/statements/${encodeURIComponent(tenantId)}` : ''
 
+const buildVaultHref = (tenantId?: string | null) =>
+  tenantId ? `/dashboard/tenants/archive/${encodeURIComponent(tenantId)}/vault` : ''
+
 const ratingMeta = (rate?: number) => {
   if (rate === undefined || rate === null) {
     return { color: 'bg-slate-300', label: 'No rating available' }
@@ -175,9 +181,11 @@ const ratingMeta = (rate?: number) => {
 function TenantActions({
   tenant,
   onRemove,
+  onArchive,
 }: {
   tenant: TenantRecord
   onRemove: (tenant: TenantRecord) => void
+  onArchive: (tenant: TenantRecord) => void
 }) {
   return (
     <DropdownMenu>
@@ -208,6 +216,7 @@ function TenantActions({
             Import past data
           </Link>
         </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => onArchive(tenant)}>Archive</DropdownMenuItem>
         <DropdownMenuItem
           onClick={() => onRemove(tenant)}
           className="text-destructive focus:text-destructive"
@@ -238,6 +247,16 @@ export function TenantsTable({
 
   const [tenantToDelete, setTenantToDelete] = useState<TenantRecord | null>(null)
   const [removingTenant, setRemovingTenant] = useState(false)
+  const [tenantToArchive, setTenantToArchive] = useState<TenantRecord | null>(null)
+  const [archivingTenant, setArchivingTenant] = useState(false)
+  const [archiveReason, setArchiveReason] = useState('')
+  const [archiveNotes, setArchiveNotes] = useState('')
+
+  const openArchiveDialog = (tenant: TenantRecord) => {
+    setTenantToArchive(tenant)
+    setArchiveReason('')
+    setArchiveNotes('')
+  }
 
   useEffect(() => {
     const fetchTenants = async () => {
@@ -271,17 +290,9 @@ export function TenantsTable({
     let list = tenants
 
     if (archiveMode) {
-      list = list.filter((tenant) => {
-        const leaseStatus = (tenant.lease_status || '').toLowerCase()
-        const unitLabel = (tenant.unit_label || '').toLowerCase()
-        return leaseStatus === 'unassigned' || unitLabel.includes('unassigned') || !unitLabel
-      })
+      list = list.filter((tenant) => Boolean(tenant.is_archived))
     } else {
-      list = list.filter((tenant) => {
-        const leaseStatus = (tenant.lease_status || '').toLowerCase()
-        const unitLabel = (tenant.unit_label || '').toLowerCase()
-        return !(leaseStatus === 'unassigned' || unitLabel.includes('unassigned') || !unitLabel)
-      })
+      list = list.filter((tenant) => !tenant.is_archived)
     }
     if (query) {
       list = list.filter((tenant) => {
@@ -452,6 +463,43 @@ export function TenantsTable({
     }
   }
 
+  const handleArchiveTenant = async () => {
+    if (!tenantToArchive) return
+    setArchivingTenant(true)
+    try {
+      const response = await fetch(`/api/tenants/${tenantToArchive.tenant_user_id}/archive`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          reason: archiveReason.trim() || null,
+          notes: archiveNotes.trim() || null,
+        }),
+      })
+
+      if (!response.ok) {
+        const errorPayload = await response.json().catch(() => ({}))
+        throw new Error(errorPayload.error || 'Failed to archive tenant.')
+      }
+
+      toast({
+        title: 'Tenant archived',
+        description: `${tenantToArchive.full_name} has been moved to the archive.`,
+      })
+      setTenantToArchive(null)
+      setArchiveReason('')
+      setArchiveNotes('')
+      setRefreshIndex((index) => index + 1)
+    } catch (archiveError) {
+      toast({
+        title: 'Archive failed',
+        description: archiveError instanceof Error ? archiveError.message : 'Archive failed.',
+        variant: 'destructive',
+      })
+    } finally {
+      setArchivingTenant(false)
+    }
+  }
+
   return (
     <TooltipProvider>
       <div className="border border-border rounded-lg bg-white">
@@ -521,9 +569,15 @@ export function TenantsTable({
                       </p>
                     </div>
                     {tenant.tenant_user_id ? (
-                      <Button variant="outline" size="sm" asChild>
-                        <Link href={`/dashboard/tenants/${tenant.tenant_user_id}/lease`}>Lease</Link>
-                      </Button>
+                      archiveMode ? (
+                        <Button variant="outline" size="sm" asChild>
+                          <Link href={buildVaultHref(tenant.tenant_user_id)}>Vault</Link>
+                        </Button>
+                      ) : (
+                        <Button variant="outline" size="sm" asChild>
+                          <Link href={`/dashboard/tenants/${tenant.tenant_user_id}/lease`}>Lease</Link>
+                        </Button>
+                      )
                     ) : null}
                   </div>
                   <div className="p-4 space-y-2 text-sm">
@@ -572,20 +626,36 @@ export function TenantsTable({
                         {tenant.kick_out_candidate ? 'Review' : 'No'}
                       </Badge>
                     </div>
-                    <div className="grid grid-cols-2 gap-2 pt-3">
-                      <Button size="sm" variant="outline" asChild>
-                        <Link href={`/dashboard/tenants/${tenant.tenant_user_id}/edit`}>Edit</Link>
-                      </Button>
-                      {tenant.tenant_user_id ? (
-                        <Button size="sm" variant="secondary" asChild>
-                          <Link href={buildStatementHref(tenant.tenant_user_id)}>Statement</Link>
+                    {archiveMode ? (
+                      <div className="pt-3">
+                        <Button size="sm" variant="outline" className="w-full" asChild>
+                          <Link href={buildVaultHref(tenant.tenant_user_id)}>Vault</Link>
                         </Button>
-                      ) : (
-                        <Button size="sm" variant="secondary" disabled>
-                          Statement
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-2 gap-2 pt-3">
+                        <Button size="sm" variant="outline" asChild>
+                          <Link href={`/dashboard/tenants/${tenant.tenant_user_id}/edit`}>Edit</Link>
                         </Button>
-                      )}
-                    </div>
+                        {tenant.tenant_user_id ? (
+                          <Button size="sm" variant="secondary" asChild>
+                            <Link href={buildStatementHref(tenant.tenant_user_id)}>Statement</Link>
+                          </Button>
+                        ) : (
+                          <Button size="sm" variant="secondary" disabled>
+                            Statement
+                          </Button>
+                        )}
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="col-span-2 text-amber-700"
+                          onClick={() => openArchiveDialog(tenant)}
+                        >
+                          Archive tenant
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 </div>
               )})}
@@ -630,7 +700,7 @@ export function TenantsTable({
                 </TableHead>
                 <TableHead>Lease Start</TableHead>
                 <TableHead>Kick-out</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
+                <TableHead className="text-right">{archiveMode ? 'Vault' : 'Actions'}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -794,9 +864,25 @@ export function TenantsTable({
                         <Badge variant="outline">No</Badge>
                       )}
                     </TableCell>
-                    <TableCell className="text-right">
-                      <TenantActions tenant={tenant} onRemove={setTenantToDelete} />
-                    </TableCell>
+                    {archiveMode ? (
+                      <TableCell className="text-right">
+                        {tenant.tenant_user_id ? (
+                          <Button size="sm" variant="outline" asChild>
+                            <Link href={buildVaultHref(tenant.tenant_user_id)}>Vault</Link>
+                          </Button>
+                        ) : (
+                          <span className="text-slate-400">-</span>
+                        )}
+                      </TableCell>
+                    ) : (
+                      <TableCell className="text-right">
+                        <TenantActions
+                          tenant={tenant}
+                          onRemove={setTenantToDelete}
+                          onArchive={openArchiveDialog}
+                        />
+                      </TableCell>
+                    )}
                   </TableRow>
                 )})}
             </TableBody>
@@ -834,6 +920,66 @@ export function TenantsTable({
             >
               {removingTenant ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
               Remove tenant
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={!!tenantToArchive}
+        onOpenChange={(open) => {
+          if (!open) {
+            setTenantToArchive(null)
+            setArchiveReason('')
+            setArchiveNotes('')
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Archive tenant</DialogTitle>
+            <DialogDescription>
+              This ends the active lease and vacates the unit. Financial records remain intact.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="rounded-md bg-slate-50 p-4 text-sm text-slate-600">
+              <p className="font-medium text-slate-900">{tenantToArchive?.full_name}</p>
+              <Separator className="my-3" />
+              <p>Email: {tenantToArchive?.email || '-'}</p>
+              <p>Unit: {tenantToArchive?.unit_label || 'Unassigned'}</p>
+            </div>
+            <div className="space-y-2">
+              <label className="text-xs font-medium text-slate-600" htmlFor="archive-reason">
+                Reason (optional)
+              </label>
+              <Input
+                id="archive-reason"
+                value={archiveReason}
+                onChange={(event) => setArchiveReason(event.target.value)}
+                placeholder="Lease ended, tenant moved out..."
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-xs font-medium text-slate-600" htmlFor="archive-notes">
+                Notes (optional)
+              </label>
+              <Textarea
+                id="archive-notes"
+                value={archiveNotes}
+                onChange={(event) => setArchiveNotes(event.target.value)}
+                rows={3}
+                placeholder="Additional context for the archive log."
+              />
+            </div>
+          </div>
+          <DialogFooter className="gap-2 sm:space-x-2">
+            <Button variant="outline" onClick={() => setTenantToArchive(null)} disabled={archivingTenant}>
+              Cancel
+            </Button>
+            <Button onClick={handleArchiveTenant} disabled={archivingTenant}>
+              {archivingTenant ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Archive tenant
             </Button>
           </DialogFooter>
         </DialogContent>
