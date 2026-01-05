@@ -11,6 +11,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
 import { ChronoSelect } from '@/components/ui/chrono-select'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import {
   Search,
   Eye,
@@ -699,31 +700,48 @@ export default function MaintenancePage() {
                       <SelectItem value="general">General</SelectItem>
                     </SelectContent>
                   </Select>
-                  <div className="flex items-center gap-2 min-w-0 justify-end">
-                    <div className="min-w-0">
-                      <ChronoSelect
-                        value={startDate ? new Date(`${startDate}T00:00:00`) : undefined}
-                        onChange={(date) => setStartDate(date ? format(date, 'yyyy-MM-dd') : '')}
-                        maxDate={endDate ? new Date(`${endDate}T00:00:00`) : undefined}
-                        placeholder="Start date"
-                        iconOnly
-                        ariaLabel="Start date"
-                        title={startDate ? `Start: ${startDate}` : 'Start date'}
-                        className="h-9 w-9"
-                      />
-                    </div>
-                    <div className="min-w-0">
-                      <ChronoSelect
-                        value={endDate ? new Date(`${endDate}T00:00:00`) : undefined}
-                        onChange={(date) => setEndDate(date ? format(date, 'yyyy-MM-dd') : '')}
-                        minDate={startDate ? new Date(`${startDate}T00:00:00`) : undefined}
-                        placeholder="End date"
-                        iconOnly
-                        ariaLabel="End date"
-                        title={endDate ? `End: ${endDate}` : 'End date'}
-                        className="h-9 w-9"
-                      />
-                    </div>
+                  <div className="flex items-end gap-2 min-w-0 justify-end">
+                    <TooltipProvider>
+                      <Tooltip open={Boolean(startDate) && !endDate}>
+                        <TooltipTrigger asChild>
+                          <div className="flex items-end gap-3">
+                            <div className="flex flex-col items-center gap-1 min-w-0">
+                              <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                                Start
+                              </span>
+                              <ChronoSelect
+                                value={startDate ? new Date(`${startDate}T00:00:00`) : undefined}
+                                onChange={(date) => setStartDate(date ? format(date, 'yyyy-MM-dd') : '')}
+                                maxDate={endDate ? new Date(`${endDate}T00:00:00`) : undefined}
+                                placeholder="Start date"
+                                iconOnly
+                                ariaLabel="Start date"
+                                title={startDate ? `Start: ${startDate}` : 'Start date'}
+                                className="h-9 w-9"
+                              />
+                            </div>
+                            <div className="flex flex-col items-center gap-1 min-w-0">
+                              <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                                End
+                              </span>
+                              <ChronoSelect
+                                value={endDate ? new Date(`${endDate}T00:00:00`) : undefined}
+                                onChange={(date) => setEndDate(date ? format(date, 'yyyy-MM-dd') : '')}
+                                minDate={startDate ? new Date(`${startDate}T00:00:00`) : undefined}
+                                placeholder="End date"
+                                iconOnly
+                                ariaLabel="End date"
+                                title={endDate ? `End: ${endDate}` : 'End date'}
+                                className="h-9 w-9"
+                              />
+                            </div>
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent side="top" align="center" className="bg-black text-white text-xs">
+                          Custom range: select an end date to finish.
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
                   </div>
                 </div>
               </CardContent>
