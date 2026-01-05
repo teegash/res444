@@ -126,7 +126,10 @@ export default function TenantVaultPage() {
 
   const leaseRows = data?.leases || []
   const waterBillRows = data?.waterBills || []
-  const documentRows = data?.documents || []
+  const documentRows = useMemo(
+    () => (data?.documents || []).filter((doc: any) => doc?.category !== 'transition'),
+    [data]
+  )
   const messageRows = useMemo(
     () =>
       (data?.messages || []).map((msg: any) => ({
