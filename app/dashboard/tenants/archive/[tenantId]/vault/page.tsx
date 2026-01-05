@@ -39,6 +39,9 @@ type VaultPayload = {
   }>
   maintenance: any[]
   maintenanceExpenses: any[]
+  waterBills: any[]
+  messages: any[]
+  documents: any[]
 }
 
 function kes(value: unknown) {
@@ -64,6 +67,9 @@ export default function TenantVaultPage() {
   const ledgerGridRef = useRef<AgGridReact<any>>(null)
   const maintGridRef = useRef<AgGridReact<any>>(null)
   const leaseGridRef = useRef<AgGridReact<any>>(null)
+  const waterGridRef = useRef<AgGridReact<any>>(null)
+  const messageGridRef = useRef<AgGridReact<any>>(null)
+  const docGridRef = useRef<AgGridReact<any>>(null)
 
   useEffect(() => {
     if (!tenantId) return
@@ -104,6 +110,16 @@ export default function TenantVaultPage() {
   }, [data])
 
   const leaseRows = data?.leases || []
+  const waterBillRows = data?.waterBills || []
+  const documentRows = data?.documents || []
+  const messageRows = useMemo(
+    () =>
+      (data?.messages || []).map((msg: any) => ({
+        ...msg,
+        direction: msg.sender_user_id === tenantId ? 'Tenant' : 'Staff',
+      })),
+    [data, tenantId]
+  )
 
   const ledgerCols = useMemo<ColDef[]>(
     () => [
@@ -174,6 +190,58 @@ export default function TenantVaultPage() {
       },
       { headerName: 'Unit', valueGetter: (p) => p.data?.unit?.unit_number || '-', minWidth: 120 },
       { headerName: 'Property', valueGetter: (p) => p.data?.unit?.building?.name || '-', minWidth: 180 },
+    ],
+    []
+  )
+
+  const waterCols = useMemo<ColDef[]>(
+    () => [
+      { headerName: 'Billing Month', field: 'billing_month', minWidth: 130 },
+      { headerName: 'Property', field: 'property_name', minWidth: 180 },
+      { headerName: 'Unit', field: 'unit_number', minWidth: 100 },
+      {
+        headerName: 'Amount',
+        field: 'amount',
+        minWidth: 120,
+        valueFormatter: (p) => kes(p.value),
+        cellClass: 'text-right',
+      },
+      { headerName: 'Units', field: 'units_consumed', minWidth: 90 },
+      { headerName: 'Status', field: 'status', minWidth: 110 },
+      { headerName: 'Invoice Due', field: 'invoice_due_date', minWidth: 120 },
+    ],
+    []
+  )
+
+  const messageCols = useMemo<ColDef[]>(
+    () => [
+      { headerName: 'Date', field: 'created_at', minWidth: 160, valueFormatter: (p) => safeDate(p.value) },
+      { headerName: 'From', field: 'direction', minWidth: 120 },
+      { headerName: 'Type', field: 'message_type', minWidth: 120 },
+      { headerName: 'Message', field: 'message_text', flex: 1, minWidth: 260 },
+    ],
+    []
+  )
+
+  const documentCols = useMemo<ColDef[]>(
+    () => [
+      { headerName: 'Type', field: 'category', minWidth: 140 },
+      { headerName: 'Label', field: 'label', flex: 1, minWidth: 220 },
+      { headerName: 'Date', field: 'created_at', minWidth: 140, valueFormatter: (p) => safeDate(p.value) },
+      {
+        headerName: 'Document',
+        field: 'url',
+        minWidth: 140,
+        cellRenderer: (p: any) => {
+          const url = p.value as string | null
+          if (!url) return <span className="text-slate-400">—</span>
+          return (
+            <a href={url} target="_blank" rel="noreferrer" className="text-[#4169E1] hover:underline">
+              View
+            </a>
+          )
+        },
+      },
     ],
     []
   )
@@ -328,6 +396,9 @@ export default function TenantVaultPage() {
                   <TabsList>
                     <TabsTrigger value="ledger">Statement</TabsTrigger>
                     <TabsTrigger value="maintenance">Maintenance</TabsTrigger>
+                    <TabsTrigger value="water">Water Bills</TabsTrigger>
+                    <TabsTrigger value="messages">Messages</TabsTrigger>
+                    <TabsTrigger value="documents">Documents</TabsTrigger>
                     <TabsTrigger value="leases">Leases</TabsTrigger>
                   </TabsList>
 
@@ -374,6 +445,48 @@ export default function TenantVaultPage() {
                         theme="legacy"
                         rowData={maintenanceRows}
                         columnDefs={maintCols}
+                        defaultColDef={{ sortable: true, resizable: true, filter: true }}
+                        pagination
+                        paginationPageSize={25}
+                      />
+                    </div>
+                  </TabsContent>
+
+                  <TabsContent value="water" className="mt-4">
+                    <div className="ag-theme-quartz w-full h-[520px] rounded-xl border border-slate-200 bg-white shadow-sm">
+                      <AgGridReact
+                        ref={waterGridRef}
+                        theme="legacy"
+                        rowData={waterBillRows}
+                        columnDefs={waterCols}
+                        defaultColDef={{ sortable: true, resizable: true, filter: true }}
+                        pagination
+                        paginationPageSize={25}
+                      />
+                    </div>
+                  </TabsContent>
+
+                  <TabsContent value="messages" className="mt-4">
+                    <div className="ag-theme-quartz w-full h-[520px] rounded-xl border border-slate-200 bg-white shadow-sm">
+                      <AgGridReact
+                        ref={messageGridRef}
+                        theme="legacy"
+                        rowData={messageRows}
+                        columnDefs={messageCols}
+                        defaultColDef={{ sortable: true, resizable: true, filter: true }}
+                        pagination
+                        paginationPageSize={25}
+                      />
+                    </div>
+                  </TabsContent>
+
+                  <TabsContent value="documents" className="mt-4">
+                    <div className="ag-theme-quartz w-full h-[520px] rounded-xl border border-slate-200 bg-white shadow-sm">
+                      <AgGridReact
+                        ref={docGridRef}
+                        theme="legacy"
+                        rowData={documentRows}
+                        columnDefs={documentCols}
                         defaultColDef={{ sortable: true, resizable: true, filter: true }}
                         pagination
                         paginationPageSize={25}

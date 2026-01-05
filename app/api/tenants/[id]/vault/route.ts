@@ -14,6 +14,14 @@ type LedgerRow = {
   status_text?: string | null
 }
 
+type DocumentItem = {
+  id?: string | null
+  category: string
+  label: string
+  url: string | null
+  created_at?: string | null
+}
+
 function resolveTenantId(req: NextRequest, params?: { id?: string }) {
   let tenantId =
     params?.id ||
@@ -32,6 +40,38 @@ function resolveTenantId(req: NextRequest, params?: { id?: string }) {
   }
 
   return String(tenantId || '').trim()
+}
+
+function extractStoragePath(raw: string | null | undefined, bucket: string) {
+  if (!raw) return null
+  const value = String(raw).trim()
+  if (!value) return null
+  const marker = `/storage/v1/object/public/${bucket}/`
+  const idx = value.indexOf(marker)
+  if (idx >= 0) return value.slice(idx + marker.length)
+  if (value.startsWith(`${bucket}/`)) return value.slice(bucket.length + 1)
+  return value
+}
+
+async function signPaths(
+  admin: ReturnType<typeof createAdminClient>,
+  bucket: string,
+  paths: string[]
+) {
+  const unique = Array.from(new Set(paths.filter(Boolean)))
+  if (unique.length === 0) return new Map<string, string>()
+
+  const { data, error } = await admin.storage.from(bucket).createSignedUrls(unique, 60 * 60)
+  if (error) {
+    console.warn('[tenant.vault] Failed to sign urls', bucket, error)
+    return new Map<string, string>()
+  }
+
+  const map = new Map<string, string>()
+  ;(data || []).forEach((row) => {
+    if (row?.path && row?.signedUrl) map.set(row.path, row.signedUrl)
+  })
+  return map
 }
 
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
@@ -97,7 +137,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
       .from('leases')
       .select(
         `
-        id, unit_id, start_date, end_date, monthly_rent, deposit_amount, status, created_at,
+        id, unit_id, start_date, end_date, monthly_rent, deposit_amount, status, created_at, lease_agreement_url,
         unit:apartment_units (
           id, unit_number, status, building_id,
           building:apartment_buildings ( id, name, location )
@@ -108,7 +148,16 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
       .eq('tenant_user_id', tenantId)
       .order('start_date', { ascending: false })
 
-    const leaseIds = (leases || []).map((lease: any) => lease?.id).filter(Boolean)
+    const leaseSummaries = (leases || []).map((lease: any) => ({
+      id: lease?.id || null,
+      unit_id: lease?.unit_id || lease?.unit?.id || null,
+      start_date: lease?.start_date || null,
+      end_date: lease?.end_date || null,
+    }))
+    const leaseIds = leaseSummaries.map((lease) => lease.id).filter(Boolean) as string[]
+    const unitIds = Array.from(
+      new Set(leaseSummaries.map((lease) => lease.unit_id).filter(Boolean) as string[])
+    )
 
     const { data: invoices } = leaseIds.length
       ? await admin
@@ -130,10 +179,50 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
           .order('payment_date', { ascending: true })
       : { data: [] as any[] }
 
+    let waterBillRows: any[] = []
+    if (unitIds.length > 0) {
+      const { data: wbRows, error: wbErr } = await admin
+        .from('water_bills')
+        .select(
+          `
+          id,
+          billing_month,
+          amount,
+          status,
+          units_consumed,
+          notes,
+          created_at,
+          unit:apartment_units!inner (
+            id,
+            unit_number,
+            building_id,
+            apartment_buildings ( id, name, location )
+          ),
+          invoice:invoices (
+            id,
+            status,
+            due_date,
+            amount,
+            lease_id
+          )
+        `
+        )
+        .eq('organization_id', orgId)
+        .in('unit_id', unitIds)
+        .order('billing_month', { ascending: false })
+        .limit(1000)
+
+      if (wbErr) {
+        console.error('[tenant.vault] Failed to load water bills', wbErr)
+      } else {
+        waterBillRows = wbRows || []
+      }
+    }
+
     const { data: maintenance } = await admin
       .from('maintenance_requests')
       .select(
-        'id, title, description, status, created_at, completed_at, maintenance_cost, maintenance_cost_paid_by, maintenance_cost_notes, unit_id'
+        'id, title, description, status, created_at, completed_at, maintenance_cost, maintenance_cost_paid_by, maintenance_cost_notes, unit_id, attachment_urls'
       )
       .eq('organization_id', orgId)
       .eq('tenant_user_id', tenantId)
@@ -148,6 +237,125 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
           .eq('organization_id', orgId)
           .in('maintenance_request_id', maintenanceIds)
       : { data: [] as any[] }
+
+    const leaseById = new Map<string, any>()
+    const leasesByUnit = new Map<string, any[]>()
+
+    leaseSummaries.forEach((lease) => {
+      if (lease.id) leaseById.set(lease.id, lease)
+      if (lease.unit_id) {
+        const list = leasesByUnit.get(lease.unit_id) || []
+        list.push(lease)
+        leasesByUnit.set(lease.unit_id, list)
+      }
+    })
+
+    leasesByUnit.forEach((list) =>
+      list.sort((a, b) => {
+        const aDate = a.start_date ? new Date(a.start_date).getTime() : 0
+        const bDate = b.start_date ? new Date(b.start_date).getTime() : 0
+        return bDate - aDate
+      })
+    )
+
+    const getLeaseForBill = (unitId: string | null, billingMonth: string | null) => {
+      if (!unitId) return null
+      const candidates = leasesByUnit.get(unitId)
+      if (!candidates || candidates.length === 0) return null
+      if (!billingMonth) return candidates[0]
+
+      const periodStart = new Date(billingMonth)
+      periodStart.setUTCHours(0, 0, 0, 0)
+      const periodEnd = new Date(
+        Date.UTC(periodStart.getUTCFullYear(), periodStart.getUTCMonth() + 1, 0)
+      )
+
+      return (
+        candidates.find((lease) => {
+          const leaseStart = lease.start_date ? new Date(lease.start_date) : null
+          const leaseEnd = lease.end_date ? new Date(lease.end_date) : null
+          if (leaseStart && leaseStart > periodEnd) return false
+          if (leaseEnd && leaseEnd < periodStart) return false
+          return true
+        }) || candidates[0]
+      )
+    }
+
+    const waterBills = (waterBillRows || [])
+      .map((row: any) => {
+        const invoice = row.invoice
+        const leaseFromInvoice = invoice?.lease_id ? leaseById.get(invoice.lease_id) : null
+        const leaseFromUnit = getLeaseForBill(row.unit?.id || row.unit_id || null, row.billing_month)
+        const lease = leaseFromInvoice || leaseFromUnit
+        if (!lease) return null
+        if (lease.id && !leaseById.has(lease.id)) return null
+
+        const building = row.unit?.apartment_buildings
+        const status = invoice ? (invoice.status ? 'paid' : 'unpaid') : row.status || 'unpaid'
+
+        return {
+          id: row.id,
+          billing_month: row.billing_month,
+          amount: Number(row.amount || 0),
+          units_consumed: row.units_consumed ? Number(row.units_consumed) : null,
+          notes: row.notes,
+          created_at: row.created_at,
+          property_id: building?.id || row.unit?.building_id || null,
+          property_name: building?.name || 'Unassigned',
+          property_location: building?.location || '—',
+          unit_id: row.unit?.id || row.unit_id || null,
+          unit_number: row.unit?.unit_number || '—',
+          invoice_due_date: invoice?.due_date || null,
+          invoice_id: invoice?.id || null,
+          status,
+        }
+      })
+      .filter(Boolean)
+
+    let messages: any[] = []
+    try {
+      let staffIds: string[] = [user.id]
+      const { data: staff } = await admin
+        .from('organization_members')
+        .select('user_id')
+        .eq('organization_id', orgId)
+        .in('role', Array.from(VIEW_ROLES))
+      const ids = (staff || []).map((row: any) => row.user_id).filter(Boolean)
+      staffIds = Array.from(new Set([...staffIds, ...ids]))
+
+      const staffList = staffIds.map((id) => id.replace(/,/g, '')).join(',')
+      if (staffList) {
+        const { data: messageRows } = await admin
+          .from('communications')
+          .select(
+            'id, sender_user_id, recipient_user_id, message_text, message_type, related_entity_type, related_entity_id, read, created_at'
+          )
+          .or(
+            `and(sender_user_id.in.(${staffList}),recipient_user_id.eq.${tenantId}),and(sender_user_id.eq.${tenantId},recipient_user_id.in.(${staffList}))`
+          )
+          .order('created_at', { ascending: true })
+
+        const seenTenantMessages = new Set<string>()
+        messages = (messageRows || []).filter((msg) => {
+          if (msg.sender_user_id !== tenantId) return true
+          const createdAtMs = msg.created_at ? Date.parse(msg.created_at) : 0
+          const timeBucket = Number.isFinite(createdAtMs) ? Math.floor(createdAtMs / 10_000) : 0
+          const key = [
+            msg.message_text || '',
+            msg.message_type || '',
+            msg.related_entity_type || '',
+            msg.related_entity_id || '',
+            timeBucket.toString(),
+          ].join('|')
+          if (seenTenantMessages.has(key)) return false
+          seenTenantMessages.add(key)
+          return true
+        })
+      }
+    } catch (msgError) {
+      console.warn('[tenant.vault] Failed to load messages', msgError)
+      messages = []
+    }
 
     const ledger: LedgerRow[] = []
     for (const inv of invoices || []) {
@@ -178,6 +386,136 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
 
     ledger.sort((a, b) => (a.entry_date || '').localeCompare(b.entry_date || ''))
 
+    const { data: transitionCases } = await admin
+      .from('tenant_transition_cases')
+      .select('id, notice_document_url, inspection_report_url, settlement_statement_url, created_at')
+      .eq('organization_id', orgId)
+      .eq('tenant_user_id', tenantId)
+
+    const { data: vacateNotices } = await admin
+      .from('tenant_vacate_notices')
+      .select('id, notice_document_url, created_at')
+      .eq('organization_id', orgId)
+      .eq('tenant_user_id', tenantId)
+
+    const { data: renewalRows } = await admin
+      .from('lease_renewals')
+      .select('id, lease_id, pdf_unsigned_path, pdf_tenant_signed_path, pdf_fully_signed_path, created_at')
+      .eq('organization_id', orgId)
+      .eq('tenant_user_id', tenantId)
+
+    const leaseDocPaths = (leases || [])
+      .map((row: any) => extractStoragePath(row.lease_agreement_url, 'lease-documents'))
+      .filter(Boolean) as string[]
+    const maintenanceDocPaths = (maintenance || [])
+      .flatMap((row: any) => row.attachment_urls || [])
+      .map((path: string) => extractStoragePath(path, 'maintenance-attachments'))
+      .filter(Boolean) as string[]
+    const transitionDocPaths = (transitionCases || [])
+      .flatMap((row: any) => [
+        row.notice_document_url,
+        row.inspection_report_url,
+        row.settlement_statement_url,
+      ])
+      .map((path: string) => extractStoragePath(path, 'tenant-transitions'))
+      .filter(Boolean) as string[]
+    const vacateNoticePaths = (vacateNotices || [])
+      .map((row: any) => extractStoragePath(row.notice_document_url, 'tenant-notices'))
+      .filter(Boolean) as string[]
+    const renewalPaths = (renewalRows || [])
+      .flatMap((row: any) => [row.pdf_unsigned_path, row.pdf_tenant_signed_path, row.pdf_fully_signed_path])
+      .filter(Boolean) as string[]
+
+    const leaseUrlMap = await signPaths(admin, 'lease-documents', leaseDocPaths)
+    const maintenanceUrlMap = await signPaths(admin, 'maintenance-attachments', maintenanceDocPaths)
+    const transitionUrlMap = await signPaths(admin, 'tenant-transitions', transitionDocPaths)
+    const vacateUrlMap = await signPaths(admin, 'tenant-notices', vacateNoticePaths)
+    const renewalUrlMap = await signPaths(admin, 'lease-renewals', renewalPaths)
+
+    const documents: DocumentItem[] = []
+
+    ;(leases || []).forEach((lease: any) => {
+      const raw = lease.lease_agreement_url
+      if (!raw) return
+      const path = extractStoragePath(raw, 'lease-documents')
+      const url = path ? leaseUrlMap.get(path) || raw : raw
+      documents.push({
+        id: lease.id,
+        category: 'lease',
+        label: 'Lease agreement',
+        url,
+        created_at: lease.start_date || lease.created_at || null,
+      })
+    })
+
+    ;(maintenance || []).forEach((request: any) => {
+      const attachments = request.attachment_urls || []
+      attachments.forEach((raw: string) => {
+        const path = extractStoragePath(raw, 'maintenance-attachments')
+        const url = path ? maintenanceUrlMap.get(path) || raw : raw
+        documents.push({
+          id: request.id,
+          category: 'maintenance',
+          label: request.title ? `Maintenance attachment - ${request.title}` : 'Maintenance attachment',
+          url,
+          created_at: request.created_at || null,
+        })
+      })
+    })
+
+    ;(transitionCases || []).forEach((row: any) => {
+      const entries = [
+        { raw: row.notice_document_url, label: 'Transition notice' },
+        { raw: row.inspection_report_url, label: 'Inspection report' },
+        { raw: row.settlement_statement_url, label: 'Settlement statement' },
+      ]
+      entries.forEach((entry) => {
+        if (!entry.raw) return
+        const path = extractStoragePath(entry.raw, 'tenant-transitions')
+        const url = path ? transitionUrlMap.get(path) || entry.raw : entry.raw
+        documents.push({
+          id: row.id,
+          category: 'transition',
+          label: entry.label,
+          url,
+          created_at: row.created_at || null,
+        })
+      })
+    })
+
+    ;(vacateNotices || []).forEach((row: any) => {
+      if (!row.notice_document_url) return
+      const path = extractStoragePath(row.notice_document_url, 'tenant-notices')
+      const url = path ? vacateUrlMap.get(path) || row.notice_document_url : row.notice_document_url
+      documents.push({
+        id: row.id,
+        category: 'vacate_notice',
+        label: 'Vacate notice',
+        url,
+        created_at: row.created_at || null,
+      })
+    })
+
+    ;(renewalRows || []).forEach((row: any) => {
+      const entries = [
+        { raw: row.pdf_unsigned_path, label: 'Renewal - unsigned' },
+        { raw: row.pdf_tenant_signed_path, label: 'Renewal - tenant signed' },
+        { raw: row.pdf_fully_signed_path, label: 'Renewal - fully signed' },
+      ]
+      entries.forEach((entry) => {
+        if (!entry.raw) return
+        const path = extractStoragePath(entry.raw, 'lease-renewals')
+        const url = path ? renewalUrlMap.get(path) || entry.raw : entry.raw
+        documents.push({
+          id: row.id,
+          category: 'lease_renewal',
+          label: entry.label,
+          url,
+          created_at: row.created_at || null,
+        })
+      })
+    })
+
     try {
       await admin.from('tenant_archive_events').insert({
         organization_id: orgId,
@@ -199,6 +537,9 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
         ledger,
         maintenance: maintenance || [],
         maintenanceExpenses: maintExpenses || [],
+        waterBills,
+        messages,
+        documents,
       },
       { status: 200 }
     )

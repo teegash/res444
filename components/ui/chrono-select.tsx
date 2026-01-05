@@ -24,6 +24,9 @@ interface ChronoSelectProps {
   minDate?: Date
   maxDate?: Date
   disabled?: boolean
+  iconOnly?: boolean
+  ariaLabel?: string
+  title?: string
 }
 
 export function ChronoSelect({
@@ -35,6 +38,9 @@ export function ChronoSelect({
   minDate,
   maxDate,
   disabled = false,
+  iconOnly = false,
+  ariaLabel,
+  title,
 }: ChronoSelectProps) {
   const [open, setOpen] = React.useState(false)
   const [selected, setSelected] = React.useState<Date | undefined>(value)
@@ -83,6 +89,8 @@ export function ChronoSelect({
     return range
   }, [normalizedMin, normalizedMax])
 
+  const label = selected ? format(selected, "PPP") : placeholder
+
   return (
     <Popover
       open={disabled ? false : open}
@@ -94,14 +102,18 @@ export function ChronoSelect({
         <Button
           variant="outline"
           disabled={disabled}
+          aria-label={ariaLabel || label}
+          title={title || label}
           className={cn(
-            "w-[280px] justify-start text-left font-normal hover:bg-slate-100 hover:text-foreground",
-            !selected && "text-muted-foreground",
+            iconOnly
+              ? "h-10 w-10 justify-center p-0 text-muted-foreground hover:bg-slate-100 hover:text-foreground"
+              : "w-[280px] justify-start text-left font-normal hover:bg-slate-100 hover:text-foreground",
+            !selected && !iconOnly && "text-muted-foreground",
             className
           )}
         >
-          <CalendarIcon className="mr-2 h-4 w-4" />
-          {selected ? format(selected, "PPP") : placeholder}
+          <CalendarIcon className={iconOnly ? "h-4 w-4" : "mr-2 h-4 w-4"} />
+          {iconOnly ? <span className="sr-only">{label}</span> : label}
         </Button>
       </PopoverTrigger>
       <PopoverContent align="start" className="p-2 space-y-2 w-auto">

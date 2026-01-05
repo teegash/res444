@@ -11,7 +11,17 @@ import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { ChronoSelect } from '@/components/ui/chrono-select'
-import { Loader2, Download, ArrowLeft } from 'lucide-react'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import { Loader2, Download, ArrowLeft, AlertTriangle } from 'lucide-react'
 import { useToast } from '@/components/ui/use-toast'
 
 export default function TransitionDetailPage() {
@@ -24,6 +34,9 @@ export default function TransitionDetailPage() {
   const [saving, setSaving] = useState(false)
   const [completing, setCompleting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [confirmOpen, setConfirmOpen] = useState(false)
+  const [pendingComplete, setPendingComplete] = useState<'vacant' | 'maintenance' | null>(null)
+  const [confirmText, setConfirmText] = useState('')
 
   const [data, setData] = useState<any>(null)
   const [events, setEvents] = useState<any[]>([])
@@ -180,6 +193,29 @@ export default function TransitionDetailPage() {
     }
   }
 
+  const requestComplete = (unitNextStatus: 'vacant' | 'maintenance') => {
+    setPendingComplete(unitNextStatus)
+    setConfirmText('')
+    setConfirmOpen(true)
+  }
+
+  const handleConfirmComplete = async () => {
+    if (!pendingComplete) return
+    const nextStatus = pendingComplete
+    setConfirmOpen(false)
+    setPendingComplete(null)
+    setConfirmText('')
+    await completeCase(nextStatus)
+  }
+
+  const confirmLabel =
+    pendingComplete === 'vacant'
+      ? 'Complete - Unit Vacant'
+      : pendingComplete === 'maintenance'
+      ? 'Complete - Unit Maintenance'
+      : 'Complete transition'
+  const confirmReady = confirmText.trim().toUpperCase() === 'CONFIRM'
+
   return (
     <div className="flex min-h-screen bg-background">
       <Sidebar />
@@ -246,7 +282,9 @@ export default function TransitionDetailPage() {
                         <SelectItem value="approved">approved</SelectItem>
                         <SelectItem value="rejected">rejected</SelectItem>
                         <SelectItem value="cancelled">cancelled</SelectItem>
-                        <SelectItem value="completed">completed</SelectItem>
+                        {isCompleted || status === 'completed' ? (
+                          <SelectItem value="completed">completed</SelectItem>
+                        ) : null}
                       </SelectContent>
                     </Select>
                   </div>
@@ -371,7 +409,7 @@ export default function TransitionDetailPage() {
 
                         <Button
                           variant="outline"
-                          onClick={() => completeCase('vacant')}
+                          onClick={() => requestComplete('vacant')}
                           disabled={completing}
                         >
                           {completing ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Complete - Unit Vacant'}
@@ -379,7 +417,7 @@ export default function TransitionDetailPage() {
 
                         <Button
                           variant="outline"
-                          onClick={() => completeCase('maintenance')}
+                          onClick={() => requestComplete('maintenance')}
                           disabled={completing}
                         >
                           {completing ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Complete - Unit Maintenance'}
@@ -393,6 +431,54 @@ export default function TransitionDetailPage() {
                   </div>
                 </CardContent>
               </Card>
+
+                <AlertDialog
+                open={confirmOpen}
+                onOpenChange={(open) => {
+                  setConfirmOpen(open)
+                  if (!open) {
+                    setPendingComplete(null)
+                    setConfirmText('')
+                  }
+                }}
+              >
+                <AlertDialogContent className="border-rose-200 bg-rose-50/95">
+                  <AlertDialogHeader>
+                    <AlertDialogTitle className="flex items-center gap-2 text-rose-700">
+                      <AlertTriangle className="h-5 w-5" />
+                      Confirm completion
+                    </AlertDialogTitle>
+                    <AlertDialogDescription className="text-rose-700/90">
+                      You are about to mark this transition as completed and update the unit status.
+                      This action is not reversible.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <div className="rounded-md border border-rose-200 bg-white/70 px-3 py-2 text-xs text-rose-700">
+                    {confirmLabel}. Please confirm you want to continue.
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs uppercase tracking-wide text-rose-700">
+                      Type CONFIRM to proceed
+                    </label>
+                    <Input
+                      value={confirmText}
+                      onChange={(event) => setConfirmText(event.target.value)}
+                      placeholder="CONFIRM"
+                      className="border-rose-200 bg-white"
+                    />
+                  </div>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel disabled={completing}>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      className="bg-rose-600 text-white hover:bg-rose-700"
+                      onClick={handleConfirmComplete}
+                      disabled={completing || !pendingComplete || !confirmReady}
+                    >
+                      {completing ? 'Completing...' : 'Yes, complete'}
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
 
               <Card>
                 <CardHeader>

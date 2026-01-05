@@ -3,12 +3,14 @@
 import { FormEvent, useEffect, useMemo, useState, useCallback } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { format } from 'date-fns'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
+import { ChronoSelect } from '@/components/ui/chrono-select'
 import {
   Search,
   Eye,
@@ -18,7 +20,6 @@ import {
   Activity,
   CheckCircle2,
   Clock3,
-  Calendar,
 } from 'lucide-react'
 import {
   Dialog,
@@ -650,18 +651,18 @@ export default function MaintenancePage() {
                     Save view
                   </Button>
                 </div>
-                <div className="grid grid-cols-1 lg:grid-cols-[minmax(220px,1.4fr)_repeat(3,1fr)_minmax(260px,1.4fr)] gap-4">
+                <div className="grid grid-cols-1 lg:grid-cols-[minmax(180px,1.2fr)_repeat(3,minmax(120px,0.9fr))_minmax(120px,0.6fr)] gap-2">
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                     <Input
                       placeholder="Search requests..."
-                      className="pl-10"
+                      className="pl-10 h-9 text-xs"
                       value={searchTerm}
                       onChange={(event) => setSearchTerm(event.target.value)}
                     />
                   </div>
                   <Select value={statusFilter} onValueChange={setStatusFilter}>
-                    <SelectTrigger className="h-11">
+                    <SelectTrigger className="h-9 text-xs">
                       <SelectValue placeholder="Status" />
                     </SelectTrigger>
                     <SelectContent>
@@ -674,7 +675,7 @@ export default function MaintenancePage() {
                     </SelectContent>
                   </Select>
                   <Select value={priorityFilter} onValueChange={setPriorityFilter}>
-                    <SelectTrigger className="h-11">
+                    <SelectTrigger className="h-9 text-xs">
                       <SelectValue placeholder="Priority" />
                     </SelectTrigger>
                     <SelectContent>
@@ -686,7 +687,7 @@ export default function MaintenancePage() {
                     </SelectContent>
                   </Select>
                   <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-                    <SelectTrigger className="h-11">
+                    <SelectTrigger className="h-9 text-xs">
                       <SelectValue placeholder="Category" />
                     </SelectTrigger>
                     <SelectContent>
@@ -698,27 +699,29 @@ export default function MaintenancePage() {
                       <SelectItem value="general">General</SelectItem>
                     </SelectContent>
                   </Select>
-                  <div className="flex items-center gap-2">
-                    <div className="relative flex-1">
-                      <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                      <Input
-                        type="date"
-                        className="h-11 pl-9"
-                        value={startDate}
-                        max={endDate || undefined}
-                        onChange={(event) => setStartDate(event.target.value)}
-                        aria-label="Start date"
+                  <div className="flex items-center gap-2 min-w-0 justify-end">
+                    <div className="min-w-0">
+                      <ChronoSelect
+                        value={startDate ? new Date(`${startDate}T00:00:00`) : undefined}
+                        onChange={(date) => setStartDate(date ? format(date, 'yyyy-MM-dd') : '')}
+                        maxDate={endDate ? new Date(`${endDate}T00:00:00`) : undefined}
+                        placeholder="Start date"
+                        iconOnly
+                        ariaLabel="Start date"
+                        title={startDate ? `Start: ${startDate}` : 'Start date'}
+                        className="h-9 w-9"
                       />
                     </div>
-                    <div className="relative flex-1">
-                      <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                      <Input
-                        type="date"
-                        className="h-11 pl-9"
-                        value={endDate}
-                        min={startDate || undefined}
-                        onChange={(event) => setEndDate(event.target.value)}
-                        aria-label="End date"
+                    <div className="min-w-0">
+                      <ChronoSelect
+                        value={endDate ? new Date(`${endDate}T00:00:00`) : undefined}
+                        onChange={(date) => setEndDate(date ? format(date, 'yyyy-MM-dd') : '')}
+                        minDate={startDate ? new Date(`${startDate}T00:00:00`) : undefined}
+                        placeholder="End date"
+                        iconOnly
+                        ariaLabel="End date"
+                        title={endDate ? `End: ${endDate}` : 'End date'}
+                        className="h-9 w-9"
                       />
                     </div>
                   </div>

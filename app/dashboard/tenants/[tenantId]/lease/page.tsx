@@ -1356,16 +1356,6 @@ export default function TenantLeaseManagementPage() {
                       </div>
                     )}
 
-                    {String(vacateNotice.status || '').toLowerCase() === 'approved' && (
-                      <Button
-                        size="sm"
-                        onClick={() => handleVacateAction('complete')}
-                        disabled={vacateActionBusy !== null}
-                      >
-                        Complete notice
-                      </Button>
-                    )}
-
                     {String(vacateNotice.status || '').toLowerCase() === 'completed' && (
                       <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-700">
                         Vacate notice completed. Lease and unit status have been updated.
