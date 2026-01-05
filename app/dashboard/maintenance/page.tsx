@@ -720,7 +720,7 @@ export default function MaintenancePage() {
                       <Tooltip open={Boolean(startDate) && !endDate}>
                         <TooltipTrigger asChild>
                           <div className="relative flex items-center gap-3">
-                            <span className="absolute -top-4 left-0 text-[10px] uppercase tracking-wide text-muted-foreground">
+                            <span className="absolute -top-4 left-0 whitespace-nowrap text-[9px] uppercase tracking-wide text-muted-foreground">
                               Custom range
                             </span>
                             <ChronoSelect
