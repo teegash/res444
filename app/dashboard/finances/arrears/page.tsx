@@ -196,6 +196,11 @@ export default function ArrearsPage() {
     })
   }, [rows, q])
 
+  const totalArrears = useMemo(
+    () => filtered.reduce((sum, row) => sum + Number(row.arrears_amount || 0), 0),
+    [filtered]
+  )
+
   useEffect(() => {
     gridApiRef.current?.setGridOption('quickFilterText', q)
   }, [q])
@@ -254,7 +259,7 @@ export default function ArrearsPage() {
                   <div className="rounded-xl border bg-white/90 p-4 shadow-sm">
                     <p className="text-xs text-muted-foreground">Total arrears</p>
                     <p className="text-[clamp(1rem,2.2vw,1.5rem)] font-bold text-slate-900 whitespace-nowrap leading-none">
-                      {formatKES(summary.total_arrears_amount || 0)}
+                      {formatKES(totalArrears)}
                     </p>
                   </div>
                 </CardContent>
