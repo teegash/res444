@@ -738,7 +738,7 @@ export default function MaintenancePage() {
                           </div>
                         </TooltipTrigger>
                         <TooltipContent side="top" align="center" className="bg-black text-white text-xs">
-                          Custom range: select an end date to finish.
+                          {startDate ? `Start: ${startDate} • select an end date` : 'Select an end date'}
                         </TooltipContent>
                       </Tooltip>
                     </TooltipProvider>
