@@ -171,6 +171,14 @@ export default function MaintenancePage() {
       propertyScope ? items.filter((item) => item.unit?.building?.id === propertyScope) : items,
     [propertyScope]
   )
+  const handleResetFilters = () => {
+    setSearchTerm('')
+    setStatusFilter('all')
+    setPriorityFilter('all')
+    setCategoryFilter('all')
+    setStartDate('')
+    setEndDate('')
+  }
 
   const openRequests = useMemo(() => requests.filter((r) => r.status === 'open').length, [requests])
   const inProgress = useMemo(
@@ -648,13 +656,20 @@ export default function MaintenancePage() {
                     <h2 className="text-lg font-semibold">Filter queue</h2>
                   <p className="text-xs text-muted-foreground">Refine by status, priority, category, or date range</p>
                 </div>
-                  <Button variant="outline" size="sm" className="rounded-full text-xs">
-                    Save view
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="rounded-full text-xs"
+                    onClick={handleResetFilters}
+                  >
+                    Reset view
                   </Button>
                 </div>
                 <div className="grid grid-cols-1 lg:grid-cols-[minmax(180px,1.2fr)_repeat(3,minmax(120px,0.9fr))_minmax(120px,0.6fr)] gap-2">
                   <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <div className="absolute inset-y-0 left-3 flex items-center">
+                      <Search className="w-4 h-4 text-gray-400" />
+                    </div>
                     <Input
                       placeholder="Search requests..."
                       className="pl-10 h-9 text-xs"
@@ -700,41 +715,34 @@ export default function MaintenancePage() {
                       <SelectItem value="general">General</SelectItem>
                     </SelectContent>
                   </Select>
-                  <div className="flex items-end gap-2 min-w-0 justify-end">
+                  <div className="flex items-center gap-2 min-w-0 justify-end">
                     <TooltipProvider>
                       <Tooltip open={Boolean(startDate) && !endDate}>
                         <TooltipTrigger asChild>
-                          <div className="flex items-end gap-3">
-                            <div className="flex flex-col items-center gap-1 min-w-0">
-                              <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                                Start
-                              </span>
-                              <ChronoSelect
-                                value={startDate ? new Date(`${startDate}T00:00:00`) : undefined}
-                                onChange={(date) => setStartDate(date ? format(date, 'yyyy-MM-dd') : '')}
-                                maxDate={endDate ? new Date(`${endDate}T00:00:00`) : undefined}
-                                placeholder="Start date"
-                                iconOnly
-                                ariaLabel="Start date"
-                                title={startDate ? `Start: ${startDate}` : 'Start date'}
-                                className="h-9 w-9"
-                              />
-                            </div>
-                            <div className="flex flex-col items-center gap-1 min-w-0">
-                              <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                                End
-                              </span>
-                              <ChronoSelect
-                                value={endDate ? new Date(`${endDate}T00:00:00`) : undefined}
-                                onChange={(date) => setEndDate(date ? format(date, 'yyyy-MM-dd') : '')}
-                                minDate={startDate ? new Date(`${startDate}T00:00:00`) : undefined}
-                                placeholder="End date"
-                                iconOnly
-                                ariaLabel="End date"
-                                title={endDate ? `End: ${endDate}` : 'End date'}
-                                className="h-9 w-9"
-                              />
-                            </div>
+                          <div className="relative flex items-center gap-3">
+                            <span className="absolute -top-4 left-0 text-[10px] uppercase tracking-wide text-muted-foreground">
+                              Custom range
+                            </span>
+                            <ChronoSelect
+                              value={startDate ? new Date(`${startDate}T00:00:00`) : undefined}
+                              onChange={(date) => setStartDate(date ? format(date, 'yyyy-MM-dd') : '')}
+                              maxDate={endDate ? new Date(`${endDate}T00:00:00`) : undefined}
+                              placeholder="Start date"
+                              iconOnly
+                              ariaLabel="Start date"
+                              title={startDate ? `Start: ${startDate}` : 'Start date'}
+                              className="h-9 w-9"
+                            />
+                            <ChronoSelect
+                              value={endDate ? new Date(`${endDate}T00:00:00`) : undefined}
+                              onChange={(date) => setEndDate(date ? format(date, 'yyyy-MM-dd') : '')}
+                              minDate={startDate ? new Date(`${startDate}T00:00:00`) : undefined}
+                              placeholder="End date"
+                              iconOnly
+                              ariaLabel="End date"
+                              title={endDate ? `End: ${endDate}` : 'End date'}
+                              className="h-9 w-9"
+                            />
                           </div>
                         </TooltipTrigger>
                         <TooltipContent side="top" align="center" className="bg-black text-white text-xs">
