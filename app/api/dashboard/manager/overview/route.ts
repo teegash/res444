@@ -272,13 +272,29 @@ export async function GET() {
     const expenses = (expensesRes as any).data || []
     const units = unitsRes.data || []
     const arrearsRows = (arrearsRes.data || []) as ArrearsRow[]
+    const { data: archivedRows, error: archivedErr } = await admin
+      .from('tenant_archives')
+      .select('tenant_user_id')
+      .eq('organization_id', orgId)
+      .eq('is_active', true)
+
+    if (archivedErr) {
+      console.error('[DashboardOverview] Failed to load tenant archives', archivedErr)
+    }
+
+    const archivedTenantIds = new Set(
+      (archivedRows || []).map((row: any) => row.tenant_user_id).filter(Boolean)
+    )
+    const scopedArrearsRows = arrearsRows.filter(
+      (row) => !row?.tenant_user_id || !archivedTenantIds.has(row.tenant_user_id)
+    )
     const unitNumberById = new Map<string, string>()
     units.forEach((u: any) => {
       if (u?.id) unitNumberById.set(String(u.id), String(u.unit_number || ''))
     })
 
     const arrearsTenantIds = Array.from(
-      new Set(arrearsRows.map((r) => r.tenant_user_id).filter(Boolean) as string[])
+      new Set(scopedArrearsRows.map((r) => r.tenant_user_id).filter(Boolean) as string[])
     )
     const profilesById = new Map<string, { full_name: string | null; phone_number: string | null }>()
     if (arrearsTenantIds.length) {
@@ -296,7 +312,7 @@ export async function GET() {
       }
     }
 
-    const arrears = arrearsRows.map((row) => {
+    const arrears = scopedArrearsRows.map((row) => {
       const tenantProfile = row.tenant_user_id ? profilesById.get(String(row.tenant_user_id)) : undefined
       return {
         lease_id: row.lease_id,

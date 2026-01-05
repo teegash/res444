@@ -32,9 +32,23 @@ export async function GET() {
     const organizationId = userRole.organization_id
     const admin = createAdminClient()
 
-    const { count: activeTenants, error: activeErr } = await admin
+    const { data: archivedRows, error: archivedErr } = await admin
+      .from('tenant_archives')
+      .select('tenant_user_id')
+      .eq('organization_id', organizationId)
+      .eq('is_active', true)
+
+    if (archivedErr) {
+      console.error('[Dashboard.DefaultersSummary.GET] Failed to load tenant archives', archivedErr)
+    }
+
+    const archivedTenantIds = new Set(
+      (archivedRows || []).map((row: any) => row.tenant_user_id).filter(Boolean)
+    )
+
+    const { data: activeLeaseRows, error: activeErr } = await admin
       .from('leases')
-      .select('id', { count: 'exact', head: true })
+      .select('tenant_user_id')
       .eq('organization_id', organizationId)
       .eq('status', 'active')
       .not('unit_id', 'is', null)
@@ -44,16 +58,22 @@ export async function GET() {
 
     const { data: arrearsRows, error: arrearsErr } = await admin
       .from('vw_lease_arrears_detail')
-      .select('lease_id, unit_id, arrears_amount')
+      .select('lease_id, unit_id, tenant_user_id, arrears_amount')
       .eq('organization_id', organizationId)
       .gt('arrears_amount', 0)
       .limit(2000)
 
     if (arrearsErr) throw arrearsErr
 
-    const defaulters = (arrearsRows || []).length
-    const totalArrearsAmount = (arrearsRows || []).reduce(
-      (sum, r: any) => sum + Number(r.arrears_amount || 0),
+    const scopedArrears = (arrearsRows || []).filter(
+      (row: any) => !row?.tenant_user_id || !archivedTenantIds.has(row.tenant_user_id)
+    )
+    const defaulterTenantIds = new Set(
+      scopedArrears.map((row: any) => row.tenant_user_id).filter(Boolean)
+    )
+    const defaulters = defaulterTenantIds.size
+    const totalArrearsAmount = scopedArrears.reduce(
+      (sum: number, r: any) => sum + Number(r.arrears_amount || 0),
       0
     )
 
@@ -61,9 +81,7 @@ export async function GET() {
       | null
       | { building_id: string; building_name: string; arrears_amount: number } = null
 
-    const unitIds = Array.from(
-      new Set((arrearsRows || []).map((r: any) => r.unit_id).filter(Boolean))
-    )
+    const unitIds = Array.from(new Set(scopedArrears.map((r: any) => r.unit_id).filter(Boolean)))
 
     if (unitIds.length > 0) {
       const { data: units, error: unitErr } = await admin
@@ -80,7 +98,7 @@ export async function GET() {
         }
 
         const buildingTotals = new Map<string, { name: string; sum: number }>()
-        for (const row of arrearsRows as any[]) {
+        for (const row of scopedArrears as any[]) {
           const unitId = row.unit_id
           const b = unitToBuilding.get(unitId)
           if (!b) continue
@@ -96,7 +114,12 @@ export async function GET() {
       }
     }
 
-    const active = activeTenants || 0
+    const activeTenantIds = new Set(
+      (activeLeaseRows || [])
+        .map((row: any) => row.tenant_user_id)
+        .filter((id: string) => Boolean(id) && !archivedTenantIds.has(id))
+    )
+    const active = activeTenantIds.size
     const pct = active > 0 ? Math.round((defaulters / active) * 100) : 0
 
     return NextResponse.json({

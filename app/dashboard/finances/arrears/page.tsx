@@ -142,13 +142,37 @@ export default function ArrearsPage() {
         setLoading(true)
         setError(null)
         const params = new URLSearchParams()
-        if (buildingId !== 'all') params.set('building_id', buildingId)
+        if (buildingId !== 'all') params.set('buildingId', buildingId)
         const min = Number(minArrears || '0')
-        if (Number.isFinite(min) && min > 0) params.set('min_arrears', String(min))
-        const res = await fetch(`/api/finance/arrears?${params.toString()}`, { cache: 'no-store' })
+        const res = await fetch(`/api/manager/statements?${params.toString()}`, { cache: 'no-store' })
         const json = await res.json()
         if (!res.ok || !json.success) throw new Error(json.error || 'Failed to load arrears')
-        if (mounted) setRows(json.data || [])
+        const baseRows = Array.isArray(json.rows)
+          ? json.rows
+          : Array.isArray(json.data)
+          ? json.data
+          : []
+        const mapped: ArrearsRow[] = baseRows.map((row: any) => ({
+          organization_id: row.organization_id || '',
+          lease_id: row.lease_id,
+          tenant_user_id: row.tenant_user_id,
+          tenant_name: row.tenant_name ?? null,
+          tenant_phone: row.tenant_phone ?? null,
+          unit_id: null,
+          unit_number: row.unit_number ?? null,
+          arrears_amount: Number(row.current_balance || 0),
+          open_invoices_count: Number(row.open_invoices_count || 0),
+          oldest_due_date: row.oldest_due_date ?? null,
+          building_id: row.building_id ?? null,
+          building_name: row.building_name ?? null,
+          building_location: null,
+        }))
+        const filteredRows = mapped.filter((row) => {
+          if (row.arrears_amount <= 0) return false
+          if (Number.isFinite(min) && min > 0) return row.arrears_amount >= min
+          return true
+        })
+        if (mounted) setRows(filteredRows)
       } catch (e) {
         if (mounted) setError(e instanceof Error ? e.message : 'Failed to load arrears')
       } finally {
