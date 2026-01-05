@@ -143,20 +143,11 @@ export async function GET(request: NextRequest) {
     }
 
     const tenantIds = profiles.map((profile) => profile.id).filter(Boolean)
-
-    const archiveMap = new Map<string, { archived_at: string | null }>()
-    if (tenantIds.length > 0) {
-      const { data: archives } = await adminSupabase
-        .from('tenant_archives')
-        .select('tenant_user_id, archived_at')
-        .eq('organization_id', membership.organization_id)
-        .eq('is_active', true)
-        .in('tenant_user_id', tenantIds)
-
-      ;(archives || []).forEach((row: any) => {
-        archiveMap.set(row.tenant_user_id, { archived_at: row.archived_at || null })
-      })
-    }
+    const allTenantIds = [...tenantIds]
+    const profileMap = new Map<string, any>()
+    profiles.forEach((profile: any) => {
+      if (profile?.id) profileMap.set(profile.id, profile)
+    })
 
     const authMap = new Map<string, { email: string | null; created_at: string | null }>()
     if (tenantIds.length > 0) {
@@ -251,6 +242,64 @@ export async function GET(request: NextRequest) {
       if (!lease?.tenant_user_id) continue
       if (!leaseMap.has(lease.tenant_user_id)) {
         leaseMap.set(lease.tenant_user_id, lease)
+      }
+    }
+
+    const archiveMap = new Map<string, { archived_at: string | null }>()
+    if (allTenantIds.length > 0) {
+      const { data: archives } = await adminSupabase
+        .from('tenant_archives')
+        .select('tenant_user_id, archived_at')
+        .eq('organization_id', membership.organization_id)
+        .eq('is_active', true)
+        .in('tenant_user_id', allTenantIds)
+
+      ;(archives || []).forEach((row: any) => {
+        archiveMap.set(row.tenant_user_id, { archived_at: row.archived_at || null })
+      })
+    }
+
+    const role = membership?.role ? String(membership.role).toLowerCase() : null
+    const canAutoArchive = Boolean(role && ['admin', 'manager'].includes(role))
+    const unassignedTenantIds = allTenantIds.filter((tenantId) => !leaseMap.has(tenantId))
+
+    if (canAutoArchive && unassignedTenantIds.length > 0) {
+      const nowIso = new Date().toISOString()
+      for (const tenantId of unassignedTenantIds) {
+        if (archiveMap.has(tenantId)) continue
+        const profile = profileMap.get(tenantId) || null
+        const snapshot = {
+          tenant_profile: profile,
+          active_lease: null,
+          unit: null,
+          archived_from: 'auto_unassigned',
+          archived_at_iso: nowIso,
+        }
+
+        const { error: archErr } = await adminSupabase
+          .from('tenant_archives')
+          .insert({
+            organization_id: membership.organization_id,
+            tenant_user_id: tenantId,
+            archived_by: user.id,
+            reason: 'Auto archived: no assigned unit',
+            notes: null,
+            snapshot,
+            is_active: true,
+          })
+
+        if (!archErr) {
+          archiveMap.set(tenantId, { archived_at: nowIso })
+          await adminSupabase.from('tenant_archive_events').insert({
+            organization_id: membership.organization_id,
+            tenant_user_id: tenantId,
+            actor_user_id: user.id,
+            event_type: 'archived',
+            payload: { reason: 'Auto archived: no assigned unit' },
+          })
+        } else if (archErr.code === '23505') {
+          archiveMap.set(tenantId, { archived_at: nowIso })
+        }
       }
     }
 
