@@ -249,6 +249,24 @@ export async function GET() {
 
     const tenantIds = Array.from(tenantIdSet)
 
+    const archivedTenantIds = new Set<string>()
+    if (tenantIds.length > 0) {
+      const { data: archives, error: archiveError } = await admin
+        .from('tenant_archives')
+        .select('tenant_user_id')
+        .eq('organization_id', membership.organization_id)
+        .eq('is_active', true)
+        .in('tenant_user_id', tenantIds)
+
+      if (archiveError) {
+        console.error('[WaterBills.Statement] Failed to load tenant archives', archiveError)
+      } else {
+        ;(archives || []).forEach((row: any) => {
+          if (row?.tenant_user_id) archivedTenantIds.add(row.tenant_user_id)
+        })
+      }
+    }
+
     let tenantProfileMap = new Map<
       string,
       { name: string; email: string | null; phone_number: string | null }
@@ -326,17 +344,21 @@ export async function GET() {
       }
     })
 
-    const paidCount = items.filter((item) => item.status === 'paid').length
-    const unpaidCount = items.filter((item) => item.status === 'unpaid').length
-    const paidAmount = items
+    const visibleItems = items.filter(
+      (item) => !item.tenant_id || !archivedTenantIds.has(item.tenant_id)
+    )
+
+    const paidCount = visibleItems.filter((item) => item.status === 'paid').length
+    const unpaidCount = visibleItems.filter((item) => item.status === 'unpaid').length
+    const paidAmount = visibleItems
       .filter((item) => item.status === 'paid')
       .reduce((sum, item) => sum + item.amount, 0)
-    const unpaidAmount = items
+    const unpaidAmount = visibleItems
       .filter((item) => item.status === 'unpaid')
       .reduce((sum, item) => sum + item.amount, 0)
 
     const propertiesMap = new Map<string, { id: string; name: string; location: string }>()
-    items.forEach((item) => {
+    visibleItems.forEach((item) => {
       if (item.property_id && !propertiesMap.has(item.property_id)) {
         propertiesMap.set(item.property_id, {
           id: item.property_id,
@@ -348,9 +370,9 @@ export async function GET() {
 
     return NextResponse.json({
       success: true,
-      data: items,
+      data: visibleItems,
       summary: {
-        total: items.length,
+        total: visibleItems.length,
         paid_count: paidCount,
         unpaid_count: unpaidCount,
         paid_amount: paidAmount,

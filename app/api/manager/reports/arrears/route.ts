@@ -120,8 +120,34 @@ export async function GET(req: NextRequest) {
       ? (overdueInvoices || []).filter((inv: any) => inv.lease?.unit?.building?.id === scopePropertyId)
       : overdueInvoices || []
 
-    const tenantIds = Array.from(
+    const scopedTenantIds = Array.from(
       new Set(scopedInvoices.map((inv: any) => inv.lease?.tenant_user_id).filter(Boolean))
+    )
+
+    const archivedTenantIds = new Set<string>()
+    if (scopedTenantIds.length > 0) {
+      const { data: archives, error: archiveError } = await admin
+        .from('tenant_archives')
+        .select('tenant_user_id')
+        .eq('organization_id', orgId)
+        .eq('is_active', true)
+        .in('tenant_user_id', scopedTenantIds)
+
+      if (archiveError) {
+        console.error('[ManagerArrearsReport] Failed to load tenant archives', archiveError)
+      } else {
+        ;(archives || []).forEach((row: any) => {
+          if (row?.tenant_user_id) archivedTenantIds.add(row.tenant_user_id)
+        })
+      }
+    }
+
+    const visibleInvoices = scopedInvoices.filter(
+      (inv: any) => !inv?.lease?.tenant_user_id || !archivedTenantIds.has(inv.lease.tenant_user_id)
+    )
+
+    const tenantIds = Array.from(
+      new Set(visibleInvoices.map((inv: any) => inv.lease?.tenant_user_id).filter(Boolean))
     )
     let profilesById = new Map<string, { full_name: string | null; phone_number: string | null }>()
     if (tenantIds.length) {
@@ -145,7 +171,7 @@ export async function GET(req: NextRequest) {
     const byProperty: Record<string, any> = {}
     const defaulters: Record<string, any> = {}
 
-    for (const inv of scopedInvoices) {
+    for (const inv of visibleInvoices) {
       if (String(inv?.status_text || '').toLowerCase() === 'void') continue
       if (isRentPrepaid(inv)) continue
 

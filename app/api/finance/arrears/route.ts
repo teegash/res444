@@ -58,7 +58,33 @@ export async function GET(req: NextRequest) {
 
     const baseRows = data ?? []
 
-    const unitIds = Array.from(new Set(baseRows.map((r: any) => r.unit_id).filter(Boolean)))
+    const tenantIds = Array.from(
+      new Set(baseRows.map((row: any) => row.tenant_user_id).filter(Boolean))
+    )
+
+    const archivedTenantIds = new Set<string>()
+    if (tenantIds.length > 0) {
+      const { data: archives, error: archiveError } = await admin
+        .from('tenant_archives')
+        .select('tenant_user_id')
+        .eq('organization_id', organizationId)
+        .eq('is_active', true)
+        .in('tenant_user_id', tenantIds)
+
+      if (archiveError) {
+        console.error('[Finance.Arrears.GET] Failed to load tenant archives', archiveError)
+      } else {
+        ;(archives || []).forEach((row: any) => {
+          if (row?.tenant_user_id) archivedTenantIds.add(row.tenant_user_id)
+        })
+      }
+    }
+
+    const scopedRows = baseRows.filter(
+      (row: any) => !row?.tenant_user_id || !archivedTenantIds.has(row.tenant_user_id)
+    )
+
+    const unitIds = Array.from(new Set(scopedRows.map((r: any) => r.unit_id).filter(Boolean)))
 
     const unitToBuilding = new Map<
       string,
@@ -84,7 +110,7 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    let finalRows = baseRows.map((r: any) => {
+    let finalRows = scopedRows.map((r: any) => {
       const extra = r.unit_id ? unitToBuilding.get(r.unit_id) : null
       return {
         ...r,
