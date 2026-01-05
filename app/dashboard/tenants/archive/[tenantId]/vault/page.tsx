@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { AgGridReact } from 'ag-grid-react'
 import type { ColDef } from 'ag-grid-community'
 import { AllCommunityModule, ModuleRegistry } from 'ag-grid-community'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, Shield, Sparkles } from 'lucide-react'
 import { Sidebar } from '@/components/dashboard/sidebar'
 import { Header } from '@/components/dashboard/header'
 import { Button } from '@/components/ui/button'
@@ -52,6 +52,21 @@ function kes(value: unknown) {
 function safeDate(value?: string | null) {
   if (!value) return ''
   return String(value).slice(0, 10)
+}
+
+function renderStatusPill(value?: string | null) {
+  const status = String(value || '').trim().toLowerCase()
+  if (!status) return <span className="text-slate-400">—</span>
+
+  const isPaid = ['paid', 'settled', 'cleared'].includes(status)
+  const isUnpaid = ['unpaid', 'overdue', 'pending'].includes(status)
+  const base = 'inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold capitalize'
+  const style = isPaid
+    ? 'border-emerald-200 bg-emerald-100 text-emerald-700'
+    : isUnpaid
+    ? 'border-rose-200 bg-rose-100 text-rose-700'
+    : 'border-slate-200 bg-slate-100 text-slate-600'
+  return <span className={`${base} ${style}`}>{status}</span>
 }
 
 export default function TenantVaultPage() {
@@ -139,7 +154,7 @@ export default function TenantVaultPage() {
         valueFormatter: (p) => kes(p.value),
         cellClass: 'text-right',
       },
-      { headerName: 'Status', field: 'status_text', minWidth: 120 },
+      { headerName: 'Status', field: 'status_text', minWidth: 120, cellRenderer: (p: any) => renderStatusPill(p.value) },
     ],
     []
   )
@@ -207,7 +222,7 @@ export default function TenantVaultPage() {
         cellClass: 'text-right',
       },
       { headerName: 'Units', field: 'units_consumed', minWidth: 90 },
-      { headerName: 'Status', field: 'status', minWidth: 110 },
+      { headerName: 'Status', field: 'status', minWidth: 120, cellRenderer: (p: any) => renderStatusPill(p.value) },
       { headerName: 'Invoice Due', field: 'invoice_due_date', minWidth: 120 },
     ],
     []
@@ -289,6 +304,24 @@ export default function TenantVaultPage() {
 
   const snapshotUnit = data?.archive?.snapshot?.unit?.unit_number || null
   const snapshotProperty = data?.archive?.snapshot?.unit?.building?.name || null
+  const waterUnpaid = useMemo(
+    () => waterBillRows.filter((row: any) => String(row?.status || '').toLowerCase() !== 'paid'),
+    [waterBillRows]
+  )
+  const waterUnpaidTotal = useMemo(
+    () => waterUnpaid.reduce((sum: number, row: any) => sum + Number(row.amount || 0), 0),
+    [waterUnpaid]
+  )
+  const ledgerTotals = useMemo(() => {
+    return ledgerRows.reduce(
+      (acc, row) => {
+        acc.debit += Number(row.debit || 0)
+        acc.credit += Number(row.credit || 0)
+        return acc
+      },
+      { debit: 0, credit: 0 }
+    )
+  }, [ledgerRows])
 
   const exportLetterhead = useMemo(
     () => ({
@@ -362,38 +395,81 @@ export default function TenantVaultPage() {
   }
 
   return (
-    <div className="flex min-h-screen bg-gray-200">
+    <div className="relative flex min-h-screen bg-slate-100 overflow-hidden">
+      <div className="pointer-events-none absolute inset-0">
+        <div className="absolute -top-24 -right-20 h-72 w-72 rounded-full bg-amber-200/40 blur-3xl" />
+        <div className="absolute top-20 -left-24 h-80 w-80 rounded-full bg-sky-200/40 blur-3xl" />
+        <div className="absolute bottom-10 right-10 h-64 w-64 rounded-full bg-emerald-200/30 blur-3xl" />
+      </div>
       <Sidebar />
-      <div className="flex-1 flex flex-col">
+      <div className="relative z-10 flex-1 flex flex-col">
         <Header />
         <main className="flex-1 p-6 overflow-auto">
-          <div className="max-w-7xl mx-auto space-y-4">
+          <div className="max-w-7xl mx-auto space-y-6">
             <Button variant="ghost" className="px-0" onClick={() => router.push('/dashboard/tenants/archive')}>
               <ArrowLeft className="mr-2 h-4 w-4" /> Back
             </Button>
 
-            <Card>
-              <CardHeader>
-                <CardTitle>{tenantName} - Vault</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2 text-sm text-slate-600">
-                <div>Archived: {archivedAt}</div>
-                {data?.archive?.reason ? <div>Reason: {data.archive.reason}</div> : null}
-                {data?.archive?.notes ? <div>Notes: {data.archive.notes}</div> : null}
-                {snapshotProperty || snapshotUnit ? (
-                  <div>
-                    Last unit: {snapshotUnit || '-'}{snapshotProperty ? ` - ${snapshotProperty}` : ''}
+            <Card className="border-0 bg-white/90 shadow-xl backdrop-blur">
+              <CardContent className="p-6">
+                <div className="flex flex-wrap items-center justify-between gap-6">
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                      <Shield className="h-4 w-4 text-slate-500" />
+                      Tenant Vault
+                    </div>
+                    <div className="flex flex-wrap items-center gap-3">
+                      <h1 className="text-2xl font-bold text-slate-900">{tenantName}</h1>
+                      <span className="inline-flex items-center gap-1 rounded-full bg-slate-900 px-3 py-1 text-xs font-semibold text-white">
+                        <Sparkles className="h-3.5 w-3.5" /> Archived
+                      </span>
+                    </div>
+                    <div className="text-sm text-slate-600">
+                      Archived: <span className="font-medium text-slate-900">{archivedAt}</span>
+                    </div>
+                    <div className="flex flex-wrap gap-4 text-sm text-slate-600">
+                      <span>Email: {data?.tenant?.email || '—'}</span>
+                      <span>Phone: {data?.tenant?.phone_number || '—'}</span>
+                      <span>ID: {data?.tenant?.national_id || '—'}</span>
+                    </div>
+                    {snapshotProperty || snapshotUnit ? (
+                      <div className="text-sm text-slate-600">
+                        Last unit:{' '}
+                        <span className="font-medium text-slate-900">
+                          {snapshotUnit || '-'}{snapshotProperty ? ` • ${snapshotProperty}` : ''}
+                        </span>
+                      </div>
+                    ) : null}
+                    {data?.archive?.reason ? (
+                      <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                        Reason: {data.archive.reason}
+                      </div>
+                    ) : null}
                   </div>
-                ) : null}
-                {error ? <div className="text-rose-600">{error}</div> : null}
-                {loading ? <div>Loading vault...</div> : null}
+                  <div className="grid min-w-[240px] gap-2 rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-4 text-white shadow-lg">
+                    <div className="text-xs uppercase tracking-[0.2em] text-slate-300">Vault Summary</div>
+                    <div className="text-sm">Ledger debit: {kes(ledgerTotals.debit)}</div>
+                    <div className="text-sm">Ledger credit: {kes(ledgerTotals.credit)}</div>
+                    <div className="text-sm">
+                      Water bills unpaid: {waterUnpaid.length} • {kes(waterUnpaidTotal)}
+                    </div>
+                    <div className="text-sm">
+                      Documents: {documentRows.length} • Messages: {messageRows.length}
+                    </div>
+                  </div>
+                </div>
+                <div className="mt-4 flex flex-wrap gap-3 text-xs text-slate-600">
+                  {data?.archive?.notes ? <span>Notes: {data.archive.notes}</span> : null}
+                  {error ? <span className="text-rose-600">{error}</span> : null}
+                  {loading ? <span>Loading vault...</span> : null}
+                </div>
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className="border-0 bg-white/90 shadow-xl backdrop-blur">
               <CardContent className="p-4">
                 <Tabs defaultValue="ledger">
-                  <TabsList>
+                  <TabsList className="bg-slate-100/80 p-1 rounded-full">
                     <TabsTrigger value="ledger">Statement</TabsTrigger>
                     <TabsTrigger value="maintenance">Maintenance</TabsTrigger>
                     <TabsTrigger value="water">Water Bills</TabsTrigger>
@@ -414,7 +490,7 @@ export default function TenantVaultPage() {
                         CSV
                       </Button>
                     </div>
-                    <div className="ag-theme-quartz w-full h-[520px] rounded-xl border border-slate-200 bg-white shadow-sm">
+                    <div className="ag-theme-quartz w-full h-[520px] rounded-2xl border border-slate-200/70 bg-white shadow-sm">
                       <AgGridReact
                         ref={ledgerGridRef}
                         theme="legacy"
@@ -439,7 +515,7 @@ export default function TenantVaultPage() {
                         CSV
                       </Button>
                     </div>
-                    <div className="ag-theme-quartz w-full h-[520px] rounded-xl border border-slate-200 bg-white shadow-sm">
+                    <div className="ag-theme-quartz w-full h-[520px] rounded-2xl border border-slate-200/70 bg-white shadow-sm">
                       <AgGridReact
                         ref={maintGridRef}
                         theme="legacy"
@@ -453,7 +529,7 @@ export default function TenantVaultPage() {
                   </TabsContent>
 
                   <TabsContent value="water" className="mt-4">
-                    <div className="ag-theme-quartz w-full h-[520px] rounded-xl border border-slate-200 bg-white shadow-sm">
+                    <div className="ag-theme-quartz w-full h-[520px] rounded-2xl border border-slate-200/70 bg-white shadow-sm">
                       <AgGridReact
                         ref={waterGridRef}
                         theme="legacy"
@@ -467,7 +543,7 @@ export default function TenantVaultPage() {
                   </TabsContent>
 
                   <TabsContent value="messages" className="mt-4">
-                    <div className="ag-theme-quartz w-full h-[520px] rounded-xl border border-slate-200 bg-white shadow-sm">
+                    <div className="ag-theme-quartz w-full h-[520px] rounded-2xl border border-slate-200/70 bg-white shadow-sm">
                       <AgGridReact
                         ref={messageGridRef}
                         theme="legacy"
@@ -481,7 +557,7 @@ export default function TenantVaultPage() {
                   </TabsContent>
 
                   <TabsContent value="documents" className="mt-4">
-                    <div className="ag-theme-quartz w-full h-[520px] rounded-xl border border-slate-200 bg-white shadow-sm">
+                    <div className="ag-theme-quartz w-full h-[520px] rounded-2xl border border-slate-200/70 bg-white shadow-sm">
                       <AgGridReact
                         ref={docGridRef}
                         theme="legacy"
@@ -506,7 +582,7 @@ export default function TenantVaultPage() {
                         CSV
                       </Button>
                     </div>
-                    <div className="ag-theme-quartz w-full h-[520px] rounded-xl border border-slate-200 bg-white shadow-sm">
+                    <div className="ag-theme-quartz w-full h-[520px] rounded-2xl border border-slate-200/70 bg-white shadow-sm">
                       <AgGridReact
                         ref={leaseGridRef}
                         theme="legacy"
