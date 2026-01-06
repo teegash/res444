@@ -78,8 +78,8 @@ export async function GET(request: NextRequest) {
     }
 
     // Direct HTTP request to Supabase REST API with service role key to bypass RLS
-    let membershipResponse = await fetchWithTimeout(
-      `${supabaseUrl}/rest/v1/organization_members?user_id=eq.${user.id}&select=organization_id,role,property_id&limit=1`,
+    const membershipResponse = await fetchWithTimeout(
+      `${supabaseUrl}/rest/v1/organization_members?user_id=eq.${user.id}&select=organization_id,role&limit=1`,
       {
         method: 'GET',
         headers: {
@@ -93,24 +93,6 @@ export async function GET(request: NextRequest) {
       2000,
       'Organization membership lookup'
     )
-    if (!membershipResponse.ok) {
-      // Fallback if property_id column is missing
-      membershipResponse = await fetchWithTimeout(
-        `${supabaseUrl}/rest/v1/organization_members?user_id=eq.${user.id}&select=organization_id,role&limit=1`,
-        {
-          method: 'GET',
-          headers: {
-            apikey: serviceRoleKey,
-            Authorization: `Bearer ${serviceRoleKey}`,
-            Accept: 'application/json',
-            'Content-Type': 'application/json',
-            Prefer: 'return=representation',
-          },
-        },
-        2000,
-        'Organization membership fallback lookup'
-      )
-    }
 
     if (!membershipResponse.ok) {
       console.error('Error fetching organization membership:', membershipResponse.status, membershipResponse.statusText)
