@@ -228,7 +228,20 @@ export async function POST(request: NextRequest) {
       .select('id, sender_user_id, recipient_user_id, message_text, read, created_at')
 
     if (insertError) {
-      throw insertError
+      console.error('[TenantMessages.POST] communications insert failed', {
+        message: insertError.message,
+        details: (insertError as any).details,
+        hint: (insertError as any).hint,
+        code: (insertError as any).code,
+        organizationId,
+        leaseId: lease?.id ?? null,
+        rowsCount: rows.length,
+        sampleRow: rows[0],
+      })
+      return NextResponse.json(
+        { success: false, error: insertError.message, code: (insertError as any).code },
+        { status: 400 }
+      )
     }
 
     const { data: tenantProfile } = await adminSupabase
