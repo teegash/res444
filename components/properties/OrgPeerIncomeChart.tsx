@@ -17,7 +17,7 @@ function formatCompact(n: number) {
 
 const chartConfig = {
   income: {
-    label: 'Monthly rent income',
+    label: 'Rent revenue',
     color: '#0066FF',
   },
   label: {
@@ -29,7 +29,7 @@ export function OrgPeerIncomeChart({ data, monthLabel }: { data: Row[]; monthLab
   return (
     <Card className="h-full">
       <CardHeader>
-        <CardTitle>Apartment income comparison</CardTitle>
+        <CardTitle>Apartment revenue comparison</CardTitle>
       </CardHeader>
 
       <CardContent>

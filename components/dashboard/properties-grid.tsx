@@ -322,7 +322,7 @@ export function PropertiesGrid({ onEdit, onManageUnits, onView, searchTerm }: Pr
             className="overflow-hidden hover:shadow-md transition-shadow p-0"
           >
             <div
-              className="relative h-28 group cursor-pointer"
+              className="relative h-40 group cursor-pointer"
               onClick={(e) => {
                 // Don't navigate if clicking the edit button
                 if ((e.target as HTMLElement).closest('.image-edit-button')) {
@@ -358,7 +358,7 @@ export function PropertiesGrid({ onEdit, onManageUnits, onView, searchTerm }: Pr
                 </Button>
               </div>
             </div>
-            <CardHeader className="pb-2 pt-3">
+            <CardHeader className="pb-1 pt-1">
               <div className="flex items-start justify-between">
                 <div>
                   <h3 className="font-semibold text-lg">{property.name}</h3>

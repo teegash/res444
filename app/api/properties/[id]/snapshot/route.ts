@@ -176,7 +176,7 @@ export async function GET(req: Request, ctx: { params: { id: string } }) {
   const monthlyPropertyRentIncome: Record<string, number> = {}
   let totalPropertyRentIncome = 0
   let ytdPropertyRentIncome = 0
-  const peerRentIncomeByMonth: Record<string, Record<string, number>> = {}
+  const peerRentIncomeByBuilding: Record<string, number> = {}
 
   for (const p of payments || []) {
     const inv: any = (p as any).invoice
@@ -193,9 +193,8 @@ export async function GET(req: Request, ctx: { params: { id: string } }) {
     const inYtd = d >= yearStart && d <= end
 
     const bId = unitToBuilding.get(unitId)
-    if (bId) {
-      peerRentIncomeByMonth[mKey] ||= {}
-      peerRentIncomeByMonth[mKey][bId] = (peerRentIncomeByMonth[mKey][bId] || 0) + amt
+    if (bId && inRange) {
+      peerRentIncomeByBuilding[bId] = (peerRentIncomeByBuilding[bId] || 0) + amt
     }
 
     if (unitIds.includes(unitId)) {
@@ -221,15 +220,16 @@ export async function GET(req: Request, ctx: { params: { id: string } }) {
     expenses: Math.round((monthlyExpenses[mKey] || 0) * 100) / 100,
   }))
 
-  const latestMonthKey = monthsSeries[monthsSeries.length - 1]
-  const peerMonth = peerRentIncomeByMonth[latestMonthKey] || {}
-
-  const peerMonthlyIncome = Object.entries(peerMonth)
-    .map(([buildingId, income]) => ({
-      property: buildingName.get(buildingId) || `${buildingId.slice(0, 8)}…`,
-      income: Math.round((Number(income || 0) * 100) / 100),
-      building_id: buildingId,
-    }))
+  const peerMonthlyIncome = (buildings || [])
+    .map((building: any) => {
+      const buildingId = building?.id
+      const income = buildingId ? peerRentIncomeByBuilding[buildingId] || 0 : 0
+      return {
+        property: building?.name || (buildingId ? `${buildingId.slice(0, 8)}…` : 'Property'),
+        income: Math.round(Number(income || 0) * 100) / 100,
+        building_id: buildingId,
+      }
+    })
     .sort((a, b) => b.income - a.income)
 
   const { data: arrearsRows, error: arrErr } = await admin
@@ -274,7 +274,7 @@ export async function GET(req: Request, ctx: { params: { id: string } }) {
       charts: {
         incomeVsExpenses,
         peerMonthlyIncome,
-        peerMonthLabel: latestMonthKey,
+        peerMonthLabel: `Last ${months} months`,
       },
     },
   })
