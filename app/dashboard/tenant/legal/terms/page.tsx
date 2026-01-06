@@ -1,6 +1,5 @@
 import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 
 export const dynamic = 'force-dynamic'
@@ -8,18 +7,28 @@ export const revalidate = 0
 
 export default function TenantTermsPage() {
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-50 via-white to-slate-100/70">
-      <div className="max-w-4xl mx-auto p-4 md:p-6 lg:p-10">
-        <Card className="rounded-2xl border border-slate-200/70 bg-white/90 shadow-sm">
-          <CardHeader className="space-y-2 border-b border-slate-100/80 bg-slate-50/70">
-            <p className="text-[11px] uppercase tracking-[0.2em] text-slate-500">Tenant Portal Policy</p>
-            <CardTitle className="text-xl font-semibold tracking-tight">Terms of Use (Tenant Portal)</CardTitle>
-            <p className="text-xs leading-relaxed text-muted-foreground">
-              These terms govern use of the tenant dashboard. Your lease agreement remains the
-              primary contract for tenancy obligations.
-            </p>
-          </CardHeader>
-          <CardContent className="prose prose-slate prose-sm max-w-none leading-relaxed prose-headings:text-[15px] prose-headings:font-semibold prose-headings:tracking-tight prose-li:leading-6 prose-p:leading-7">
+    <div className="min-h-screen bg-blue-500 p-4 sm:p-6">
+      <div className="mx-auto w-full max-w-5xl rounded-xl border border-blue-200 bg-white shadow-2xl">
+        <div className="px-6 py-8 sm:px-10 sm:py-10">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div className="max-w-3xl">
+              <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">Terms of Use (Tenant Portal)</h1>
+              <p className="mt-2 text-sm leading-relaxed text-slate-600">
+                These terms govern use of the tenant dashboard. Your lease agreement remains the
+                primary contract for tenancy obligations.
+              </p>
+            </div>
+            <Button asChild variant="outline" size="sm" className="gap-2">
+              <Link href="/dashboard/tenant">
+                <ArrowLeft className="h-4 w-4" />
+                Back
+              </Link>
+            </Button>
+          </div>
+
+          <div className="mt-6 h-px bg-slate-200" />
+
+          <div className="prose prose-slate mt-6 max-w-none text-[15px] leading-7 prose-headings:text-base prose-headings:font-semibold prose-li:leading-7">
             <h3>1. Eligibility and accounts</h3>
             <p>
               The tenant portal is intended for verified tenants and authorized users. You are
@@ -65,18 +74,12 @@ export default function TenantTermsPage() {
             <p>These terms are governed by the laws of Kenya.</p>
 
             <div className="not-prose mt-8 flex flex-wrap gap-2">
-              <Button asChild variant="outline">
-                <Link href="/dashboard/tenant" className="inline-flex items-center gap-2">
-                  <ArrowLeft className="h-4 w-4" />
-                  Back
-                </Link>
-              </Button>
-              <Button asChild>
+              <Button asChild variant="outline" size="sm">
                 <Link href="/dashboard/tenant/legal/privacy">Privacy policy</Link>
               </Button>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       </div>
     </div>
   )
