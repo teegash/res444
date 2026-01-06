@@ -254,52 +254,46 @@ export default function PaymentHistoryPage() {
   const paymentStats = useMemo(() => {
     const monthsWindow = 6
     const now = new Date()
-    const monthlyTotals = new Map<string, { total: number; onTime: boolean }>()
-
-    for (let i = 0; i < monthsWindow; i++) {
-      const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - i, 1))
-      const key = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`
-      monthlyTotals.set(key, { total: 0, onTime: false })
-    }
-
     const rangeStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - (monthsWindow - 1), 1))
 
-    payments.forEach((payment) => {
-      if (!payment.verified) {
-        return
-      }
+    const verifiedPayments = payments.filter((payment) => payment.verified)
+    const recentPayments = verifiedPayments.filter((payment) => {
       const paidBasis = payment.posted_at || payment.created_at
-      if (!paidBasis) return
+      if (!paidBasis) return false
       const paidDate = new Date(paidBasis)
-      if (paidDate < rangeStart) {
-        return
-      }
-
-      const monthKey = `${paidDate.getUTCFullYear()}-${String(paidDate.getUTCMonth() + 1).padStart(2, '0')}`
-      const entry = monthlyTotals.get(monthKey) || { total: 0, onTime: false }
-      entry.total += payment.amount_paid
-
-      if (payment.due_date) {
-        const dueDate = new Date(payment.due_date)
-        const graceDate = new Date(dueDate)
-        graceDate.setDate(graceDate.getDate() + 5)
-        if (paidDate <= graceDate) {
-          entry.onTime = true
-        }
-      }
-
-      monthlyTotals.set(monthKey, entry)
+      return paidDate >= rangeStart
     })
 
-    const totalPaid = Array.from(monthlyTotals.values()).reduce((sum, month) => sum + month.total, 0)
-    const averageMonthly = Math.round(totalPaid / monthsWindow)
-    const onTimeRate = Math.round(
-      (Array.from(monthlyTotals.values()).filter((month) => month.onTime).length / monthsWindow) *
-        100
+    const totalPaid = recentPayments.reduce((sum, payment) => sum + payment.amount_paid, 0)
+
+    const monthsWithPayments = new Set(
+      recentPayments
+        .map((payment) => payment.posted_at || payment.created_at)
+        .filter((value): value is string => Boolean(value))
+        .map((value) => {
+          const paidDate = new Date(value)
+          return `${paidDate.getUTCFullYear()}-${String(paidDate.getUTCMonth() + 1).padStart(2, '0')}`
+        })
     )
 
+    const eligibleForOnTime = recentPayments.filter((payment) => payment.due_date && (payment.posted_at || payment.created_at))
+    const onTimeCount = eligibleForOnTime.filter((payment) => {
+      const paidBasis = payment.posted_at || payment.created_at
+      if (!paidBasis || !payment.due_date) return false
+      const paidDate = new Date(paidBasis)
+      const dueDate = new Date(payment.due_date)
+      const graceDate = new Date(dueDate)
+      graceDate.setDate(graceDate.getDate() + 5)
+      return paidDate <= graceDate
+    }).length
+
+    const averageMonthly =
+      monthsWithPayments.size > 0 ? Math.round(totalPaid / monthsWithPayments.size) : 0
+    const onTimeRate =
+      eligibleForOnTime.length > 0 ? Math.round((onTimeCount / eligibleForOnTime.length) * 100) : 0
+
     return {
-      hasSixMonths: true,
+      hasSixMonths: recentPayments.length > 0,
       totalPaid,
       onTimeRate,
       averageMonthly,
@@ -593,7 +587,7 @@ export default function PaymentHistoryPage() {
             <CardDescription>Your recent statements</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            <div className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-100 transition-colors">
+            <div className="flex flex-col gap-3 p-4 border rounded-lg hover:bg-gray-100 transition-colors md:flex-row md:items-center md:justify-between">
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-blue-100 rounded">
                   <FileText className="h-5 w-5 text-blue-600" />
@@ -605,7 +599,7 @@ export default function PaymentHistoryPage() {
                   </p>
                 </div>
               </div>
-              <Button variant="outline" size="sm" onClick={handleOpenStatement}>
+              <Button variant="outline" size="sm" onClick={handleOpenStatement} className="w-full md:w-auto">
                 <FileText className="h-4 w-4 mr-2" />
                 View Statement
               </Button>
