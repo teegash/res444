@@ -17,6 +17,24 @@ const extractStoragePath = (raw: string | null | undefined, bucket: string) => {
   return value
 }
 
+const extractBucketPath = (raw: string | null | undefined) => {
+  if (!raw) return null
+  const value = String(raw).trim()
+  if (!value) return null
+  const match = value.match(/\/storage\/v1\/object\/(?:public|sign)\/([^/]+)\/(.+)/)
+  if (match) {
+    const [, bucket, path] = match
+    return { bucket, path: path.split('?')[0] }
+  }
+  const buckets = ['deposit-slips', 'deposit_slips']
+  for (const bucket of buckets) {
+    if (value.startsWith(`${bucket}/`)) {
+      return { bucket, path: value.slice(bucket.length + 1) }
+    }
+  }
+  return null
+}
+
 interface RouteParams {
   params: {
     id: string
@@ -47,6 +65,8 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
   if (!tenantId) {
     return NextResponse.json({ success: false, error: 'Tenant id is required.' }, { status: 400 })
   }
+
+  let summary: any | null = null
 
   try {
     const supabase = await createClient()
@@ -361,6 +381,52 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       )
     }
 
+    summary = {
+      tenant_id: tenantId,
+      organization_id: membership?.organization_id || null,
+      counts: {
+        lease_renewal_events: 0,
+        lease_renewals: 0,
+        leases: 0,
+        invoices: 0,
+        payments: 0,
+        reminders: 0,
+        maintenance_requests: 0,
+        maintenance_expenses: 0,
+        water_bills_by_unit: 0,
+        water_bills_by_invoice: 0,
+        communications: 0,
+        tenant_transition_cases: 0,
+        tenant_transition_events: 0,
+        vacate_notices: 0,
+        vacate_notice_events: 0,
+        import_batches: 0,
+        import_rows: 0,
+        tenant_archives: 0,
+        tenant_archive_events: 0,
+        organization_memberships: 0,
+        user_profiles: 0,
+        auth_user: 0,
+      },
+      storage: {
+        lease_renewals: 0,
+        lease_documents: 0,
+        maintenance_attachments: 0,
+        transition_docs: 0,
+        vacate_notice_docs: 0,
+        deposit_slips: 0,
+        profile_picture: 0,
+      },
+      errors: [] as Array<{ step: string; message: string }>,
+    }
+
+    const recordError = (step: string, err: unknown) => {
+      if (!summary) return
+      const message = err instanceof Error ? err.message : String(err)
+      summary.errors.push({ step, message })
+      console.warn(`[Tenants.DELETE] ${step} failed:`, message)
+    }
+
     // Fetch leases up-front (used for dependent deletes and unit vacate)
     const leaseIds: string[] = []
     const unitIds: string[] = []
@@ -433,17 +499,30 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       .eq('tenant_user_id', tenantId)
       .eq('organization_id', membership?.organization_id || '')
 
+    const { data: importBatchRows } = await adminSupabase
+      .from('tenant_past_data_import_batches')
+      .select('id')
+      .eq('tenant_user_id', tenantId)
+      .eq('organization_id', membership?.organization_id || '')
+
+    const importBatchIds = (importBatchRows || []).map((row: any) => row.id).filter(Boolean)
+
     const renewalIds = (renewalRows || []).map((row: any) => row.id).filter(Boolean)
     const renewalPaths = (renewalRows || [])
       .flatMap((row: any) => [row.pdf_unsigned_path, row.pdf_tenant_signed_path, row.pdf_fully_signed_path])
       .filter(Boolean) as string[]
 
     if (renewalIds.length) {
-      const { error: renewalEventsError } = await adminSupabase
+      const { data: renewalEvents, error: renewalEventsError } = await adminSupabase
         .from('lease_renewal_events')
         .delete()
         .in('renewal_id', renewalIds)
-      if (renewalEventsError) throw renewalEventsError
+        .select('id')
+      if (renewalEventsError) {
+        recordError('lease_renewal_events', renewalEventsError)
+      } else {
+        summary.counts.lease_renewal_events = renewalEvents?.length || 0
+      }
     }
 
     if (renewalPaths.length) {
@@ -451,16 +530,23 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
         .from('lease-renewals')
         .remove(renewalPaths)
       if (storageError) {
-        console.warn('[Tenants.DELETE] Failed to remove renewal PDFs from storage:', storageError.message)
+        recordError('storage.lease_renewals', storageError)
+      } else {
+        summary.storage.lease_renewals = renewalPaths.length
       }
     }
 
     if (renewalIds.length) {
-      const { error: renewalsError } = await adminSupabase
+      const { data: renewalsDeleted, error: renewalsError } = await adminSupabase
         .from('lease_renewals')
         .delete()
         .in('id', renewalIds)
-      if (renewalsError) throw renewalsError
+        .select('id')
+      if (renewalsError) {
+        recordError('lease_renewals', renewalsError)
+      } else {
+        summary.counts.lease_renewals = renewalsDeleted?.length || 0
+      }
     }
 
     if (leaseDocPaths.length) {
@@ -468,7 +554,9 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
         .from('lease-documents')
         .remove(leaseDocPaths)
       if (leaseDocError) {
-        console.warn('[Tenants.DELETE] Failed to remove lease documents:', leaseDocError.message)
+        recordError('storage.lease_documents', leaseDocError)
+      } else {
+        summary.storage.lease_documents = leaseDocPaths.length
       }
     }
 
@@ -477,7 +565,9 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
         .from('maintenance-attachments')
         .remove(maintenanceAttachmentPaths)
       if (attachError) {
-        console.warn('[Tenants.DELETE] Failed to remove maintenance attachments:', attachError.message)
+        recordError('storage.maintenance_attachments', attachError)
+      } else {
+        summary.storage.maintenance_attachments = maintenanceAttachmentPaths.length
       }
     }
 
@@ -486,7 +576,9 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
         .from('tenant-transitions')
         .remove(transitionDocPaths)
       if (transitionDocError) {
-        console.warn('[Tenants.DELETE] Failed to remove transition docs:', transitionDocError.message)
+        recordError('storage.transition_docs', transitionDocError)
+      } else {
+        summary.storage.transition_docs = transitionDocPaths.length
       }
     }
 
@@ -495,8 +587,41 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
         .from('tenant-notices')
         .remove(vacateNoticePaths)
       if (noticeDocError) {
-        console.warn('[Tenants.DELETE] Failed to remove vacate notice docs:', noticeDocError.message)
+        recordError('storage.vacate_notice_docs', noticeDocError)
+      } else {
+        summary.storage.vacate_notice_docs = vacateNoticePaths.length
       }
+    }
+
+    const { data: paymentRows } = await adminSupabase
+      .from('payments')
+      .select('id, deposit_slip_url')
+      .eq('tenant_user_id', tenantId)
+      .eq('organization_id', membership?.organization_id || '')
+
+    const depositSlipByBucket = new Map<string, Set<string>>()
+    for (const row of paymentRows || []) {
+      const parsed = extractBucketPath((row as any).deposit_slip_url)
+      if (!parsed?.bucket || !parsed?.path) continue
+      if (!depositSlipByBucket.has(parsed.bucket)) {
+        depositSlipByBucket.set(parsed.bucket, new Set())
+      }
+      depositSlipByBucket.get(parsed.bucket)?.add(parsed.path)
+    }
+
+    let depositSlipRemoved = 0
+    for (const [bucket, paths] of depositSlipByBucket.entries()) {
+      const list = Array.from(paths)
+      if (!list.length) continue
+      const { error: slipError } = await adminSupabase.storage.from(bucket).remove(list)
+      if (slipError) {
+        recordError('storage.deposit_slips', slipError)
+      } else {
+        depositSlipRemoved += list.length
+      }
+    }
+    if (depositSlipRemoved > 0) {
+      summary.storage.deposit_slips = depositSlipRemoved
     }
 
     const profilePicturePath = extractStoragePath(tenantProfile?.profile_picture_url, 'profile-pictures')
@@ -505,126 +630,262 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
         .from('profile-pictures')
         .remove([profilePicturePath])
       if (profilePicError) {
-        console.warn('[Tenants.DELETE] Failed to remove profile picture:', profilePicError.message)
+        recordError('storage.profile_picture', profilePicError)
+      } else {
+        summary.storage.profile_picture = 1
       }
     }
 
     if (transitionCaseIds.length) {
-      const { error: transitionEventsError } = await adminSupabase
+      const { data: transitionEvents, error: transitionEventsError } = await adminSupabase
         .from('tenant_transition_events')
         .delete()
         .in('case_id', transitionCaseIds)
-      if (transitionEventsError) throw transitionEventsError
+        .select('id')
+      if (transitionEventsError) {
+        recordError('tenant_transition_events', transitionEventsError)
+      } else {
+        summary.counts.tenant_transition_events = transitionEvents?.length || 0
+      }
 
-      const { error: transitionDeleteError } = await adminSupabase
+      const { data: transitionDeleted, error: transitionDeleteError } = await adminSupabase
         .from('tenant_transition_cases')
         .delete()
         .in('id', transitionCaseIds)
-      if (transitionDeleteError) throw transitionDeleteError
+        .select('id')
+      if (transitionDeleteError) {
+        recordError('tenant_transition_cases', transitionDeleteError)
+      } else {
+        summary.counts.tenant_transition_cases = transitionDeleted?.length || 0
+      }
     }
 
     if (vacateNoticeIds.length) {
-      const { error: vacateEventsError } = await adminSupabase
+      const { data: vacateEvents, error: vacateEventsError } = await adminSupabase
         .from('tenant_vacate_notice_events')
         .delete()
         .in('notice_id', vacateNoticeIds)
-      if (vacateEventsError) throw vacateEventsError
+        .select('id')
+      if (vacateEventsError) {
+        recordError('tenant_vacate_notice_events', vacateEventsError)
+      } else {
+        summary.counts.vacate_notice_events = vacateEvents?.length || 0
+      }
 
-      const { error: vacateDeleteError } = await adminSupabase
+      const { data: vacateDeleted, error: vacateDeleteError } = await adminSupabase
         .from('tenant_vacate_notices')
         .delete()
         .in('id', vacateNoticeIds)
-      if (vacateDeleteError) throw vacateDeleteError
+        .select('id')
+      if (vacateDeleteError) {
+        recordError('tenant_vacate_notices', vacateDeleteError)
+      } else {
+        summary.counts.vacate_notices = vacateDeleted?.length || 0
+      }
     }
 
     if (leaseIds.length) {
-      const { error: reminderError } = await adminSupabase
+      const { data: remindersDeleted, error: reminderError } = await adminSupabase
         .from('reminders')
         .delete()
         .eq('reminder_type', 'lease_renewal')
         .eq('related_entity_type', 'lease')
         .in('related_entity_id', leaseIds)
-      if (reminderError) throw reminderError
+        .select('id')
+      if (reminderError) {
+        recordError('reminders', reminderError)
+      } else {
+        summary.counts.reminders = remindersDeleted?.length || 0
+      }
     }
 
     if (maintenanceRequestIds.length) {
-      const { error: maintExpenseError } = await adminSupabase
+      const { data: expenseDeleted, error: maintExpenseError } = await adminSupabase
         .from('expenses')
         .delete()
         .in('maintenance_request_id', maintenanceRequestIds)
-      if (maintExpenseError) throw maintExpenseError
+        .select('id')
+      if (maintExpenseError) {
+        recordError('maintenance_expenses', maintExpenseError)
+      } else {
+        summary.counts.maintenance_expenses = expenseDeleted?.length || 0
+      }
+    }
+
+    if (importBatchIds.length) {
+      const { data: importRowsDeleted, error: importRowsError } = await adminSupabase
+        .from('tenant_past_data_import_rows')
+        .delete()
+        .in('batch_id', importBatchIds)
+        .select('id')
+      if (importRowsError) {
+        recordError('import_rows', importRowsError)
+      } else {
+        summary.counts.import_rows = importRowsDeleted?.length || 0
+      }
+
+      const { data: importBatchDeleted, error: importBatchError } = await adminSupabase
+        .from('tenant_past_data_import_batches')
+        .delete()
+        .in('id', importBatchIds)
+        .select('id')
+      if (importBatchError) {
+        recordError('import_batches', importBatchError)
+      } else {
+        summary.counts.import_batches = importBatchDeleted?.length || 0
+      }
+    }
+
+    const { data: archiveEventsDeleted, error: archiveEventsError } = await adminSupabase
+      .from('tenant_archive_events')
+      .delete()
+      .eq('tenant_user_id', tenantId)
+      .eq('organization_id', membership?.organization_id || '')
+      .select('id')
+    if (archiveEventsError) {
+      recordError('tenant_archive_events', archiveEventsError)
+    } else {
+      summary.counts.tenant_archive_events = archiveEventsDeleted?.length || 0
+    }
+
+    const { data: archiveDeleted, error: archiveError } = await adminSupabase
+      .from('tenant_archives')
+      .delete()
+      .eq('tenant_user_id', tenantId)
+      .eq('organization_id', membership?.organization_id || '')
+      .select('id')
+    if (archiveError) {
+      recordError('tenant_archives', archiveError)
+    } else {
+      summary.counts.tenant_archives = archiveDeleted?.length || 0
     }
 
     if (unitIds.length) {
-      const { error: waterBillUnitError } = await adminSupabase
+      const { data: waterBillsUnitDeleted, error: waterBillUnitError } = await adminSupabase
         .from('water_bills')
         .delete()
         .in('unit_id', unitIds)
         .eq('organization_id', membership?.organization_id || '')
-      if (waterBillUnitError) throw waterBillUnitError
+        .select('id')
+      if (waterBillUnitError) {
+        recordError('water_bills_by_unit', waterBillUnitError)
+      } else {
+        summary.counts.water_bills_by_unit = waterBillsUnitDeleted?.length || 0
+      }
     }
 
     if (invoiceIds.length) {
-      const { error: waterBillInvoiceError } = await adminSupabase
+      const { data: waterBillsInvoiceDeleted, error: waterBillInvoiceError } = await adminSupabase
         .from('water_bills')
         .delete()
         .in('added_to_invoice_id', invoiceIds)
         .eq('organization_id', membership?.organization_id || '')
-      if (waterBillInvoiceError) throw waterBillInvoiceError
+        .select('id')
+      if (waterBillInvoiceError) {
+        recordError('water_bills_by_invoice', waterBillInvoiceError)
+      } else {
+        summary.counts.water_bills_by_invoice = waterBillsInvoiceDeleted?.length || 0
+      }
     }
 
     // Hard-delete dependent financial data first to remove revenue traces
-    const { error: paymentsError } = await adminSupabase
+    const { data: paymentsDeleted, error: paymentsError } = await adminSupabase
       .from('payments')
       .delete()
       .eq('tenant_user_id', tenantId)
       .eq('organization_id', membership?.organization_id || '')
-    if (paymentsError) throw paymentsError
-
-    if (leaseIds.length) {
-      const { error: invoiceError } = await adminSupabase
-        .from('invoices')
-        .delete()
-        .in('lease_id', leaseIds)
-      if (invoiceError) throw invoiceError
+      .select('id')
+    if (paymentsError) {
+      recordError('payments', paymentsError)
+    } else {
+      summary.counts.payments = paymentsDeleted?.length || 0
     }
 
     if (leaseIds.length) {
-      const { error: leaseDeleteError } = await adminSupabase
+      const { data: invoicesDeleted, error: invoiceError } = await adminSupabase
+        .from('invoices')
+        .delete()
+        .in('lease_id', leaseIds)
+        .select('id')
+      if (invoiceError) {
+        recordError('invoices', invoiceError)
+      } else {
+        summary.counts.invoices = invoicesDeleted?.length || 0
+      }
+    }
+
+    if (leaseIds.length) {
+      const { data: leasesDeleted, error: leaseDeleteError } = await adminSupabase
         .from('leases')
         .delete()
         .in('id', leaseIds)
         .eq('organization_id', membership?.organization_id || '')
-      if (leaseDeleteError) throw leaseDeleteError
+        .select('id')
+      if (leaseDeleteError) {
+        recordError('leases', leaseDeleteError)
+      } else {
+        summary.counts.leases = leasesDeleted?.length || 0
+      }
     } else {
-      const { error: leaseDeleteError } = await adminSupabase
+      const { data: leasesDeleted, error: leaseDeleteError } = await adminSupabase
         .from('leases')
         .delete()
         .eq('tenant_user_id', tenantId)
         .eq('organization_id', membership?.organization_id || '')
-      if (leaseDeleteError) throw leaseDeleteError
+        .select('id')
+      if (leaseDeleteError) {
+        recordError('leases', leaseDeleteError)
+      } else {
+        summary.counts.leases = leasesDeleted?.length || 0
+      }
     }
 
     // Communications, maintenance, org membership, profile
-    const { error: commsError } = await adminSupabase
+    const { data: commsDeleted, error: commsError } = await adminSupabase
       .from('communications')
       .delete()
       .or(`sender_user_id.eq.${tenantId},recipient_user_id.eq.${tenantId}`)
       .eq('organization_id', membership?.organization_id || '')
-    if (commsError) throw commsError
+      .select('id')
+    if (commsError) {
+      recordError('communications', commsError)
+    } else {
+      summary.counts.communications = commsDeleted?.length || 0
+    }
 
-    const { error: maintError } = await adminSupabase
+    const { data: maintDeleted, error: maintError } = await adminSupabase
       .from('maintenance_requests')
       .delete()
       .eq('tenant_user_id', tenantId)
       .eq('organization_id', membership?.organization_id || '')
-    if (maintError) throw maintError
+      .select('id')
+    if (maintError) {
+      recordError('maintenance_requests', maintError)
+    } else {
+      summary.counts.maintenance_requests = maintDeleted?.length || 0
+    }
 
-    const { error: orgError } = await adminSupabase.from('organization_members').delete().eq('user_id', tenantId)
-    if (orgError) throw orgError
+    const { data: orgDeleted, error: orgError } = await adminSupabase
+      .from('organization_members')
+      .delete()
+      .eq('user_id', tenantId)
+      .select('id')
+    if (orgError) {
+      recordError('organization_memberships', orgError)
+    } else {
+      summary.counts.organization_memberships = orgDeleted?.length || 0
+    }
 
-    const { error: profileError } = await adminSupabase.from('user_profiles').delete().eq('id', tenantId)
-    if (profileError) throw profileError
+    const { data: profileDeleted, error: profileError } = await adminSupabase
+      .from('user_profiles')
+      .delete()
+      .eq('id', tenantId)
+      .select('id')
+    if (profileError) {
+      recordError('user_profiles', profileError)
+    } else {
+      summary.counts.user_profiles = profileDeleted?.length || 0
+    }
 
     let unitsToAlert: Array<{
       id: string
@@ -658,14 +919,17 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
         .from('apartment_units')
         .update({ status: 'vacant' })
         .in('id', unitIds)
-      if (unitError) throw unitError
+      if (unitError) {
+        recordError('vacate_units', unitError)
+      }
     }
 
     // Finally, remove the auth user (cascades to tables with FK ON DELETE CASCADE)
     const { error } = await adminSupabase.auth.admin.deleteUser(tenantId)
     if (error && error.status !== 404) {
-      // Log but do not block overall cleanup; return success to avoid leaving dangling data
-      console.warn('[Tenants.DELETE] Auth delete warning:', error.message || error)
+      recordError('auth_user', error)
+    } else {
+      summary.counts.auth_user = 1
     }
 
     for (const unit of unitsToAlert) {
@@ -682,9 +946,18 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       })
     }
 
-    return NextResponse.json({ success: true })
+    const success = summary.errors.length === 0
+    return NextResponse.json(
+      { success, summary, errors: summary.errors },
+      { status: success ? 200 : 500 }
+    )
   } catch (error) {
     console.error('[Tenants.DELETE] Failed to delete tenant', error)
+    if (summary) {
+      const message = error instanceof Error ? error.message : 'Failed to delete tenant.'
+      summary.errors.push({ step: 'fatal', message })
+      return NextResponse.json({ success: false, error: message, summary, errors: summary.errors }, { status: 500 })
+    }
     return NextResponse.json(
       { success: false, error: error instanceof Error ? error.message : 'Failed to delete tenant.' },
       { status: 500 }

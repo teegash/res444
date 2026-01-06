@@ -72,6 +72,14 @@ type TenantRecord = {
   archived_at?: string | null
 }
 
+type DeleteSummary = {
+  tenant_id?: string
+  organization_id?: string | null
+  counts?: Record<string, number>
+  storage?: Record<string, number>
+  errors?: Array<{ step: string; message: string }>
+}
+
 interface TenantsTableProps {
   searchQuery?: string
   viewMode?: 'grid' | 'list'
@@ -251,6 +259,10 @@ export function TenantsTable({
   const [archivingTenant, setArchivingTenant] = useState(false)
   const [archiveReason, setArchiveReason] = useState('')
   const [archiveNotes, setArchiveNotes] = useState('')
+  const [deleteSummary, setDeleteSummary] = useState<DeleteSummary | null>(null)
+  const [deleteSummaryOpen, setDeleteSummaryOpen] = useState(false)
+  const [deletedTenantName, setDeletedTenantName] = useState<string | null>(null)
+  const [deletedTenantEmail, setDeletedTenantEmail] = useState<string | null>(null)
 
   const openArchiveDialog = (tenant: TenantRecord) => {
     setTenantToArchive(tenant)
@@ -436,14 +448,26 @@ export function TenantsTable({
   const handleRemoveTenant = async () => {
     if (!tenantToDelete) return
     setRemovingTenant(true)
+    setDeletedTenantName(tenantToDelete.full_name)
+    setDeletedTenantEmail(tenantToDelete.email || null)
     try {
       const response = await fetch(`/api/tenants/${tenantToDelete.tenant_user_id}`, {
         method: 'DELETE',
       })
 
+      const payload = await response.json().catch(() => ({}))
+
       if (!response.ok) {
-        const errorPayload = await response.json().catch(() => ({}))
-        throw new Error(errorPayload.error || 'Failed to remove tenant.')
+        if (payload?.summary) {
+          setDeleteSummary(payload.summary)
+          setDeleteSummaryOpen(true)
+        }
+        throw new Error(payload.error || 'Failed to remove tenant.')
+      }
+
+      if (payload?.summary) {
+        setDeleteSummary(payload.summary)
+        setDeleteSummaryOpen(true)
       }
 
       toast({
@@ -499,6 +523,13 @@ export function TenantsTable({
       setArchivingTenant(false)
     }
   }
+
+  const deleteRecordEntries = deleteSummary?.counts
+    ? Object.entries(deleteSummary.counts).filter(([, value]) => value > 0)
+    : []
+  const deleteStorageEntries = deleteSummary?.storage
+    ? Object.entries(deleteSummary.storage).filter(([, value]) => value > 0)
+    : []
 
   return (
     <TooltipProvider>
@@ -920,6 +951,98 @@ export function TenantsTable({
             >
               {removingTenant ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
               Remove tenant
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={deleteSummaryOpen}
+        onOpenChange={(open) => {
+          setDeleteSummaryOpen(open)
+          if (!open) {
+            setDeleteSummary(null)
+            setDeletedTenantName(null)
+            setDeletedTenantEmail(null)
+          }
+        }}
+      >
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Tenant removal summary</DialogTitle>
+            <DialogDescription>
+              {deleteSummary?.errors?.length
+                ? 'Completed with warnings. Review the items below.'
+                : 'Deletion completed successfully.'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="rounded-xl border bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-4 text-white">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.2em] text-slate-300">Deleted tenant</p>
+                  <p className="text-lg font-semibold">{deletedTenantName || 'Tenant'}</p>
+                  <p className="text-xs text-slate-300">{deletedTenantEmail || '—'}</p>
+                </div>
+                <div className="rounded-full bg-white/15 px-3 py-1 text-xs font-semibold uppercase tracking-wide">
+                  {deleteSummary?.errors?.length ? 'Warnings' : 'Success'}
+                </div>
+              </div>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="rounded-xl border bg-white p-4 shadow-sm">
+                <p className="text-xs font-semibold uppercase text-slate-500">Deleted records</p>
+                <div className="mt-3 space-y-2 text-sm text-slate-700">
+                  {deleteRecordEntries.length ? (
+                    deleteRecordEntries.map(([key, value]) => (
+                      <div key={key} className="flex items-center justify-between">
+                        <span className="capitalize">{key.replace(/_/g, ' ')}</span>
+                        <span className="font-semibold">{value}</span>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-xs text-slate-500">No records removed.</p>
+                  )}
+                </div>
+              </div>
+
+              <div className="rounded-xl border bg-white p-4 shadow-sm">
+                <p className="text-xs font-semibold uppercase text-slate-500">Storage cleanup</p>
+                <div className="mt-3 space-y-2 text-sm text-slate-700">
+                  {deleteStorageEntries.length ? (
+                    deleteStorageEntries.map(([key, value]) => (
+                      <div key={key} className="flex items-center justify-between">
+                        <span className="capitalize">{key.replace(/_/g, ' ')}</span>
+                        <span className="font-semibold">{value}</span>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-xs text-slate-500">No files removed.</p>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {deleteSummary?.errors?.length ? (
+              <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
+                <p className="text-xs font-semibold uppercase">Warnings</p>
+                <ul className="mt-2 space-y-2">
+                  {deleteSummary.errors.map((item, index) => (
+                    <li key={`${item.step}-${index}`} className="flex items-start gap-2">
+                      <span className="mt-0.5 h-2 w-2 rounded-full bg-rose-500" />
+                      <span>
+                        <span className="font-semibold">{item.step}</span>: {item.message}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+          </div>
+          <DialogFooter className="gap-2 sm:space-x-2">
+            <Button variant="outline" onClick={() => setDeleteSummaryOpen(false)}>
+              Close
             </Button>
           </DialogFooter>
         </DialogContent>
