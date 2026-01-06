@@ -9,7 +9,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
-import { ArrowLeft, Loader2, Smartphone, CreditCard } from 'lucide-react'
+import { ArrowLeft, Loader2, Smartphone } from 'lucide-react'
 import { useToast } from '@/components/ui/use-toast'
 
 interface InvoiceDetail {
@@ -47,9 +47,8 @@ export default function TenantInvoicePaymentPage() {
   const [invoice, setInvoice] = useState<InvoiceDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [selectedMethod, setSelectedMethod] = useState<'mpesa' | 'card'>('mpesa')
+  const [selectedMethod, setSelectedMethod] = useState<'mpesa'>('mpesa')
   const [mpesaPhone, setMpesaPhone] = useState('')
-  const [cardDetails, setCardDetails] = useState({ number: '', expiry: '', cvv: '' })
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   useEffect(() => {
@@ -115,7 +114,7 @@ export default function TenantInvoicePaymentPage() {
           </Alert>
           <Button variant="outline" className="mt-4" onClick={() => router.push('/dashboard/tenant')}>
             <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to dashboard
+            Back
           </Button>
         </div>
       </div>
@@ -223,10 +222,10 @@ export default function TenantInvoicePaymentPage() {
         <Card>
           <CardHeader>
             <CardTitle>Select payment method</CardTitle>
-            <CardDescription>Choose Mpesa or Visa/Mastercard</CardDescription>
+            <CardDescription>Choose Mpesa</CardDescription>
           </CardHeader>
           <CardContent>
-            <RadioGroup value={selectedMethod} onValueChange={(value) => setSelectedMethod(value as 'mpesa' | 'card')} className="space-y-3">
+            <RadioGroup value={selectedMethod} onValueChange={(value) => setSelectedMethod(value as 'mpesa')} className="space-y-3">
               <div className={`flex items-center gap-3 p-4 border rounded-lg cursor-pointer ${selectedMethod === 'mpesa' ? 'border-green-500 bg-green-50/60' : 'border-muted'}`}>
                 <RadioGroupItem value="mpesa" id="mpesa" />
                 <Label htmlFor="mpesa" className="flex-1 cursor-pointer">
@@ -235,18 +234,6 @@ export default function TenantInvoicePaymentPage() {
                     <div>
                       <p className="font-semibold">M-Pesa (STK Push)</p>
                       <p className="text-xs text-muted-foreground">Receive an STK prompt on your phone</p>
-                    </div>
-                  </div>
-                </Label>
-              </div>
-              <div className={`flex items-center gap-3 p-4 border rounded-lg cursor-pointer ${selectedMethod === 'card' ? 'border-blue-500 bg-blue-50/60' : 'border-muted'}`}>
-                <RadioGroupItem value="card" id="card" />
-                <Label htmlFor="card" className="flex-1 cursor-pointer">
-                  <div className="flex items-center gap-3">
-                    <CreditCard className="h-5 w-5 text-blue-600" />
-                    <div>
-                      <p className="font-semibold">Visa / Mastercard</p>
-                      <p className="text-xs text-muted-foreground">Secure card checkout (coming soon)</p>
                     </div>
                   </div>
                 </Label>
@@ -280,55 +267,6 @@ export default function TenantInvoicePaymentPage() {
           </Card>
         )}
 
-        {selectedMethod === 'card' && (
-          <Card className="border-blue-200 bg-blue-50/40">
-            <CardHeader>
-              <CardTitle>Card payment</CardTitle>
-              <CardDescription>Enter your card details</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <Alert>
-                <AlertDescription>
-                  Card processing will be enabled soon. You can review the inputs that will be required below.
-                </AlertDescription>
-              </Alert>
-              <div className="space-y-3">
-                <div>
-                  <Label htmlFor="card-number">Card Number</Label>
-                  <Input
-                    id="card-number"
-                    placeholder="1234 5678 9012 3456"
-                    value={cardDetails.number}
-                    onChange={(event) => setCardDetails((prev) => ({ ...prev, number: event.target.value }))}
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <Label htmlFor="card-expiry">Expiry</Label>
-                    <Input
-                      id="card-expiry"
-                      placeholder="MM/YY"
-                      value={cardDetails.expiry}
-                      onChange={(event) => setCardDetails((prev) => ({ ...prev, expiry: event.target.value }))}
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="card-cvv">CVV</Label>
-                    <Input
-                      id="card-cvv"
-                      placeholder="123"
-                      value={cardDetails.cvv}
-                      onChange={(event) => setCardDetails((prev) => ({ ...prev, cvv: event.target.value }))}
-                    />
-                  </div>
-                </div>
-              </div>
-              <Button disabled className="w-full">
-                Card payments coming soon
-              </Button>
-            </CardContent>
-          </Card>
-        )}
       </div>
     </div>
   )

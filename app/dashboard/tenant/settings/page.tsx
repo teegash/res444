@@ -3,7 +3,7 @@
 import { Button } from '@/components/ui/button'
 import Link from 'next/link'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { LockKeyhole, LogOut } from 'lucide-react'
+import { ArrowLeft, LockKeyhole, LogOut } from 'lucide-react'
 import { useAuth } from '@/lib/auth/context'
 
 export default function TenantSettingsPage() {
@@ -16,9 +16,12 @@ export default function TenantSettingsPage() {
           <h1 className="text-3xl font-bold">Account</h1>
           <p className="text-sm text-muted-foreground">Security controls for your tenant portal.</p>
         </div>
-        <Link href="/dashboard/tenant" className="text-sm text-blue-600 hover:underline">
-          Back to dashboard
-        </Link>
+        <Button asChild variant="ghost" size="sm" className="gap-2">
+          <Link href="/dashboard/tenant">
+            <ArrowLeft className="h-4 w-4" />
+            Back
+          </Link>
+        </Button>
       </div>
 
       <Card className="border-slate-200/70 bg-white/80">

@@ -415,7 +415,7 @@ export function TenantHeader({ summary, loading }: TenantHeaderProps) {
 
           <div className="order-3 w-full md:order-2 md:w-auto">
             <h1 className="text-2xl font-bold text-foreground">
-              {loading ? 'Loading...' : `Welcome home, ${fullName}`}
+              {loading ? 'Loading...' : `Welcome ${fullName}`}
             </h1>
             <p className="text-sm text-muted-foreground">
               {loading ? 'Fetching your details…' : `${propertyName} • ${unitLabel}`}

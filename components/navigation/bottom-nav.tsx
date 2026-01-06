@@ -27,7 +27,7 @@ export function BottomNav({ items, activeKey, onSelect, ariaLabel = 'Navigation'
 
   return (
     <nav
-      className="fixed bottom-0 left-0 right-0 z-40 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-t border-slate-200/80 dark:border-slate-800/80 shadow-[0_-6px_20px_rgba(0,0,0,0.08)] pb-[max(env(safe-area-inset-bottom),12px)] md:hidden"
+      className="fixed bottom-0 left-0 right-0 z-40 bg-gradient-to-t from-white/90 via-white/70 to-blue-50/60 dark:from-slate-950/85 dark:via-slate-900/80 dark:to-slate-900/70 backdrop-blur-2xl border-t border-blue-100/60 dark:border-blue-900/40 shadow-[0_-12px_30px_rgba(30,64,175,0.18)] pb-[max(env(safe-area-inset-bottom),12px)] md:hidden"
       aria-label={ariaLabel}
     >
       <div
@@ -57,8 +57,10 @@ function NavButton({ item, active, onSelect }: NavButtonProps) {
       aria-current={active ? 'page' : undefined}
       aria-pressed={active}
       className={cn(
-        'flex flex-col items-center gap-1 py-2 text-xs font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-500',
-        active ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-500 dark:text-slate-300'
+        'flex flex-col items-center gap-1 px-2 py-2 text-xs font-medium transition-all focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 rounded-2xl',
+        active
+          ? 'text-blue-700 dark:text-blue-300 bg-white/70 dark:bg-slate-900/60 shadow-[0_6px_16px_rgba(30,64,175,0.18)]'
+          : 'text-slate-600 dark:text-slate-300'
       )}
       onClick={() => onSelect?.(item.key)}
     >

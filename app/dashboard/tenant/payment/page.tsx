@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { ArrowLeft, CheckCircle2, CreditCard, Smartphone, UploadCloud, ShieldCheck, Lock, AlertCircle } from 'lucide-react'
+import { ArrowLeft, CheckCircle2, Smartphone, UploadCloud, ShieldCheck, AlertCircle } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -66,10 +66,9 @@ export default function TenantPaymentPortal() {
   const [invoice, setInvoice] = useState<InvoiceSummary | null>(null)
   const [invoiceError, setInvoiceError] = useState<string | null>(null)
   const [loadingInvoice, setLoadingInvoice] = useState(true)
-  const [paymentMethod, setPaymentMethod] = useState<'mpesa' | 'card' | 'bank'>('mpesa')
+  const [paymentMethod, setPaymentMethod] = useState<'mpesa' | 'bank'>('mpesa')
   const [monthsToPay, setMonthsToPay] = useState<number>(1)
   const [mpesaNumber, setMpesaNumber] = useState('')
-  const [cardDetails, setCardDetails] = useState({ name: '', number: '', expiry: '', cvv: '' })
   const [depositSnapshot, setDepositSnapshot] = useState<File | null>(null)
   const [depositPreviewUrl, setDepositPreviewUrl] = useState<string | null>(null)
   const [depositNotes, setDepositNotes] = useState('')
@@ -77,7 +76,6 @@ export default function TenantPaymentPortal() {
   const [submitting, setSubmitting] = useState(false)
   const [mpesaMessage, setMpesaMessage] = useState<string | null>(null)
   const [bankMessage, setBankMessage] = useState<string | null>(null)
-  const [cardMessage, setCardMessage] = useState<string | null>(null)
   const [securityModalOpen, setSecurityModalOpen] = useState(false)
   const [securityModalStatus, setSecurityModalStatus] = useState<'prompt' | 'success' | 'error'>('prompt')
   const [securityModalMessage, setSecurityModalMessage] = useState(
@@ -106,8 +104,6 @@ export default function TenantPaymentPortal() {
     () => `KES ${totalAmount.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
     [totalAmount]
   )
-
-  const [leasePaidUntil, setLeasePaidUntil] = useState<string | null>(null)
 
   const coverageLabel = useMemo(() => {
     if (!invoice?.due_date) return null
@@ -145,7 +141,6 @@ export default function TenantPaymentPortal() {
           unit_label: payload.data.unit?.label || null,
         }
         setInvoice(fetchedInvoice)
-        setLeasePaidUntil(payload.data?.lease?.rent_paid_until || null)
         return fetchedInvoice
       }
 
@@ -172,7 +167,6 @@ export default function TenantPaymentPortal() {
         }
         setInvoice(rentInvoiceData)
         setMonthsToPay(1)
-        setLeasePaidUntil(rentInvoice.lease?.rent_paid_until || null)
         return rentInvoiceData
       }
 
@@ -201,7 +195,6 @@ export default function TenantPaymentPortal() {
         unit_label: target.unit_label,
       }
       setInvoice(selectedInvoice)
-      setLeasePaidUntil(target?.lease_paid_until || null)
       return selectedInvoice
     } catch (error) {
       setInvoice(null)
@@ -501,53 +494,6 @@ export default function TenantPaymentPortal() {
     }
   }
 
-  const handleCardPayment = async () => {
-    if (!invoice) return
-    if (!cardDetails.name || !cardDetails.number || !cardDetails.expiry || !cardDetails.cvv) {
-      toast({
-        title: 'Card details required',
-        description: 'Fill in the card holder, number, expiry, and CVV.',
-        variant: 'destructive',
-      })
-      return
-    }
-    try {
-      setSubmitting(true)
-      setCardMessage(null)
-      const response = await fetch('/api/payments/card', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          invoice_id: invoice.id,
-          amount: totalAmount,
-          months_covered: monthsToPay,
-          card_name: cardDetails.name,
-          card_number: cardDetails.number,
-          card_expiry: cardDetails.expiry,
-          card_cvv: cardDetails.cvv,
-        }),
-      })
-      const payload = await response.json().catch(() => ({}))
-      if (!response.ok) {
-        throw new Error(payload.error || 'Failed to process card payment.')
-      }
-      setCardMessage(payload.message || 'Card payment recorded successfully.')
-      toast({
-        title: 'Payment complete',
-        description: payload.message || 'Your rent payment has been saved.',
-      })
-      await fetchInvoice()
-    } catch (error) {
-      toast({
-        title: 'Payment failed',
-        description: error instanceof Error ? error.message : 'Unable to process card payment.',
-        variant: 'destructive',
-      })
-    } finally {
-      setSubmitting(false)
-    }
-  }
-
   const handleSubmit = () => {
     if (!invoice || invoice.status) {
       toast({
@@ -559,10 +505,8 @@ export default function TenantPaymentPortal() {
 
     if (paymentMethod === 'mpesa') {
       handleMpesaPayment()
-    } else if (paymentMethod === 'bank') {
-      handleBankPayment()
     } else {
-      handleCardPayment()
+      handleBankPayment()
     }
   }
 
@@ -604,7 +548,7 @@ export default function TenantPaymentPortal() {
             <AlertDescription>{invoiceError || 'No invoice available.'}</AlertDescription>
           </Alert>
           <Button onClick={() => router.push('/dashboard/tenant')} variant="outline" className="gap-2">
-            <ArrowLeft className="h-4 w-4" /> Back to dashboard
+            <ArrowLeft className="h-4 w-4" /> Back
           </Button>
         </div>
       </div>
@@ -634,21 +578,9 @@ export default function TenantPaymentPortal() {
                 <p className="text-sm uppercase tracking-wide text-emerald-200">Secure Rent Portal</p>
                 <h1 className="text-3xl font-semibold mt-1">Encrypted payment experience</h1>
                 <p className="text-sm text-slate-200 mt-2">
-                  All M-Pesa, card, and bank transfers are protected with bank-grade encryption and real-time fraud
+                  All M-Pesa and bank transfers are protected with bank-grade encryption and real-time fraud
                   monitoring.
                 </p>
-              </div>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
-              <div className="rounded-2xl bg-white/5 p-3 border border-white/10">
-                <p className="text-xs text-slate-300">Environment</p>
-                <p className="font-semibold flex items-center gap-1">
-                  <Lock className="h-4 w-4" /> Multi-factor protected
-                </p>
-              </div>
-              <div className="rounded-2xl bg-white/5 p-3 border border-white/10">
-                <p className="text-xs text-slate-300">Coverage</p>
-                <p className="font-semibold">{leasePaidUntil ? `Paid through ${new Date(leasePaidUntil).toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}` : 'Current month due'}</p>
               </div>
             </div>
           </div>
@@ -656,7 +588,7 @@ export default function TenantPaymentPortal() {
 
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="sm" onClick={() => router.back()} className="gap-2">
-            <ArrowLeft className="h-4 w-4" /> Back to dashboard
+            <ArrowLeft className="h-4 w-4" /> Back
           </Button>
           <div>
             <p className="text-xs text-muted-foreground">Invoice #{invoice.id.slice(0, 8)}</p>
@@ -733,10 +665,10 @@ export default function TenantPaymentPortal() {
           <Card className="shadow-md">
             <CardHeader className="space-y-1">
               <CardTitle>Payment method</CardTitle>
-              <CardDescription>Select Mpesa, card, or bank deposit.</CardDescription>
+              <CardDescription>Select Mpesa or bank deposit.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              <RadioGroup value={paymentMethod} onValueChange={(value) => setPaymentMethod(value as 'mpesa' | 'card' | 'bank')} className="space-y-3">
+              <RadioGroup value={paymentMethod} onValueChange={(value) => setPaymentMethod(value as 'mpesa' | 'bank')} className="space-y-3">
                 <div className={`flex items-center gap-3 p-4 border rounded-xl cursor-pointer transition ${paymentMethod === 'mpesa' ? 'border-green-500 bg-green-50/70' : 'border-muted'}`}>
                   <RadioGroupItem value="mpesa" id="mpesa" />
                   <Label htmlFor="mpesa" className="flex-1 cursor-pointer">
@@ -745,18 +677,6 @@ export default function TenantPaymentPortal() {
                       <div>
                         <p className="font-semibold">M-Pesa (STK push)</p>
                         <p className="text-xs text-muted-foreground">Receive a prompt on your phone.</p>
-                      </div>
-                    </div>
-                  </Label>
-                </div>
-                <div className={`flex items-center gap-3 p-4 border rounded-xl cursor-pointer transition ${paymentMethod === 'card' ? 'border-blue-500 bg-blue-50/70' : 'border-muted'}`}>
-                  <RadioGroupItem value="card" id="card" />
-                  <Label htmlFor="card" className="flex-1 cursor-pointer">
-                    <div className="flex items-center gap-3">
-                      <CreditCard className="h-5 w-5 text-blue-600" />
-                      <div>
-                        <p className="font-semibold">Visa / Mastercard</p>
-                        <p className="text-xs text-muted-foreground">Charge your card instantly.</p>
                       </div>
                     </div>
                   </Label>
@@ -812,50 +732,6 @@ export default function TenantPaymentPortal() {
                       </span>
                     )}
                   </div>
-                </div>
-              )}
-
-              {paymentMethod === 'card' && (
-                <div className="space-y-4 rounded-2xl border bg-blue-50/60 p-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="card-name">Name on card</Label>
-                    <Input
-                      id="card-name"
-                      placeholder="Jane Mburu"
-                      value={cardDetails.name}
-                      onChange={(event) => setCardDetails((prev) => ({ ...prev, name: event.target.value }))}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="card-number">Card number</Label>
-                    <Input
-                      id="card-number"
-                      placeholder="1234 5678 9012 3456"
-                      value={cardDetails.number}
-                      onChange={(event) => setCardDetails((prev) => ({ ...prev, number: event.target.value }))}
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-2">
-                      <Label htmlFor="card-expiry">Expiry</Label>
-                      <Input
-                        id="card-expiry"
-                        placeholder="MM/YY"
-                        value={cardDetails.expiry}
-                        onChange={(event) => setCardDetails((prev) => ({ ...prev, expiry: event.target.value }))}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="card-cvv">CVV</Label>
-                      <Input
-                        id="card-cvv"
-                        placeholder="123"
-                        value={cardDetails.cvv}
-                        onChange={(event) => setCardDetails((prev) => ({ ...prev, cvv: event.target.value }))}
-                      />
-                    </div>
-                  </div>
-                  {cardMessage && <p className="text-xs text-green-700">{cardMessage}</p>}
                 </div>
               )}
 
