@@ -172,7 +172,7 @@ export function StatementLedgerGrid(props: {
       </div>
 
       <div className="overflow-x-auto">
-        <table className="w-full table-fixed">
+        <table className="w-full min-w-[760px] table-auto md:min-w-0 md:table-fixed">
           <thead className="bg-gray-50">
             <tr>
               <th className="text-left p-3 font-semibold text-sm w-28">Date</th>

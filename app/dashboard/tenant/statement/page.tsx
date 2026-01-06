@@ -246,7 +246,58 @@ export default function TenantAccountStatementPage() {
   return (
     <div className="min-h-screen bg-slate-50">
       <div className="mx-auto w-full max-w-[1440px] px-3 sm:px-4 lg:px-6 py-4 space-y-6">
-        <div className="flex items-center justify-between flex-wrap gap-4">
+        <div className="md:hidden space-y-3">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <Link href="/dashboard/tenant/payments">
+                <Button variant="ghost" size="sm" className="gap-2">
+                  <ArrowLeft className="h-4 w-4" />
+                  Back
+                </Button>
+              </Link>
+              <h1 className="text-xl font-bold">Account Statement</h1>
+            </div>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button size="sm" className="gap-2" disabled={exporting}>
+                  <Download className="h-4 w-4" />
+                  {exporting ? 'Exporting…' : 'Export'}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => handleExport('pdf')}>Export PDF</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleExport('excel')}>Export Excel</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleExport('csv')}>Export CSV</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+          <div className="flex flex-col gap-2">
+            <Select value={periodFilter} onValueChange={(value) => setPeriodFilter(value as StatementPeriodFilter)}>
+              <SelectTrigger className="h-9 w-full">
+                <SelectValue placeholder="Time period" />
+              </SelectTrigger>
+              <SelectContent align="end">
+                <SelectItem value="month">Past month</SelectItem>
+                <SelectItem value="3months">Past 3 months</SelectItem>
+                <SelectItem value="6months">Past 6 months</SelectItem>
+                <SelectItem value="year">Past 1 year</SelectItem>
+                <SelectItem value="all">All history</SelectItem>
+              </SelectContent>
+            </Select>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" className="flex-1" onClick={() => window.print()}>
+                <Printer className="h-4 w-4 mr-2" />
+                Print
+              </Button>
+              <Button variant="outline" size="sm" className="flex-1" onClick={handleShare}>
+                <Share2 className="h-4 w-4 mr-2" />
+                Share
+              </Button>
+            </div>
+          </div>
+        </div>
+
+        <div className="hidden md:flex items-center justify-between flex-wrap gap-4">
           <div className="flex items-center gap-4">
             <Link href="/dashboard/tenant/payments">
               <Button variant="ghost" size="sm">
