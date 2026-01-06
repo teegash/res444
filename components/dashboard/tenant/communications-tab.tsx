@@ -5,7 +5,7 @@ import { format } from 'date-fns'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Send, Loader2 } from 'lucide-react'
 import { useToast } from '@/components/ui/use-toast'
 import { useAuth } from '@/lib/auth/context'
@@ -19,6 +19,7 @@ interface CommunicationMessage {
   read: boolean
   created_at: string
   sender_name?: string
+  sender_avatar_url?: string | null
   related_entity_type?: string | null
 }
 
@@ -32,6 +33,8 @@ export function CommunicationsTab() {
   const [sending, setSending] = useState(false)
   const bottomRef = useRef<HTMLDivElement | null>(null)
   const initialRender = useRef(true)
+  const tenantAvatarRef = useRef<string | null>(null)
+  const orgAvatarRef = useRef<string | null>(null)
 
   const fetchMessages = useCallback(async () => {
     if (!user?.id) return
@@ -45,6 +48,14 @@ export function CommunicationsTab() {
       const payload = await response.json()
       initialRender.current = true
       setMessages(payload.data || [])
+
+      const rows = Array.isArray(payload.data) ? payload.data : []
+      tenantAvatarRef.current =
+        rows.find((msg: CommunicationMessage) => msg.sender_user_id === user.id && msg.sender_avatar_url)?.sender_avatar_url ||
+        tenantAvatarRef.current
+      orgAvatarRef.current =
+        rows.find((msg: CommunicationMessage) => msg.sender_user_id !== user.id && msg.sender_avatar_url)?.sender_avatar_url ||
+        orgAvatarRef.current
 
       const unreadForTenant = (payload.data || [])
         .filter((msg: CommunicationMessage) => !msg.read && msg.recipient_user_id === user.id)
@@ -94,7 +105,12 @@ export function CommunicationsTab() {
         },
         (payload) => {
           const record = payload.new as CommunicationMessage
-          setMessages((existing) => [...existing, record])
+          const isTenant = record.sender_user_id === user.id
+          const enrichedRecord: CommunicationMessage = {
+            ...record,
+            sender_avatar_url: record.sender_avatar_url || (isTenant ? tenantAvatarRef.current : orgAvatarRef.current),
+          }
+          setMessages((existing) => [...existing, enrichedRecord])
         }
       )
       .subscribe()
@@ -196,6 +212,9 @@ export function CommunicationsTab() {
               >
                 {!message.isTenant && (
                   <Avatar className="h-8 w-8 bg-primary shrink-0">
+                    {message.sender_avatar_url ? (
+                      <AvatarImage src={message.sender_avatar_url} alt={message.sender_name || 'Organization'} />
+                    ) : null}
                     <AvatarFallback className="text-primary-foreground text-xs font-semibold">
                       {(message.sender_name || 'PM')
                         .split(' ')
@@ -230,6 +249,9 @@ export function CommunicationsTab() {
 
                 {message.isTenant && (
                   <Avatar className="h-8 w-8 bg-accent shrink-0">
+                    {message.sender_avatar_url ? (
+                      <AvatarImage src={message.sender_avatar_url} alt={user?.email || 'Tenant'} />
+                    ) : null}
                     <AvatarFallback className="text-accent-foreground text-xs font-semibold">
                       {user?.email?.[0]?.toUpperCase() || 'Y'}
                     </AvatarFallback>

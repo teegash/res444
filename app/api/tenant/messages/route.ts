@@ -35,6 +35,43 @@ export async function GET() {
       )
     )
 
+    const { data: tenantProfile } = await adminSupabase
+      .from('user_profiles')
+      .select('id, profile_picture_url, organization_id')
+      .eq('id', user.id)
+      .maybeSingle()
+
+    let organizationId = tenantProfile?.organization_id || null
+    if (!organizationId) {
+      const { data: lease } = await adminSupabase
+        .from('leases')
+        .select(
+          `
+          organization_id,
+          unit:apartment_units (
+            building:apartment_buildings ( organization_id )
+          )
+        `
+        )
+        .eq('tenant_user_id', user.id)
+        .order('start_date', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      organizationId = lease?.organization_id || (lease?.unit as any)?.building?.organization_id || null
+    }
+
+    let organizationLogoUrl: string | null = null
+    if (organizationId) {
+      const { data: org } = await adminSupabase
+        .from('organizations')
+        .select('logo_url')
+        .eq('id', organizationId)
+        .maybeSingle()
+      organizationLogoUrl = org?.logo_url || null
+    }
+
+    const tenantAvatarUrl = tenantProfile?.profile_picture_url || null
+
     let profiles: Array<{ id: string; full_name: string | null }> = []
     if (userIds.length > 0) {
       const { data: profileData, error: profileError } = await adminSupabase
@@ -79,6 +116,8 @@ export async function GET() {
           message.sender_user_id === user.id
             ? 'You'
             : profileMap.get(message.sender_user_id) || 'Property Management',
+        sender_avatar_url:
+          message.sender_user_id === user.id ? tenantAvatarUrl : organizationLogoUrl,
       }))
 
     return NextResponse.json({ success: true, data: payload })
@@ -192,8 +231,24 @@ export async function POST(request: NextRequest) {
       throw insertError
     }
 
+    const { data: tenantProfile } = await adminSupabase
+      .from('user_profiles')
+      .select('profile_picture_url')
+      .eq('id', user.id)
+      .maybeSingle()
+
     const firstMessage = Array.isArray(data) ? data[0] : data
-    return NextResponse.json({ success: true, data: firstMessage })
+    return NextResponse.json({
+      success: true,
+      data: firstMessage
+        ? {
+            ...firstMessage,
+            message_text: firstMessage.message_text || '',
+            sender_name: 'You',
+            sender_avatar_url: tenantProfile?.profile_picture_url || null,
+          }
+        : null,
+    })
   } catch (error) {
     console.error('[TenantMessages.POST] Failed to send message', error)
     return NextResponse.json(
