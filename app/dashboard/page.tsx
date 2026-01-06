@@ -4,17 +4,18 @@ import { Suspense, useCallback, useEffect, useMemo, useState } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { Sidebar } from '@/components/dashboard/sidebar'
 import { Header } from '@/components/dashboard/header'
-import { Crown, Building2, Users, DollarSign, Wrench, ArrowUpRight, ArrowDownRight, Droplet, BarChart3, MessageSquare, FileText } from 'lucide-react'
+import { Crown, Building2, Users, DollarSign, Wrench, ArrowUpRight, ArrowDownRight, Droplet, BarChart3, MessageSquare, FileText, TrendingUp } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import Link from 'next/link'
-import { Bar, BarChart, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, Pie, PieChart, LineChart, Line } from 'recharts'
+import { Bar, BarChart, XAxis, CartesianGrid, ResponsiveContainer, Cell, Pie, PieChart } from 'recharts'
 import { OrganizationSetupModal } from '@/components/dashboard/organization-setup-modal'
 import { useAuth } from '@/lib/auth/context'
 import { SkeletonLoader, SkeletonPropertyCard, SkeletonTable } from '@/components/ui/skeletons'
 import { formatCurrency } from '@/lib/format/currency'
 import { cn } from '@/lib/utils'
 import { ProgressCircle } from '@/components/ProgressCircle'
+import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from '@/components/ui/chart'
 
 export default function DashboardPage() {
   return (
@@ -276,6 +277,19 @@ function DashboardContent() {
       }
     })
   }, [revenueSeries, expensesSeries])
+
+  const revenueTrendData = useMemo(() => revenueSeries.slice(-12), [revenueSeries])
+  const revenueExpenseTrendData = useMemo(() => revenueExpenseSeries.slice(-12), [revenueExpenseSeries])
+  const revenueTrendDelta = useMemo(() => {
+    if (revenueTrendData.length < 2) return null
+    const last = revenueTrendData[revenueTrendData.length - 1]?.revenue ?? 0
+    const prev = revenueTrendData[revenueTrendData.length - 2]?.revenue ?? 0
+    if (prev <= 0) return null
+    return ((last - prev) / prev) * 100
+  }, [revenueTrendData])
+  const latestRevenueExpense = revenueExpenseTrendData[revenueExpenseTrendData.length - 1]
+  const latestNet =
+    latestRevenueExpense ? Number(latestRevenueExpense.revenue || 0) - Number(latestRevenueExpense.expenses || 0) : null
 
   const incomeProgressMonth = useMemo(() => {
     if (!propertyIncomeMonthData.length) return []
@@ -636,78 +650,100 @@ function DashboardContent() {
 
             {/* Charts Row */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <Card>
+              <Card className="border border-slate-200/70 bg-white/95 shadow-sm">
                 <CardHeader>
                   <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                      <svg className="w-6 h-6 text-[#4682B4]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
-                      </svg>
+                    <div className="w-12 h-12 rounded-xl border border-blue-100 bg-gradient-to-br from-blue-50 to-white flex items-center justify-center">
+                      <TrendingUp className="w-6 h-6 text-blue-700" />
                     </div>
                     <div>
                       <CardTitle className="text-xl">Revenue Trends</CardTitle>
-                      <CardDescription>Month-by-month rent revenue</CardDescription>
+                      <CardDescription>Last 12 months of rent revenue</CardDescription>
                     </div>
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <ResponsiveContainer width="100%" height={320}>
-                    <BarChart data={revenueSeries} barCategoryGap={16}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#eef2f7" vertical={false} />
-                      <XAxis dataKey="label" stroke="#94a3b8" />
-                      <YAxis stroke="#94a3b8" tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
-                      <Tooltip cursor={false} />
-                      <Bar dataKey="revenue" radius={[10, 10, 6, 6]}>
-                        {revenueSeries.map((entry, index) => (
-                          <Cell
-                            key={`bar-${entry.key}`}
-                            fill={index === revenueSeries.length - 1 ? '#7c3aed' : '#c7d2fe'}
-                            stroke="#7c3aed"
-                            strokeWidth={index === revenueSeries.length - 1 ? 1.5 : 0}
-                          />
-                        ))}
-                      </Bar>
+                  <ChartContainer
+                    config={
+                      {
+                        revenue: { label: 'Revenue', color: '#1d4ed8' },
+                      } satisfies ChartConfig
+                    }
+                    className="h-[320px] w-full"
+                  >
+                    <BarChart accessibilityLayer data={revenueTrendData} barCategoryGap={16}>
+                      <CartesianGrid vertical={false} />
+                      <XAxis
+                        dataKey="label"
+                        tickLine={false}
+                        tickMargin={10}
+                        axisLine={false}
+                        tickFormatter={(value) => String(value).slice(0, 3)}
+                      />
+                      <ChartTooltip cursor={false} content={<ChartTooltipContent hideLabel />} />
+                      <Bar dataKey="revenue" fill="var(--color-revenue)" radius={8} />
                     </BarChart>
-                  </ResponsiveContainer>
+                  </ChartContainer>
                 </CardContent>
+                <div className="px-6 pb-5 pt-1 text-sm text-slate-600">
+                  <div className="flex items-center gap-2 font-medium text-slate-800">
+                    {revenueTrendDelta === null
+                      ? 'Steady performance'
+                      : `Trending ${revenueTrendDelta >= 0 ? 'up' : 'down'} by ${Math.abs(revenueTrendDelta).toFixed(1)}%`}
+                    <TrendingUp className={`h-4 w-4 ${revenueTrendDelta !== null && revenueTrendDelta < 0 ? 'rotate-180 text-rose-500' : 'text-emerald-600'}`} />
+                  </div>
+                  <div className="text-muted-foreground">Showing total revenue for the last 12 months.</div>
+                </div>
               </Card>
 
-              <Card>
+              <Card className="border border-slate-200/70 bg-white/95 shadow-sm">
                 <CardHeader>
                   <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 bg-indigo-100 rounded-lg flex items-center justify-center">
-                      <DollarSign className="w-6 h-6 text-indigo-600" />
+                    <div className="w-12 h-12 rounded-xl border border-emerald-100 bg-gradient-to-br from-emerald-50 to-white flex items-center justify-center">
+                      <DollarSign className="w-6 h-6 text-emerald-600" />
                     </div>
                     <div>
                       <CardTitle className="text-xl">Revenue vs Expenses</CardTitle>
-                      <CardDescription>Single-month prepayments reflected live</CardDescription>
+                      <CardDescription>Monthly comparison across the last year</CardDescription>
                     </div>
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <ResponsiveContainer width="100%" height={320}>
-                    <LineChart data={revenueExpenseSeries}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#eef2f7" vertical={false} />
-                      <XAxis dataKey="label" stroke="#94a3b8" />
-                      <YAxis stroke="#94a3b8" tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
-                      <Tooltip />
-                      <Line
-                        type="monotone"
-                        dataKey="revenue"
-                        stroke="#16a34a"
-                        strokeWidth={3}
-                        dot={{ r: 4, fill: '#16a34a' }}
+                  <ChartContainer
+                    config={
+                      {
+                        revenue: { label: 'Revenue', color: '#16a34a' },
+                        expenses: { label: 'Expenses', color: '#ef4444' },
+                      } satisfies ChartConfig
+                    }
+                    className="h-[320px] w-full"
+                  >
+                    <BarChart accessibilityLayer data={revenueExpenseTrendData} barCategoryGap={10}>
+                      <CartesianGrid vertical={false} />
+                      <XAxis
+                        dataKey="label"
+                        tickLine={false}
+                        tickMargin={10}
+                        axisLine={false}
+                        tickFormatter={(value) => String(value).slice(0, 3)}
                       />
-                      <Line
-                        type="monotone"
-                        dataKey="expenses"
-                        stroke="#ef4444"
-                        strokeWidth={3}
-                        dot={{ r: 4, fill: '#ef4444' }}
-                      />
-                    </LineChart>
-                  </ResponsiveContainer>
+                      <ChartTooltip cursor={false} content={<ChartTooltipContent indicator="dashed" />} />
+                      <Bar dataKey="revenue" fill="var(--color-revenue)" radius={4} />
+                      <Bar dataKey="expenses" fill="var(--color-expenses)" radius={4} />
+                    </BarChart>
+                  </ChartContainer>
                 </CardContent>
+                <div className="px-6 pb-5 pt-1 text-sm text-slate-600">
+                  <div className="flex items-center gap-2 font-medium text-slate-800">
+                    {latestNet === null
+                      ? 'Balanced performance'
+                      : latestNet >= 0
+                        ? `Net positive ${formatCurrency(latestNet, 'KES')}`
+                        : `Net negative ${formatCurrency(Math.abs(latestNet), 'KES')}`}
+                    <TrendingUp className={`h-4 w-4 ${latestNet !== null && latestNet < 0 ? 'rotate-180 text-rose-500' : 'text-emerald-600'}`} />
+                  </div>
+                  <div className="text-muted-foreground">Revenue in green, expenses in red.</div>
+                </div>
               </Card>
             </div>
 
