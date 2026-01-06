@@ -197,7 +197,7 @@ export async function GET() {
         .select('id', { count: 'exact', head: true })
         .eq('lease_id', lease.id)
         .eq('invoice_type', 'rent')
-        .or('status.eq.true,status.eq.paid')
+        .or('status.eq.true,status_text.eq.paid')
 
       if (typeof count === 'number') {
         prepaidMonths = count
@@ -208,7 +208,7 @@ export async function GET() {
         .select('due_date')
         .eq('lease_id', lease.id)
         .eq('invoice_type', 'rent')
-        .or('status.eq.true,status.eq.paid')
+        .or('status.eq.true,status_text.eq.paid')
         .order('due_date', { ascending: false })
         .limit(1)
 

@@ -11,7 +11,8 @@ const UNPAID_STATUSES = new Set(['unpaid', 'overdue', 'partially_paid'])
 const AMOUNT_TOLERANCE = 0.05
 const DUPLICATE_LOOKBACK_HOURS = 24
 const MAX_PAST_PAYMENT_DAYS = 180
-const UNPAID_OR_FALSE = 'status.eq.false,status.eq.unpaid,status.eq.overdue,status.eq.partially_paid'
+const UNPAID_OR_FALSE =
+  'status.eq.false,status_text.is.null,status_text.eq.unpaid,status_text.eq.overdue,status_text.eq.partially_paid'
 
 interface LeaseRecord {
   id: string
@@ -563,7 +564,7 @@ const computeNextDueDateInternal = async (admin: AdminClient, leaseId: string): 
         .select('due_date')
         .eq('lease_id', leaseId)
         .eq('invoice_type', 'rent')
-        .or('status.eq.true,status.eq.paid')
+        .or('status.eq.true,status_text.eq.paid')
         .order('due_date', { ascending: false })
         .limit(1),
       admin
@@ -571,7 +572,7 @@ const computeNextDueDateInternal = async (admin: AdminClient, leaseId: string): 
         .select('id', { count: 'exact', head: true })
         .eq('lease_id', leaseId)
         .eq('invoice_type', 'rent')
-        .or('status.eq.true,status.eq.paid'),
+        .or('status.eq.true,status_text.eq.paid'),
     ])
 
   const pointer = parseDate((lease as any)?.next_rent_due_date)
