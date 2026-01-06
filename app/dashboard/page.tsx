@@ -291,6 +291,38 @@ function DashboardContent() {
   const latestNet =
     latestRevenueExpense ? Number(latestRevenueExpense.revenue || 0) - Number(latestRevenueExpense.expenses || 0) : null
 
+  const RevenueExpenseTooltip = ({ active, payload, label }: any) => {
+    if (!active || !payload?.length) return null
+    const revenue = payload.find((item: any) => item.dataKey === 'revenue')?.value ?? 0
+    const expenses = payload.find((item: any) => item.dataKey === 'expenses')?.value ?? 0
+    const net = Number(revenue) - Number(expenses)
+
+    return (
+      <div className="border-border/50 bg-background grid min-w-[10rem] items-start gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs shadow-xl">
+        <div className="font-medium">{label}</div>
+        <div className="grid gap-1.5">
+          <div className="flex items-center gap-2">
+            <span className="h-2.5 w-2.5 rounded-[2px]" style={{ backgroundColor: 'var(--color-revenue)' }} />
+            <span className="text-muted-foreground">Revenue</span>
+            <span className="ml-auto font-medium text-slate-900">{formatCurrency(revenue, 'KES')}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="h-2.5 w-2.5 rounded-[2px]" style={{ backgroundColor: 'var(--color-expenses)' }} />
+            <span className="text-muted-foreground">Expenses</span>
+            <span className="ml-auto font-medium text-slate-900">{formatCurrency(expenses, 'KES')}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="h-2.5 w-2.5 rounded-[2px]" style={{ backgroundColor: '#2563eb' }} />
+            <span className="text-muted-foreground">Net</span>
+            <span className={`ml-auto font-medium ${net >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}>
+              {formatCurrency(net, 'KES')}
+            </span>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   const incomeProgressMonth = useMemo(() => {
     if (!propertyIncomeMonthData.length) return []
     return propertyIncomeMonthData
@@ -666,12 +698,12 @@ function DashboardContent() {
                   <ChartContainer
                     config={
                       {
-                        revenue: { label: 'Revenue', color: '#1d4ed8' },
+                        revenue: { label: 'Revenue', color: '#93c5fd' },
                       } satisfies ChartConfig
                     }
-                    className="h-[320px] w-full"
+                    className="h-[160px] w-full aspect-auto"
                   >
-                    <BarChart accessibilityLayer data={revenueTrendData} barCategoryGap={16}>
+                    <BarChart accessibilityLayer data={revenueTrendData} barCategoryGap={14} barSize={20}>
                       <CartesianGrid vertical={false} />
                       <XAxis
                         dataKey="label"
@@ -716,9 +748,9 @@ function DashboardContent() {
                         expenses: { label: 'Expenses', color: '#ef4444' },
                       } satisfies ChartConfig
                     }
-                    className="h-[320px] w-full"
+                    className="h-[160px] w-full aspect-auto"
                   >
-                    <BarChart accessibilityLayer data={revenueExpenseTrendData} barCategoryGap={10}>
+                    <BarChart accessibilityLayer data={revenueExpenseTrendData} barCategoryGap={12} barSize={12}>
                       <CartesianGrid vertical={false} />
                       <XAxis
                         dataKey="label"
@@ -727,7 +759,7 @@ function DashboardContent() {
                         axisLine={false}
                         tickFormatter={(value) => String(value).slice(0, 3)}
                       />
-                      <ChartTooltip cursor={false} content={<ChartTooltipContent indicator="dashed" />} />
+                      <ChartTooltip cursor={false} content={<RevenueExpenseTooltip />} />
                       <Bar dataKey="revenue" fill="var(--color-revenue)" radius={4} />
                       <Bar dataKey="expenses" fill="var(--color-expenses)" radius={4} />
                     </BarChart>
