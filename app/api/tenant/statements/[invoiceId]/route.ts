@@ -23,6 +23,14 @@ type StatementTransaction = {
   method?: string | null
 }
 
+function isFailedPaymentStatus(status?: string | null) {
+  if (!status) return false
+  const normalized = status.toLowerCase()
+  return ['failed', 'cancelled', 'canceled', 'void', 'reversed', 'rejected', 'timeout', 'expired'].some((key) =>
+    normalized.includes(key)
+  )
+}
+
 function buildCoverageCharges(
   existingCharges: StatementTransaction[],
   lease?: {
@@ -235,6 +243,9 @@ export async function GET(
     })
 
     for (const payment of payments || []) {
+      if (!payment.verified) {
+        continue
+      }
       const method = payment.payment_method || 'manual'
       const status = payment.verified
         ? 'verified'
@@ -243,6 +254,10 @@ export async function GET(
           : payment.mpesa_query_status
             ? payment.mpesa_query_status
             : 'pending'
+
+      if (isFailedPaymentStatus(status)) {
+        continue
+      }
 
       transactions.push({
         id: payment.id,

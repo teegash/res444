@@ -14,6 +14,14 @@ const formatDateKey = (input: string) => {
   return { year, month }
 }
 
+const isFailedPaymentStatus = (status?: string | null) => {
+  if (!status) return false
+  const normalized = status.toLowerCase()
+  return ['failed', 'cancelled', 'canceled', 'void', 'reversed', 'rejected', 'timeout', 'expired'].some((key) =>
+    normalized.includes(key)
+  )
+}
+
 export async function GET(
   request: Request,
   { params }: { params: { monthKey: string } }
@@ -195,6 +203,10 @@ export async function GET(
         : payment.mpesa_response_code && payment.mpesa_response_code !== '0'
           ? 'failed'
           : payment.mpesa_query_status || 'pending'
+
+      if (isFailedPaymentStatus(status)) {
+        return
+      }
 
       const coverageLabel =
         payment.invoice?.due_date && (payment.months_paid || 1) > 0

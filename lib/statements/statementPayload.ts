@@ -4,6 +4,7 @@ export type StatementTransaction = {
   payment_type: string
   payment_method: string | null
   status: string
+  verified?: boolean
   posted_at: string | null
   description: string
   reference: string | null
@@ -73,6 +74,14 @@ function normalizeRpcRows(data: unknown): any[] {
   return []
 }
 
+function isFailedPaymentStatus(status: string | null | undefined) {
+  if (!status) return false
+  const normalized = status.toLowerCase()
+  return ['failed', 'cancelled', 'canceled', 'void', 'reversed', 'rejected', 'timeout', 'expired'].some((key) =>
+    normalized.includes(key)
+  )
+}
+
 function coerceString(value: unknown): string | null {
   if (typeof value === 'string' && value.trim().length) return value
   return null
@@ -113,11 +122,20 @@ function toStatementTransaction(row: any, fallbackId: string): StatementTransact
 
   const paymentMethod = coerceString(row?.payment_method) || coerceString(row?.method)
 
-  const status =
+  const notes = coerceString(row?.notes) || coerceString(row?.payment_notes)
+  let status =
     coerceString(row?.status) ||
     coerceString(row?.status_text) ||
     coerceString(row?.payment_status) ||
-    (row?.verified === true ? 'verified' : 'posted')
+    coerceString(row?.mpesa_query_status) ||
+    null
+  if (!status && notes && /reject/i.test(notes)) {
+    status = 'rejected'
+  }
+  if (!status) {
+    status = row?.verified === true ? 'verified' : 'posted'
+  }
+  const verified = row?.verified === true || status.toLowerCase().includes('verified')
 
   const postedAt =
     coerceString(row?.posted_at) ||
@@ -182,6 +200,7 @@ function toStatementTransaction(row: any, fallbackId: string): StatementTransact
     payment_type: paymentType,
     payment_method: paymentMethod,
     status,
+    verified,
     posted_at: postedAt,
     description,
     reference,
@@ -197,7 +216,13 @@ export function buildStatementPayloadFromRpc(args: {
   rpcData: unknown
 }): { payload: StatementPayload; rawRows: any[] } {
   const rawRows = normalizeRpcRows(args.rpcData)
-  const mappedTransactions = rawRows.map((row, index) => toStatementTransaction(row, `row-${index + 1}`))
+  const mappedTransactions = rawRows
+    .map((row, index) => toStatementTransaction(row, `row-${index + 1}`))
+    .filter((transaction) =>
+      transaction.kind === 'payment'
+        ? transaction.verified === true && !isFailedPaymentStatus(transaction.status)
+        : true
+    )
 
   mappedTransactions.sort((a, b) => {
     const aTime = a.posted_at ? new Date(a.posted_at).getTime() : 0

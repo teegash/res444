@@ -81,7 +81,7 @@ export default function TenantTransitionPage() {
   }
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-sky-50">
       <div className="max-w-5xl mx-auto p-4 md:p-6 lg:p-8 space-y-6">
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div className="flex items-center justify-between gap-3 md:hidden">
@@ -126,18 +126,18 @@ export default function TenantTransitionPage() {
         </div>
 
         {loading ? (
-          <Card>
+          <Card className="border border-indigo-100/70 bg-white/90 shadow-sm">
             <CardContent className="p-6 text-sm text-muted-foreground flex items-center gap-2">
               <Loader2 className="h-4 w-4 animate-spin" /> Loading...
             </CardContent>
           </Card>
         ) : error ? (
-          <Card>
-            <CardContent className="p-6 text-sm text-red-600">{error}</CardContent>
+          <Card className="border border-rose-100/70 bg-white/90 shadow-sm">
+            <CardContent className="p-6 text-sm text-rose-600">{error}</CardContent>
           </Card>
         ) : !data ? (
-          <Card>
-            <CardHeader>
+          <Card className="border border-indigo-100/70 bg-white/95 shadow-sm">
+            <CardHeader className="bg-gradient-to-r from-indigo-50/80 via-white to-sky-50/60">
               <CardTitle>No move-out case</CardTitle>
               <CardDescription>
                 If you submitted a vacate notice, management will open a move-out case once they begin processing it.
@@ -151,8 +151,8 @@ export default function TenantTransitionPage() {
           </Card>
         ) : (
           <>
-            <Card className="border border-slate-100 bg-white/95 shadow-sm">
-              <CardHeader>
+            <Card className="border border-indigo-100/70 bg-gradient-to-br from-white via-white to-indigo-50/40 shadow-[0_12px_30px_rgba(99,102,241,0.12)]">
+              <CardHeader className="bg-gradient-to-r from-indigo-50/70 via-white to-sky-50/70 rounded-t-xl">
                 <CardTitle>
                   Unit {data.unit?.unit_number || '—'} • {data.unit?.building?.name || 'Property'}
                 </CardTitle>
@@ -176,20 +176,20 @@ export default function TenantTransitionPage() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="grid gap-4 md:grid-cols-3 text-sm">
-                <div className="rounded-xl bg-slate-50 p-4">
-                  <p className="text-xs uppercase tracking-wide text-slate-500">Expected vacate</p>
+                <div className="rounded-xl border border-indigo-100/70 bg-gradient-to-br from-indigo-50/70 to-white p-4">
+                  <p className="text-xs uppercase tracking-wide text-indigo-500">Expected vacate</p>
                   <p className="mt-1 text-base font-semibold text-slate-900">
                     {formatDate(data.expected_vacate_date)}
                   </p>
                 </div>
-                <div className="rounded-xl bg-slate-50 p-4">
-                  <p className="text-xs uppercase tracking-wide text-slate-500">Handover date</p>
+                <div className="rounded-xl border border-sky-100/80 bg-gradient-to-br from-sky-50/70 to-white p-4">
+                  <p className="text-xs uppercase tracking-wide text-sky-500">Handover date</p>
                   <p className="mt-1 text-base font-semibold text-slate-900">
                     {formatDate(data.handover_date)}
                   </p>
                 </div>
-                <div className="rounded-xl bg-slate-50 p-4">
-                  <p className="text-xs uppercase tracking-wide text-slate-500">Actual vacate</p>
+                <div className="rounded-xl border border-amber-100/80 bg-gradient-to-br from-amber-50/70 to-white p-4">
+                  <p className="text-xs uppercase tracking-wide text-amber-600">Actual vacate</p>
                   <p className="mt-1 text-base font-semibold text-slate-900">
                     {formatDate(data.actual_vacate_date)}
                   </p>
@@ -197,14 +197,20 @@ export default function TenantTransitionPage() {
               </CardContent>
             </Card>
 
-            <Card className="border border-slate-100 bg-white/95 shadow-sm">
-              <CardHeader>
+            <Card className="border border-emerald-100/70 bg-gradient-to-br from-white via-white to-emerald-50/30 shadow-sm">
+              <CardHeader className="bg-gradient-to-r from-emerald-50/70 via-white to-sky-50/60 rounded-t-xl">
                 <CardTitle>Documents</CardTitle>
                 <CardDescription>Secure links provided by management.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
                 {signed.notice_document_url ? (
-                  <a className="inline-flex items-center gap-2 text-sm font-medium text-indigo-700" href={signed.notice_document_url} target="_blank">
+                  <a
+                    className="inline-flex items-center gap-2 rounded-lg border border-indigo-200/70 bg-indigo-50/70 px-3 py-2 text-sm font-semibold text-indigo-700 shadow-sm transition hover:bg-indigo-100"
+                    href={signed.notice_document_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    download
+                  >
                     <Download className="h-4 w-4" /> Notice document
                   </a>
                 ) : (
@@ -212,13 +218,25 @@ export default function TenantTransitionPage() {
                 )}
 
                 {signed.inspection_report_url ? (
-                  <a className="inline-flex items-center gap-2 text-sm font-medium text-indigo-700" href={signed.inspection_report_url} target="_blank">
+                  <a
+                    className="inline-flex items-center gap-2 rounded-lg border border-sky-200/70 bg-sky-50/70 px-3 py-2 text-sm font-semibold text-sky-700 shadow-sm transition hover:bg-sky-100"
+                    href={signed.inspection_report_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    download
+                  >
                     <Download className="h-4 w-4" /> Inspection report
                   </a>
                 ) : null}
 
                 {signed.settlement_statement_url ? (
-                  <a className="inline-flex items-center gap-2 text-sm font-medium text-indigo-700" href={signed.settlement_statement_url} target="_blank">
+                  <a
+                    className="inline-flex items-center gap-2 rounded-lg border border-emerald-200/70 bg-emerald-50/70 px-3 py-2 text-sm font-semibold text-emerald-700 shadow-sm transition hover:bg-emerald-100"
+                    href={signed.settlement_statement_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    download
+                  >
                     <Download className="h-4 w-4" /> Settlement statement
                   </a>
                 ) : null}
@@ -226,15 +244,15 @@ export default function TenantTransitionPage() {
             </Card>
 
             {refundPanel ? (
-              <Card className="border border-slate-100 bg-white/95 shadow-sm">
-                <CardHeader>
+              <Card className="border border-rose-100/70 bg-gradient-to-br from-white via-white to-rose-50/30 shadow-sm">
+                <CardHeader className="bg-gradient-to-r from-rose-50/70 via-white to-amber-50/60 rounded-t-xl">
                   <CardTitle>Deposit settlement</CardTitle>
                   <CardDescription>Summary of your refund status.</CardDescription>
                 </CardHeader>
                 <CardContent className="grid gap-4 md:grid-cols-2 text-sm">
                   <div
                     className={`rounded-xl p-4 ${
-                      refundPanel.paid ? 'bg-emerald-50' : 'bg-rose-50'
+                      refundPanel.paid ? 'bg-emerald-50 border border-emerald-100/80' : 'bg-rose-50 border border-rose-100/80'
                     }`}
                   >
                     <p
@@ -252,8 +270,8 @@ export default function TenantTransitionPage() {
                       {refundPanel.status.replace(/_/g, ' ')}
                     </p>
                   </div>
-                  <div className="rounded-xl bg-slate-50 p-4">
-                    <p className="text-xs uppercase tracking-wide text-slate-500">Refund amount</p>
+                  <div className="rounded-xl border border-indigo-100/80 bg-gradient-to-br from-indigo-50/70 to-white p-4">
+                    <p className="text-xs uppercase tracking-wide text-indigo-500">Refund amount</p>
                     <p className="mt-1 text-base font-semibold text-slate-900">
                       KES {refundPanel.amount.toLocaleString()}
                     </p>
@@ -262,8 +280,8 @@ export default function TenantTransitionPage() {
               </Card>
             ) : null}
 
-            <Card className="border border-slate-100 bg-white/95 shadow-sm">
-              <CardHeader>
+            <Card className="border border-indigo-100/70 bg-white/95 shadow-sm">
+              <CardHeader className="bg-gradient-to-r from-indigo-50/60 via-white to-sky-50/60 rounded-t-xl">
                 <CardTitle>Timeline</CardTitle>
                 <CardDescription>Updates posted by management as the move-out process progresses.</CardDescription>
               </CardHeader>
@@ -272,7 +290,7 @@ export default function TenantTransitionPage() {
                   <div className="text-sm text-muted-foreground">No updates yet.</div>
                 ) : (
                   events.map((ev: any) => (
-                    <div key={ev.id} className="rounded-xl border border-slate-100 bg-white p-4">
+                    <div key={ev.id} className="rounded-xl border border-indigo-100/70 bg-gradient-to-br from-white via-white to-indigo-50/30 p-4 shadow-sm">
                       <div className="flex items-center justify-between">
                         <span className="font-semibold text-slate-900">{String(ev.action || '').replace(/_/g, ' ')}</span>
                         <div className="flex items-center gap-3">
