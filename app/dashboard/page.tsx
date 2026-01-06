@@ -8,7 +8,7 @@ import { Crown, Building2, Users, DollarSign, Wrench, ArrowUpRight, ArrowDownRig
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import Link from 'next/link'
-import { Bar, BarChart, XAxis, CartesianGrid, ResponsiveContainer, Cell, Pie, PieChart } from 'recharts'
+import { Bar, BarChart, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Cell, Pie, PieChart } from 'recharts'
 import { OrganizationSetupModal } from '@/components/dashboard/organization-setup-modal'
 import { useAuth } from '@/lib/auth/context'
 import { SkeletonLoader, SkeletonPropertyCard, SkeletonTable } from '@/components/ui/skeletons'
@@ -705,6 +705,13 @@ function DashboardContent() {
                   >
                     <BarChart accessibilityLayer data={revenueTrendData} barCategoryGap={14} barSize={20}>
                       <CartesianGrid vertical={false} />
+                      <YAxis
+                        tickLine={false}
+                        axisLine={false}
+                        tickMargin={8}
+                        width={56}
+                        tickFormatter={(value) => `${Math.abs(Number(value)) >= 1000000 ? `${Math.round(Number(value) / 1000000)}M` : Math.abs(Number(value)) >= 1000 ? `${Math.round(Number(value) / 1000)}k` : Number(value)}`}
+                      />
                       <XAxis
                         dataKey="label"
                         tickLine={false}
@@ -752,6 +759,13 @@ function DashboardContent() {
                   >
                     <BarChart accessibilityLayer data={revenueExpenseTrendData} barCategoryGap={12} barSize={12}>
                       <CartesianGrid vertical={false} />
+                      <YAxis
+                        tickLine={false}
+                        axisLine={false}
+                        tickMargin={8}
+                        width={56}
+                        tickFormatter={(value) => `${Math.abs(Number(value)) >= 1000000 ? `${Math.round(Number(value) / 1000000)}M` : Math.abs(Number(value)) >= 1000 ? `${Math.round(Number(value) / 1000)}k` : Number(value)}`}
+                      />
                       <XAxis
                         dataKey="label"
                         tickLine={false}
