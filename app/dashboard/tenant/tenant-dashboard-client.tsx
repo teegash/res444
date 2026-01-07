@@ -284,6 +284,14 @@ export default function TenantDashboardClient() {
       const rentPayment = latestVerifiedPaymentByType('rent')
       const waterPayment = latestVerifiedPaymentByType('water')
 
+      const openInvoices = eligibleInvoices.filter((invoice) => !invoice.status)
+      const openRentInvoices = openInvoices
+        .filter((invoice) => normalizeInvoiceType(invoice.invoice_type) === 'rent')
+        .sort((a, b) => invoiceTimestamp(b) - invoiceTimestamp(a))
+      const openWaterInvoices = openInvoices
+        .filter((invoice) => normalizeInvoiceType(invoice.invoice_type) === 'water')
+        .sort((a, b) => invoiceTimestamp(b) - invoiceTimestamp(a))
+
       const depositItem = (() => {
         const latest = pendingDeposits
           .slice()
@@ -329,6 +337,18 @@ export default function TenantDashboardClient() {
         return null
       })()
 
+      const rentItems = openRentInvoices.length
+        ? openRentInvoices.map((invoice) => makeInvoiceActivity(invoice, 'rent'))
+        : rentBest
+          ? [rentBest]
+          : []
+
+      const waterItems = openWaterInvoices.length
+        ? openWaterInvoices.map((invoice) => makeInvoiceActivity(invoice, 'water'))
+        : waterBest
+          ? [waterBest]
+          : []
+
       const openMaintenance = (maintenanceRequests || []).filter(
         (r) => (r.status || '').toLowerCase() === 'open'
       )
@@ -365,7 +385,7 @@ export default function TenantDashboardClient() {
           }
         })
 
-      const combined = [...maintenanceItems, depositItem, rentBest, waterBest]
+      const combined = [...maintenanceItems, depositItem, ...rentItems, ...waterItems]
         .filter((x): x is ActivityItem => Boolean(x))
         .sort((a, b) => b.timestamp - a.timestamp)
 
