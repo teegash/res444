@@ -173,6 +173,9 @@ const paymentBadgeVariant = (status: string) => {
 const buildStatementHref = (tenantId?: string | null) =>
   tenantId ? `/dashboard/manager/statements/${encodeURIComponent(tenantId)}` : ''
 
+const buildInvoicesHref = (tenantId?: string | null) =>
+  tenantId ? `/dashboard/tenants/${encodeURIComponent(tenantId)}/invoices` : ''
+
 const buildVaultHref = (tenantId?: string | null) =>
   tenantId ? `/dashboard/tenants/archive/${encodeURIComponent(tenantId)}/vault` : ''
 
@@ -209,6 +212,11 @@ function TenantActions({
         {tenant.tenant_user_id ? (
           <DropdownMenuItem asChild>
             <Link href={buildStatementHref(tenant.tenant_user_id)}>Stmt</Link>
+          </DropdownMenuItem>
+        ) : null}
+        {tenant.tenant_user_id ? (
+          <DropdownMenuItem asChild>
+            <Link href={buildInvoicesHref(tenant.tenant_user_id)}>Invoices</Link>
           </DropdownMenuItem>
         ) : null}
         <DropdownMenuItem asChild>

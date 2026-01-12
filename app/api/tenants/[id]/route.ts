@@ -325,6 +325,8 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     return NextResponse.json({ success: false, error: 'Tenant id is required.' }, { status: 400 })
   }
 
+  let summary: any | null = null
+
   try {
     // Ensure caller is manager/admin/caretaker based on membership (more reliable than metadata)
     const supabase = await createClient()
