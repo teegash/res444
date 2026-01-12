@@ -11,6 +11,7 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { ChronoSelect } from '@/components/ui/chrono-select'
+import { SuccessStateCard } from '@/components/ui/success-state-card'
 import { Loader2, ArrowLeft } from 'lucide-react'
 
 interface TenantForm {
@@ -50,7 +51,12 @@ export default function NewTenantPage() {
   const [form, setForm] = useState<TenantForm>(defaultForm)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState<string | null>(null)
+  const [successState, setSuccessState] = useState<{
+    title: string
+    description?: string
+    badge?: string
+    details?: { label: string; value: string }[]
+  } | null>(null)
   const [properties, setProperties] = useState<PropertyOption[]>([])
   const [propertiesLoading, setPropertiesLoading] = useState(true)
   const [units, setUnits] = useState<UnitOption[]>([])
@@ -79,7 +85,7 @@ export default function NewTenantPage() {
   const handleChange = (field: keyof TenantForm, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }))
     setError(null)
-    setSuccess(null)
+    setSuccessState(null)
   }
 
   const canSave =
@@ -197,9 +203,14 @@ export default function NewTenantPage() {
 
     setSaving(true)
     setError(null)
-    setSuccess(null)
+    setSuccessState(null)
 
     try {
+      const tenantName = form.fullName.trim()
+      const tenantEmail = form.email.trim()
+      const propertyLabel = properties.find((property) => property.id === selectedProperty)?.name || ''
+      const unitLabel = units.find((unit) => unit.id === selectedUnit)?.label || ''
+
       let profilePictureBase64: string | null = null
       if (profileFile) {
         profilePictureBase64 = await new Promise<string>((resolve, reject) => {
@@ -236,7 +247,17 @@ export default function NewTenantPage() {
         throw new Error(result.error || 'Failed to create tenant.')
       }
 
-      setSuccess('Tenant invite sent successfully.')
+      setSuccessState({
+        title: 'Tenant invite sent successfully',
+        description: tenantEmail ? `Credentials sent to ${tenantEmail}.` : 'Credentials sent to the tenant.',
+        badge: 'Tenant created',
+        details: [
+          { label: 'Tenant', value: tenantName || 'Tenant' },
+          { label: 'Email', value: tenantEmail || '—' },
+          ...(propertyLabel ? [{ label: 'Property', value: propertyLabel }] : []),
+          { label: 'Unit', value: unitLabel || 'Unassigned' },
+        ],
+      })
       setForm(defaultForm)
       setSelectedProperty('')
       setSelectedUnit('')
@@ -276,207 +297,222 @@ export default function NewTenantPage() {
               </div>
             </div>
 
-            {error && (
-              <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-                {error}
-              </div>
-            )}
-            {success && (
-              <div className="rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700">
-                {success}
-              </div>
-            )}
+            {successState ? (
+              <SuccessStateCard
+                title={successState.title}
+                description={successState.description}
+                badge={successState.badge}
+                details={successState.details}
+                onBack={() => router.push('/dashboard/tenants')}
+                actions={
+                  <>
+                    <Button onClick={() => setSuccessState(null)}>Add another tenant</Button>
+                    <Button variant="outline" onClick={() => router.push('/dashboard/tenants')}>
+                      View tenants
+                    </Button>
+                  </>
+                }
+              />
+            ) : (
+              <>
+                {error && (
+                  <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                    {error}
+                  </div>
+                )}
 
-            <form onSubmit={handleSubmit} className="space-y-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Identity & Contact</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <div>
-                      <Label htmlFor="fullName">Full name *</Label>
-                      <Input
-                        id="fullName"
-                        value={form.fullName}
-                        onChange={(e) => handleChange('fullName', e.target.value)}
-                        placeholder="Jane Tenant"
-                        required
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="email">Email *</Label>
-                      <Input
-                        id="email"
-                        type="email"
-                        value={form.email}
-                        onChange={(e) => handleChange('email', e.target.value)}
-                        placeholder="tenant@example.com"
-                        required
-                      />
-                    </div>
-                  </div>
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <div>
-                      <Label htmlFor="phone">Phone number *</Label>
-                      <Input
-                        id="phone"
-                        value={form.phone}
-                        onChange={(e) => handleChange('phone', e.target.value)}
-                        placeholder="+254712345678"
-                        required
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="nationalId">National ID *</Label>
-                      <Input
-                        id="nationalId"
-                        value={form.nationalId}
-                        onChange={(e) => handleChange('nationalId', e.target.value)}
-                        placeholder="12345678"
-                        required
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <Label>Profile picture</Label>
-                    <div
-                      className="mt-2 border-2 border-dashed border-gray-300 rounded-xl h-48 flex flex-col items-center justify-center text-sm text-muted-foreground cursor-pointer hover:border-[#4682B4]"
-                      onClick={() => fileInputRef.current?.click()}
-                    >
-                      {profilePreview ? (
-                        <img
-                          src={profilePreview}
-                          alt="Profile preview"
-                          className="h-full w-full object-cover rounded-lg"
-                        />
-                      ) : (
-                        <>
-                          <p>Click to upload</p>
-                          <p className="text-xs">PNG, JPG, WebP up to 5MB</p>
-                        </>
-                      )}
-                    </div>
-                    <Input
-                      ref={fileInputRef}
-                      type="file"
-                      accept="image/png,image/jpeg,image/webp"
-                      className="hidden"
-                      onChange={handleFileChange}
-                    />
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle>Background Information</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div>
-                    <Label htmlFor="address">Address</Label>
-                    <Textarea
-                      id="address"
-                      value={form.address}
-                      onChange={(e) => handleChange('address', e.target.value)}
-                      placeholder="Street, estate, city"
-                      rows={3}
-                    />
-                  </div>
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <div>
-                      <Label htmlFor="dob">Date of birth</Label>
-                      <ChronoSelect
-                        value={fromDateString(form.dateOfBirth)}
-                        onChange={(date) => handleChange('dateOfBirth', toDateString(date))}
-                        placeholder="Select date of birth"
-                        className="w-full justify-start"
-                      />
-                    </div>
-                    <div>
-                      <Label>Assign to Property (optional)</Label>
-                      <Select
-                        value={selectedProperty || PROPERTY_NONE_VALUE}
-                        onValueChange={(value) => handlePropertySelect(value === PROPERTY_NONE_VALUE ? '' : value)}
-                        disabled={propertiesLoading}
-                      >
-                        <SelectTrigger className="mt-1">
-                          <SelectValue placeholder={propertiesLoading ? 'Loading...' : 'Select property'} />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value={PROPERTY_NONE_VALUE}>Do not assign</SelectItem>
-                          {properties.map((property) => (
-                            <SelectItem key={property.id} value={property.id}>
-                              {property.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <Label>Assign to Unit (optional)</Label>
-                      <Select
-                        value={selectedUnit || UNIT_NONE_VALUE}
-                        onValueChange={(value) => setSelectedUnit(value === UNIT_NONE_VALUE ? '' : value)}
-                        disabled={!selectedProperty || unitsLoading || units.length === 0}
-                      >
-                        <SelectTrigger className="mt-1">
-                          <SelectValue
-                            placeholder={
-                              !selectedProperty
-                                ? 'Select property first'
-                                : unitsLoading
-                                ? 'Loading units...'
-                                : units.length
-                                ? 'Select unit'
-                                : 'No units available'
-                            }
+                <form onSubmit={handleSubmit} className="space-y-6">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Identity & Contact</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="grid gap-4 md:grid-cols-2">
+                        <div>
+                          <Label htmlFor="fullName">Full name *</Label>
+                          <Input
+                            id="fullName"
+                            value={form.fullName}
+                            onChange={(e) => handleChange('fullName', e.target.value)}
+                            placeholder="Jane Tenant"
+                            required
                           />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value={UNIT_NONE_VALUE}>Do not assign</SelectItem>
-                          {units
-                            .sort((a, b) => {
-                              const av = a.status.toLowerCase() === 'vacant' ? 0 : 1
-                              const bv = b.status.toLowerCase() === 'vacant' ? 0 : 1
-                              return av - bv
-                            })
-                            .map((unit) => (
-                              <SelectItem key={unit.id} value={unit.id}>
-                                {unit.label}
-                              </SelectItem>
-                            ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+                        </div>
+                        <div>
+                          <Label htmlFor="email">Email *</Label>
+                          <Input
+                            id="email"
+                            type="email"
+                            value={form.email}
+                            onChange={(e) => handleChange('email', e.target.value)}
+                            placeholder="tenant@example.com"
+                            required
+                          />
+                        </div>
+                      </div>
+                      <div className="grid gap-4 md:grid-cols-2">
+                        <div>
+                          <Label htmlFor="phone">Phone number *</Label>
+                          <Input
+                            id="phone"
+                            value={form.phone}
+                            onChange={(e) => handleChange('phone', e.target.value)}
+                            placeholder="+254712345678"
+                            required
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="nationalId">National ID *</Label>
+                          <Input
+                            id="nationalId"
+                            value={form.nationalId}
+                            onChange={(e) => handleChange('nationalId', e.target.value)}
+                            placeholder="12345678"
+                            required
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <Label>Profile picture</Label>
+                        <div
+                          className="mt-2 border-2 border-dashed border-gray-300 rounded-xl h-48 flex flex-col items-center justify-center text-sm text-muted-foreground cursor-pointer hover:border-[#4682B4]"
+                          onClick={() => fileInputRef.current?.click()}
+                        >
+                          {profilePreview ? (
+                            <img
+                              src={profilePreview}
+                              alt="Profile preview"
+                              className="h-full w-full object-cover rounded-lg"
+                            />
+                          ) : (
+                            <>
+                              <p>Click to upload</p>
+                              <p className="text-xs">PNG, JPG, WebP up to 5MB</p>
+                            </>
+                          )}
+                        </div>
+                        <Input
+                          ref={fileInputRef}
+                          type="file"
+                          accept="image/png,image/jpeg,image/webp"
+                          className="hidden"
+                          onChange={handleFileChange}
+                        />
+                      </div>
+                    </CardContent>
+                  </Card>
 
-              <div className="flex items-center justify-end gap-3">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => router.push('/dashboard/tenants')}
-                  disabled={saving}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  type="submit"
-                  className="bg-[#4682B4] hover:bg-[#3b6a91] gap-2"
-                  disabled={!canSave || saving}
-                >
-                  {saving ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" /> Creating…
-                    </>
-                  ) : (
-                    'Create Tenant Account'
-                  )}
-                </Button>
-              </div>
-            </form>
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Background Information</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div>
+                        <Label htmlFor="address">Address</Label>
+                        <Textarea
+                          id="address"
+                          value={form.address}
+                          onChange={(e) => handleChange('address', e.target.value)}
+                          placeholder="Street, estate, city"
+                          rows={3}
+                        />
+                      </div>
+                      <div className="grid gap-4 md:grid-cols-2">
+                        <div>
+                          <Label htmlFor="dob">Date of birth</Label>
+                          <ChronoSelect
+                            value={fromDateString(form.dateOfBirth)}
+                            onChange={(date) => handleChange('dateOfBirth', toDateString(date))}
+                            placeholder="Select date of birth"
+                            className="w-full justify-start"
+                          />
+                        </div>
+                        <div>
+                          <Label>Assign to Property (optional)</Label>
+                          <Select
+                            value={selectedProperty || PROPERTY_NONE_VALUE}
+                            onValueChange={(value) => handlePropertySelect(value === PROPERTY_NONE_VALUE ? '' : value)}
+                            disabled={propertiesLoading}
+                          >
+                            <SelectTrigger className="mt-1">
+                              <SelectValue placeholder={propertiesLoading ? 'Loading...' : 'Select property'} />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value={PROPERTY_NONE_VALUE}>Do not assign</SelectItem>
+                              {properties.map((property) => (
+                                <SelectItem key={property.id} value={property.id}>
+                                  {property.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div>
+                          <Label>Assign to Unit (optional)</Label>
+                          <Select
+                            value={selectedUnit || UNIT_NONE_VALUE}
+                            onValueChange={(value) => setSelectedUnit(value === UNIT_NONE_VALUE ? '' : value)}
+                            disabled={!selectedProperty || unitsLoading || units.length === 0}
+                          >
+                            <SelectTrigger className="mt-1">
+                              <SelectValue
+                                placeholder={
+                                  !selectedProperty
+                                    ? 'Select property first'
+                                    : unitsLoading
+                                    ? 'Loading units...'
+                                    : units.length
+                                    ? 'Select unit'
+                                    : 'No units available'
+                                }
+                              />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value={UNIT_NONE_VALUE}>Do not assign</SelectItem>
+                              {units
+                                .sort((a, b) => {
+                                  const av = a.status.toLowerCase() === 'vacant' ? 0 : 1
+                                  const bv = b.status.toLowerCase() === 'vacant' ? 0 : 1
+                                  return av - bv
+                                })
+                                .map((unit) => (
+                                  <SelectItem key={unit.id} value={unit.id}>
+                                    {unit.label}
+                                  </SelectItem>
+                                ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <div className="flex items-center justify-end gap-3">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => router.push('/dashboard/tenants')}
+                      disabled={saving}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      type="submit"
+                      className="bg-[#4682B4] hover:bg-[#3b6a91] gap-2"
+                      disabled={!canSave || saving}
+                    >
+                      {saving ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" /> Creating…
+                        </>
+                      ) : (
+                        'Create Tenant Account'
+                      )}
+                    </Button>
+                  </div>
+                </form>
+              </>
+            )}
           </div>
         </main>
       </div>

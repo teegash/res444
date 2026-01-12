@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
-import { ArrowLeft, Send, SettingsIcon, Loader2 } from 'lucide-react'
+import { Send, SettingsIcon, Loader2 } from 'lucide-react'
 import {
   Table,
   TableBody,
@@ -49,6 +49,7 @@ import { Sidebar } from '@/components/dashboard/sidebar'
 import { Header } from '@/components/dashboard/header'
 import { useToast } from '@/components/ui/use-toast'
 import { SkeletonLoader, SkeletonTable } from '@/components/ui/skeletons'
+import { SuccessStateCard } from '@/components/ui/success-state-card'
 import { renderTemplateContent } from '@/lib/sms/templateRenderer'
 import type { TemplatePlaceholder, TemplateKey } from '@/lib/sms/templateMetadata'
 import { useAuth } from '@/lib/auth/context'
@@ -508,6 +509,18 @@ export default function CommunicationsPage() {
 
   const templatesMemo = useMemo(() => smsTemplates, [smsTemplates])
 
+  const announcementSuccessDetails = useMemo(() => {
+    if (!announcementResult) return []
+    const details = [{ label: 'Recipients', value: String(announcementResult.recipients || 0) }]
+    if (announcementResult.sms_sent !== undefined) {
+      details.push({ label: 'SMS sent', value: String(announcementResult.sms_sent || 0) })
+    }
+    if (announcementResult.sms_failed) {
+      details.push({ label: 'SMS failed', value: String(announcementResult.sms_failed) })
+    }
+    return details
+  }, [announcementResult])
+
   useEffect(() => {
     if (selectedTarget) {
       applyTargetToTestValues(selectedTarget)
@@ -528,34 +541,14 @@ export default function CommunicationsPage() {
         <Header />
         <main className="flex-1 p-8 overflow-auto">
           {announcementResult ? (
-            <div className="max-w-3xl mx-auto py-12">
-              <Card className="text-center space-y-4 p-8">
-                <CardTitle className="text-2xl">Announcement sent successfully</CardTitle>
-                <p className="text-muted-foreground">
-                  Delivered to {announcementResult.recipients || 0} tenants
-                  {announcementResult.sms_sent !== undefined
-                    ? ` • SMS sent: ${announcementResult.sms_sent || 0}${
-                        announcementResult.sms_failed
-                          ? ` (failed: ${announcementResult.sms_failed})`
-                          : ''
-                      }`
-                    : ''}
-                </p>
-                <div className="flex justify-center">
-                  <Button onClick={resetAnnouncementForm}>Send another one</Button>
-                </div>
-                <div className="flex justify-center">
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    aria-label="Back to announcements"
-                    onClick={resetAnnouncementForm}
-                  >
-                    <ArrowLeft className="h-4 w-4" />
-                  </Button>
-                </div>
-              </Card>
-            </div>
+            <SuccessStateCard
+              title="Announcement sent successfully"
+              description="Your announcement has been delivered to the selected tenants."
+              badge="Announcement sent"
+              details={announcementSuccessDetails}
+              onBack={resetAnnouncementForm}
+              actions={<Button onClick={resetAnnouncementForm}>Send another one</Button>}
+            />
           ) : (
             <>
           <div className="mb-6">

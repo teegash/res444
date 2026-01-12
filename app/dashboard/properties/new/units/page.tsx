@@ -24,6 +24,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Sidebar } from '@/components/dashboard/sidebar'
 import { Header } from '@/components/dashboard/header'
+import { SuccessStateCard } from '@/components/ui/success-state-card'
 import { Trash2, Plus } from 'lucide-react'
 
 interface UnitType {
@@ -41,6 +42,14 @@ export default function AddUnitsPage() {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
   const [propertyData, setPropertyData] = useState<any>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [draftNotice, setDraftNotice] = useState<string | null>(null)
+  const [successState, setSuccessState] = useState<{
+    title: string
+    description?: string
+    badge?: string
+    details?: { label: string; value: string }[]
+  } | null>(null)
   const [units, setUnits] = useState<UnitType[]>([
     {
       id: '1',
@@ -106,13 +115,16 @@ export default function AddUnitsPage() {
 
   const handleSaveDraft = async () => {
     setIsLoading(true)
+    setError(null)
+    setDraftNotice(null)
+    setSuccessState(null)
     try {
       // TODO: Save as draft to database via API
       await new Promise((resolve) => setTimeout(resolve, 1000))
-      alert('Draft saved successfully!')
+      setDraftNotice('Draft saved successfully.')
     } catch (error) {
       console.error('Error saving draft:', error)
-      alert('Failed to save draft. Please try again.')
+      setError('Failed to save draft. Please try again.')
     } finally {
       setIsLoading(false)
     }
@@ -123,11 +135,14 @@ export default function AddUnitsPage() {
 
     // Validate units
     if (units.length === 0 || totalUnits === 0) {
-      alert('Please add at least one unit.')
+      setError('Please add at least one unit.')
       return
     }
 
     setIsLoading(true)
+    setError(null)
+    setDraftNotice(null)
+    setSuccessState(null)
 
     try {
       // TODO: Save property and units to database via API
@@ -142,12 +157,19 @@ export default function AddUnitsPage() {
       // Clear session storage
       sessionStorage.removeItem('newProperty')
 
-      // Show success message and redirect
-      alert('Property and units created successfully!')
-      router.push('/dashboard/properties')
+      setSuccessState({
+        title: 'Property and units created',
+        description: 'Your building and units are now ready.',
+        badge: 'Setup complete',
+        details: [
+          { label: 'Property', value: propertyData?.buildingName || 'Property' },
+          { label: 'Units', value: String(totalUnits) },
+          { label: 'Projected rent', value: `KES ${Number(totalRevenue || 0).toLocaleString()}` },
+        ],
+      })
     } catch (error) {
       console.error('Error creating property:', error)
-      alert('Failed to create property. Please try again.')
+      setError('Failed to create property. Please try again.')
     } finally {
       setIsLoading(false)
     }
@@ -187,42 +209,77 @@ export default function AddUnitsPage() {
               >
                 <ArrowLeft className="w-5 h-5" />
               </Button>
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 bg-[#4682B4] rounded-lg flex items-center justify-center">
-                  <Building2 className="w-6 h-6 text-white" />
-                </div>
-                <div>
-                  <h1 className="text-3xl font-bold text-gray-900">
-                    {propertyData.buildingName || 'Add Units'}
-                  </h1>
-                  <p className="text-sm text-gray-600 mt-1">
-                    Step 2 of 2: Add Apartment Units
-                  </p>
-                </div>
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 bg-[#4682B4] rounded-lg flex items-center justify-center">
+                <Building2 className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <h1 className="text-3xl font-bold text-gray-900">
+                  {propertyData.buildingName || 'Add Units'}
+                </h1>
+                <p className="text-sm text-gray-600 mt-1">
+                  Step 2 of 2: Add Apartment Units
+                </p>
               </div>
             </div>
+          </div>
 
-            {/* Property Info Summary */}
-            <Card className="border border-gray-200 shadow-sm bg-gray-50">
-              <CardContent className="p-4">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                  <div>
-                    <span className="text-gray-600 font-medium">Location:</span>
-                    <p className="text-gray-900 mt-1">{propertyData.location || 'N/A'}</p>
-                  </div>
-                  <div>
-                    <span className="text-gray-600 font-medium">County:</span>
-                    <p className="text-gray-900 mt-1 capitalize">{propertyData.county || 'N/A'}</p>
-                  </div>
-                  <div>
-                    <span className="text-gray-600 font-medium">Manager:</span>
-                    <p className="text-gray-900 mt-1">{propertyData.manager || 'Not assigned'}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+            {successState ? (
+              <SuccessStateCard
+                title={successState.title}
+                description={successState.description}
+                badge={successState.badge}
+                details={successState.details}
+                onBack={() => router.push('/dashboard/properties')}
+                actions={
+                  <>
+                    <Button onClick={() => router.push('/dashboard/properties')}>View properties</Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setSuccessState(null)
+                        router.push('/dashboard/properties/new')
+                      }}
+                    >
+                      Add another property
+                    </Button>
+                  </>
+                }
+              />
+            ) : (
+              <>
+                {error ? (
+                  <Card className="border border-red-200 bg-red-50">
+                    <CardContent className="p-3 text-sm text-red-700">{error}</CardContent>
+                  </Card>
+                ) : null}
+                {draftNotice ? (
+                  <Card className="border border-emerald-200 bg-emerald-50">
+                    <CardContent className="p-3 text-sm text-emerald-700">{draftNotice}</CardContent>
+                  </Card>
+                ) : null}
 
-            <form onSubmit={handleSubmit} className="space-y-6">
+                {/* Property Info Summary */}
+                <Card className="border border-gray-200 shadow-sm bg-gray-50">
+                  <CardContent className="p-4">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                      <div>
+                        <span className="text-gray-600 font-medium">Location:</span>
+                        <p className="text-gray-900 mt-1">{propertyData.location || 'N/A'}</p>
+                      </div>
+                      <div>
+                        <span className="text-gray-600 font-medium">County:</span>
+                        <p className="text-gray-900 mt-1 capitalize">{propertyData.county || 'N/A'}</p>
+                      </div>
+                      <div>
+                        <span className="text-gray-600 font-medium">Manager:</span>
+                        <p className="text-gray-900 mt-1">{propertyData.manager || 'Not assigned'}</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <form onSubmit={handleSubmit} className="space-y-6">
               {/* Header Section */}
               <div className="border-b border-gray-200 pb-4">
                 <h2 className="text-lg font-semibold text-gray-900 mb-2">Add Units in Bulk</h2>
@@ -457,6 +514,8 @@ export default function AddUnitsPage() {
                 </div>
               </div>
             </form>
+              </>
+            )}
           </div>
         </main>
       </div>

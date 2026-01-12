@@ -20,6 +20,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { SuccessStateCard } from '@/components/ui/success-state-card'
 import { Loader2, ArrowLeft, Download } from 'lucide-react'
 
 type ImportKind = 'invoice' | 'payment' | 'maintenance' | 'expense'
@@ -139,7 +140,12 @@ export default function ImportPastDataPage() {
   const [parsing, setParsing] = useState(false)
   const [importing, setImporting] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState<string | null>(null)
+  const [successState, setSuccessState] = useState<{
+    title: string
+    description?: string
+    badge?: string
+    details?: { label: string; value: string }[]
+  } | null>(null)
 
   const gridApiRef = useRef<GridApi | null>(null)
 
@@ -439,7 +445,7 @@ export default function ImportPastDataPage() {
 
   const parseFile = async (file: File) => {
     setError(null)
-    setSuccess(null)
+    setSuccessState(null)
     setParsing(true)
     setFileName(file.name)
 
@@ -598,7 +604,7 @@ export default function ImportPastDataPage() {
 
   const runImport = async () => {
     setError(null)
-    setSuccess(null)
+    setSuccessState(null)
 
     const valid = rows.filter((r) => r.validation_status === 'Valid')
     if (valid.length === 0) {
@@ -650,7 +656,16 @@ export default function ImportPastDataPage() {
         )
       }
 
-      setSuccess(`Import completed. Imported: ${imported}, Skipped: ${skipped}, Failed: ${failed}`)
+      setSuccessState({
+        title: 'Import completed',
+        description: failed > 0 ? 'Some rows failed to import.' : 'All rows imported successfully.',
+        badge: failed > 0 ? 'Completed with warnings' : 'Import success',
+        details: [
+          { label: 'Imported', value: String(imported) },
+          { label: 'Skipped', value: String(skipped) },
+          { label: 'Failed', value: String(failed) },
+        ],
+      })
     } catch (e: any) {
       setError(e?.message || 'Import failed.')
     } finally {
@@ -677,19 +692,31 @@ export default function ImportPastDataPage() {
               </div>
             </div>
 
-            {error ? (
-              <Alert variant="destructive">
-                <AlertDescription>{error}</AlertDescription>
-              </Alert>
-            ) : null}
+            {successState ? (
+              <SuccessStateCard
+                title={successState.title}
+                description={successState.description}
+                badge={successState.badge}
+                details={successState.details}
+                onBack={() => router.back()}
+                actions={
+                  <>
+                    <Button onClick={() => setSuccessState(null)}>Import another file</Button>
+                    <Button variant="outline" onClick={() => router.push('/dashboard/tenants')}>
+                      Back to tenants
+                    </Button>
+                  </>
+                }
+              />
+            ) : (
+              <>
+                {error ? (
+                  <Alert variant="destructive">
+                    <AlertDescription>{error}</AlertDescription>
+                  </Alert>
+                ) : null}
 
-            {success ? (
-              <Alert>
-                <AlertDescription>{success}</AlertDescription>
-              </Alert>
-            ) : null}
-
-            <Card>
+                <Card>
               <CardHeader>
                 <CardTitle>1) Download template</CardTitle>
                 <CardDescription>
@@ -761,6 +788,8 @@ export default function ImportPastDataPage() {
                 </div>
               </CardContent>
             </Card>
+              </>
+            )}
           </div>
         </main>
       </div>

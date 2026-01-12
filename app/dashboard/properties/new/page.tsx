@@ -3,13 +3,14 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Building2, Loader2, Plus, Trash2, CheckCircle2 } from 'lucide-react'
+import { ArrowLeft, Building2, Loader2, Plus, Trash2 } from 'lucide-react'
 import Sidebar from '@/components/dashboard/sidebar'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { SuccessStateCard } from '@/components/ui/success-state-card'
 import {
   Select,
   SelectContent,
@@ -17,14 +18,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from '@/components/ui/dialog'
 const fileToBase64 = (file: File): Promise<string> =>
   new Promise((resolve, reject) => {
     const reader = new FileReader()
@@ -56,8 +49,12 @@ export default function NewPropertyPage() {
   const router = useRouter()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState<string | null>(null)
-  const [showSuccessModal, setShowSuccessModal] = useState(false)
+  const [successState, setSuccessState] = useState<{
+    title: string
+    description?: string
+    badge?: string
+    details?: { label: string; value: string }[]
+  } | null>(null)
   const [formData, setFormData] = useState({
     name: '',
     location: '',
@@ -97,6 +94,7 @@ export default function NewPropertyPage() {
     const { name, value } = e.target
     setFormData((prev) => ({ ...prev, [name]: value }))
     setError(null)
+    setSuccessState(null)
   }
 
   const handleUnitChange = (
@@ -127,6 +125,24 @@ export default function NewPropertyPage() {
     setUnits((prev) => prev.filter((_, i) => i !== index))
   }
 
+  const resetForm = () => {
+    setFormData({
+      name: '',
+      location: '',
+      totalUnits: '',
+      description: '',
+      imageUrl: '',
+    })
+    setUnits([{ unit_number: '', floor: '', bedrooms: '', bathrooms: '', size_sqft: '', status: 'vacant' }])
+    setImageFile(null)
+    if (imagePreview) {
+      URL.revokeObjectURL(imagePreview)
+    }
+    setImagePreview(null)
+    setError(null)
+    setSuccessState(null)
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
@@ -137,7 +153,7 @@ export default function NewPropertyPage() {
 
     setIsSubmitting(true)
     setError(null)
-    setSuccess(null)
+    setSuccessState(null)
 
     try {
       const payload = {
@@ -173,8 +189,17 @@ export default function NewPropertyPage() {
         throw new Error(result.error || 'Failed to save property.')
       }
 
-      setSuccess('Property created successfully.')
-      setShowSuccessModal(true)
+      const unitsCount = units.filter((unit) => unit.unit_number.trim().length > 0).length
+      setSuccessState({
+        title: 'Property created successfully',
+        description: 'Your building is ready. You can continue adding units or review it in properties.',
+        badge: 'Property saved',
+        details: [
+          { label: 'Property', value: formData.name.trim() || 'Property' },
+          { label: 'Location', value: formData.location.trim() || '—' },
+          { label: 'Units', value: formData.totalUnits || String(unitsCount || 0) },
+        ],
+      })
     } catch (err) {
       const errorMessage =
         err instanceof Error ? err.message : 'An unexpected error occurred while saving.'
@@ -188,10 +213,29 @@ export default function NewPropertyPage() {
     <div className="flex min-h-screen bg-gray-50">
       <Sidebar />
       <div className="flex-1 ml-16">
-        <form
-          onSubmit={handleSubmit}
-          className="max-w-4xl mx-auto p-4 md:p-6 lg:p-8 space-y-6"
-        >
+        {successState ? (
+          <div className="max-w-4xl mx-auto p-4 md:p-6 lg:p-8">
+            <SuccessStateCard
+              title={successState.title}
+              description={successState.description}
+              badge={successState.badge}
+              details={successState.details}
+              onBack={() => router.push('/dashboard/properties')}
+              actions={
+                <>
+                  <Button onClick={resetForm}>Add another property</Button>
+                  <Button variant="outline" onClick={() => router.push('/dashboard/properties')}>
+                    View properties
+                  </Button>
+                </>
+              }
+            />
+          </div>
+        ) : (
+          <form
+            onSubmit={handleSubmit}
+            className="max-w-4xl mx-auto p-4 md:p-6 lg:p-8 space-y-6"
+          >
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <Button asChild variant="ghost" size="icon" aria-label="Back to properties">
@@ -217,12 +261,6 @@ export default function NewPropertyPage() {
           {error && (
             <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
               {error}
-            </div>
-          )}
-
-          {success && (
-            <div className="rounded-md border border-green-200 bg-green-50 p-3 text-sm text-green-700">
-              {success}
             </div>
           )}
 
@@ -471,33 +509,9 @@ export default function NewPropertyPage() {
             </Button>
           </div>
         </form>
+        )}
       </div>
 
-      <Dialog open={showSuccessModal} onOpenChange={setShowSuccessModal}>
-        <DialogContent className="sm:max-w-md text-center">
-          <DialogHeader>
-            <div className="mx-auto w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mb-4">
-              <CheckCircle2 className="h-8 w-8 text-green-600" />
-            </div>
-            <DialogTitle className="text-2xl">Property Added Successfully</DialogTitle>
-            <DialogDescription className="text-base text-gray-600">
-              Your apartment building was saved. Click below to return to the properties page.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter className="flex justify-center">
-            <Button
-              onClick={() => {
-                setShowSuccessModal(false)
-                router.replace('/dashboard/properties')
-                router.refresh()
-              }}
-              className="bg-[#4682B4] hover:bg-[#375f84]"
-            >
-              View Properties
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }

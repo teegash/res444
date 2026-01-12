@@ -10,6 +10,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Switch } from '@/components/ui/switch'
+import { SuccessStateCard } from '@/components/ui/success-state-card'
 import {
   Loader2,
   ArrowLeft,
@@ -82,7 +83,12 @@ export default function EditPropertyPage() {
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState<string | null>(null)
+  const [successState, setSuccessState] = useState<{
+    title: string
+    description?: string
+    badge?: string
+    details?: { label: string; value: string }[]
+  } | null>(null)
   const [stats, setStats] = useState<{ recordedUnits: number; occupiedUnits: number } | null>(null)
   const [meta, setMeta] = useState<{ organizationId: string; createdAt: string; updatedAt: string }>({
     organizationId: '',
@@ -164,7 +170,7 @@ export default function EditPropertyPage() {
 
   const handleChange = (field: keyof PropertyFormState, value: string | boolean) => {
     setForm((prev) => ({ ...prev, [field]: value }))
-    setSuccess(null)
+    setSuccessState(null)
     setError(null)
   }
 
@@ -205,7 +211,7 @@ export default function EditPropertyPage() {
 
     setSaving(true)
     setError(null)
-    setSuccess(null)
+    setSuccessState(null)
 
     try {
       const payload: Record<string, any> = {
@@ -241,7 +247,16 @@ export default function EditPropertyPage() {
         throw new Error(result.error || 'Failed to update property.')
       }
 
-      setSuccess('Property details updated successfully.')
+      setSuccessState({
+        title: 'Property updated successfully',
+        description: 'Changes saved and ready for tenants.',
+        badge: 'Update saved',
+        details: [
+          { label: 'Property', value: form.name.trim() || 'Property' },
+          { label: 'Location', value: form.location.trim() || '—' },
+          { label: 'Units', value: form.totalUnits || String(stats?.recordedUnits || 0) },
+        ],
+      })
       setImageFileData(null)
       setImageFileName(null)
       setImageFileType(null)
@@ -256,6 +271,7 @@ export default function EditPropertyPage() {
 
   const canSave = form.name.trim().length > 0 && form.location.trim().length > 0
   const canDelete = !!propertyId && !loading && !saving && !deleting
+  const isDeleted = successState?.badge === 'Property deleted'
 
   const handleDelete = async () => {
     if (!propertyId) {
@@ -265,7 +281,7 @@ export default function EditPropertyPage() {
 
     setDeleting(true)
     setError(null)
-    setSuccess(null)
+    setSuccessState(null)
 
     try {
       const response = await fetch(`/api/properties/${propertyId}?buildingId=${encodeURIComponent(propertyId)}`, {
@@ -278,8 +294,15 @@ export default function EditPropertyPage() {
         throw new Error(result.error || 'Failed to delete property.')
       }
 
-      setSuccess('Property deleted successfully.')
-      router.push('/dashboard/properties')
+      setSuccessState({
+        title: 'Property deleted successfully',
+        description: 'This building has been removed from your portfolio.',
+        badge: 'Property deleted',
+        details: [
+          { label: 'Property', value: form.name.trim() || 'Property' },
+          { label: 'Location', value: form.location.trim() || '—' },
+        ],
+      })
     } catch (err) {
       console.error('[EditPropertyPage] Delete failed', err)
       setError(err instanceof Error ? err.message : 'Failed to delete property. Please try again.')
@@ -358,18 +381,39 @@ export default function EditPropertyPage() {
               </div>
             </div>
 
-            {error && (
-              <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-                {error}
-              </div>
-            )}
-            {success && (
-              <div className="rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700">
-                {success}
-              </div>
-            )}
+            {successState ? (
+              <SuccessStateCard
+                title={successState.title}
+                description={successState.description}
+                badge={successState.badge}
+                details={successState.details}
+                onBack={() => router.push('/dashboard/properties')}
+                actions={
+                  <>
+                    {!isDeleted && <Button onClick={() => setSuccessState(null)}>Edit again</Button>}
+                    <Button
+                      variant={isDeleted ? 'default' : 'outline'}
+                      onClick={() => router.push('/dashboard/properties')}
+                    >
+                      View properties
+                    </Button>
+                    {isDeleted ? (
+                      <Button variant="outline" onClick={() => router.push('/dashboard/properties/new')}>
+                        Add property
+                      </Button>
+                    ) : null}
+                  </>
+                }
+              />
+            ) : (
+              <>
+                {error && (
+                  <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                    {error}
+                  </div>
+                )}
 
-            <form className="space-y-6" onSubmit={handleSubmit}>
+                <form className="space-y-6" onSubmit={handleSubmit}>
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
@@ -654,7 +698,9 @@ export default function EditPropertyPage() {
                   )}
                 </Button>
               </div>
-            </form>
+                </form>
+              </>
+            )}
           </div>
         </main>
       </div>

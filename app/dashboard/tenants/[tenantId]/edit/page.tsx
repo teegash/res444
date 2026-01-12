@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { ChronoSelect } from '@/components/ui/chrono-select'
+import { SuccessStateCard } from '@/components/ui/success-state-card'
 import { Loader2, ArrowLeft, Camera } from 'lucide-react'
 
 interface TenantForm {
@@ -59,7 +60,12 @@ export default function EditTenantPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState<string | null>(null)
+  const [successState, setSuccessState] = useState<{
+    title: string
+    description?: string
+    badge?: string
+    details?: { label: string; value: string }[]
+  } | null>(null)
 
   const [profileFile, setProfileFile] = useState<File | null>(null)
   const [profilePreview, setProfilePreview] = useState<string | null>(null)
@@ -84,7 +90,7 @@ export default function EditTenantPage() {
   const handleChange = (field: keyof TenantForm, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }))
     setError(null)
-    setSuccess(null)
+    setSuccessState(null)
   }
 
   const canSave = form.fullName.trim() && form.phone.trim() && form.nationalId.trim()
@@ -178,9 +184,9 @@ export default function EditTenantPage() {
       return
     }
 
-    setSaving(true)
-    setError(null)
-    setSuccess(null)
+      setSaving(true)
+      setError(null)
+      setSuccessState(null)
 
     try {
       let profilePictureBase64: string | null = null
@@ -217,7 +223,16 @@ export default function EditTenantPage() {
         throw new Error(result.error || 'Failed to update tenant.')
       }
 
-      setSuccess('Tenant details updated successfully.')
+      setSuccessState({
+        title: 'Tenant details updated',
+        description: 'Changes saved successfully.',
+        badge: 'Update saved',
+        details: [
+          { label: 'Tenant', value: form.fullName.trim() || 'Tenant' },
+          { label: 'Phone', value: form.phone.trim() || '—' },
+          { label: 'Lease', value: leaseLabel || 'Unassigned' },
+        ],
+      })
       setProfileFile(null)
       setTempPreview(false)
     } catch (err) {
@@ -263,6 +278,22 @@ export default function EditTenantPage() {
                   <p className="text-sm text-red-600">{error}</p>
                 </CardContent>
               </Card>
+            ) : successState ? (
+              <SuccessStateCard
+                title={successState.title}
+                description={successState.description}
+                badge={successState.badge}
+                details={successState.details}
+                onBack={() => router.back()}
+                actions={
+                  <>
+                    <Button onClick={() => setSuccessState(null)}>Edit again</Button>
+                    <Button variant="outline" onClick={() => router.push(`/dashboard/tenants/${tenantId}/lease`)}>
+                      View tenant
+                    </Button>
+                  </>
+                }
+              />
             ) : (
               <form className="space-y-6" onSubmit={handleSubmit}>
                 <Card>
@@ -412,7 +443,6 @@ export default function EditTenantPage() {
                     {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                     Save changes
                   </Button>
-                  {success && <p className="text-sm text-emerald-600">{success}</p>}
                 </div>
               </form>
             )}

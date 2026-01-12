@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Sidebar } from '@/components/dashboard/sidebar'
 import { Header } from '@/components/dashboard/header'
-import { AlertTriangle, ArrowLeft, Loader2, Plus, Sparkles } from 'lucide-react'
+import { AlertTriangle, Loader2, Plus, Sparkles } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -14,6 +14,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Badge } from '@/components/ui/badge'
 import { useToast } from '@/components/ui/use-toast'
 import { SkeletonLoader, SkeletonTable } from '@/components/ui/skeletons'
+import { SuccessStateCard } from '@/components/ui/success-state-card'
 
 type TenantOption = {
   id: string
@@ -96,6 +97,18 @@ export default function ManagerNoticesPage() {
     )
     return values
   }, [tenants])
+
+  const noticeSuccessDetails = useMemo(() => {
+    if (!stats) return []
+    const details = [{ label: 'Recipients', value: String(stats.recipients || 0) }]
+    if (stats.sms_sent !== undefined) {
+      details.push({ label: 'SMS sent', value: String(stats.sms_sent || 0) })
+    }
+    if (stats.email_sent !== undefined) {
+      details.push({ label: 'Email sent', value: String(stats.email_sent || 0) })
+    }
+    return details
+  }, [stats])
 
   const toggleTenant = (id: string, checked: boolean) => {
     setSendAll(false)
@@ -233,30 +246,14 @@ export default function ManagerNoticesPage() {
         <Header />
         <main className="flex-1 p-8 overflow-auto">
           {sendSuccess ? (
-            <div className="max-w-4xl mx-auto">
-              <Card className="p-8 shadow-xl bg-white/90 backdrop-blur">
-                <div className="flex items-center justify-between mb-6">
-                  <Button variant="ghost" size="icon" aria-label="Back" onClick={resetForm}>
-                    <ArrowLeft className="h-4 w-4" />
-                  </Button>
-                  <Badge variant="secondary" className="text-sm">Notice sent</Badge>
-                </div>
-                <div className="space-y-3 text-center">
-                  <h2 className="text-2xl font-bold">Notice sent successfully</h2>
-                  <p className="text-muted-foreground">
-                    Delivered to {stats?.recipients || 0} tenants
-                    {stats?.sms_sent !== undefined ? ` • SMS: ${stats.sms_sent || 0}` : ''}
-                    {stats?.email_sent !== undefined ? ` • Email: ${stats.email_sent || 0}` : ''}
-                  </p>
-                  <div className="flex items-center justify-center gap-3 pt-2">
-                    <Button onClick={resetForm}>Send another notice</Button>
-                    <Button variant="outline" size="icon" aria-label="Back to notices" onClick={resetForm}>
-                      <ArrowLeft className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              </Card>
-            </div>
+            <SuccessStateCard
+              title="Notice sent successfully"
+              description="Your notice has been delivered to the selected tenants."
+              badge="Notice sent"
+              details={noticeSuccessDetails}
+              onBack={resetForm}
+              actions={<Button onClick={resetForm}>Send another notice</Button>}
+            />
           ) : (
           <>
           <div className="mb-6 flex items-center justify-between">

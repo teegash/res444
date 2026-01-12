@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
-import { ArrowLeft, Plus, Download, Wallet, CheckCircle2, Pencil, Trash2, RefreshCw } from 'lucide-react'
+import { ArrowLeft, Plus, Download, Wallet, Pencil, Trash2, RefreshCw } from 'lucide-react'
 import { Sidebar } from '@/components/dashboard/sidebar'
 import { Header } from '@/components/dashboard/header'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -15,6 +15,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { exportRowsAsCSV, exportRowsAsExcel, exportRowsAsPDF } from '@/lib/export/download'
 import { SkeletonLoader, SkeletonTable } from '@/components/ui/skeletons'
 import { useToast } from '@/components/ui/use-toast'
+import { SuccessStateCard } from '@/components/ui/success-state-card'
 import {
   Dialog,
   DialogContent,
@@ -83,9 +84,14 @@ export default function ExpensesPage() {
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [successState, setSuccessState] = useState<{
+    title: string
+    description?: string
+    badge?: string
+    details?: { label: string; value: string }[]
+  } | null>(null)
   const [savingRecurring, setSavingRecurring] = useState(false)
   const { toast } = useToast()
-  const [lastSavedMessage, setLastSavedMessage] = useState<string | null>(null)
   const [recurring, setRecurring] = useState<RecurringExpense[]>([])
   const [recurringLoading, setRecurringLoading] = useState(false)
   const [editingRecurring, setEditingRecurring] = useState<RecurringExpense | null>(null)
@@ -250,6 +256,11 @@ export default function ExpensesPage() {
     try {
       setSaving(true)
       setError(null)
+      setSuccessState(null)
+      const propertyLabel =
+        properties.find((property) => property.id === newExpense.property_id)?.name || 'Property'
+      const amountLabel = `KES ${Number(newExpense.amount || 0).toLocaleString()}`
+
       const response = await fetch('/api/manager/expenses', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -259,7 +270,16 @@ export default function ExpensesPage() {
       if (!response.ok) throw new Error(payload.error || 'Failed to save expense.')
       setNewExpense({ property_id: '', amount: '', category: '', incurred_at: '', notes: '', recurring: false })
       await loadExpenses()
-      setLastSavedMessage('Expense added successfully.')
+      setSuccessState({
+        title: 'Expense saved',
+        description: 'The expense is now reflected in your statements.',
+        badge: 'Expense added',
+        details: [
+          { label: 'Property', value: propertyLabel },
+          { label: 'Category', value: newExpense.category },
+          { label: 'Amount', value: amountLabel },
+        ],
+      })
       toast({ title: 'Expense added', description: 'Your expense has been saved and will reflect in statements.' })
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unable to save expense.'
@@ -275,6 +295,7 @@ export default function ExpensesPage() {
     try {
       setSavingRecurring(true)
       setError(null)
+      setSuccessState(null)
       const response = await fetch('/api/manager/expenses/recurring', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -289,7 +310,19 @@ export default function ExpensesPage() {
       const payload = await response.json()
       if (!response.ok) throw new Error(payload.error || 'Failed to save recurring expense.')
       setNewExpense({ property_id: '', amount: '', category: '', incurred_at: '', notes: '', recurring: false })
-      setLastSavedMessage('Recurring expense scheduled for the 1st of each month.')
+      setSuccessState({
+        title: 'Recurring expense scheduled',
+        description: 'Auto-deduction will run on the 1st of each month.',
+        badge: 'Recurring saved',
+        details: [
+          {
+            label: 'Property',
+            value: properties.find((property) => property.id === newExpense.property_id)?.name || 'Property',
+          },
+          { label: 'Category', value: newExpense.category },
+          { label: 'Amount', value: `KES ${Number(newExpense.amount || 0).toLocaleString()}` },
+        ],
+      })
       toast({ title: 'Recurring expense created', description: 'Auto-deduction will run on the 1st monthly.' })
       await loadRecurring()
     } catch (err) {
@@ -309,6 +342,7 @@ export default function ExpensesPage() {
     }
     try {
       setEditRecurringSaving(true)
+      setSuccessState(null)
       const response = await fetch(`/api/manager/expenses/recurring/${editingRecurring.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -325,6 +359,19 @@ export default function ExpensesPage() {
       const payload = await response.json().catch(() => ({}))
       if (!response.ok) throw new Error(payload.error || 'Failed to update recurring expense.')
       toast({ title: 'Recurring expense updated' })
+      setSuccessState({
+        title: 'Recurring expense updated',
+        description: 'Changes saved for the next run.',
+        badge: 'Update saved',
+        details: [
+          {
+            label: 'Property',
+            value: properties.find((property) => property.id === editingRecurring.property_id)?.name || 'Property',
+          },
+          { label: 'Category', value: editingRecurring.category },
+          { label: 'Amount', value: `KES ${Number(editingRecurring.amount || 0).toLocaleString()}` },
+        ],
+      })
       setEditingRecurring(null)
       loadRecurring()
     } catch (err) {
@@ -345,12 +392,26 @@ export default function ExpensesPage() {
       return
     }
     try {
+      setSuccessState(null)
       const response = await fetch(`/api/manager/expenses/recurring/${id}`, {
         method: 'DELETE',
       })
       const payload = await response.json().catch(() => ({}))
       if (!response.ok) throw new Error(payload.error || 'Failed to delete recurring expense.')
       toast({ title: 'Recurring expense deleted' })
+      setSuccessState({
+        title: 'Recurring expense deleted',
+        description: 'The recurring item has been removed.',
+        badge: 'Deleted',
+        details: [
+          {
+            label: 'Property',
+            value: properties.find((property) => property.id === deleteRecurring?.property_id)?.name || 'Property',
+          },
+          { label: 'Category', value: deleteRecurring?.category || '—' },
+          { label: 'Amount', value: `KES ${Number(deleteRecurring?.amount || 0).toLocaleString()}` },
+        ],
+      })
       setDeleteRecurring(null)
       loadRecurring()
     } catch (err) {
@@ -427,6 +488,7 @@ export default function ExpensesPage() {
 
     try {
       setEditExpenseSaving(true)
+      setSuccessState(null)
 
       const combinedNotes = (() => {
         const clean = String(editingExpense.notes_input || '').trim()
@@ -449,7 +511,19 @@ export default function ExpensesPage() {
       if (!response.ok) throw new Error(payload.error || 'Failed to update expense.')
 
       toast({ title: 'Expense updated', description: 'Changes saved successfully.' })
-      setLastSavedMessage('Expense updated successfully.')
+      setSuccessState({
+        title: 'Expense updated',
+        description: 'Changes saved successfully.',
+        badge: 'Update saved',
+        details: [
+          {
+            label: 'Property',
+            value: properties.find((property) => property.id === editingExpense.property_id)?.name || 'Property',
+          },
+          { label: 'Category', value: editingExpense.category },
+          { label: 'Amount', value: `KES ${Number(editingExpense.amount || 0).toLocaleString()}` },
+        ],
+      })
       setEditingExpense(null)
       await loadExpenses()
     } catch (err) {
@@ -470,10 +544,24 @@ export default function ExpensesPage() {
       return
     }
     try {
+      setSuccessState(null)
       const response = await fetch(`/api/manager/expenses/${id}`, { method: 'DELETE' })
       const payload = await response.json().catch(() => ({}))
       if (!response.ok) throw new Error(payload.error || 'Failed to delete expense.')
       toast({ title: 'Expense deleted' })
+      setSuccessState({
+        title: 'Expense deleted',
+        description: 'The expense has been removed.',
+        badge: 'Deleted',
+        details: [
+          {
+            label: 'Property',
+            value: properties.find((property) => property.id === deleteExpense?.property_id)?.name || 'Property',
+          },
+          { label: 'Category', value: deleteExpense?.category || '—' },
+          { label: 'Amount', value: `KES ${Number(deleteExpense?.amount || 0).toLocaleString()}` },
+        ],
+      })
       setDeleteExpense(null)
       await loadExpenses()
     } catch (err) {
@@ -520,6 +608,24 @@ export default function ExpensesPage() {
       <div className="flex-1 flex flex-col">
         <Header />
         <main className="flex-1 p-8 overflow-auto space-y-6">
+          {successState ? (
+            <SuccessStateCard
+              title={successState.title}
+              description={successState.description}
+              badge={successState.badge}
+              details={successState.details}
+              onBack={() => setSuccessState(null)}
+              actions={
+                <>
+                  <Button onClick={() => setSuccessState(null)}>Back to expenses</Button>
+                  <Button variant="outline" onClick={() => setSuccessState(null)}>
+                    Continue
+                  </Button>
+                </>
+              }
+            />
+          ) : (
+            <>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <Link href="/dashboard/manager/reports">
@@ -747,14 +853,6 @@ export default function ExpensesPage() {
               </CardContent>
             </Card>
 
-            {lastSavedMessage && (
-              <Card className="lg:col-span-3 border-green-200 bg-green-50">
-                <CardContent className="flex items-center gap-3 py-3 text-green-700">
-                  <CheckCircle2 className="h-5 w-5" />
-                  <p className="text-sm font-medium">{lastSavedMessage}</p>
-                </CardContent>
-              </Card>
-            )}
           </div>
 
           <Card className="border-0 shadow-lg bg-white">
@@ -843,6 +941,8 @@ export default function ExpensesPage() {
               )}
             </CardContent>
           </Card>
+            </>
+          )}
         </main>
       </div>
     </div>

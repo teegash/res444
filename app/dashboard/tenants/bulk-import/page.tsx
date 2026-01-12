@@ -22,6 +22,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
+import { SuccessStateCard } from '@/components/ui/success-state-card'
 import { exportRowsAsCSV, exportRowsAsExcel, ExportColumn } from '@/lib/export/download'
 import { ArrowLeft } from 'lucide-react'
 
@@ -147,6 +148,12 @@ export default function BulkImportTenantsPage() {
   const [loadingUnits, setLoadingUnits] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [successState, setSuccessState] = useState<{
+    title: string
+    description?: string
+    badge?: string
+    details?: { label: string; value: string }[]
+  } | null>(null)
 
   const [progress, setProgress] = useState<{
     total: number
@@ -451,6 +458,7 @@ export default function BulkImportTenantsPage() {
     }
 
     setError(null)
+    setSuccessState(null)
     setBusy(true)
 
     try {
@@ -538,6 +546,7 @@ export default function BulkImportTenantsPage() {
     }
 
     setError(null)
+    setSuccessState(null)
 
     const selected: ImportRow[] = []
     gridApiRef.current?.getSelectedNodes().forEach((n) => n.data && selected.push(n.data))
@@ -620,6 +629,17 @@ export default function BulkImportTenantsPage() {
 
         await sleep(250)
       }
+
+      setSuccessState({
+        title: 'Tenant import completed',
+        description: failed > 0 ? 'Import completed with some failures.' : 'All rows imported successfully.',
+        badge: failed > 0 ? 'Completed with warnings' : 'Import success',
+        details: [
+          { label: 'Processed', value: String(processed) },
+          { label: 'Imported', value: String(succeeded) },
+          { label: 'Failed', value: String(failed) },
+        ],
+      })
     } catch (e: any) {
       setError(e?.message || 'Import failed.')
     } finally {
@@ -654,15 +674,33 @@ export default function BulkImportTenantsPage() {
               </div>
             </div>
 
-            {error && (
-              <Card className="border-0 shadow bg-white">
-                <CardContent className="p-4">
-                  <p className="text-sm text-red-600">{error}</p>
-                </CardContent>
-              </Card>
-            )}
+            {successState ? (
+              <SuccessStateCard
+                title={successState.title}
+                description={successState.description}
+                badge={successState.badge}
+                details={successState.details}
+                onBack={() => router.push('/dashboard/tenants')}
+                actions={
+                  <>
+                    <Button onClick={() => setSuccessState(null)}>Import another file</Button>
+                    <Button variant="outline" onClick={() => router.push('/dashboard/tenants')}>
+                      Back to tenants
+                    </Button>
+                  </>
+                }
+              />
+            ) : (
+              <>
+                {error && (
+                  <Card className="border-0 shadow bg-white">
+                    <CardContent className="p-4">
+                      <p className="text-sm text-red-600">{error}</p>
+                    </CardContent>
+                  </Card>
+                )}
 
-            <Card className="border-0 shadow bg-white">
+                <Card className="border-0 shadow bg-white">
               <CardHeader>
                 <CardTitle>1) Select property</CardTitle>
                 <CardDescription>Template unit numbers are generated from this property.</CardDescription>
@@ -854,6 +892,8 @@ export default function BulkImportTenantsPage() {
                 </div>
               </CardContent>
             </Card>
+              </>
+            )}
           </div>
         </main>
       </div>

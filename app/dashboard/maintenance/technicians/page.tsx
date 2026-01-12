@@ -21,6 +21,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Switch } from '@/components/ui/switch'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { SuccessStateCard } from '@/components/ui/success-state-card'
 import {
   Table,
   TableBody,
@@ -77,6 +78,12 @@ export default function TechniciansPage() {
   const [professions, setProfessions] = useState<Profession[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [successState, setSuccessState] = useState<{
+    title: string
+    description?: string
+    badge?: string
+    details?: { label: string; value: string }[]
+  } | null>(null)
   const [modalOpen, setModalOpen] = useState(false)
   const [saving, setSaving] = useState(false)
   const [editing, setEditing] = useState<Technician | null>(null)
@@ -141,6 +148,7 @@ export default function TechniciansPage() {
   const resetForm = useCallback(() => {
     setForm(emptyForm)
     setEditing(null)
+    setSuccessState(null)
   }, [])
 
   const isValidUuid = useCallback((value?: string | null) => {
@@ -238,6 +246,7 @@ export default function TechniciansPage() {
     }
 
     setSaving(true)
+    setSuccessState(null)
     try {
       const professionIds = form.profession_ids
         .map((id) => id.trim())
@@ -265,12 +274,25 @@ export default function TechniciansPage() {
         throw new Error(result.error || 'Failed to save technician.')
       }
 
+      const phoneLabel = form.phone.trim()
+      const statusLabel = form.is_active ? 'Active' : 'Inactive'
+
       toast({
         title: editing ? 'Technician updated' : 'Technician added',
         description: `${fullName} is now available for assignments.`,
       })
       setModalOpen(false)
       resetForm()
+      setSuccessState({
+        title: editing ? 'Technician updated' : 'Technician added',
+        description: `${fullName} is ready for assignments.`,
+        badge: editing ? 'Update saved' : 'Technician added',
+        details: [
+          { label: 'Technician', value: fullName },
+          { label: 'Phone', value: phoneLabel || '—' },
+          { label: 'Status', value: statusLabel },
+        ],
+      })
       await loadTechnicians()
       if (editing) {
         router.push('/dashboard/maintenance/technicians')
@@ -304,6 +326,7 @@ export default function TechniciansPage() {
   const confirmDelete = async () => {
     if (!deleteTarget) return
     setDeleting(true)
+    setSuccessState(null)
     try {
       const technicianId = resolveTechnicianId(deleteTarget)
       if (!isValidUuid(technicianId)) {
@@ -321,8 +344,16 @@ export default function TechniciansPage() {
       await loadTechnicians()
       setDeleteOpen(false)
       setDeleteTarget(null)
-      router.push('/dashboard/maintenance/technicians')
-      router.refresh()
+      setSuccessState({
+        title: 'Technician removed',
+        description: `${deleteTarget.full_name} has been removed.`,
+        badge: 'Technician deleted',
+        details: [
+          { label: 'Technician', value: deleteTarget.full_name },
+          { label: 'Phone', value: deleteTarget.phone || '—' },
+          { label: 'Status', value: deleteTarget.is_active ? 'Active' : 'Inactive' },
+        ],
+      })
     } catch (err) {
       toast({
         title: 'Delete failed',
@@ -416,17 +447,41 @@ export default function TechniciansPage() {
             </div>
           </div>
 
-          {error && (
-            <Card className="mb-4 border-red-200 bg-red-50">
-              <CardContent className="p-4 text-sm text-red-700">{error}</CardContent>
-            </Card>
-          )}
+          {successState ? (
+            <SuccessStateCard
+              title={successState.title}
+              description={successState.description}
+              badge={successState.badge}
+              details={successState.details}
+              onBack={() => router.push('/dashboard/maintenance')}
+              actions={
+                <>
+                  <Button onClick={() => setSuccessState(null)}>Back to technicians</Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setSuccessState(null)
+                      openCreate()
+                    }}
+                  >
+                    Add another technician
+                  </Button>
+                </>
+              }
+            />
+          ) : (
+            <>
+              {error && (
+                <Card className="mb-4 border-red-200 bg-red-50">
+                  <CardContent className="p-4 text-sm text-red-700">{error}</CardContent>
+                </Card>
+              )}
 
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base">Technician Directory</CardTitle>
-            </CardHeader>
-            <CardContent>
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base">Technician Directory</CardTitle>
+                </CardHeader>
+                <CardContent>
               {loading ? (
                 <p className="text-sm text-muted-foreground">Loading technicians…</p>
               ) : technicians.length === 0 ? (
@@ -567,6 +622,8 @@ export default function TechniciansPage() {
               )}
             </CardContent>
           </Card>
+            </>
+          )}
         </main>
       </div>
 
