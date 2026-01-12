@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { SuccessModal } from '@/components/ui/success-modal'
 import { Textarea } from '@/components/ui/textarea'
 import { exportRowsAsCSV, exportRowsAsExcel, exportRowsAsPDF } from '@/lib/export/download'
 import { SkeletonLoader, SkeletonTable } from '@/components/ui/skeletons'
@@ -86,6 +87,11 @@ export default function ExpensesPage() {
   const [savingRecurring, setSavingRecurring] = useState(false)
   const { toast } = useToast()
   const [lastSavedMessage, setLastSavedMessage] = useState<string | null>(null)
+  const [successModal, setSuccessModal] = useState<{
+    title: string
+    description: string
+    details: Array<{ label: string; value?: string | number | null }>
+  } | null>(null)
   const [recurring, setRecurring] = useState<RecurringExpense[]>([])
   const [recurringLoading, setRecurringLoading] = useState(false)
   const [editingRecurring, setEditingRecurring] = useState<RecurringExpense | null>(null)
@@ -257,6 +263,16 @@ export default function ExpensesPage() {
       })
       const payload = await response.json()
       if (!response.ok) throw new Error(payload.error || 'Failed to save expense.')
+      const propertyLabel = properties.find((p) => p.id === newExpense.property_id)?.name || '-'
+      setSuccessModal({
+        title: 'Expense added',
+        description: 'Your expense has been saved and will reflect in statements.',
+        details: [
+          { label: 'Property', value: propertyLabel },
+          { label: 'Category', value: newExpense.category || '-' },
+          { label: 'Amount', value: newExpense.amount || '-' },
+        ],
+      })
       setNewExpense({ property_id: '', amount: '', category: '', incurred_at: '', notes: '', recurring: false })
       await loadExpenses()
       setLastSavedMessage('Expense added successfully.')
@@ -288,6 +304,16 @@ export default function ExpensesPage() {
       })
       const payload = await response.json()
       if (!response.ok) throw new Error(payload.error || 'Failed to save recurring expense.')
+      const propertyLabel = properties.find((p) => p.id === newExpense.property_id)?.name || '-'
+      setSuccessModal({
+        title: 'Recurring expense created',
+        description: 'Auto-deduction will run on the 1st monthly.',
+        details: [
+          { label: 'Property', value: propertyLabel },
+          { label: 'Category', value: newExpense.category || '-' },
+          { label: 'Amount', value: newExpense.amount || '-' },
+        ],
+      })
       setNewExpense({ property_id: '', amount: '', category: '', incurred_at: '', notes: '', recurring: false })
       setLastSavedMessage('Recurring expense scheduled for the 1st of each month.')
       toast({ title: 'Recurring expense created', description: 'Auto-deduction will run on the 1st monthly.' })
@@ -325,6 +351,16 @@ export default function ExpensesPage() {
       const payload = await response.json().catch(() => ({}))
       if (!response.ok) throw new Error(payload.error || 'Failed to update recurring expense.')
       toast({ title: 'Recurring expense updated' })
+      const propertyLabel = properties.find((p) => p.id === editingRecurring.property_id)?.name || '-'
+      setSuccessModal({
+        title: 'Recurring expense updated',
+        description: 'Recurring expense settings saved successfully.',
+        details: [
+          { label: 'Property', value: propertyLabel },
+          { label: 'Category', value: editingRecurring.category || '-' },
+          { label: 'Amount', value: editingRecurring.amount || '-' },
+        ],
+      })
       setEditingRecurring(null)
       loadRecurring()
     } catch (err) {
@@ -351,6 +387,18 @@ export default function ExpensesPage() {
       const payload = await response.json().catch(() => ({}))
       if (!response.ok) throw new Error(payload.error || 'Failed to delete recurring expense.')
       toast({ title: 'Recurring expense deleted' })
+      const propertyLabel = deleteRecurring
+        ? properties.find((p) => p.id === deleteRecurring.property_id)?.name || '-'
+        : '-'
+      setSuccessModal({
+        title: 'Recurring expense deleted',
+        description: 'The recurring expense has been removed.',
+        details: [
+          { label: 'Property', value: propertyLabel },
+          { label: 'Category', value: deleteRecurring?.category || '-' },
+          { label: 'Amount', value: deleteRecurring?.amount || '-' },
+        ],
+      })
       setDeleteRecurring(null)
       loadRecurring()
     } catch (err) {
@@ -449,6 +497,16 @@ export default function ExpensesPage() {
       if (!response.ok) throw new Error(payload.error || 'Failed to update expense.')
 
       toast({ title: 'Expense updated', description: 'Changes saved successfully.' })
+      const propertyLabel = properties.find((p) => p.id === editingExpense.property_id)?.name || '-'
+      setSuccessModal({
+        title: 'Expense updated',
+        description: 'Changes saved successfully.',
+        details: [
+          { label: 'Property', value: propertyLabel },
+          { label: 'Category', value: editingExpense.category || '-' },
+          { label: 'Amount', value: editingExpense.amount || '-' },
+        ],
+      })
       setLastSavedMessage('Expense updated successfully.')
       setEditingExpense(null)
       await loadExpenses()
@@ -474,6 +532,18 @@ export default function ExpensesPage() {
       const payload = await response.json().catch(() => ({}))
       if (!response.ok) throw new Error(payload.error || 'Failed to delete expense.')
       toast({ title: 'Expense deleted' })
+      const propertyLabel = deleteExpense
+        ? properties.find((p) => p.id === deleteExpense.property_id)?.name || '-'
+        : '-'
+      setSuccessModal({
+        title: 'Expense deleted',
+        description: 'The expense has been removed.',
+        details: [
+          { label: 'Property', value: propertyLabel },
+          { label: 'Category', value: deleteExpense?.category || '-' },
+          { label: 'Amount', value: deleteExpense?.amount || '-' },
+        ],
+      })
       setDeleteExpense(null)
       await loadExpenses()
     } catch (err) {
@@ -747,14 +817,19 @@ export default function ExpensesPage() {
               </CardContent>
             </Card>
 
-            {lastSavedMessage && (
-              <Card className="lg:col-span-3 border-green-200 bg-green-50">
-                <CardContent className="flex items-center gap-3 py-3 text-green-700">
-                  <CheckCircle2 className="h-5 w-5" />
-                  <p className="text-sm font-medium">{lastSavedMessage}</p>
-                </CardContent>
-              </Card>
-            )}
+            <SuccessModal
+              open={Boolean(successModal)}
+              onOpenChange={(open) => {
+                if (!open) setSuccessModal(null)
+              }}
+              title={successModal?.title || 'Success'}
+              description={successModal?.description || lastSavedMessage || undefined}
+              details={successModal?.details || []}
+              primaryAction={{
+                label: 'Done',
+                onClick: () => setSuccessModal(null),
+              }}
+            />
           </div>
 
           <Card className="border-0 shadow-lg bg-white">

@@ -35,6 +35,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
+import { SuccessModal } from '@/components/ui/success-modal'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import {
@@ -528,34 +529,32 @@ export default function CommunicationsPage() {
         <Header />
         <main className="flex-1 p-8 overflow-auto">
           {announcementResult ? (
-            <div className="max-w-3xl mx-auto py-12">
-              <Card className="text-center space-y-4 p-8">
-                <CardTitle className="text-2xl">Announcement sent successfully</CardTitle>
-                <p className="text-muted-foreground">
-                  Delivered to {announcementResult.recipients || 0} tenants
-                  {announcementResult.sms_sent !== undefined
-                    ? ` • SMS sent: ${announcementResult.sms_sent || 0}${
-                        announcementResult.sms_failed
-                          ? ` (failed: ${announcementResult.sms_failed})`
-                          : ''
-                      }`
-                    : ''}
-                </p>
-                <div className="flex justify-center">
-                  <Button onClick={resetAnnouncementForm}>Send another one</Button>
-                </div>
-                <div className="flex justify-center">
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    aria-label="Back to announcements"
-                    onClick={resetAnnouncementForm}
-                  >
-                    <ArrowLeft className="h-4 w-4" />
-                  </Button>
-                </div>
-              </Card>
-            </div>
+            <SuccessModal
+              open={Boolean(announcementResult)}
+              onOpenChange={(open) => {
+                if (!open) resetAnnouncementForm()
+              }}
+              title="Announcement sent"
+              description="Your announcement has been delivered."
+              details={[
+                { label: 'Recipients', value: announcementResult.recipients || 0 },
+                ...(announcementResult.sms_sent !== undefined
+                  ? [
+                      { label: 'SMS sent', value: announcementResult.sms_sent || 0 },
+                      { label: 'SMS failed', value: announcementResult.sms_failed || 0 },
+                    ]
+                  : []),
+              ]}
+              primaryAction={{
+                label: 'Send another',
+                onClick: resetAnnouncementForm,
+              }}
+              secondaryAction={{
+                label: 'Back',
+                onClick: resetAnnouncementForm,
+                variant: 'outline',
+              }}
+            />
           ) : (
             <>
           <div className="mb-6">

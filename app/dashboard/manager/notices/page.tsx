@@ -12,6 +12,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Badge } from '@/components/ui/badge'
+import { SuccessModal } from '@/components/ui/success-modal'
 import { useToast } from '@/components/ui/use-toast'
 import { SkeletonLoader, SkeletonTable } from '@/components/ui/skeletons'
 
@@ -233,30 +234,28 @@ export default function ManagerNoticesPage() {
         <Header />
         <main className="flex-1 p-8 overflow-auto">
           {sendSuccess ? (
-            <div className="max-w-4xl mx-auto">
-              <Card className="p-8 shadow-xl bg-white/90 backdrop-blur">
-                <div className="flex items-center justify-between mb-6">
-                  <Button variant="ghost" size="icon" aria-label="Back" onClick={resetForm}>
-                    <ArrowLeft className="h-4 w-4" />
-                  </Button>
-                  <Badge variant="secondary" className="text-sm">Notice sent</Badge>
-                </div>
-                <div className="space-y-3 text-center">
-                  <h2 className="text-2xl font-bold">Notice sent successfully</h2>
-                  <p className="text-muted-foreground">
-                    Delivered to {stats?.recipients || 0} tenants
-                    {stats?.sms_sent !== undefined ? ` • SMS: ${stats.sms_sent || 0}` : ''}
-                    {stats?.email_sent !== undefined ? ` • Email: ${stats.email_sent || 0}` : ''}
-                  </p>
-                  <div className="flex items-center justify-center gap-3 pt-2">
-                    <Button onClick={resetForm}>Send another notice</Button>
-                    <Button variant="outline" size="icon" aria-label="Back to notices" onClick={resetForm}>
-                      <ArrowLeft className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              </Card>
-            </div>
+            <SuccessModal
+              open={sendSuccess}
+              onOpenChange={(open) => {
+                if (!open) resetForm()
+              }}
+              title="Notice sent"
+              description="Your notice has been delivered."
+              details={[
+                { label: 'Recipients', value: stats?.recipients || 0 },
+                ...(stats?.sms_sent !== undefined ? [{ label: 'SMS sent', value: stats.sms_sent || 0 }] : []),
+                ...(stats?.email_sent !== undefined ? [{ label: 'Email sent', value: stats.email_sent || 0 }] : []),
+              ]}
+              primaryAction={{
+                label: 'Send another',
+                onClick: resetForm,
+              }}
+              secondaryAction={{
+                label: 'Back',
+                onClick: resetForm,
+                variant: 'outline',
+              }}
+            />
           ) : (
           <>
           <div className="mb-6 flex items-center justify-between">

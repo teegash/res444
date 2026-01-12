@@ -23,6 +23,7 @@ import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { exportRowsAsCSV, exportRowsAsExcel, ExportColumn } from '@/lib/export/download'
+import { SuccessModal } from '@/components/ui/success-modal'
 import { ArrowLeft } from 'lucide-react'
 
 type Property = { id: string; name: string; location?: string | null; total_units?: number | null }
@@ -154,6 +155,11 @@ export default function BulkImportTenantsPage() {
     succeeded: number
     failed: number
   }>({ total: 0, processed: 0, succeeded: 0, failed: 0 })
+  const [successModal, setSuccessModal] = useState<{
+    title: string
+    description: string
+    details: Array<{ label: string; value?: string | number | null }>
+  } | null>(null)
 
   const unitMap = useMemo(() => {
     const m = new Map<string, Unit>()
@@ -538,6 +544,7 @@ export default function BulkImportTenantsPage() {
     }
 
     setError(null)
+    setSuccessModal(null)
 
     const selected: ImportRow[] = []
     gridApiRef.current?.getSelectedNodes().forEach((n) => n.data && selected.push(n.data))
@@ -620,6 +627,16 @@ export default function BulkImportTenantsPage() {
 
         await sleep(250)
       }
+
+      setSuccessModal({
+        title: 'Tenant import completed',
+        description: 'Your tenant rows have been processed successfully.',
+        details: [
+          { label: 'Total processed', value: processed },
+          { label: 'Imported', value: succeeded },
+          { label: 'Failed', value: failed },
+        ],
+      })
     } catch (e: any) {
       setError(e?.message || 'Import failed.')
     } finally {
@@ -654,6 +671,19 @@ export default function BulkImportTenantsPage() {
                 </CardContent>
               </Card>
             )}
+            <SuccessModal
+              open={Boolean(successModal)}
+              onOpenChange={(open) => {
+                if (!open) setSuccessModal(null)
+              }}
+              title={successModal?.title || 'Import completed'}
+              description={successModal?.description}
+              details={successModal?.details || []}
+              primaryAction={{
+                label: 'Done',
+                onClick: () => setSuccessModal(null),
+              }}
+            />
 
             <Card className="border-0 shadow bg-white">
               <CardHeader>

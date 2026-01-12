@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Building2, Loader2, Plus, Trash2, CheckCircle2 } from 'lucide-react'
+import { ArrowLeft, Building2, Loader2, Plus, Trash2 } from 'lucide-react'
 import Sidebar from '@/components/dashboard/sidebar'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -17,14 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from '@/components/ui/dialog'
+import { SuccessModal } from '@/components/ui/success-modal'
 const fileToBase64 = (file: File): Promise<string> =>
   new Promise((resolve, reject) => {
     const reader = new FileReader()
@@ -473,31 +466,22 @@ export default function NewPropertyPage() {
         </form>
       </div>
 
-      <Dialog open={showSuccessModal} onOpenChange={setShowSuccessModal}>
-        <DialogContent className="sm:max-w-md text-center">
-          <DialogHeader>
-            <div className="mx-auto w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mb-4">
-              <CheckCircle2 className="h-8 w-8 text-green-600" />
-            </div>
-            <DialogTitle className="text-2xl">Property Added Successfully</DialogTitle>
-            <DialogDescription className="text-base text-gray-600">
-              Your apartment building was saved. Click below to return to the properties page.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter className="flex justify-center">
-            <Button
-              onClick={() => {
-                setShowSuccessModal(false)
-                router.replace('/dashboard/properties')
-                router.refresh()
-              }}
-              className="bg-[#4682B4] hover:bg-[#375f84]"
-            >
-              View Properties
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <SuccessModal
+        open={showSuccessModal}
+        onOpenChange={setShowSuccessModal}
+        title="Property added"
+        description="Your apartment building was saved. Use the button below to return to properties."
+        details={[{ label: 'Property', value: formData.name || '-' }]}
+        primaryAction={{
+          label: 'View properties',
+          onClick: () => {
+            setShowSuccessModal(false)
+            router.replace('/dashboard/properties')
+            router.refresh()
+          },
+          className: 'bg-[#4682B4] hover:bg-[#375f84]',
+        }}
+      />
     </div>
   )
 }
