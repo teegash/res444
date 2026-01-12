@@ -136,7 +136,8 @@ export async function buildInvoicePdfBytes(input: InvoicePdfInput): Promise<Uint
     const badgeW = badgeTextWidth + badgePadX * 2
     const badgeH = badgeTextSize + badgePadY * 2
     const badgeX = M + textWidth('Invoice', 18, fontBold) + 10
-    const badgeY = y - badgeH + 4
+    const badgeTextY = y
+    const badgeY = badgeTextY - badgePadY
     const isPaid = statusText === 'PAID'
     const badgeBg = isPaid ? statusPaidBg : statusUnpaidBg
     const badgeInk = isPaid ? statusPaidText : statusUnpaidText
@@ -144,7 +145,7 @@ export async function buildInvoicePdfBytes(input: InvoicePdfInput): Promise<Uint
     page.drawRectangle({ x: badgeX, y: badgeY, width: badgeW, height: badgeH, color: badgeBg })
     page.drawText(statusText, {
       x: badgeX + badgePadX,
-      y: badgeY + badgePadY,
+      y: badgeTextY,
       size: badgeTextSize,
       font: fontBold,
       color: badgeInk,
