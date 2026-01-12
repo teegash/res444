@@ -4,6 +4,12 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { TEMPLATE_KEYS, TemplateKey, TEMPLATE_METADATA } from '@/lib/sms/templateMetadata'
 
 const MANAGER_ROLES = new Set(['admin', 'manager'])
+const RENT_STAGE_RE = /^rent_stage_\d+$/
+
+const formatLabel = (key: string) =>
+  key
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, (char) => char.toUpperCase())
 
 async function requireOrg() {
   const supabase = await createClient()
@@ -49,7 +55,8 @@ export async function PUT(req: NextRequest, ctx: { params: { templateKey: string
   }
 
   const isKnown = TEMPLATE_KEYS.includes(templateKey as TemplateKey)
-  if (!isKnown) {
+  const isRentStage = RENT_STAGE_RE.test(templateKey)
+  if (!isKnown && !isRentStage) {
     const { data: existing } = await admin
       .from('sms_templates')
       .select('id')
@@ -62,6 +69,15 @@ export async function PUT(req: NextRequest, ctx: { params: { templateKey: string
   }
 
   const meta = TEMPLATE_METADATA[templateKey as TemplateKey]
+  const { data: existingTemplate } = await admin
+    .from('sms_templates')
+    .select('name, description')
+    .eq('organization_id', organizationId)
+    .eq('template_key', templateKey)
+    .maybeSingle()
+
+  const fallbackName = formatLabel(templateKey)
+  const fallbackDescription = isRentStage ? 'Custom rent reminder stage.' : null
 
   const { error } = await admin
     .from('sms_templates')
@@ -70,8 +86,8 @@ export async function PUT(req: NextRequest, ctx: { params: { templateKey: string
         organization_id: organizationId,
         template_key: templateKey,
         content,
-        name: meta?.name || templateKey,
-        description: meta?.description || null,
+        name: existingTemplate?.name || meta?.name || fallbackName,
+        description: existingTemplate?.description ?? meta?.description ?? fallbackDescription,
         last_modified_by: userId,
         last_modified_at: new Date().toISOString(),
       },
