@@ -636,15 +636,22 @@ export default function BulkImportTenantsPage() {
         <main className="flex-1 p-6 overflow-auto">
           <div className="max-w-7xl mx-auto space-y-6">
             <div className="flex items-center justify-between">
-              <div>
-                <h1 className="text-3xl font-bold">Bulk Import Tenants</h1>
-                <p className="text-sm text-muted-foreground">
-                  Download a property template (with unit numbers), fill tenants, upload and import in safe batches.
-                </p>
+              <div className="flex items-start gap-3">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label="Back to tenants"
+                  onClick={() => router.push('/dashboard/tenants')}
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                </Button>
+                <div>
+                  <h1 className="text-3xl font-bold">Bulk Import Tenants</h1>
+                  <p className="text-sm text-muted-foreground">
+                    Download a property template (with unit numbers), fill tenants, upload and import in safe batches.
+                  </p>
+                </div>
               </div>
-              <Button variant="ghost" size="icon" aria-label="Back to tenants" onClick={() => router.push('/dashboard/tenants')}>
-                <ArrowLeft className="h-4 w-4" />
-              </Button>
             </div>
 
             {error && (
