@@ -48,8 +48,17 @@ export async function PUT(req: NextRequest, ctx: { params: { templateKey: string
     return NextResponse.json({ error: 'content is required' }, { status: 400 })
   }
 
-  if (!TEMPLATE_KEYS.includes(templateKey as TemplateKey)) {
-    return NextResponse.json({ error: 'Invalid template_key' }, { status: 400 })
+  const isKnown = TEMPLATE_KEYS.includes(templateKey as TemplateKey)
+  if (!isKnown) {
+    const { data: existing } = await admin
+      .from('sms_templates')
+      .select('id')
+      .eq('organization_id', organizationId)
+      .eq('template_key', templateKey)
+      .maybeSingle()
+    if (!existing?.id) {
+      return NextResponse.json({ error: 'Invalid template_key' }, { status: 400 })
+    }
   }
 
   const meta = TEMPLATE_METADATA[templateKey as TemplateKey]

@@ -55,7 +55,7 @@ import type { TemplatePlaceholder, TemplateKey } from '@/lib/sms/templateMetadat
 import { useAuth } from '@/lib/auth/context'
 
 type SmsTemplate = {
-  key: TemplateKey
+  key: string
   name: string
   description: string
   content: string
@@ -88,6 +88,35 @@ type ScheduledReminderRow = {
   pending_count: number
   last_status?: string | null
   last_error?: string | null
+}
+
+type CronRunRow = {
+  id: string
+  function_name: string
+  started_at: string
+  finished_at: string | null
+  ok: boolean | null
+  error: string | null
+  inserted_count: number
+  attempted_count: number
+  skipped_prepaid: number
+  leases_processed: number
+  months_considered: number
+  catch_up: boolean
+}
+
+type SmsDeliveryRow = {
+  id: string
+  tenant_name: string
+  tenant_phone: string | null
+  reminder_type: string | null
+  stage: number | null
+  delivery_status: string | null
+  scheduled_for: string | null
+  sent_at: string | null
+  last_error: string | null
+  message: string | null
+  created_at: string | null
 }
 
 type SmsTestTarget = {
@@ -128,6 +157,12 @@ export default function CommunicationsPage() {
   const [scheduledReminders, setScheduledReminders] = useState<ScheduledReminderRow[]>([])
   const [scheduledLoading, setScheduledLoading] = useState(false)
   const [scheduledError, setScheduledError] = useState<string | null>(null)
+  const [cronRuns, setCronRuns] = useState<CronRunRow[]>([])
+  const [cronLoading, setCronLoading] = useState(false)
+  const [cronError, setCronError] = useState<string | null>(null)
+  const [smsDeliveries, setSmsDeliveries] = useState<SmsDeliveryRow[]>([])
+  const [smsDeliveriesLoading, setSmsDeliveriesLoading] = useState(false)
+  const [smsDeliveriesError, setSmsDeliveriesError] = useState<string | null>(null)
   const [properties, setProperties] = useState<PropertySummary[]>([])
   const [selectedProperties, setSelectedProperties] = useState<string[]>([])
   const [propertiesLoading, setPropertiesLoading] = useState(false)
@@ -183,6 +218,42 @@ export default function CommunicationsPage() {
       )
     } finally {
       setScheduledLoading(false)
+    }
+  }
+
+  const fetchCronRuns = async () => {
+    try {
+      setCronLoading(true)
+      setCronError(null)
+      const response = await fetch('/api/communications/cron-runs?type=sms', { cache: 'no-store' })
+      const payload = await response.json()
+      if (!response.ok) {
+        throw new Error(payload.error || 'Failed to load cron runs.')
+      }
+      setCronRuns(payload.runs || [])
+    } catch (error) {
+      setCronError(error instanceof Error ? error.message : 'Unable to load cron runs right now.')
+    } finally {
+      setCronLoading(false)
+    }
+  }
+
+  const fetchSmsDeliveries = async () => {
+    try {
+      setSmsDeliveriesLoading(true)
+      setSmsDeliveriesError(null)
+      const response = await fetch('/api/communications/sms-deliveries', { cache: 'no-store' })
+      const payload = await response.json()
+      if (!response.ok) {
+        throw new Error(payload.error || 'Failed to load SMS deliveries.')
+      }
+      setSmsDeliveries(payload.deliveries || [])
+    } catch (error) {
+      setSmsDeliveriesError(
+        error instanceof Error ? error.message : 'Unable to load SMS deliveries right now.'
+      )
+    } finally {
+      setSmsDeliveriesLoading(false)
     }
   }
 
@@ -242,6 +313,8 @@ export default function CommunicationsPage() {
       fetchProperties()
       fetchAnnouncementHistory()
       fetchScheduledReminders()
+      fetchCronRuns()
+      fetchSmsDeliveries()
     }
     fetchInbox()
   }, [isCaretaker])
@@ -445,6 +518,33 @@ export default function CommunicationsPage() {
     const date = new Date(value)
     if (Number.isNaN(date.getTime())) return '—'
     return date.toLocaleString()
+  }
+
+  const formatDuration = (start: string | null, end: string | null) => {
+    if (!start) return '—'
+    if (!end) return 'Running'
+    const startMs = new Date(start).getTime()
+    const endMs = new Date(end).getTime()
+    if (Number.isNaN(startMs) || Number.isNaN(endMs)) return '—'
+    const diff = Math.max(0, endMs - startMs)
+    if (diff < 1000) return `${diff}ms`
+    if (diff < 60000) return `${(diff / 1000).toFixed(1)}s`
+    return `${(diff / 60000).toFixed(1)}m`
+  }
+
+  const statusBadgeClass = (status: string | null | undefined) => {
+    switch (status) {
+      case 'sent':
+        return 'bg-emerald-600 text-white'
+      case 'failed':
+        return 'bg-rose-600 text-white'
+      case 'processing':
+        return 'bg-blue-600 text-white'
+      case 'pending':
+        return 'bg-amber-500 text-white'
+      default:
+        return 'bg-muted text-muted-foreground'
+    }
   }
 
   const buildingOptions = useMemo(() => {
@@ -724,24 +824,26 @@ export default function CommunicationsPage() {
                         <TableHead>Next Run</TableHead>
                         <TableHead>Last Sent</TableHead>
                         <TableHead>Status</TableHead>
+                        <TableHead>Last Status</TableHead>
+                        <TableHead>Error</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {scheduledLoading ? (
                         <TableRow>
-                          <TableCell colSpan={5} className="py-6">
+                          <TableCell colSpan={7} className="py-6">
                             <SkeletonTable rows={3} columns={4} />
                           </TableCell>
                         </TableRow>
                       ) : scheduledError ? (
                         <TableRow>
-                          <TableCell colSpan={5} className="py-6 text-center text-sm text-muted-foreground">
+                          <TableCell colSpan={7} className="py-6 text-center text-sm text-muted-foreground">
                             {scheduledError}
                           </TableCell>
                         </TableRow>
                       ) : scheduledReminders.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={5} className="py-6 text-center text-sm text-muted-foreground">
+                          <TableCell colSpan={7} className="py-6 text-center text-sm text-muted-foreground">
                             No scheduled reminders found.
                           </TableCell>
                         </TableRow>
@@ -763,6 +865,23 @@ export default function CommunicationsPage() {
                                 {reminder.status === 'active' ? 'Active' : 'Inactive'}
                               </Badge>
                             </TableCell>
+                            <TableCell>
+                              <Badge className={statusBadgeClass(reminder.last_status || 'pending')}>
+                                {reminder.last_status || '—'}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="max-w-[220px]">
+                              {reminder.last_error ? (
+                                <span
+                                  className="block truncate text-xs text-rose-600"
+                                  title={reminder.last_error}
+                                >
+                                  {reminder.last_error}
+                                </span>
+                              ) : (
+                                <span className="text-xs text-muted-foreground">—</span>
+                              )}
+                            </TableCell>
                           </TableRow>
                         ))
                       )}
@@ -771,6 +890,165 @@ export default function CommunicationsPage() {
                 </div>
               </CardContent>
             </Card>
+
+            <div className="grid gap-4 lg:grid-cols-2">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Recent Cron Runs</CardTitle>
+                  <p className="text-xs text-muted-foreground">
+                    Latest SMS/reminder worker runs recorded in cron_runs.
+                  </p>
+                </CardHeader>
+                <CardContent>
+                  <div className="border rounded-lg overflow-hidden">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Function</TableHead>
+                          <TableHead>Started</TableHead>
+                          <TableHead>Duration</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Error</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {cronLoading ? (
+                          <TableRow>
+                            <TableCell colSpan={5} className="py-6">
+                              <SkeletonTable rows={3} columns={4} />
+                            </TableCell>
+                          </TableRow>
+                        ) : cronError ? (
+                          <TableRow>
+                            <TableCell colSpan={5} className="py-6 text-center text-sm text-muted-foreground">
+                              {cronError}
+                            </TableCell>
+                          </TableRow>
+                        ) : cronRuns.length === 0 ? (
+                          <TableRow>
+                            <TableCell colSpan={5} className="py-6 text-center text-sm text-muted-foreground">
+                              No cron runs recorded yet.
+                            </TableCell>
+                          </TableRow>
+                        ) : (
+                          cronRuns.map((run) => (
+                            <TableRow key={run.id}>
+                              <TableCell className="font-medium">{run.function_name}</TableCell>
+                              <TableCell className="text-xs text-muted-foreground">
+                                {formatDateTime(run.started_at)}
+                              </TableCell>
+                              <TableCell className="text-xs">{formatDuration(run.started_at, run.finished_at)}</TableCell>
+                              <TableCell>
+                                <Badge
+                                  className={
+                                    run.ok === true
+                                      ? 'bg-emerald-600 text-white'
+                                      : run.ok === false
+                                      ? 'bg-rose-600 text-white'
+                                      : 'bg-amber-500 text-white'
+                                  }
+                                >
+                                  {run.ok === true ? 'Success' : run.ok === false ? 'Failed' : 'Running'}
+                                </Badge>
+                              </TableCell>
+                              <TableCell className="max-w-[180px]">
+                                {run.error ? (
+                                  <span className="block truncate text-xs text-rose-600" title={run.error}>
+                                    {run.error}
+                                  </span>
+                                ) : (
+                                  <span className="text-xs text-muted-foreground">—</span>
+                                )}
+                              </TableCell>
+                            </TableRow>
+                          ))
+                        )}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>Recent SMS Deliveries</CardTitle>
+                  <p className="text-xs text-muted-foreground">Most recent SMS reminder sends and statuses.</p>
+                </CardHeader>
+                <CardContent>
+                  <div className="border rounded-lg overflow-hidden">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Tenant</TableHead>
+                          <TableHead>Type</TableHead>
+                          <TableHead>Scheduled</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Error</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {smsDeliveriesLoading ? (
+                          <TableRow>
+                            <TableCell colSpan={5} className="py-6">
+                              <SkeletonTable rows={3} columns={4} />
+                            </TableCell>
+                          </TableRow>
+                        ) : smsDeliveriesError ? (
+                          <TableRow>
+                            <TableCell colSpan={5} className="py-6 text-center text-sm text-muted-foreground">
+                              {smsDeliveriesError}
+                            </TableCell>
+                          </TableRow>
+                        ) : smsDeliveries.length === 0 ? (
+                          <TableRow>
+                            <TableCell colSpan={5} className="py-6 text-center text-sm text-muted-foreground">
+                              No SMS deliveries recorded yet.
+                            </TableCell>
+                          </TableRow>
+                        ) : (
+                          smsDeliveries.map((delivery) => (
+                            <TableRow key={delivery.id}>
+                              <TableCell>
+                                <div className="flex flex-col">
+                                  <span className="font-medium">{delivery.tenant_name}</span>
+                                  <span className="text-xs text-muted-foreground">
+                                    {delivery.tenant_phone || '—'}
+                                  </span>
+                                </div>
+                              </TableCell>
+                              <TableCell className="text-xs text-muted-foreground">
+                                {delivery.reminder_type || 'sms'}
+                                {delivery.stage ? ` • Stage ${delivery.stage}` : ''}
+                              </TableCell>
+                              <TableCell className="text-xs text-muted-foreground">
+                                {formatDateTime(delivery.scheduled_for)}
+                              </TableCell>
+                              <TableCell>
+                                <Badge className={statusBadgeClass(delivery.delivery_status)}>
+                                  {delivery.delivery_status || '—'}
+                                </Badge>
+                              </TableCell>
+                              <TableCell className="max-w-[200px]">
+                                {delivery.last_error ? (
+                                  <span
+                                    className="block truncate text-xs text-rose-600"
+                                    title={delivery.last_error}
+                                  >
+                                    {delivery.last_error}
+                                  </span>
+                                ) : (
+                                  <span className="text-xs text-muted-foreground">—</span>
+                                )}
+                              </TableCell>
+                            </TableRow>
+                          ))
+                        )}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
           </TabsContent>
           )}
 

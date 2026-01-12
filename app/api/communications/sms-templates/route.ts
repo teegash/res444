@@ -52,16 +52,28 @@ export async function GET() {
 
   const rows = Array.isArray(data) ? data : []
   const rowMap = new Map(rows.map((row) => [row.template_key, row]))
-  const templates = TEMPLATE_KEYS.map((key) => {
-    const meta = TEMPLATE_METADATA[key]
+  const extraKeys = rows
+    .map((row) => row.template_key)
+    .filter((key): key is string => Boolean(key))
+    .filter((key) => !TEMPLATE_KEYS.includes(key as TemplateKey))
+    .sort()
+
+  const formatLabel = (key: string) =>
+    key
+      .replace(/_/g, ' ')
+      .replace(/\b\w/g, (char) => char.toUpperCase())
+
+  const templates = [...TEMPLATE_KEYS, ...extraKeys].map((key) => {
+    const fallbackMeta = key.startsWith('rent_stage_') ? TEMPLATE_METADATA.rent_stage_5 : undefined
+    const meta = TEMPLATE_METADATA[key as TemplateKey] || fallbackMeta
     const row = rowMap.get(key)
     return {
       key,
       template_key: key,
-      name: row?.name || meta.name,
-      description: row?.description || meta.description,
-      content: row?.content || meta.defaultContent,
-      placeholders: meta.placeholders,
+      name: row?.name || meta?.name || formatLabel(key),
+      description: row?.description || meta?.description || '',
+      content: row?.content || meta?.defaultContent || '',
+      placeholders: meta?.placeholders || [],
     }
   })
 
@@ -81,8 +93,17 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'template_key and content are required' }, { status: 400 })
   }
 
-  if (!TEMPLATE_KEYS.includes(templateKey as TemplateKey)) {
-    return NextResponse.json({ error: 'Invalid template_key' }, { status: 400 })
+  const isKnown = TEMPLATE_KEYS.includes(templateKey as TemplateKey)
+  if (!isKnown) {
+    const { data: existing } = await admin
+      .from('sms_templates')
+      .select('id')
+      .eq('organization_id', organizationId)
+      .eq('template_key', templateKey)
+      .maybeSingle()
+    if (!existing?.id) {
+      return NextResponse.json({ error: 'Invalid template_key' }, { status: 400 })
+    }
   }
 
   const meta = TEMPLATE_METADATA[templateKey as TemplateKey]
