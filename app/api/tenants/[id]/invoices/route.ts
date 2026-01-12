@@ -114,15 +114,18 @@ export async function GET(request: Request, ctx: { params: { id: string } }) {
     const payload = (invoices || []).map((invoice) => {
       const leaseMeta = leaseMap.get(invoice.lease_id as string)
       const building = leaseMeta?.building
+      const isRentInvoice = String(invoice.invoice_type || 'rent').toLowerCase() === 'rent'
       const rentPaidUntilDate = leaseMeta?.rent_paid_until ? new Date(leaseMeta.rent_paid_until) : null
       const dueDateObj = invoice.due_date ? new Date(invoice.due_date) : null
       const eligibleStart = leaseMeta?.eligible_start ? new Date(leaseMeta.eligible_start) : null
       const isCovered =
+        isRentInvoice &&
         rentPaidUntilDate !== null &&
         dueDateObj !== null &&
         !Number.isNaN(dueDateObj.getTime()) &&
         dueDateObj.getTime() <= rentPaidUntilDate.getTime()
       const isPreStart =
+        isRentInvoice &&
         eligibleStart !== null &&
         dueDateObj !== null &&
         !Number.isNaN(dueDateObj.getTime()) &&
