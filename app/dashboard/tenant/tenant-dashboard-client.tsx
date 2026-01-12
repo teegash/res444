@@ -568,7 +568,7 @@ export default function TenantDashboardClient() {
                 <Badge variant="destructive" className="text-base py-1 px-3">
                   Outstanding: KES {arrears.total.toLocaleString()}
                 </Badge>
-                <Link href="/dashboard/tenant/payments#upcoming-payments">
+                <Link href="/dashboard/tenant/invoices">
                   <Button>View invoices</Button>
                 </Link>
               </div>
