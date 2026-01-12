@@ -10,6 +10,9 @@ import { Sidebar } from '@/components/dashboard/sidebar'
 import { Header } from '@/components/dashboard/header'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Separator } from '@/components/ui/separator'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { exportRowsAsCSV, exportRowsAsExcel, exportRowsAsPDF, ExportColumn } from '@/lib/export/download'
 
@@ -42,6 +45,14 @@ type VaultPayload = {
   waterBills: any[]
   messages: any[]
   documents: any[]
+}
+
+type DeleteSummary = {
+  tenant_id?: string
+  organization_id?: string | null
+  counts?: Record<string, number>
+  storage?: Record<string, number>
+  errors?: Array<{ step: string; message: string }>
 }
 
 function kes(value: unknown) {
@@ -78,6 +89,15 @@ export default function TenantVaultPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [exporting, setExporting] = useState(false)
+  const [deleteOpen, setDeleteOpen] = useState(false)
+  const [deleteInput, setDeleteInput] = useState('')
+  const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [deleting, setDeleting] = useState(false)
+  const [deleteSummary, setDeleteSummary] = useState<DeleteSummary | null>(null)
+  const [deleteSummaryOpen, setDeleteSummaryOpen] = useState(false)
+  const [deleteSucceeded, setDeleteSucceeded] = useState(false)
+  const [deletedTenantName, setDeletedTenantName] = useState<string | null>(null)
+  const [deletedTenantEmail, setDeletedTenantEmail] = useState<string | null>(null)
 
   const ledgerGridRef = useRef<AgGridReact<any>>(null)
   const maintGridRef = useRef<AgGridReact<any>>(null)
@@ -397,6 +417,42 @@ export default function TenantVaultPage() {
     }
   }
 
+  const deleteRecordEntries = deleteSummary?.counts
+    ? Object.entries(deleteSummary.counts).filter(([, value]) => value > 0)
+    : []
+  const deleteStorageEntries = deleteSummary?.storage
+    ? Object.entries(deleteSummary.storage).filter(([, value]) => value > 0)
+    : []
+
+  const handleDeleteTenant = async () => {
+    if (!tenantId) return
+    setDeleting(true)
+    setDeleteError(null)
+    try {
+      const response = await fetch(`/api/tenants/${encodeURIComponent(tenantId)}`, { method: 'DELETE' })
+      const payload = await response.json().catch(() => ({}))
+
+      if (payload?.summary) {
+        setDeleteSummary(payload.summary)
+        setDeleteSummaryOpen(true)
+        setDeletedTenantName(tenantName)
+        setDeletedTenantEmail(data?.tenant?.email || null)
+      }
+
+      if (!response.ok) {
+        throw new Error(payload.error || 'Failed to delete tenant.')
+      }
+
+      setDeleteSucceeded(true)
+      setDeleteOpen(false)
+      setDeleteInput('')
+    } catch (deleteErr) {
+      setDeleteError(deleteErr instanceof Error ? deleteErr.message : 'Failed to delete tenant.')
+    } finally {
+      setDeleting(false)
+    }
+  }
+
   return (
     <div className="relative flex min-h-screen bg-slate-100 overflow-hidden">
       <div className="pointer-events-none absolute inset-0">
@@ -449,16 +505,29 @@ export default function TenantVaultPage() {
                       </div>
                     ) : null}
                   </div>
-                  <div className="grid min-w-[240px] gap-2 rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-4 text-white shadow-lg">
-                    <div className="text-xs uppercase tracking-[0.2em] text-slate-300">Vault Summary</div>
-                    <div className="text-sm">Ledger debit: {kes(ledgerTotals.debit)}</div>
-                    <div className="text-sm">Ledger credit: {kes(ledgerTotals.credit)}</div>
-                    <div className="text-sm">
-                      Water bills unpaid: {waterUnpaid.length} • {kes(waterUnpaidTotal)}
+                  <div className="flex flex-col items-end gap-3">
+                    <div className="grid min-w-[240px] gap-2 rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-4 text-white shadow-lg">
+                      <div className="text-xs uppercase tracking-[0.2em] text-slate-300">Vault Summary</div>
+                      <div className="text-sm">Ledger debit: {kes(ledgerTotals.debit)}</div>
+                      <div className="text-sm">Ledger credit: {kes(ledgerTotals.credit)}</div>
+                      <div className="text-sm">
+                        Water bills unpaid: {waterUnpaid.length} • {kes(waterUnpaidTotal)}
+                      </div>
+                      <div className="text-sm">
+                        Documents: {documentRows.length} • Messages: {messageRows.length}
+                      </div>
                     </div>
-                    <div className="text-sm">
-                      Documents: {documentRows.length} • Messages: {messageRows.length}
-                    </div>
+                    <Button
+                      variant="destructive"
+                      className="min-w-[200px]"
+                      onClick={() => {
+                        setDeleteError(null)
+                        setDeleteOpen(true)
+                      }}
+                      disabled={loading || deleting}
+                    >
+                      Delete tenant
+                    </Button>
                   </div>
                 </div>
                 <div className="mt-4 flex flex-wrap gap-3 text-xs text-slate-600">
@@ -603,6 +672,147 @@ export default function TenantVaultPage() {
           </div>
         </main>
       </div>
+
+      <Dialog
+        open={deleteOpen}
+        onOpenChange={(open) => {
+          setDeleteOpen(open)
+          if (!open) {
+            setDeleteInput('')
+            setDeleteError(null)
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete tenant permanently</DialogTitle>
+            <DialogDescription>
+              This will remove the tenant account, all historical records, and stored documents. This action cannot be
+              undone.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="rounded-md bg-slate-50 p-4 text-sm text-slate-600">
+            <p className="font-medium text-slate-900">{tenantName}</p>
+            <Separator className="my-3" />
+            <p>Email: {data?.tenant?.email || '—'}</p>
+            <p>Archived: {archivedAt}</p>
+          </div>
+          <div className="space-y-2 text-sm text-slate-600">
+            <p>Type <span className="font-semibold text-slate-900">delete</span> to confirm.</p>
+            <Input
+              value={deleteInput}
+              onChange={(e) => setDeleteInput(e.target.value)}
+              placeholder="delete"
+            />
+            {deleteError ? <p className="text-sm text-rose-600">{deleteError}</p> : null}
+          </div>
+          <DialogFooter className="gap-2 sm:space-x-2">
+            <Button variant="outline" onClick={() => setDeleteOpen(false)} disabled={deleting}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDeleteTenant}
+              disabled={deleting || deleteInput.trim().toLowerCase() !== 'delete'}
+            >
+              {deleting ? 'Deleting...' : 'Delete tenant'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={deleteSummaryOpen}
+        onOpenChange={(open) => {
+          setDeleteSummaryOpen(open)
+          if (!open) {
+            setDeleteSummary(null)
+            setDeletedTenantName(null)
+            setDeletedTenantEmail(null)
+            if (deleteSucceeded) {
+              router.push('/dashboard/tenants/archive')
+            }
+          }
+        }}
+      >
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Tenant removal summary</DialogTitle>
+            <DialogDescription>
+              {deleteSummary?.errors?.length ? 'Completed with warnings. Review the items below.' : 'Deletion completed successfully.'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="rounded-xl border bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-4 text-white">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.2em] text-slate-300">Deleted tenant</p>
+                  <p className="text-lg font-semibold">{deletedTenantName || tenantName}</p>
+                  <p className="text-xs text-slate-300">{deletedTenantEmail || data?.tenant?.email || '—'}</p>
+                </div>
+                <div className="rounded-full bg-white/15 px-3 py-1 text-xs font-semibold uppercase tracking-wide">
+                  {deleteSummary?.errors?.length ? 'Warnings' : 'Success'}
+                </div>
+              </div>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="rounded-xl border bg-white p-4 shadow-sm">
+                <p className="text-xs font-semibold uppercase text-slate-500">Deleted records</p>
+                <div className="mt-3 space-y-2 text-sm text-slate-700">
+                  {deleteRecordEntries.length ? (
+                    deleteRecordEntries.map(([key, value]) => (
+                      <div key={key} className="flex items-center justify-between">
+                        <span className="capitalize">{key.replace(/_/g, ' ')}</span>
+                        <span className="font-semibold">{value}</span>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-xs text-slate-500">No records removed.</p>
+                  )}
+                </div>
+              </div>
+
+              <div className="rounded-xl border bg-white p-4 shadow-sm">
+                <p className="text-xs font-semibold uppercase text-slate-500">Storage cleanup</p>
+                <div className="mt-3 space-y-2 text-sm text-slate-700">
+                  {deleteStorageEntries.length ? (
+                    deleteStorageEntries.map(([key, value]) => (
+                      <div key={key} className="flex items-center justify-between">
+                        <span className="capitalize">{key.replace(/_/g, ' ')}</span>
+                        <span className="font-semibold">{value}</span>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-xs text-slate-500">No files removed.</p>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {deleteSummary?.errors?.length ? (
+              <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
+                <p className="text-xs font-semibold uppercase">Warnings</p>
+                <ul className="mt-2 space-y-2">
+                  {deleteSummary.errors.map((item, index) => (
+                    <li key={`${item.step}-${index}`} className="flex items-start gap-2">
+                      <span className="mt-0.5 h-2 w-2 rounded-full bg-rose-500" />
+                      <span>
+                        <span className="font-semibold">{item.step}</span>: {item.message}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+          </div>
+          <DialogFooter className="gap-2 sm:space-x-2">
+            <Button variant="outline" onClick={() => setDeleteSummaryOpen(false)}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

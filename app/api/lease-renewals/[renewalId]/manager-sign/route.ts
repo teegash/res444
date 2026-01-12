@@ -310,13 +310,6 @@ export async function POST(req: Request, ctx?: { params?: { renewalId?: string; 
       }
     }
 
-    const renewalRent =
-      r.proposed_rent !== null && r.proposed_rent !== undefined ? r.proposed_rent : leaseRow?.monthly_rent;
-    const renewalDeposit =
-      r.proposed_deposit !== null && r.proposed_deposit !== undefined
-        ? r.proposed_deposit
-        : leaseRow?.deposit_amount;
-
     const p12base64 = process.env.MANAGER_P12_BASE64;
     const p12pass = process.env.MANAGER_CERT_PASSWORD;
     if (!p12base64 || !p12pass) {
@@ -343,40 +336,29 @@ export async function POST(req: Request, ctx?: { params?: { renewalId?: string; 
     const fullySignedPath = fullySignedPathFromTenant(r.pdf_tenant_signed_path);
     await uploadPdf(admin, fullySignedPath, fullySignedPdf);
 
-    const renewalUpdates: Record<string, any> = {
-      pdf_fully_signed_path: fullySignedPath,
-      manager_signed_at: new Date().toISOString(),
-      status: "completed",
-    };
-
+    const proposedUpdates: Record<string, any> = {};
     if (!r.proposed_start_date && renewalStartDate) {
-      renewalUpdates.proposed_start_date = toIsoDate(renewalStartDate);
+      proposedUpdates.proposed_start_date = toIsoDate(renewalStartDate);
     }
     if (!r.proposed_end_date && renewalEndDate) {
-      renewalUpdates.proposed_end_date = toIsoDate(renewalEndDate);
+      proposedUpdates.proposed_end_date = toIsoDate(renewalEndDate);
+    }
+    if (Object.keys(proposedUpdates).length > 0) {
+      const { error: proposedErr } = await admin
+        .from("lease_renewals")
+        .update(proposedUpdates)
+        .eq("id", renewalId);
+      if (proposedErr) return json({ error: proposedErr.message }, 400);
     }
 
-    const { error: updErr } = await admin
-      .from("lease_renewals")
-      .update(renewalUpdates)
-      .eq("id", renewalId);
+    const managerSignedAt = new Date().toISOString();
+    const { error: rpcErr } = await admin.rpc("complete_lease_renewal_and_apply_to_lease", {
+      p_renewal_id: renewalId,
+      p_pdf_fully_signed_path: fullySignedPath,
+      p_manager_signed_at: managerSignedAt,
+    });
 
-    if (updErr) return json({ error: updErr.message }, 400);
-
-    const leaseUpdates: Record<string, any> = {};
-    if (renewalStartDate) leaseUpdates.start_date = toIsoDate(renewalStartDate);
-    if (renewalEndDate) leaseUpdates.end_date = toIsoDate(renewalEndDate);
-    if (renewalRent !== null && renewalRent !== undefined) leaseUpdates.monthly_rent = renewalRent;
-    if (renewalDeposit !== null && renewalDeposit !== undefined) leaseUpdates.deposit_amount = renewalDeposit;
-    if (renewalStartDate) {
-      const today = new Date();
-      leaseUpdates.status = renewalStartDate > today ? "renewed" : "active";
-    }
-
-    if (Object.keys(leaseUpdates).length > 0) {
-      const { error: leaseUpdErr } = await admin.from("leases").update(leaseUpdates).eq("id", r.lease_id);
-      if (leaseUpdErr) return json({ error: leaseUpdErr.message }, 400);
-    }
+    if (rpcErr) return json({ error: rpcErr.message }, 400);
 
     await cancelPendingLeaseRenewalReminders(admin, r.lease_id);
 
