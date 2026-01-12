@@ -23,6 +23,7 @@ export type ResolvedOrganizationBrand = {
   name: string
   location?: string | null
   phone?: string | null
+  email?: string | null
   logo_url?: string | null
 }
 
@@ -38,6 +39,7 @@ export async function fetchCurrentOrganizationBrand(): Promise<ResolvedOrganizat
       name: String(payload.data.name),
       location: payload.data.location ?? payload.data.organization_location ?? null,
       phone: payload.data.phone_number ?? payload.data.phone ?? payload.data.organization_phone ?? null,
+      email: payload.data.email ?? payload.data.organization_email ?? null,
       logo_url: payload.data.logo_url ?? payload.data.logo ?? null,
     }
   } catch {

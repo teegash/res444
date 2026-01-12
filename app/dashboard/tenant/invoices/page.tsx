@@ -148,14 +148,16 @@ export default function TenantInvoicesPage() {
     const propertyName = invoice.property_name || orgBrand?.name || 'Property'
     const unitNumber = invoice.unit_label || '-'
     const lineItemLabel = invoice.invoice_type === 'water' ? 'Water Bill' : 'Monthly Rent'
+    const statusLabel = invoice.status || invoice.is_covered ? 'Paid' : 'Unpaid'
 
     await downloadInvoicePdf(
       {
         logoBytes: logoBytes || undefined,
-        orgEmail: undefined,
+        orgEmail: orgBrand?.email ?? undefined,
         orgPhone: orgBrand?.phone ?? undefined,
         invoiceId: invoice.id,
         periodLabel,
+        statusLabel,
         tenantName,
         tenantEmail: user?.email || '-',
         propertyName,

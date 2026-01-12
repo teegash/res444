@@ -11,6 +11,7 @@ export type InvoicePdfInput = {
   // Header (left)
   invoiceId: string
   periodLabel: string
+  statusLabel?: string
 
   // Bill-to section
   tenantName: string
@@ -50,6 +51,7 @@ export async function buildInvoicePdfBytes(input: InvoicePdfInput): Promise<Uint
   const arrears = Math.max(0, Number(input.arrearsAmount || 0))
   const totalDue = Math.max(0, rent + arrears)
   const lineItemLabel = input.lineItemLabel ?? 'Monthly Rent'
+  const statusText = input.statusLabel ? String(input.statusLabel).toUpperCase() : null
 
   const pdf = await PDFDocument.create()
 
@@ -71,6 +73,10 @@ export async function buildInvoicePdfBytes(input: InvoicePdfInput): Promise<Uint
   const faint = rgb(0.6, 0.65, 0.72)
   const rule = rgb(0.86, 0.88, 0.92)
   const soft = rgb(0.97, 0.98, 0.99)
+  const statusPaidBg = rgb(0.9, 0.97, 0.92)
+  const statusPaidText = rgb(0.12, 0.54, 0.32)
+  const statusUnpaidBg = rgb(0.99, 0.92, 0.92)
+  const statusUnpaidText = rgb(0.75, 0.18, 0.2)
 
   page.drawRectangle({ x: 0, y: 0, width, height, color: rgb(1, 1, 1) })
 
@@ -122,6 +128,28 @@ export async function buildInvoicePdfBytes(input: InvoicePdfInput): Promise<Uint
   let y = yTop
 
   page.drawText('Invoice', { x: M, y, size: 18, font: fontBold, color: ink })
+  if (statusText) {
+    const badgeTextSize = 9.5
+    const badgePadX = 6
+    const badgePadY = 3
+    const badgeTextWidth = textWidth(statusText, badgeTextSize, fontBold)
+    const badgeW = badgeTextWidth + badgePadX * 2
+    const badgeH = badgeTextSize + badgePadY * 2
+    const badgeX = M + textWidth('Invoice', 18, fontBold) + 10
+    const badgeY = y - badgeH + 4
+    const isPaid = statusText === 'PAID'
+    const badgeBg = isPaid ? statusPaidBg : statusUnpaidBg
+    const badgeInk = isPaid ? statusPaidText : statusUnpaidText
+
+    page.drawRectangle({ x: badgeX, y: badgeY, width: badgeW, height: badgeH, color: badgeBg })
+    page.drawText(statusText, {
+      x: badgeX + badgePadX,
+      y: badgeY + badgePadY,
+      size: badgeTextSize,
+      font: fontBold,
+      color: badgeInk,
+    })
+  }
 
   page.drawText(`Invoice ID: ${shortId(input.invoiceId)}`, {
     x: M,
