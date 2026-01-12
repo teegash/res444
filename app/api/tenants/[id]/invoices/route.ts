@@ -1,11 +1,31 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { startOfMonthUtc } from '@/lib/invoices/rentPeriods'
 
 const MANAGER_ROLES = new Set(['admin', 'manager', 'caretaker'])
 
-export async function GET(request: Request, ctx: { params: { id: string } }) {
+function resolveTenantId(req: NextRequest, params?: { id?: string }) {
+  let tenantId =
+    params?.id ||
+    req.nextUrl.searchParams.get('tenantId') ||
+    req.nextUrl.searchParams.get('id') ||
+    null
+
+  if (!tenantId) {
+    const segments = req.nextUrl.pathname.split('/').filter(Boolean)
+    const tenantsIndex = segments.indexOf('tenants')
+    if (tenantsIndex >= 0 && segments[tenantsIndex + 1]) {
+      tenantId = segments[tenantsIndex + 1]
+    } else if (segments.length >= 2 && segments[segments.length - 1] === 'invoices') {
+      tenantId = segments[segments.length - 2]
+    }
+  }
+
+  return String(tenantId || '').trim()
+}
+
+export async function GET(request: NextRequest, { params }: { params: { id?: string } }) {
   try {
     const supabase = await createClient()
     const {
@@ -17,7 +37,7 @@ export async function GET(request: Request, ctx: { params: { id: string } }) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
     }
 
-    const tenantId = String(ctx?.params?.id || '').trim()
+    const tenantId = resolveTenantId(request, params)
     if (!tenantId) {
       return NextResponse.json({ success: false, error: 'Tenant id is required.' }, { status: 400 })
     }
