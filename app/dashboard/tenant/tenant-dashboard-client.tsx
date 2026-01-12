@@ -688,7 +688,7 @@ export default function TenantDashboardClient() {
               </div>
               <div className="h-px bg-gradient-to-r from-rose-200/0 via-rose-200/80 to-rose-200/0" aria-hidden />
               <Button asChild className="w-full">
-                <Link href="/dashboard/tenant/payments">View payments</Link>
+                <Link href="/dashboard/tenant/invoices">View invoices</Link>
               </Button>
             </CardContent>
           </Card>

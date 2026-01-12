@@ -218,7 +218,12 @@ export default function TenantInvoicesPage() {
                       </div>
                       <div className="flex flex-col gap-2 sm:items-end">
                         <p className="text-lg font-semibold">{formatAmount(invoice.amount)}</p>
-                        <Button asChild disabled={payDisabled} variant={payDisabled ? 'outline' : 'default'}>
+                        <Button
+                          asChild
+                          disabled={payDisabled}
+                          variant={payDisabled ? 'outline' : 'default'}
+                          className={payDisabled ? '' : 'bg-emerald-600 hover:bg-emerald-700 text-white'}
+                        >
                           <Link href={`/dashboard/tenant/payment?invoiceId=${invoice.id}`}>
                             <CreditCard className="mr-2 h-4 w-4" />
                             {payDisabled ? 'Paid' : 'Pay now'}
