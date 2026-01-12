@@ -10,7 +10,6 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { ChronoSelect } from '@/components/ui/chrono-select'
-import { SuccessModal } from '@/components/ui/success-modal'
 import { Loader2, ArrowLeft, Camera } from 'lucide-react'
 
 interface TenantForm {
@@ -413,23 +412,8 @@ export default function EditTenantPage() {
                     {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                     Save changes
                   </Button>
+                  {success && <p className="text-sm text-emerald-600">{success}</p>}
                 </div>
-                <SuccessModal
-                  open={Boolean(success)}
-                  onOpenChange={(open) => {
-                    if (!open) setSuccess(null)
-                  }}
-                  title="Tenant updated"
-                  description={success || undefined}
-                  details={[
-                    { label: 'Tenant', value: form.fullName || '-' },
-                    { label: 'Phone', value: form.phone || '-' },
-                  ]}
-                  primaryAction={{
-                    label: 'Done',
-                    onClick: () => setSuccess(null),
-                  }}
-                />
               </form>
             )}
           </div>

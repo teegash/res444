@@ -9,7 +9,6 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
-import { SuccessModal } from '@/components/ui/success-modal'
 import {
   Dialog,
   DialogContent,
@@ -88,11 +87,6 @@ export default function TechniciansPage() {
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
-  const [successModal, setSuccessModal] = useState<{
-    title: string
-    description: string
-    details: Array<{ label: string; value?: string | number | null }>
-  } | null>(null)
 
   const loadProfessions = useCallback(async () => {
     const response = await fetch('/api/technician-professions', { cache: 'no-store' })
@@ -275,14 +269,6 @@ export default function TechniciansPage() {
         title: editing ? 'Technician updated' : 'Technician added',
         description: `${fullName} is now available for assignments.`,
       })
-      setSuccessModal({
-        title: editing ? 'Technician updated' : 'Technician added',
-        description: `${fullName} is now available for assignments.`,
-        details: [
-          { label: 'Technician', value: fullName || '-' },
-          { label: 'Phone', value: form.phone || '-' },
-        ],
-      })
       setModalOpen(false)
       resetForm()
       await loadTechnicians()
@@ -331,14 +317,6 @@ export default function TechniciansPage() {
       toast({
         title: 'Technician removed',
         description: `${deleteTarget.full_name} has been removed.`,
-      })
-      setSuccessModal({
-        title: 'Technician removed',
-        description: `${deleteTarget.full_name} has been removed.`,
-        details: [
-          { label: 'Technician', value: deleteTarget.full_name || '-' },
-          { label: 'Phone', value: deleteTarget.phone || '-' },
-        ],
       })
       await loadTechnicians()
       setDeleteOpen(false)
@@ -443,19 +421,6 @@ export default function TechniciansPage() {
               <CardContent className="p-4 text-sm text-red-700">{error}</CardContent>
             </Card>
           )}
-          <SuccessModal
-            open={Boolean(successModal)}
-            onOpenChange={(open) => {
-              if (!open) setSuccessModal(null)
-            }}
-            title={successModal?.title || 'Success'}
-            description={successModal?.description}
-            details={successModal?.details || []}
-            primaryAction={{
-              label: 'Done',
-              onClick: () => setSuccessModal(null),
-            }}
-          />
 
           <Card>
             <CardHeader className="pb-2">

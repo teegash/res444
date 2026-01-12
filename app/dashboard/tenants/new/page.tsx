@@ -11,7 +11,6 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { ChronoSelect } from '@/components/ui/chrono-select'
-import { SuccessModal } from '@/components/ui/success-modal'
 import { Loader2, ArrowLeft } from 'lucide-react'
 
 interface TenantForm {
@@ -52,9 +51,6 @@ export default function NewTenantPage() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
-  const [successDetails, setSuccessDetails] = useState<
-    Array<{ label: string; value?: string | number | null }>
-  >([])
   const [properties, setProperties] = useState<PropertyOption[]>([])
   const [propertiesLoading, setPropertiesLoading] = useState(true)
   const [units, setUnits] = useState<UnitOption[]>([])
@@ -84,7 +80,6 @@ export default function NewTenantPage() {
     setForm((prev) => ({ ...prev, [field]: value }))
     setError(null)
     setSuccess(null)
-    setSuccessDetails([])
   }
 
   const canSave =
@@ -203,7 +198,6 @@ export default function NewTenantPage() {
     setSaving(true)
     setError(null)
     setSuccess(null)
-    setSuccessDetails([])
 
     try {
       let profilePictureBase64: string | null = null
@@ -243,10 +237,6 @@ export default function NewTenantPage() {
       }
 
       setSuccess('Tenant invite sent successfully.')
-      setSuccessDetails([
-        { label: 'Tenant', value: form.fullName || '-' },
-        { label: 'Email', value: form.email || '-' },
-      ])
       setForm(defaultForm)
       setSelectedProperty('')
       setSelectedUnit('')
@@ -291,25 +281,11 @@ export default function NewTenantPage() {
                 {error}
               </div>
             )}
-            <SuccessModal
-              open={Boolean(success)}
-              onOpenChange={(open) => {
-                if (!open) {
-                  setSuccess(null)
-                  setSuccessDetails([])
-                }
-              }}
-              title="Tenant invite sent"
-              description={success || undefined}
-              details={successDetails}
-              primaryAction={{
-                label: 'Done',
-                onClick: () => {
-                  setSuccess(null)
-                  setSuccessDetails([])
-                },
-              }}
-            />
+            {success && (
+              <div className="rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700">
+                {success}
+              </div>
+            )}
 
             <form onSubmit={handleSubmit} className="space-y-6">
               <Card>

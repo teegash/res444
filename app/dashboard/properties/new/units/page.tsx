@@ -22,7 +22,6 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { SuccessModal } from '@/components/ui/success-modal'
 import { Sidebar } from '@/components/dashboard/sidebar'
 import { Header } from '@/components/dashboard/header'
 import { Trash2, Plus } from 'lucide-react'
@@ -41,11 +40,6 @@ interface UnitType {
 export default function AddUnitsPage() {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
-  const [successModal, setSuccessModal] = useState<{
-    title: string
-    description: string
-    action: 'close' | 'view_properties'
-  } | null>(null)
   const [propertyData, setPropertyData] = useState<any>(null)
   const [units, setUnits] = useState<UnitType[]>([
     {
@@ -115,11 +109,7 @@ export default function AddUnitsPage() {
     try {
       // TODO: Save as draft to database via API
       await new Promise((resolve) => setTimeout(resolve, 1000))
-      setSuccessModal({
-        title: 'Draft saved',
-        description: 'Your unit draft is saved. You can continue editing whenever you are ready.',
-        action: 'close',
-      })
+      alert('Draft saved successfully!')
     } catch (error) {
       console.error('Error saving draft:', error)
       alert('Failed to save draft. Please try again.')
@@ -153,11 +143,8 @@ export default function AddUnitsPage() {
       sessionStorage.removeItem('newProperty')
 
       // Show success message and redirect
-      setSuccessModal({
-        title: 'Property created',
-        description: 'Your property and units were saved successfully.',
-        action: 'view_properties',
-      })
+      alert('Property and units created successfully!')
+      router.push('/dashboard/properties')
     } catch (error) {
       console.error('Error creating property:', error)
       alert('Failed to create property. Please try again.')
@@ -472,30 +459,6 @@ export default function AddUnitsPage() {
             </form>
           </div>
         </main>
-        <SuccessModal
-          open={Boolean(successModal)}
-          onOpenChange={(open) => {
-            if (!open) setSuccessModal(null)
-          }}
-          title={successModal?.title || 'Success'}
-          description={successModal?.description}
-          details={[{ label: 'Property', value: propertyData?.buildingName || '-' }]}
-          primaryAction={{
-            label: successModal?.action === 'view_properties' ? 'View properties' : 'Done',
-            onClick: () => {
-              if (successModal?.action === 'view_properties') {
-                setSuccessModal(null)
-                router.push('/dashboard/properties')
-                return
-              }
-              setSuccessModal(null)
-            },
-            className:
-              successModal?.action === 'view_properties'
-                ? 'bg-[#4682B4] hover:bg-[#375f84]'
-                : undefined,
-          }}
-        />
       </div>
     </div>
   )

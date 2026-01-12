@@ -20,7 +20,6 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { SuccessModal } from '@/components/ui/success-modal'
 import { Loader2, ArrowLeft, Download } from 'lucide-react'
 
 type ImportKind = 'invoice' | 'payment' | 'maintenance' | 'expense'
@@ -684,18 +683,11 @@ export default function ImportPastDataPage() {
               </Alert>
             ) : null}
 
-            <SuccessModal
-              open={Boolean(success)}
-              onOpenChange={(open) => {
-                if (!open) setSuccess(null)
-              }}
-              title="Import completed"
-              description={success || undefined}
-              primaryAction={{
-                label: 'Done',
-                onClick: () => setSuccess(null),
-              }}
-            />
+            {success ? (
+              <Alert>
+                <AlertDescription>{success}</AlertDescription>
+              </Alert>
+            ) : null}
 
             <Card>
               <CardHeader>
