@@ -42,7 +42,8 @@ async function requireOrg() {
 }
 
 export async function PUT(req: NextRequest, ctx: { params: { templateKey: string } }) {
-  const { templateKey } = ctx.params
+  const rawKey = ctx.params.templateKey
+  const templateKey = String(rawKey || '').trim()
   const ctxOrg = await requireOrg()
   if ('error' in ctxOrg) return ctxOrg.error
 
@@ -50,24 +51,15 @@ export async function PUT(req: NextRequest, ctx: { params: { templateKey: string
   const body = await req.json().catch(() => ({}))
   const content = String(body.content || '')
 
+  if (!templateKey) {
+    return NextResponse.json({ error: 'template_key is required' }, { status: 400 })
+  }
+
   if (!content) {
     return NextResponse.json({ error: 'content is required' }, { status: 400 })
   }
 
-  const isKnown = TEMPLATE_KEYS.includes(templateKey as TemplateKey)
   const isRentStage = RENT_STAGE_RE.test(templateKey)
-  if (!isKnown && !isRentStage) {
-    const { data: existing } = await admin
-      .from('sms_templates')
-      .select('id')
-      .eq('organization_id', organizationId)
-      .eq('template_key', templateKey)
-      .maybeSingle()
-    if (!existing?.id) {
-      return NextResponse.json({ error: 'Invalid template_key' }, { status: 400 })
-    }
-  }
-
   const meta = TEMPLATE_METADATA[templateKey as TemplateKey]
   const { data: existingTemplate } = await admin
     .from('sms_templates')

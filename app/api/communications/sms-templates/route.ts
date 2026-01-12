@@ -92,27 +92,14 @@ export async function POST(req: NextRequest) {
   const { admin, organizationId, userId } = ctx
 
   const body = await req.json().catch(() => ({}))
-  const templateKey = String(body.template_key || '')
+  const templateKey = String(body.template_key || '').trim()
   const content = String(body.content || '')
 
   if (!templateKey || !content) {
     return NextResponse.json({ error: 'template_key and content are required' }, { status: 400 })
   }
 
-  const isKnown = TEMPLATE_KEYS.includes(templateKey as TemplateKey)
   const isRentStage = RENT_STAGE_RE.test(templateKey)
-  if (!isKnown && !isRentStage) {
-    const { data: existing } = await admin
-      .from('sms_templates')
-      .select('id')
-      .eq('organization_id', organizationId)
-      .eq('template_key', templateKey)
-      .maybeSingle()
-    if (!existing?.id) {
-      return NextResponse.json({ error: 'Invalid template_key' }, { status: 400 })
-    }
-  }
-
   const meta = TEMPLATE_METADATA[templateKey as TemplateKey]
   const { data: existingTemplate } = await admin
     .from('sms_templates')
