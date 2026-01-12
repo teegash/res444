@@ -163,8 +163,7 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
-    const user = await assertManager()
-    const admin = createAdminClient()
+    const { user, orgId, admin } = await assertManager()
 
     const body = await request.json().catch(() => ({}))
     const {

@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
@@ -28,17 +29,55 @@ export async function GET() {
 
     const { data, error } = await admin
       .from('communications')
-      .select('id, message_text, created_at, message_type, related_entity_type')
+      .select('id, message_text, created_at, message_type, related_entity_type, related_entity_id')
       .eq('sender_user_id', user.id)
       .eq('organization_id', membership.organization_id)
       .eq('message_type', 'in_app')
-      .is('related_entity_type', null)
+      .eq('related_entity_type', 'announcement')
       .order('created_at', { ascending: false })
-      .limit(30)
+      .limit(200)
 
     if (error) throw error
 
-    return NextResponse.json({ success: true, data: data || [] })
+    const announcementsMap = new Map<
+      string,
+      { id: string; message_text: string; created_at: string | null }
+    >()
+
+    ;(data || []).forEach((row) => {
+      const createdAt = row.created_at || null
+      const key =
+        row.related_entity_id ||
+        `${row.message_text || ''}|${createdAt ? Math.floor(Date.parse(createdAt) / 10_000) : ''}`
+      const existing = announcementsMap.get(key)
+      if (!existing) {
+        announcementsMap.set(key, {
+          id: row.id,
+          message_text: row.message_text || '',
+          created_at: createdAt,
+        })
+        return
+      }
+      const existingTime = existing.created_at ? Date.parse(existing.created_at) : 0
+      const nextTime = createdAt ? Date.parse(createdAt) : 0
+      if (nextTime > existingTime) {
+        announcementsMap.set(key, {
+          id: row.id,
+          message_text: row.message_text || '',
+          created_at: createdAt,
+        })
+      }
+    })
+
+    const payload = Array.from(announcementsMap.values())
+      .sort((a, b) => {
+        const aTime = a.created_at ? Date.parse(a.created_at) : 0
+        const bTime = b.created_at ? Date.parse(b.created_at) : 0
+        return bTime - aTime
+      })
+      .slice(0, 30)
+
+    return NextResponse.json({ success: true, data: payload })
   } catch (error) {
     console.error('[Announcements.GET] Failed to fetch announcements history', error)
     return NextResponse.json(
@@ -102,7 +141,7 @@ export async function POST(request: NextRequest) {
         )
       `
       )
-      .in('status', ['active', 'pending'])
+      .in('status', ['active', 'pending', 'renewed'])
 
     let allowedBuildingIds: string[] = []
     if (buildingIds.length > 0) {
@@ -155,13 +194,15 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    const announcementId = randomUUID()
     const communicationRows = tenantIds.map((tenantId) => ({
       sender_user_id: user.id,
       recipient_user_id: tenantId,
       organization_id: membership.organization_id,
       message_text: message.trim(),
       message_type: 'in_app',
-      related_entity_type: null,
+      related_entity_type: 'announcement',
+      related_entity_id: announcementId,
       read: false,
     }))
 
