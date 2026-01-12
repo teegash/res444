@@ -1,13 +1,15 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type MouseEvent } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { ArrowLeft, FileText } from 'lucide-react'
+import { ArrowLeft, Download, FileText } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { downloadInvoicePdf } from '@/lib/invoices/invoicePdf'
+import { fetchCurrentOrganizationBrand, type ResolvedOrganizationBrand } from '@/lib/exports/letterhead'
 
 type TenantInvoiceRecord = {
   id: string
@@ -19,6 +21,7 @@ type TenantInvoiceRecord = {
   months_covered: number
   property_name: string | null
   unit_label: string | null
+  created_at?: string | null
   raw_status?: string | null
   is_covered?: boolean
   is_prestart?: boolean
@@ -31,9 +34,9 @@ type TenantInfo = {
 }
 
 const formatDate = (value: string | null | undefined) => {
-  if (!value) return '—'
+  if (!value) return '-'
   const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return '—'
+  if (Number.isNaN(date.getTime())) return '-'
   return date.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })
 }
 
@@ -53,6 +56,8 @@ export default function ManagerTenantInvoicesPage() {
   const [error, setError] = useState<string | null>(null)
   const [statusFilter, setStatusFilter] = useState<'all' | 'paid' | 'unpaid'>('all')
   const [searchTerm, setSearchTerm] = useState('')
+  const [orgBrand, setOrgBrand] = useState<ResolvedOrganizationBrand | null>(null)
+  const [logoBytes, setLogoBytes] = useState<Uint8Array | null>(null)
 
   useEffect(() => {
     if (!tenantId) return
@@ -76,6 +81,29 @@ export default function ManagerTenantInvoicesPage() {
 
     fetchInvoices()
   }, [tenantId])
+
+  useEffect(() => {
+    let alive = true
+    const loadOrg = async () => {
+      const brand = await fetchCurrentOrganizationBrand()
+      if (!alive) return
+      setOrgBrand(brand)
+      if (brand?.logo_url) {
+        try {
+          const res = await fetch(brand.logo_url)
+          if (!res.ok) return
+          const bytes = new Uint8Array(await res.arrayBuffer())
+          if (alive) setLogoBytes(bytes)
+        } catch {
+          // ignore
+        }
+      }
+    }
+    loadOrg()
+    return () => {
+      alive = false
+    }
+  }, [])
 
   const filteredInvoices = useMemo(() => {
     const term = searchTerm.trim().toLowerCase()
@@ -103,6 +131,34 @@ export default function ManagerTenantInvoicesPage() {
     }
   }, [invoices])
 
+  const handleDownloadInvoice = async (invoice: TenantInvoiceRecord) => {
+    const periodLabel = invoice.due_date?.slice(0, 7) || invoice.created_at?.slice(0, 7) || '-'
+    const dueDateLabel = invoice.due_date?.slice(0, 10) || '-'
+    const propertyName = invoice.property_name || orgBrand?.name || 'Property'
+    const unitNumber = invoice.unit_label || '-'
+    const lineItemLabel = invoice.invoice_type === 'water' ? 'Water Bill' : 'Monthly Rent'
+
+    await downloadInvoicePdf(
+      {
+        logoBytes: logoBytes || undefined,
+        orgEmail: undefined,
+        orgPhone: orgBrand?.phone ?? undefined,
+        invoiceId: invoice.id,
+        periodLabel,
+        tenantName: tenant?.full_name || 'Tenant',
+        tenantEmail: '-',
+        propertyName,
+        unitNumber,
+        dueDateLabel,
+        rentAmount: Number(invoice.amount || 0),
+        arrearsAmount: 0,
+        lineItemLabel,
+        currencyPrefix: 'KES',
+      },
+      `invoice-${periodLabel}-${invoice.id.slice(0, 6)}.pdf`
+    )
+  }
+
   if (!tenantId) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -122,7 +178,7 @@ export default function ManagerTenantInvoicesPage() {
           </Button>
           <div>
             <h1 className="text-2xl font-bold">Tenant Invoices</h1>
-            <p className="text-sm text-muted-foreground">{tenant?.full_name || 'Tenant'} · {tenant?.phone_number || '—'}</p>
+            <p className="text-sm text-muted-foreground">{tenant?.full_name || 'Tenant'} - {tenant?.phone_number || '-'}</p>
           </div>
         </div>
 
@@ -179,7 +235,7 @@ export default function ManagerTenantInvoicesPage() {
             </div>
 
             {loading ? (
-              <div className="text-sm text-muted-foreground">Loading invoices…</div>
+              <div className="text-sm text-muted-foreground">Loading invoices...</div>
             ) : filteredInvoices.length === 0 ? (
               <div className="text-sm text-muted-foreground">No invoices match your filters.</div>
             ) : (
@@ -194,6 +250,10 @@ export default function ManagerTenantInvoicesPage() {
                     : isOverdue
                     ? 'bg-rose-100 text-rose-700'
                     : 'bg-amber-100 text-amber-700'
+                  const handleDownloadClick = (event: MouseEvent<HTMLButtonElement>) => {
+                    event.stopPropagation()
+                    void handleDownloadInvoice(invoice)
+                  }
 
                   return (
                     <div
@@ -212,10 +272,10 @@ export default function ManagerTenantInvoicesPage() {
                             <Badge className={badgeClass}>{statusLabel}</Badge>
                           </div>
                           <p className="text-sm text-muted-foreground">
-                            Due: {formatDate(invoice.due_date)} • {formatAmount(invoice.amount)}
+                            Due: {formatDate(invoice.due_date)} - {formatAmount(invoice.amount)}
                           </p>
                           <p className="text-xs text-muted-foreground">
-                            {invoice.property_name || 'Property'}{invoice.unit_label ? ` · Unit ${invoice.unit_label}` : ''}
+                            {invoice.property_name || 'Property'}{invoice.unit_label ? ` - Unit ${invoice.unit_label}` : ''}
                           </p>
                           {invoice.is_covered ? (
                             <p className="text-xs text-emerald-600">Covered by advance payment.</p>
@@ -225,9 +285,13 @@ export default function ManagerTenantInvoicesPage() {
                           ) : null}
                         </div>
                       </div>
-                      <div className="text-right">
+                      <div className="flex flex-col items-end gap-2">
                         <p className="text-lg font-semibold">{formatAmount(invoice.amount)}</p>
-                        <p className="text-xs text-muted-foreground">Invoice ID: {invoice.id.slice(0, 8)}…</p>
+                        <p className="text-xs text-muted-foreground">Invoice ID: {invoice.id.slice(0, 8)}...</p>
+                        <Button variant="outline" size="sm" onClick={handleDownloadClick}>
+                          <Download className="mr-2 h-4 w-4" />
+                          Download
+                        </Button>
                       </div>
                     </div>
                   )

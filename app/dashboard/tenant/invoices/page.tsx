@@ -1,14 +1,17 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type MouseEvent } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, CreditCard, FileText } from 'lucide-react'
+import { ArrowLeft, CreditCard, Download, FileText } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { useAuth } from '@/lib/auth/context'
+import { downloadInvoicePdf } from '@/lib/invoices/invoicePdf'
+import { fetchCurrentOrganizationBrand, type ResolvedOrganizationBrand } from '@/lib/exports/letterhead'
 
 type TenantInvoiceRecord = {
   id: string
@@ -20,15 +23,16 @@ type TenantInvoiceRecord = {
   months_covered: number
   property_name: string | null
   unit_label: string | null
+  created_at?: string | null
   raw_status?: string | null
   is_covered?: boolean
   is_prestart?: boolean
 }
 
 const formatDate = (value: string | null | undefined) => {
-  if (!value) return '—'
+  if (!value) return '-'
   const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return '—'
+  if (Number.isNaN(date.getTime())) return '-'
   return date.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })
 }
 
@@ -39,11 +43,15 @@ const formatAmount = (value: number | null | undefined) => {
 
 export default function TenantInvoicesPage() {
   const router = useRouter()
+  const { user } = useAuth()
   const [invoices, setInvoices] = useState<TenantInvoiceRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [statusFilter, setStatusFilter] = useState<'all' | 'paid' | 'unpaid'>('all')
   const [searchTerm, setSearchTerm] = useState('')
+  const [tenantName, setTenantName] = useState('Tenant')
+  const [orgBrand, setOrgBrand] = useState<ResolvedOrganizationBrand | null>(null)
+  const [logoBytes, setLogoBytes] = useState<Uint8Array | null>(null)
 
   useEffect(() => {
     const fetchInvoices = async () => {
@@ -64,6 +72,48 @@ export default function TenantInvoicesPage() {
     }
 
     fetchInvoices()
+  }, [])
+
+  useEffect(() => {
+    let alive = true
+    const loadSummary = async () => {
+      try {
+        const response = await fetch('/api/tenant/summary', { cache: 'no-store' })
+        const payload = await response.json().catch(() => ({}))
+        if (!response.ok || !payload?.success) return
+        const name = payload?.data?.profile?.full_name
+        if (alive && name) setTenantName(String(name))
+      } catch {
+        // ignore
+      }
+    }
+    loadSummary()
+    return () => {
+      alive = false
+    }
+  }, [])
+
+  useEffect(() => {
+    let alive = true
+    const loadOrg = async () => {
+      const brand = await fetchCurrentOrganizationBrand()
+      if (!alive) return
+      setOrgBrand(brand)
+      if (brand?.logo_url) {
+        try {
+          const res = await fetch(brand.logo_url)
+          if (!res.ok) return
+          const bytes = new Uint8Array(await res.arrayBuffer())
+          if (alive) setLogoBytes(bytes)
+        } catch {
+          // ignore
+        }
+      }
+    }
+    loadOrg()
+    return () => {
+      alive = false
+    }
   }, [])
 
   const normalized = useMemo(() => {
@@ -91,6 +141,34 @@ export default function TenantInvoicesPage() {
       unpaid: invoices.length - paid,
     }
   }, [invoices])
+
+  const handleDownloadInvoice = async (invoice: TenantInvoiceRecord) => {
+    const periodLabel = invoice.due_date?.slice(0, 7) || invoice.created_at?.slice(0, 7) || '-'
+    const dueDateLabel = invoice.due_date?.slice(0, 10) || '-'
+    const propertyName = invoice.property_name || orgBrand?.name || 'Property'
+    const unitNumber = invoice.unit_label || '-'
+    const lineItemLabel = invoice.invoice_type === 'water' ? 'Water Bill' : 'Monthly Rent'
+
+    await downloadInvoicePdf(
+      {
+        logoBytes: logoBytes || undefined,
+        orgEmail: undefined,
+        orgPhone: orgBrand?.phone ?? undefined,
+        invoiceId: invoice.id,
+        periodLabel,
+        tenantName,
+        tenantEmail: user?.email || '-',
+        propertyName,
+        unitNumber,
+        dueDateLabel,
+        rentAmount: Number(invoice.amount || 0),
+        arrearsAmount: 0,
+        lineItemLabel,
+        currencyPrefix: 'KES',
+      },
+      `invoice-${periodLabel}-${invoice.id.slice(0, 6)}.pdf`
+    )
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50/60 via-white to-blue-50/20">
@@ -160,7 +238,7 @@ export default function TenantInvoicesPage() {
             </div>
 
             {loading ? (
-              <div className="text-sm text-muted-foreground">Loading invoices…</div>
+              <div className="text-sm text-muted-foreground">Loading invoices...</div>
             ) : normalized.length === 0 ? (
               <div className="text-sm text-muted-foreground">No invoices match your filters.</div>
             ) : (
@@ -181,6 +259,10 @@ export default function TenantInvoicesPage() {
                   const handleRowClick = () => {
                     if (!canPay) return
                     router.push(`/dashboard/tenant/payment?invoiceId=${invoice.id}`)
+                  }
+                  const handleDownloadClick = (event: MouseEvent<HTMLButtonElement>) => {
+                    event.stopPropagation()
+                    void handleDownloadInvoice(invoice)
                   }
 
                   return (
@@ -203,10 +285,10 @@ export default function TenantInvoicesPage() {
                             <Badge className={badgeClass}>{statusLabel}</Badge>
                           </div>
                           <p className="text-sm text-muted-foreground">
-                            Due: {formatDate(invoice.due_date)} • {formatAmount(invoice.amount)}
+                            Due: {formatDate(invoice.due_date)} - {formatAmount(invoice.amount)}
                           </p>
                           <p className="text-xs text-muted-foreground">
-                            {invoice.property_name || 'Property'}{invoice.unit_label ? ` · Unit ${invoice.unit_label}` : ''}
+                            {invoice.property_name || 'Property'}{invoice.unit_label ? ` - Unit ${invoice.unit_label}` : ''}
                           </p>
                           {invoice.is_covered ? (
                             <p className="text-xs text-emerald-600">Covered by advance payment.</p>
@@ -218,17 +300,23 @@ export default function TenantInvoicesPage() {
                       </div>
                       <div className="flex flex-col gap-2 sm:items-end">
                         <p className="text-lg font-semibold">{formatAmount(invoice.amount)}</p>
-                        <Button
-                          asChild
-                          disabled={payDisabled}
-                          variant={payDisabled ? 'outline' : 'default'}
-                          className={payDisabled ? '' : 'bg-emerald-600 hover:bg-emerald-700 text-white'}
-                        >
-                          <Link href={`/dashboard/tenant/payment?invoiceId=${invoice.id}`}>
-                            <CreditCard className="mr-2 h-4 w-4" />
-                            {payDisabled ? 'Paid' : 'Pay now'}
-                          </Link>
-                        </Button>
+                        <div className="flex flex-wrap gap-2 sm:justify-end">
+                          <Button variant="outline" size="sm" onClick={handleDownloadClick}>
+                            <Download className="mr-2 h-4 w-4" />
+                            Download
+                          </Button>
+                          <Button
+                            asChild
+                            disabled={payDisabled}
+                            variant={payDisabled ? 'outline' : 'default'}
+                            className={payDisabled ? '' : 'bg-emerald-600 hover:bg-emerald-700 text-white'}
+                          >
+                            <Link href={`/dashboard/tenant/payment?invoiceId=${invoice.id}`}>
+                              <CreditCard className="mr-2 h-4 w-4" />
+                              {payDisabled ? 'Paid' : 'Pay now'}
+                            </Link>
+                          </Button>
+                        </div>
                       </div>
                     </div>
                   )

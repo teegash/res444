@@ -55,6 +55,170 @@ function formatRoleLabel(role: unknown): string {
   return raw.charAt(0).toUpperCase() + raw.slice(1)
 }
 
+type SearchDestination = {
+  label: string
+  description: string
+  href: string
+  keywords?: string[]
+  category?: string
+  priority?: number
+}
+
+const SEARCH_DESTINATIONS: SearchDestination[] = [
+  {
+    label: 'Dashboard',
+    description: 'Manager overview and KPIs',
+    href: '/dashboard',
+    keywords: ['home', 'overview', 'kpi'],
+    category: 'Overview',
+    priority: 8,
+  },
+  {
+    label: 'Tenants',
+    description: 'Manage active tenants and leases',
+    href: '/dashboard/tenants',
+    keywords: ['tenant', 'lease', 'roster'],
+    category: 'People',
+    priority: 10,
+  },
+  {
+    label: 'Tenant Archive',
+    description: 'Archived tenants and vault access',
+    href: '/dashboard/tenants/archive',
+    keywords: ['archive', 'vault'],
+    category: 'People',
+    priority: 6,
+  },
+  {
+    label: 'Properties',
+    description: 'Buildings and unit inventory',
+    href: '/dashboard/properties',
+    keywords: ['property', 'building', 'units'],
+    category: 'Portfolio',
+    priority: 9,
+  },
+  {
+    label: 'Maintenance',
+    description: 'Requests and technician assignments',
+    href: '/dashboard/maintenance',
+    keywords: ['repairs', 'requests', 'tickets'],
+    category: 'Operations',
+    priority: 9,
+  },
+  {
+    label: 'Expenses',
+    description: 'Operational spending and costs',
+    href: '/dashboard/manager/expenses',
+    keywords: ['costs', 'bills'],
+    category: 'Finance',
+    priority: 7,
+  },
+  {
+    label: 'Statements',
+    description: 'Tenant statements and balances',
+    href: '/dashboard/manager/statements',
+    keywords: ['ledger', 'statement'],
+    category: 'Finance',
+    priority: 7,
+  },
+  {
+    label: 'Arrears',
+    description: 'Overdue rent tracking',
+    href: '/dashboard/finances/arrears',
+    keywords: ['arrears', 'overdue', 'defaulters'],
+    category: 'Finance',
+    priority: 6,
+  },
+  {
+    label: 'Prepayments',
+    description: 'Prepaid rent monitoring',
+    href: '/dashboard/finances/prepayments',
+    keywords: ['prepaid', 'advance'],
+    category: 'Finance',
+    priority: 5,
+  },
+  {
+    label: 'Water Bills',
+    description: 'Generate and manage water bills',
+    href: '/dashboard/water-bills',
+    keywords: ['water', 'utilities'],
+    category: 'Billing',
+    priority: 6,
+  },
+  {
+    label: 'Water Bill Statements',
+    description: 'Water bill statement history',
+    href: '/dashboard/water-bills/statements',
+    keywords: ['water', 'statements'],
+    category: 'Billing',
+    priority: 5,
+  },
+  {
+    label: 'Communications',
+    description: 'Tenant messages and inbox',
+    href: '/dashboard/communications',
+    keywords: ['messages', 'chat', 'communication'],
+    category: 'Engagement',
+    priority: 6,
+  },
+  {
+    label: 'Notices',
+    description: 'Broadcast notices to tenants',
+    href: '/dashboard/manager/notices',
+    keywords: ['notice', 'announcement'],
+    category: 'Engagement',
+    priority: 4,
+  },
+  {
+    label: 'Transitions',
+    description: 'Move-out and onboarding workflows',
+    href: '/dashboard/manager/transitions',
+    keywords: ['transition', 'vacate', 'onboarding'],
+    category: 'Operations',
+    priority: 4,
+  },
+  {
+    label: 'Reports',
+    description: 'Revenue, arrears, and occupancy reports',
+    href: '/dashboard/manager/reports',
+    keywords: ['reports', 'analytics', 'insights'],
+    category: 'Insights',
+    priority: 5,
+  },
+  {
+    label: 'Revenue Report',
+    description: 'Revenue trends and collections',
+    href: '/dashboard/manager/reports/revenue',
+    keywords: ['revenue', 'collections'],
+    category: 'Insights',
+    priority: 4,
+  },
+  {
+    label: 'Occupancy Report',
+    description: 'Occupancy and unit status',
+    href: '/dashboard/manager/reports/occupancy',
+    keywords: ['occupancy', 'units'],
+    category: 'Insights',
+    priority: 4,
+  },
+  {
+    label: 'Maintenance Report',
+    description: 'Maintenance performance metrics',
+    href: '/dashboard/manager/reports/maintenance-performance',
+    keywords: ['maintenance', 'performance'],
+    category: 'Insights',
+    priority: 4,
+  },
+  {
+    label: 'Financial Report',
+    description: 'Income vs expenses analytics',
+    href: '/dashboard/manager/reports/financial',
+    keywords: ['financial', 'p&l', 'noi'],
+    category: 'Insights',
+    priority: 4,
+  },
+]
+
 export function Header() {
   const { user, signOut } = useAuth()
   const supabase = useMemo(() => createClient(), [])
@@ -62,6 +226,9 @@ export function Header() {
   const [userRole, setUserRole] = useState<string | null>(null)
   const [notificationsOpen, setNotificationsOpen] = useState(false)
   const [notifications, setNotifications] = useState<NotificationItem[]>([])
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchOpen, setSearchOpen] = useState(false)
+  const [searchIndex, setSearchIndex] = useState(-1)
   const unreadCount = notifications.filter((n) => {
     const type = (n.related_entity_type || '').toLowerCase()
     return type === 'lease_expired' || !n.read
@@ -259,6 +426,45 @@ export function Header() {
     await signOut()
   }
 
+  const searchResults = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase()
+    const tokens = query.split(/\s+/).filter(Boolean)
+
+    const scored = SEARCH_DESTINATIONS.map((dest) => {
+      if (!query) {
+        return { dest, score: dest.priority ?? 0 }
+      }
+      const label = dest.label.toLowerCase()
+      const description = dest.description.toLowerCase()
+      const keywords = (dest.keywords || []).map((k) => k.toLowerCase())
+
+      let score = 0
+      if (label.includes(query)) score += 8
+      if (description.includes(query)) score += 4
+      if (keywords.some((k) => k.includes(query))) score += 5
+      tokens.forEach((token) => {
+        if (label.includes(token)) score += 4
+        if (description.includes(token)) score += 2
+        if (keywords.some((k) => k.includes(token))) score += 3
+      })
+      score += dest.priority ?? 0
+      return { dest, score }
+    })
+
+    const filtered = query ? scored.filter((item) => item.score > 0) : scored
+    return filtered
+      .sort((a, b) => b.score - a.score || a.dest.label.localeCompare(b.dest.label))
+      .slice(0, 8)
+      .map((item) => item.dest)
+  }, [searchQuery])
+
+  const handleSearchSelect = (dest: SearchDestination) => {
+    router.push(dest.href)
+    setSearchOpen(false)
+    setSearchQuery('')
+    setSearchIndex(-1)
+  }
+
   return (
     <header className="border-b border-border bg-card sticky top-0 z-30">
       <div className="flex items-center justify-between p-6 max-w-full w-full">
@@ -267,9 +473,87 @@ export function Header() {
           <div className="relative w-full max-w-md">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
             <Input
-              placeholder="Search properties, tasks, etc..."
-              className="pl-10"
+              placeholder="Search tenants, reports, invoices..."
+              className="pl-10 pr-10"
+              value={searchQuery}
+              onChange={(event) => {
+                setSearchQuery(event.target.value)
+                setSearchOpen(true)
+                setSearchIndex(-1)
+              }}
+              onFocus={() => setSearchOpen(true)}
+              onBlur={() => {
+                setTimeout(() => setSearchOpen(false), 150)
+              }}
+              onKeyDown={(event) => {
+                if (!searchOpen || searchResults.length === 0) return
+                if (event.key === 'ArrowDown') {
+                  event.preventDefault()
+                  setSearchIndex((idx) => (idx + 1) % searchResults.length)
+                }
+                if (event.key === 'ArrowUp') {
+                  event.preventDefault()
+                  setSearchIndex((idx) => (idx - 1 + searchResults.length) % searchResults.length)
+                }
+                if (event.key === 'Enter') {
+                  event.preventDefault()
+                  const target = searchResults[searchIndex] || searchResults[0]
+                  if (target) handleSearchSelect(target)
+                }
+              }}
             />
+            {searchQuery ? (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="absolute right-2 top-1/2 -translate-y-1/2 h-7 w-7"
+                onClick={() => {
+                  setSearchQuery('')
+                  setSearchIndex(-1)
+                }}
+              >
+                <X className="h-4 w-4 text-muted-foreground" />
+              </Button>
+            ) : null}
+
+            {searchOpen ? (
+              <div className="absolute left-0 right-0 mt-2 rounded-xl border border-slate-200 bg-white shadow-lg">
+                <div className="flex items-center justify-between px-4 py-2 text-xs text-slate-500">
+                  <span>{searchQuery ? 'Search results' : 'Suggested pages'}</span>
+                  <span>{searchResults.length} results</span>
+                </div>
+                <div className="max-h-80 overflow-y-auto py-2">
+                  {searchResults.length === 0 ? (
+                    <div className="px-4 py-3 text-sm text-slate-500">
+                      No results. Try “arrears”, “maintenance”, or “tenants”.
+                    </div>
+                  ) : (
+                    searchResults.map((dest, idx) => (
+                      <button
+                        key={dest.href}
+                        type="button"
+                        onClick={() => handleSearchSelect(dest)}
+                        className={`w-full text-left px-4 py-2 transition ${
+                          idx === searchIndex ? 'bg-slate-100' : 'hover:bg-slate-50'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <div>
+                            <div className="text-sm font-semibold text-slate-900">{dest.label}</div>
+                            <div className="text-xs text-slate-500">{dest.description}</div>
+                          </div>
+                          {dest.category ? (
+                            <span className="text-[10px] uppercase tracking-wide text-slate-400">
+                              {dest.category}
+                            </span>
+                          ) : null}
+                        </div>
+                      </button>
+                    ))
+                  )}
+                </div>
+              </div>
+            ) : null}
           </div>
         </div>
 
