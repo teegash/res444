@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
-import { Send, SettingsIcon, Loader2 } from 'lucide-react'
+import { ArrowLeft, Send, SettingsIcon, Loader2 } from 'lucide-react'
 import {
   Table,
   TableBody,
@@ -545,8 +545,13 @@ export default function CommunicationsPage() {
                   <Button onClick={resetAnnouncementForm}>Send another one</Button>
                 </div>
                 <div className="flex justify-center">
-                  <Button variant="outline" onClick={resetAnnouncementForm}>
-                    Back to announcements
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    aria-label="Back to announcements"
+                    onClick={resetAnnouncementForm}
+                  >
+                    <ArrowLeft className="h-4 w-4" />
                   </Button>
                 </div>
               </Card>

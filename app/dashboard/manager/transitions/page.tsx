@@ -125,13 +125,8 @@ export default function ManagerTransitionsPage() {
         <main className="p-6 space-y-6">
           <div className="flex items-center justify-between gap-4">
             <div>
-              <Button
-                variant="ghost"
-                className="px-0"
-                onClick={() => router.back()}
-              >
-                <ArrowLeft className="mr-2 h-4 w-4" />
-                Back
+              <Button variant="ghost" size="icon" aria-label="Back" onClick={() => router.back()}>
+                <ArrowLeft className="h-4 w-4" />
               </Button>
               <h1 className="text-3xl font-bold mt-2">Tenant transitions</h1>
               <p className="text-sm text-muted-foreground">

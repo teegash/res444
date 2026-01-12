@@ -183,6 +183,7 @@ export default function AddUnitsPage() {
                 size="icon"
                 onClick={handleBack}
                 className="h-10 w-10"
+                aria-label="Back"
               >
                 <ArrowLeft className="w-5 h-5" />
               </Button>
@@ -421,11 +422,12 @@ export default function AddUnitsPage() {
                 <Button
                   type="button"
                   variant="outline"
+                  size="icon"
+                  aria-label="Back"
                   onClick={handleBack}
-                  className="min-w-[100px]"
                   disabled={isLoading}
                 >
-                  Back
+                  <ArrowLeft className="h-4 w-4" />
                 </Button>
                 <div className="flex gap-3">
                   <Button
@@ -461,4 +463,3 @@ export default function AddUnitsPage() {
     </div>
   )
 }
-

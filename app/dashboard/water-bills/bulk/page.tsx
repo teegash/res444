@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { RainbowButton } from '@/components/ui/rainbow-button'
-import { CheckCircle2 } from 'lucide-react'
+import { ArrowLeft, CheckCircle2 } from 'lucide-react'
 import { useToast } from '@/components/ui/use-toast'
 import { useAuth } from '@/lib/auth/context'
 
@@ -422,8 +422,10 @@ export default function BulkWaterBillingPage() {
                   Load a property, enter current readings, apply a global rate, and send invoices in batches of 10.
                 </p>
               </div>
-              <Button asChild variant="outline">
-                <Link href="/dashboard/water-bills">Back to Water Bills</Link>
+              <Button asChild variant="ghost" size="icon" aria-label="Back to water bills">
+                <Link href="/dashboard/water-bills">
+                  <ArrowLeft className="h-4 w-4" />
+                </Link>
               </Button>
             </div>
 

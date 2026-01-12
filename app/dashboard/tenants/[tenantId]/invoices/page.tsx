@@ -173,10 +173,8 @@ export default function ManagerTenantInvoicesPage() {
     <div className="min-h-screen bg-gradient-to-b from-blue-50/30 via-white to-white">
       <div className="max-w-6xl mx-auto p-4 md:p-6 lg:p-8 space-y-6">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="sm" onClick={() => router.push('/dashboard/tenants')}
-            className="gap-2">
+          <Button variant="ghost" size="icon" aria-label="Back to tenants" onClick={() => router.push('/dashboard/tenants')}>
             <ArrowLeft className="h-4 w-4" />
-            Back
           </Button>
           <div>
             <h1 className="text-2xl font-bold">Tenant Invoices</h1>

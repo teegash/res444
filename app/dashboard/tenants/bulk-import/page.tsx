@@ -23,6 +23,7 @@ import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { exportRowsAsCSV, exportRowsAsExcel, ExportColumn } from '@/lib/export/download'
+import { ArrowLeft } from 'lucide-react'
 
 type Property = { id: string; name: string; location?: string | null; total_units?: number | null }
 type Unit = { id: string; unit_number: string; status: string; unit_price_category?: string | null }
@@ -641,8 +642,8 @@ export default function BulkImportTenantsPage() {
                   Download a property template (with unit numbers), fill tenants, upload and import in safe batches.
                 </p>
               </div>
-              <Button variant="outline" onClick={() => router.push('/dashboard/tenants')}>
-                Back
+              <Button variant="ghost" size="icon" aria-label="Back to tenants" onClick={() => router.push('/dashboard/tenants')}>
+                <ArrowLeft className="h-4 w-4" />
               </Button>
             </div>
 

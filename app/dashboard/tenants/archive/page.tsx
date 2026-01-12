@@ -37,11 +37,12 @@ export default function TenantArchivePage() {
             <div className="mb-6 space-y-4">
               <Button
                 variant="ghost"
-                className="px-0 text-slate-700 hover:text-slate-900 hover:bg-gray-100"
+                size="icon"
+                aria-label="Back to tenants"
+                className="text-slate-700 hover:text-slate-900 hover:bg-gray-100"
                 onClick={() => router.push('/dashboard/tenants')}
               >
-                <ArrowLeft className="mr-2 h-4 w-4" />
-                Back
+                <ArrowLeft className="h-4 w-4" />
               </Button>
               <h1 className="text-3xl font-bold">Tenant Archive</h1>
 

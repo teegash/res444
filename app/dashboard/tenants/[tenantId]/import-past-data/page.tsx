@@ -666,9 +666,8 @@ export default function ImportPastDataPage() {
         <main className="flex-1 p-6 overflow-auto">
           <div className="max-w-7xl mx-auto space-y-6">
             <div className="flex items-center gap-3">
-              <Button variant="outline" onClick={() => router.back()} className="gap-2">
+              <Button variant="ghost" size="icon" aria-label="Back" onClick={() => router.back()}>
                 <ArrowLeft className="h-4 w-4" />
-                Back
               </Button>
               <div>
                 <h1 className="text-2xl font-bold">Import Past Data</h1>

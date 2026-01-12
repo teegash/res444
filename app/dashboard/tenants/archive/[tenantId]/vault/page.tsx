@@ -465,8 +465,13 @@ export default function TenantVaultPage() {
         <Header />
         <main className="flex-1 p-6 overflow-auto">
           <div className="max-w-7xl mx-auto space-y-6">
-            <Button variant="ghost" className="px-0" onClick={() => router.push('/dashboard/tenants/archive')}>
-              <ArrowLeft className="mr-2 h-4 w-4" /> Back
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="Back to archive"
+              onClick={() => router.push('/dashboard/tenants/archive')}
+            >
+              <ArrowLeft className="h-4 w-4" />
             </Button>
 
             <Card className="border-0 bg-white/90 shadow-xl backdrop-blur">

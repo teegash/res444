@@ -779,9 +779,8 @@ export default function TenantLeaseManagementPage() {
     <div className="min-h-screen bg-gradient-to-b from-blue-50/30 via-white to-white">
       <div className="max-w-6xl mx-auto p-4 md:p-6 lg:p-8 space-y-6">
         <div className="flex items-center gap-3">
-          <Button variant="ghost" size="sm" onClick={() => router.push(backHref)}>
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            {backLabel}
+          <Button variant="ghost" size="icon" aria-label={backLabel} onClick={() => router.push(backHref)}>
+            <ArrowLeft className="h-4 w-4" />
           </Button>
           <h1 className="text-2xl font-bold">Lease Management</h1>
         </div>

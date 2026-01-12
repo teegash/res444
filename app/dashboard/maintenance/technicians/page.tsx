@@ -382,12 +382,13 @@ export default function TechniciansPage() {
           <div className="mb-4">
             <Button
               asChild
-              variant="outline"
-              className="gap-2 border-slate-200 bg-white/80 shadow-sm hover:shadow-md"
+              variant="ghost"
+              size="icon"
+              aria-label="Back to maintenance"
+              className="border-slate-200 bg-white/80 shadow-sm hover:shadow-md"
             >
               <Link href="/dashboard/maintenance">
                 <ArrowLeft className="w-4 h-4" />
-                Back to Maintenance
               </Link>
             </Button>
           </div>

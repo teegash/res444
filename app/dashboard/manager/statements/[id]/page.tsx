@@ -398,15 +398,9 @@ export default function TenantStatementPage({ params }: { params: { id?: string 
         <main className="flex-1 p-6 md:p-10">
         <div className="flex items-center justify-between mb-8">
           <div>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="mb-2 px-2 text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 w-auto transition-colors"
-              asChild
-            >
-              <Link href={backHref} className="flex items-center gap-2">
+            <Button asChild variant="ghost" size="icon" aria-label="Back" className="mb-2">
+              <Link href={backHref}>
                 <ArrowLeft className="h-4 w-4" />
-                Back
               </Link>
             </Button>
             <h1 className="text-3xl font-bold">Tenant Statement</h1>

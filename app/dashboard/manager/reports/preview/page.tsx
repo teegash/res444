@@ -72,12 +72,11 @@ export default function ReportPreviewPage() {
       <div className="max-w-5xl mx-auto p-4 md:p-6 space-y-6">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <Link href="/dashboard/manager/reports">
-              <Button variant="ghost" size="sm">
-                <ArrowLeft className="h-4 w-4 mr-2" />
-                Back to Reports
-              </Button>
-            </Link>
+            <Button asChild variant="ghost" size="icon" aria-label="Back to reports">
+              <Link href="/dashboard/manager/reports">
+                <ArrowLeft className="h-4 w-4" />
+              </Link>
+            </Button>
             <h1 className="text-xl font-bold">Premium Financial Report Preview</h1>
           </div>
           <div className="flex gap-2">

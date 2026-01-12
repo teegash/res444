@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Sidebar } from '@/components/dashboard/sidebar'
 import { Header } from '@/components/dashboard/header'
-import { AlertTriangle, Loader2, Plus, Sparkles } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, Loader2, Plus, Sparkles } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -236,8 +236,8 @@ export default function ManagerNoticesPage() {
             <div className="max-w-4xl mx-auto">
               <Card className="p-8 shadow-xl bg-white/90 backdrop-blur">
                 <div className="flex items-center justify-between mb-6">
-                  <Button variant="ghost" onClick={resetForm}>
-                    ← Back
+                  <Button variant="ghost" size="icon" aria-label="Back" onClick={resetForm}>
+                    <ArrowLeft className="h-4 w-4" />
                   </Button>
                   <Badge variant="secondary" className="text-sm">Notice sent</Badge>
                 </div>
@@ -250,8 +250,8 @@ export default function ManagerNoticesPage() {
                   </p>
                   <div className="flex items-center justify-center gap-3 pt-2">
                     <Button onClick={resetForm}>Send another notice</Button>
-                    <Button variant="outline" onClick={resetForm}>
-                      Back to notices
+                    <Button variant="outline" size="icon" aria-label="Back to notices" onClick={resetForm}>
+                      <ArrowLeft className="h-4 w-4" />
                     </Button>
                   </div>
                 </div>

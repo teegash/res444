@@ -214,9 +214,8 @@ export default function ArrearsPage() {
           <div className="max-w-7xl mx-auto space-y-6">
             <div className="flex items-start justify-between gap-4 flex-wrap">
               <div className="space-y-2">
-                <Button variant="ghost" className="gap-2 px-0" onClick={() => router.back()}>
+                <Button variant="ghost" size="icon" aria-label="Back" onClick={() => router.back()}>
                   <ArrowLeft className="h-4 w-4" />
-                  Back
                 </Button>
                 <div>
                   <h1 className="text-3xl font-bold">Rent Arrears</h1>

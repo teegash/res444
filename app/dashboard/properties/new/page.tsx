@@ -194,12 +194,11 @@ export default function NewPropertyPage() {
         >
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <Link href="/dashboard/properties">
-                <Button variant="ghost" size="sm">
-                  <ArrowLeft className="h-4 w-4 mr-2" />
-                  Back to Properties
-                </Button>
-              </Link>
+              <Button asChild variant="ghost" size="icon" aria-label="Back to properties">
+                <Link href="/dashboard/properties">
+                  <ArrowLeft className="h-4 w-4" />
+                </Link>
+              </Button>
               <div className="flex items-center gap-2">
                 <div className="p-2 bg-green-100 rounded-lg">
                   <Building2 className="h-5 w-5 text-green-600" />

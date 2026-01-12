@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
+import { ArrowLeft } from 'lucide-react'
 import { useToast } from '@/components/ui/use-toast'
 
 export default function HelpSupportPage() {
@@ -51,8 +52,8 @@ export default function HelpSupportPage() {
     <div className="p-6 max-w-5xl mx-auto space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold">Help & Support</h1>
-        <Button variant="ghost" onClick={() => router.back()}>
-          Back to dashboard
+        <Button variant="ghost" size="icon" aria-label="Back" onClick={() => router.back()}>
+          <ArrowLeft className="h-4 w-4" />
         </Button>
       </div>
 

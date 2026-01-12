@@ -171,10 +171,9 @@ export default function WaterBillStatementsPage() {
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div>
               <div className="flex items-center gap-3">
-                <Button asChild variant="ghost" size="sm">
-                  <Link href="/dashboard/water-bills" className="flex items-center gap-2">
+                <Button asChild variant="ghost" size="icon" aria-label="Back to water bills">
+                  <Link href="/dashboard/water-bills">
                     <ArrowLeft className="h-4 w-4" />
-                    Back to invoicing
                   </Link>
                 </Button>
                 <h1 className="text-2xl font-bold">Water Bill Statements</h1>
