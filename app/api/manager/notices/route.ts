@@ -198,7 +198,7 @@ export async function POST(request: NextRequest) {
       const leaseQuery = admin
         .from('leases')
         .select('tenant_user_id, unit:apartment_units ( building_id )')
-        .in('status', ['active', 'pending'])
+        .in('status', ['active', 'pending', 'renewed'])
 
       const { data: leaseTenants, error: leaseError } = await leaseQuery
       if (leaseError) {
