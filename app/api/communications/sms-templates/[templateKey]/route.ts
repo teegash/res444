@@ -43,7 +43,8 @@ async function requireOrg() {
 
 export async function PUT(req: NextRequest, ctx: { params: { templateKey: string } }) {
   const rawKey = ctx.params.templateKey
-  const templateKey = String(rawKey || '').trim()
+  const fallbackKey = new URL(req.url).pathname.split('/').pop()
+  const templateKey = String(rawKey || fallbackKey || '').trim()
   const ctxOrg = await requireOrg()
   if ('error' in ctxOrg) return ctxOrg.error
 
