@@ -120,7 +120,7 @@ export async function GET(req: NextRequest) {
     const { data: overdueInvoices, error: invErr } = await invoiceQuery
     if (invErr) throw invErr
 
-    const validLeaseStatuses = new Set(['active', 'renewed', 'ended', 'expired', 'valid'])
+    const validLeaseStatuses = new Set(['active', 'renewed', 'valid'])
     const filteredInvoices = (overdueInvoices || []).filter((inv: any) => {
       const leaseStatus = String(inv?.lease?.status || '').toLowerCase()
       return validLeaseStatuses.has(leaseStatus)
@@ -251,14 +251,22 @@ export async function GET(req: NextRequest) {
     }
 
     const defRows = Object.values(defaulters)
-    const defByPropertyCount: Record<string, number> = {}
+    const defByPropertyTenants: Record<string, Set<string>> = {}
     for (const row of defRows as any[]) {
-      if (!row.propertyId) continue
-      defByPropertyCount[row.propertyId] = (defByPropertyCount[row.propertyId] || 0) + 1
+      const propertyId = row.propertyId
+      const tenantId = row.tenant_user_id
+      if (!propertyId || !tenantId) continue
+      defByPropertyTenants[propertyId] ||= new Set()
+      defByPropertyTenants[propertyId].add(tenantId)
     }
     for (const pid of Object.keys(byProperty)) {
-      byProperty[pid].defaultersCount = defByPropertyCount[pid] || 0
+      byProperty[pid].defaultersCount = defByPropertyTenants[pid]?.size || 0
     }
+    const defaultersCount = new Set(
+      (defRows as any[])
+        .map((row) => row.tenant_user_id)
+        .filter((tenantId: string | null | undefined): tenantId is string => Boolean(tenantId))
+    ).size
 
     const byPropertyRows = Object.values(byProperty).sort(
       (a: any, b: any) => b.arrearsTotal - a.arrearsTotal
@@ -311,7 +319,7 @@ export async function GET(req: NextRequest) {
           arrearsTotal,
           arrearsRent,
           arrearsWater,
-          defaultersCount: defaultersRows.length,
+          defaultersCount,
           overdueInvoicesCount,
           arrearsRate,
         },
