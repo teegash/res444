@@ -3,6 +3,11 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { resolveRange, safePct } from '../utils'
 
+function isoDate(value: string | null | undefined) {
+  if (!value) return null
+  return value.length >= 10 ? value.slice(0, 10) : null
+}
+
 function clamp0(value: number) {
   return value < 0 ? 0 : value
 }
@@ -158,16 +163,16 @@ export async function GET(req: NextRequest) {
       const statusText = String(inv?.status_text || '').toLowerCase()
       if (statusText === 'paid') continue
 
-      const due = inv.due_date
-      if (!due) continue
-      if (due >= todayISO) continue
+      const dueIso = isoDate(inv.due_date)
+      if (!dueIso) continue
+      if (dueIso >= todayISO) continue
 
       const amount = Number(inv.amount || 0)
       const outstanding = clamp0(amount)
       if (outstanding <= 0) continue
       overdueInvoicesCount += 1
 
-      const days = daysBetween(due, nowISO)
+      const days = daysBetween(dueIso, nowISO)
       const bucket = ageingBucket(days)
 
       const propertyId = inv.lease?.unit?.building?.id
@@ -219,7 +224,7 @@ export async function GET(req: NextRequest) {
       row.openInvoices += 1
       row.maxDaysOverdue = Math.max(row.maxDaysOverdue, days)
       row.oldestDueDate =
-        row.oldestDueDate && row.oldestDueDate < due ? row.oldestDueDate : due
+        row.oldestDueDate && row.oldestDueDate < dueIso ? row.oldestDueDate : dueIso
       if (invoiceType === 'rent') row.arrearsRent += outstanding
       if (invoiceType === 'water') row.arrearsWater += outstanding
     }
