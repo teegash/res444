@@ -114,6 +114,10 @@ export default function FinancialReportPage() {
   const [detailOpen, setDetailOpen] = React.useState(false)
   const [selectedRow, setSelectedRow] =
     React.useState<FinancialPayload['byProperty'][number] | null>(null)
+  const propertyTransactionCount = React.useMemo(() => {
+    if (!payload?.ledger || !selectedRow?.propertyId) return 0
+    return payload.ledger.filter((row) => row.propertyId === selectedRow.propertyId).length
+  }, [payload?.ledger, selectedRow?.propertyId])
 
   const handleFiltersChange = React.useCallback((next: ReportFilterState) => {
     if (next.period === 'custom' && (!next.startDate || !next.endDate)) {
@@ -785,6 +789,36 @@ export default function FinancialReportPage() {
                   <Badge variant="secondary">Income − Expenses = NOI</Badge>
                   <Badge className="bg-blue-100 text-blue-700">Scope: {periodLabel}</Badge>
                 </div>
+              </div>
+
+              <div className="rounded-xl border bg-white p-3">
+                <p className="text-sm text-muted-foreground">Transactions (period)</p>
+                <p className="text-lg font-semibold">{propertyTransactionCount}</p>
+              </div>
+
+              <div className="rounded-xl border bg-white p-3">
+                <p className="text-sm text-muted-foreground">Income vs Expenses</p>
+                <ChartContainer config={cashflowConfig} className="h-[180px] w-full">
+                  <BarChart
+                    data={[
+                      {
+                        name: 'P&L',
+                        income: selectedRow.income,
+                        expenses: selectedRow.expenses,
+                        noi: selectedRow.noi,
+                      },
+                    ]}
+                    margin={{ left: 8, right: 8 }}
+                  >
+                    <CartesianGrid vertical={false} />
+                    <XAxis dataKey="name" tickLine={false} axisLine={false} />
+                    <YAxis tickLine={false} axisLine={false} tickMargin={6} />
+                    <ChartTooltip content={<ChartTooltipContent indicator="dot" />} />
+                    <Bar dataKey="income" fill="var(--color-income)" radius={[6, 6, 0, 0]} />
+                    <Bar dataKey="expenses" fill="var(--color-expenses)" radius={[6, 6, 0, 0]} />
+                    <Bar dataKey="noi" fill="var(--color-noi)" radius={[6, 6, 0, 0]} />
+                  </BarChart>
+                </ChartContainer>
               </div>
             </div>
           ) : (

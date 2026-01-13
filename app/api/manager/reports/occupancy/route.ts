@@ -122,6 +122,23 @@ export async function GET(req: NextRequest) {
     const tenantIds = Array.from(
       new Set(units.map((unit) => unit.tenant_user_id).filter(Boolean) as string[])
     )
+    const archivedTenantIds = new Set<string>()
+    if (tenantIds.length) {
+      const { data: archives, error: archiveError } = await admin
+        .from('tenant_archives')
+        .select('tenant_user_id')
+        .eq('organization_id', orgId)
+        .eq('is_active', true)
+        .in('tenant_user_id', tenantIds)
+
+      if (archiveError) {
+        console.warn('[Reports.Occupancy] archive lookup failed', archiveError)
+      } else {
+        ;(archives || []).forEach((row: any) => {
+          if (row?.tenant_user_id) archivedTenantIds.add(row.tenant_user_id)
+        })
+      }
+    }
     if (tenantIds.length) {
       const { data: tenants, error: tenantsError } = await admin
         .from('user_profiles')
@@ -135,6 +152,7 @@ export async function GET(req: NextRequest) {
         if (unit.tenant_user_id) {
           unit.tenant_name = tenantNameById.get(unit.tenant_user_id) || null
         }
+        unit.is_archived = unit.tenant_user_id ? archivedTenantIds.has(unit.tenant_user_id) : false
       }
     }
 

@@ -86,6 +86,33 @@ type OccupancyPayload = {
   }>
 }
 
+type UnitLeaseHistory = {
+  id: string
+  tenant_user_id: string | null
+  tenant_name: string | null
+  start_date: string | null
+  end_date: string | null
+  status: string | null
+}
+
+type UnitNotice = {
+  lease_id: string | null
+  requested_vacate_date: string | null
+  status: string | null
+  notice_submitted_at: string | null
+  created_at: string | null
+}
+
+type UnitDetailPayload = {
+  unit: {
+    id: string
+    unit_number: string
+    building: { id: string; name: string | null; location?: string | null } | null
+  } | null
+  leases: UnitLeaseHistory[]
+  notices: UnitNotice[]
+}
+
 const statusConfig = {
   occupied: { label: 'Occupied', color: '#22c55e' },
   notice: { label: 'Notice', color: '#8b5cf6' },
@@ -137,6 +164,9 @@ export default function OccupancyReportPage() {
   const [detailOpen, setDetailOpen] = React.useState(false)
   const [selectedRow, setSelectedRow] =
     React.useState<OccupancyPayload['units'][number] | null>(null)
+  const [detailLoading, setDetailLoading] = React.useState(false)
+  const [detailError, setDetailError] = React.useState<string | null>(null)
+  const [detailData, setDetailData] = React.useState<UnitDetailPayload | null>(null)
 
   const handleFiltersChange = React.useCallback((next: ReportFilterState) => {
     if (next.period === 'custom' && (!next.startDate || !next.endDate)) {
@@ -375,6 +405,26 @@ export default function OccupancyReportPage() {
     return date.toLocaleDateString()
   }
 
+  const loadUnitDetail = React.useCallback(async (unitId: string) => {
+    try {
+      setDetailLoading(true)
+      setDetailError(null)
+      setDetailData(null)
+      const res = await fetch(`/api/manager/reports/occupancy-unit-detail?unitId=${unitId}`, {
+        cache: 'no-store',
+      })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok || !json?.success) {
+        throw new Error(json?.error || 'Failed to load unit details.')
+      }
+      setDetailData(json)
+    } catch (err) {
+      setDetailError(err instanceof Error ? err.message : 'Failed to load unit details.')
+    } finally {
+      setDetailLoading(false)
+    }
+  }, [])
+
   return (
     <div className="flex min-h-screen bg-muted/20">
       <Sidebar />
@@ -548,6 +598,7 @@ export default function OccupancyReportPage() {
                         setSelectedRow(event.data)
                         setDetailOpen(true)
                         event.node.setSelected(true)
+                        loadUnitDetail(event.data.id)
                       }}
                     />
                   </div>
@@ -598,6 +649,64 @@ export default function OccupancyReportPage() {
                   <Badge className="capitalize">{formatStatus(selectedRow.status)}</Badge>
                 </div>
               </div>
+
+              {detailLoading ? (
+                <div className="text-sm text-muted-foreground">Loading unit history…</div>
+              ) : detailError ? (
+                <div className="text-sm text-rose-600">{detailError}</div>
+              ) : (
+                <>
+                  <div className="rounded-xl border bg-white p-3">
+                    <p className="text-xs text-muted-foreground">Occupancy history</p>
+                    {detailData?.leases?.length ? (
+                      <div className="mt-2 space-y-2 text-sm">
+                        {detailData.leases.slice(0, 6).map((lease) => (
+                          <div
+                            key={lease.id}
+                            className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-200/70 bg-slate-50/70 px-3 py-2"
+                          >
+                            <div>
+                              <div className="font-medium">{lease.tenant_name || 'Tenant'}</div>
+                              <div className="text-xs text-muted-foreground">
+                                {formatDate(lease.start_date)} → {formatDate(lease.end_date)}
+                              </div>
+                            </div>
+                            <Badge className="capitalize">{formatLeaseStatus(lease.status)}</Badge>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="mt-2 text-sm text-muted-foreground">No lease history found.</div>
+                    )}
+                  </div>
+
+                  <div className="rounded-xl border bg-white p-3">
+                    <p className="text-xs text-muted-foreground">Notices</p>
+                    {detailData?.notices?.length ? (
+                      <div className="mt-2 space-y-2 text-sm">
+                        {detailData.notices.slice(0, 6).map((notice, idx) => (
+                          <div
+                            key={`${notice.lease_id || 'notice'}-${idx}`}
+                            className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-200/70 bg-slate-50/70 px-3 py-2"
+                          >
+                            <div>
+                              <div className="font-medium">
+                                Requested vacate: {formatDate(notice.requested_vacate_date)}
+                              </div>
+                              <div className="text-xs text-muted-foreground">
+                                Submitted: {formatDate(notice.notice_submitted_at || notice.created_at)}
+                              </div>
+                            </div>
+                            <Badge className="capitalize">{formatLeaseStatus(notice.status)}</Badge>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="mt-2 text-sm text-muted-foreground">No notices recorded.</div>
+                    )}
+                  </div>
+                </>
+              )}
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div className="rounded-xl border bg-white p-3">
