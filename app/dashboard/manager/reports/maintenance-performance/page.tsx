@@ -711,8 +711,15 @@ export default function MaintenancePerformanceReportPage() {
               disabled={!selectedRow}
               onClick={() => {
                 if (!selectedRow) return
+                const qs = new URLSearchParams()
+                qs.set('propertyId', selectedRow.property_id)
+                qs.set('year', String(selectedRow.year))
+                if (startDate && endDate) {
+                  qs.set('startDate', startDate)
+                  qs.set('endDate', endDate)
+                }
                 router.push(
-                  `/dashboard/manager/properties/${selectedRow.property_id}?unitId=${selectedRow.unit_id}`
+                  `/dashboard/manager/reports/maintenance-performance/unit/${selectedRow.unit_id}?${qs.toString()}`
                 )
                 setDetailOpen(false)
               }}
