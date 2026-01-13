@@ -173,12 +173,18 @@ export default function ExpensesPage() {
       if (start && dateIso < start) return false
       return dateIso <= end
     })
-    if (!term) return rangeFiltered
-    return rangeFiltered.filter((exp) => {
+    const sourceFiltered =
+      sourceFilter === 'maintenance'
+        ? rangeFiltered.filter(
+            (exp) => Boolean(exp.maintenance_request_id) || exp.category === 'maintenance'
+          )
+        : rangeFiltered
+    if (!term) return sourceFiltered
+    return sourceFiltered.filter((exp) => {
       const name = exp.apartment_buildings?.name || ''
       return `${name} ${exp.category} ${exp.notes || ''}`.toLowerCase().includes(term)
     })
-  }, [expenses, periodFilter, propertyFilter, search])
+  }, [expenses, periodFilter, propertyFilter, search, sourceFilter])
 
   const filteredOneTimeExpenses = useMemo(() => {
     return filteredExpenses.filter((exp) => !recurringMarkerFromNotes(exp.notes))
