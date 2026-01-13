@@ -25,6 +25,7 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogDescription,
@@ -166,6 +167,8 @@ export default function MaintenancePage() {
   const [maintenanceCostAmount, setMaintenanceCostAmount] = useState('0')
   const [maintenanceCostNotes, setMaintenanceCostNotes] = useState('')
   const [completeSubmitting, setCompleteSubmitting] = useState(false)
+  const [confirmCompleteOpen, setConfirmCompleteOpen] = useState(false)
+  const [confirmCompleteText, setConfirmCompleteText] = useState('')
   const listTopRef = useRef<HTMLDivElement | null>(null)
   const { toast } = useToast()
   const applyScope = useCallback(
@@ -548,10 +551,11 @@ export default function MaintenancePage() {
   const handleMarkComplete = async () => {
     if (!selectedRequest) {
       setAssignError('Select a maintenance request to update.')
-      return
+      return false
     }
     setAssignError(null)
     setCompleteSubmitting(true)
+    let success = false
     try {
       const response = await fetch('/api/maintenance/requests', {
         method: 'PATCH',
@@ -597,12 +601,14 @@ export default function MaintenancePage() {
         title: 'Request completed',
         description: 'The tenant has been notified.',
       })
+      success = true
     } catch (error) {
       console.error('[MaintenancePage] complete failed', error)
       setAssignError(error instanceof Error ? error.message : 'Unable to complete request.')
     } finally {
       setCompleteSubmitting(false)
     }
+    return success
   }
 
   const metricCards = [
@@ -1147,7 +1153,11 @@ export default function MaintenancePage() {
               <div className="flex gap-2">
                 <Button
                   className="flex-1"
-                  onClick={handleMarkComplete}
+                  onClick={() => {
+                    if (!selectedRequest || selectedRequest.status === 'completed' || completeSubmitting) return
+                    setConfirmCompleteText('')
+                    setConfirmCompleteOpen(true)
+                  }}
                   disabled={
                     !selectedRequest || selectedRequest.status === 'completed' || completeSubmitting
                   }
@@ -1157,6 +1167,60 @@ export default function MaintenancePage() {
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={confirmCompleteOpen}
+        onOpenChange={(open) => {
+          setConfirmCompleteOpen(open)
+          if (!open) setConfirmCompleteText('')
+        }}
+      >
+        <DialogContent className="sm:max-w-[420px]">
+          <DialogHeader>
+            <DialogTitle>Confirm completion</DialogTitle>
+            <DialogDescription>
+              This action will mark the request as completed and notify the tenant.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">
+              Type <span className="font-semibold">fix</span> to confirm completion. This cannot be undone.
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="confirm-complete-input">Confirmation</Label>
+              <Input
+                id="confirm-complete-input"
+                value={confirmCompleteText}
+                onChange={(event) => setConfirmCompleteText(event.target.value)}
+                placeholder="fix"
+                autoComplete="off"
+              />
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-2">
+            <Button variant="outline" onClick={() => setConfirmCompleteOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              className="bg-rose-600 hover:bg-rose-700"
+              disabled={confirmCompleteText.trim().toLowerCase() !== 'fix' || completeSubmitting}
+              onClick={async () => {
+                if (confirmCompleteText.trim().toLowerCase() !== 'fix') return
+                const ok = await handleMarkComplete()
+                if (ok) {
+                  setConfirmCompleteOpen(false)
+                  setConfirmCompleteText('')
+                }
+              }}
+            >
+              {completeSubmitting ? 'Completing…' : 'Complete request'}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
