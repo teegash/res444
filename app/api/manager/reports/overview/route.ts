@@ -144,7 +144,7 @@ export async function GET(req: NextRequest) {
     const { data: invoices, error: invErr } = await invoiceQuery
     if (invErr) throw invErr
 
-    const validLeaseStatuses = new Set(['active', 'renewed'])
+    const validLeaseStatuses = new Set(['active', 'renewed', 'ended', 'expired', 'valid'])
     const filteredInvoices = (invoices || []).filter((i: any) => {
       const leaseStatus = String(i?.lease?.status || '').toLowerCase()
       return validLeaseStatuses.has(leaseStatus)
