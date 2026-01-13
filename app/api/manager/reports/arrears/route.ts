@@ -114,41 +114,23 @@ export async function GET(req: NextRequest) {
       .in('invoice_type', ['rent', 'water'])
       .neq('status_text', 'paid')
 
+    if (range.start) invoiceQuery = invoiceQuery.gte('period_start', range.start)
+    invoiceQuery = invoiceQuery.lte('period_start', range.end)
+
     const { data: overdueInvoices, error: invErr } = await invoiceQuery
     if (invErr) throw invErr
 
+    const validLeaseStatuses = new Set(['active', 'renewed', 'ended', 'expired', 'valid'])
+    const filteredInvoices = (overdueInvoices || []).filter((inv: any) => {
+      const leaseStatus = String(inv?.lease?.status || '').toLowerCase()
+      return validLeaseStatuses.has(leaseStatus)
+    })
     const scopedInvoices = scopePropertyId
-      ? (overdueInvoices || []).filter((inv: any) => inv.lease?.unit?.building?.id === scopePropertyId)
-      : overdueInvoices || []
-
-    const scopedTenantIds = Array.from(
-      new Set(scopedInvoices.map((inv: any) => inv.lease?.tenant_user_id).filter(Boolean))
-    )
-
-    const archivedTenantIds = new Set<string>()
-    if (scopedTenantIds.length > 0) {
-      const { data: archives, error: archiveError } = await admin
-        .from('tenant_archives')
-        .select('tenant_user_id')
-        .eq('organization_id', orgId)
-        .eq('is_active', true)
-        .in('tenant_user_id', scopedTenantIds)
-
-      if (archiveError) {
-        console.error('[ManagerArrearsReport] Failed to load tenant archives', archiveError)
-      } else {
-        ;(archives || []).forEach((row: any) => {
-          if (row?.tenant_user_id) archivedTenantIds.add(row.tenant_user_id)
-        })
-      }
-    }
-
-    const visibleInvoices = scopedInvoices.filter(
-      (inv: any) => !inv?.lease?.tenant_user_id || !archivedTenantIds.has(inv.lease.tenant_user_id)
-    )
+      ? filteredInvoices.filter((inv: any) => inv.lease?.unit?.building?.id === scopePropertyId)
+      : filteredInvoices
 
     const tenantIds = Array.from(
-      new Set(visibleInvoices.map((inv: any) => inv.lease?.tenant_user_id).filter(Boolean))
+      new Set(scopedInvoices.map((inv: any) => inv.lease?.tenant_user_id).filter(Boolean))
     )
     let profilesById = new Map<string, { full_name: string | null; phone_number: string | null }>()
     if (tenantIds.length) {
@@ -172,19 +154,16 @@ export async function GET(req: NextRequest) {
     const byProperty: Record<string, any> = {}
     const defaulters: Record<string, any> = {}
 
-    for (const inv of visibleInvoices) {
+    for (const inv of scopedInvoices) {
       const statusText = String(inv?.status_text || '').toLowerCase()
-      if (statusText === 'void' || statusText === 'paid' || inv?.status === true) continue
-      const leaseStatus = String(inv?.lease?.status || '').toLowerCase()
-      if (leaseStatus && !['active', 'pending', 'renewed', 'valid'].includes(leaseStatus)) continue
-      if (isRentPrepaid(inv)) continue
+      if (statusText === 'paid') continue
 
-      const due = inv.due_date || inv.period_start
+      const due = inv.due_date
       if (!due) continue
+      if (due >= todayISO) continue
 
       const amount = Number(inv.amount || 0)
-      const paid = Number(inv.total_paid || 0)
-      const outstanding = clamp0(amount - paid)
+      const outstanding = clamp0(amount)
       if (outstanding <= 0) continue
       overdueInvoicesCount += 1
 
@@ -246,14 +225,22 @@ export async function GET(req: NextRequest) {
     }
 
     const defRows = Object.values(defaulters)
-    const defByPropertyCount: Record<string, number> = {}
+    const defByPropertyTenants: Record<string, Set<string>> = {}
     for (const row of defRows as any[]) {
-      if (!row.propertyId) continue
-      defByPropertyCount[row.propertyId] = (defByPropertyCount[row.propertyId] || 0) + 1
+      const propertyId = row.propertyId
+      const tenantId = row.tenant_user_id
+      if (!propertyId || !tenantId) continue
+      defByPropertyTenants[propertyId] ||= new Set()
+      defByPropertyTenants[propertyId].add(tenantId)
     }
     for (const pid of Object.keys(byProperty)) {
-      byProperty[pid].defaultersCount = defByPropertyCount[pid] || 0
+      byProperty[pid].defaultersCount = defByPropertyTenants[pid]?.size || 0
     }
+    const defaultersCount = new Set(
+      (defRows as any[])
+        .map((row) => row.tenant_user_id)
+        .filter((tenantId: string | null | undefined): tenantId is string => Boolean(tenantId))
+    ).size
 
     const byPropertyRows = Object.values(byProperty).sort(
       (a: any, b: any) => b.arrearsTotal - a.arrearsTotal
@@ -269,6 +256,7 @@ export async function GET(req: NextRequest) {
         amount,
         period_start,
         lease:leases!invoices_lease_org_fk (
+          status,
           unit:apartment_units!leases_unit_org_fk (
             building:apartment_buildings!apartment_units_building_org_fk ( id )
           )
@@ -283,9 +271,13 @@ export async function GET(req: NextRequest) {
 
     const { data: billedInvoices, error: billedErr } = await billedQuery
     if (!billedErr) {
+      const billedFiltered = (billedInvoices || []).filter((inv: any) => {
+        const leaseStatus = String(inv?.lease?.status || '').toLowerCase()
+        return validLeaseStatuses.has(leaseStatus)
+      })
       const billedScoped = scopePropertyId
-        ? (billedInvoices || []).filter((inv: any) => inv.lease?.unit?.building?.id === scopePropertyId)
-        : billedInvoices || []
+        ? billedFiltered.filter((inv: any) => inv.lease?.unit?.building?.id === scopePropertyId)
+        : billedFiltered
       billedPeriod = billedScoped.reduce((sum: number, inv: any) => sum + Number(inv.amount || 0), 0)
     }
 
@@ -301,7 +293,7 @@ export async function GET(req: NextRequest) {
           arrearsTotal,
           arrearsRent,
           arrearsWater,
-          defaultersCount: defaultersRows.length,
+          defaultersCount,
           overdueInvoicesCount,
           arrearsRate,
         },
