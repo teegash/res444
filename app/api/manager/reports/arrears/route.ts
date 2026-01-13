@@ -112,7 +112,6 @@ export async function GET(req: NextRequest) {
       )
       .eq('organization_id', orgId)
       .in('invoice_type', ['rent', 'water'])
-      .neq('status_text', 'paid')
 
     if (range.start) invoiceQuery = invoiceQuery.gte('period_start', range.start)
     invoiceQuery = invoiceQuery.lte('period_start', range.end)
