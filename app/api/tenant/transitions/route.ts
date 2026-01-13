@@ -3,11 +3,12 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 
 const BUCKET = 'tenant-transitions'
+const NOTICE_BUCKET = 'tenant-notices'
 const SIGNED_URL_TTL = 60 * 30
 
-async function signPath(admin: any, path?: string | null) {
+async function signPath(admin: any, path?: string | null, bucket: string = BUCKET) {
   if (!path) return null
-  const { data, error } = await admin.storage.from(BUCKET).createSignedUrl(path, SIGNED_URL_TTL)
+  const { data, error } = await admin.storage.from(bucket).createSignedUrl(path, SIGNED_URL_TTL)
   if (error) return null
   return data?.signedUrl || null
 }
@@ -67,6 +68,15 @@ export async function GET() {
       return NextResponse.json({ success: true, case: null, events: [] })
     }
 
+    const { data: notice } = await admin
+      .from('tenant_vacate_notices')
+      .select('id, requested_vacate_date, status, notice_submitted_at, created_at, notice_document_url')
+      .eq('organization_id', lease.organization_id)
+      .eq('lease_id', lease.id)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
     const { data: events } = await admin
       .from('tenant_transition_events')
       .select('*')
@@ -76,11 +86,16 @@ export async function GET() {
 
     const signed = {
       notice_document_url: await signPath(admin, row.notice_document_url),
+      vacate_notice_url: await signPath(admin, notice?.notice_document_url, NOTICE_BUCKET),
       inspection_report_url: await signPath(admin, row.inspection_report_url),
       settlement_statement_url: await signPath(admin, row.settlement_statement_url),
     }
 
-    return NextResponse.json({ success: true, case: { ...row, signed_urls: signed }, events: events || [] })
+    return NextResponse.json({
+      success: true,
+      case: { ...row, vacate_notice: notice || null, signed_urls: signed },
+      events: events || [],
+    })
   } catch (err) {
     console.error('[TenantTransitions.GET] Failed', err)
     return NextResponse.json(

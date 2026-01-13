@@ -2,11 +2,12 @@ import { NextRequest, NextResponse } from 'next/server'
 import { normalizeUuid, requireManagerContext } from '../_helpers'
 
 const BUCKET = 'tenant-transitions'
+const NOTICE_BUCKET = 'tenant-notices'
 const SIGNED_URL_TTL = 60 * 30
 
-async function signPath(admin: any, path?: string | null) {
+async function signPath(admin: any, path?: string | null, bucket: string = BUCKET) {
   if (!path) return null
-  const { data, error } = await admin.storage.from(BUCKET).createSignedUrl(path, SIGNED_URL_TTL)
+  const { data, error } = await admin.storage.from(bucket).createSignedUrl(path, SIGNED_URL_TTL)
   if (error) return null
   return data?.signedUrl || null
 }
@@ -53,8 +54,18 @@ export async function GET(req: NextRequest, ctx: { params: { caseId: string } })
       .eq('id', row.tenant_user_id)
       .maybeSingle()
 
+    const { data: notice } = await admin
+      .from('tenant_vacate_notices')
+      .select('notice_document_url')
+      .eq('organization_id', organizationId)
+      .eq('lease_id', row.lease_id)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
     const signed = {
       notice_document_url: await signPath(admin, row.notice_document_url),
+      vacate_notice_url: await signPath(admin, notice?.notice_document_url, NOTICE_BUCKET),
       inspection_report_url: await signPath(admin, row.inspection_report_url),
       settlement_statement_url: await signPath(admin, row.settlement_statement_url),
     }

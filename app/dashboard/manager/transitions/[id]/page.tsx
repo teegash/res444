@@ -53,6 +53,7 @@ export default function TransitionDetailPage() {
   const [notifyMessage, setNotifyMessage] = useState('')
 
   const signed = data?.signed_urls || {}
+  const noticeDocUrl = signed.notice_document_url || signed.vacate_notice_url || null
   const isCompleted = (data?.status || '').toLowerCase() === 'completed'
 
   const formatDateLocal = (date: Date) => {
@@ -320,8 +321,8 @@ export default function TransitionDetailPage() {
                   <CardDescription>Signed links expire automatically; refresh the page if needed.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-2">
-                  {signed.notice_document_url ? (
-                    <a className="inline-flex items-center gap-2 text-sm underline" href={signed.notice_document_url} target="_blank">
+                  {noticeDocUrl ? (
+                    <a className="inline-flex items-center gap-2 text-sm underline" href={noticeDocUrl} target="_blank">
                       <Download className="h-4 w-4" /> Notice document
                     </a>
                   ) : (

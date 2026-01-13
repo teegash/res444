@@ -85,9 +85,9 @@ export async function GET(req: NextRequest) {
   if (type === 'sms') {
     const filtered = runs.filter((row: any) => {
       const name = String(row?.function_name || '').toLowerCase()
-      return name.includes('sms') || name.includes('reminder')
+      return name === 'dispatch-rent-reminders'
     })
-    return NextResponse.json({ runs: filtered.length ? filtered : runs })
+    return NextResponse.json({ runs: filtered })
   }
 
   return NextResponse.json({ runs })

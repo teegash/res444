@@ -36,12 +36,28 @@ export default function TenantTransitionPage() {
   }, [])
 
   const signed = data?.signed_urls || {}
+  const vacateNotice = data?.vacate_notice || null
+  const noticeDocUrl = signed.notice_document_url || signed.vacate_notice_url || null
 
   const formatDate = (value?: string | null) => {
     if (!value) return '—'
     const date = new Date(value)
     if (Number.isNaN(date.getTime())) return '—'
     return date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
+  }
+
+  const parseDateOnly = (value?: string | null) => {
+    if (!value) return null
+    const raw = String(value || '').trim()
+    if (!raw) return null
+    const base = raw.includes('T') ? raw.split('T')[0] : raw.split(' ')[0]
+    const [y, m, d] = base.split('-').map((part) => Number(part))
+    if (y && m && d) {
+      return new Date(Date.UTC(y, m - 1, d))
+    }
+    const parsed = new Date(raw)
+    if (Number.isNaN(parsed.getTime())) return null
+    return new Date(Date.UTC(parsed.getUTCFullYear(), parsed.getUTCMonth(), parsed.getUTCDate()))
   }
 
   const statusClasses = (value?: string | null) => {
@@ -75,6 +91,36 @@ export default function TenantTransitionPage() {
       paid: status === 'paid',
     }
   }, [data])
+
+  const vacateProgress = useMemo(() => {
+    if (!vacateNotice || !vacateNotice.requested_vacate_date) return null
+    const status = String(vacateNotice.status || '').toLowerCase()
+    if (status === 'rejected') return null
+
+    const end = parseDateOnly(vacateNotice.requested_vacate_date)
+    const startRaw = vacateNotice.notice_submitted_at || vacateNotice.created_at || null
+    const start = startRaw ? parseDateOnly(startRaw) : null
+    if (!end) return null
+
+    const safeStart = start || new Date()
+    const startDay = new Date(Date.UTC(safeStart.getUTCFullYear(), safeStart.getUTCMonth(), safeStart.getUTCDate()))
+    const endDay = new Date(Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), end.getUTCDate()))
+
+    const totalMs = Math.max(1, endDay.getTime() - startDay.getTime())
+    const today = new Date()
+    const todayDay = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()))
+    const elapsedMs = Math.min(Math.max(todayDay.getTime() - startDay.getTime(), 0), totalMs)
+    const progress = status === 'completed' ? 1 : elapsedMs / totalMs
+    const daysRemaining = Math.max(0, Math.ceil((endDay.getTime() - todayDay.getTime()) / (1000 * 60 * 60 * 24)))
+    const totalDays = Math.max(1, Math.round(totalMs / (1000 * 60 * 60 * 24)))
+
+    return {
+      progress,
+      daysRemaining,
+      totalDays,
+      endLabel: formatDate(vacateNotice.requested_vacate_date),
+    }
+  }, [vacateNotice])
 
   const toggleEvent = (eventId: string) => {
     setExpandedEvents((prev) => ({ ...prev, [eventId]: !prev[eventId] }))
@@ -197,16 +243,61 @@ export default function TenantTransitionPage() {
               </CardContent>
             </Card>
 
+            {vacateProgress ? (
+              <Card className="border border-slate-200/80 bg-white/95 shadow-sm">
+                <CardHeader className="bg-gradient-to-r from-slate-50 via-white to-slate-50 rounded-t-xl">
+                  <CardTitle>Vacate notice progress</CardTitle>
+                  <CardDescription>Countdown from notice submission to your requested vacate date.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {(() => {
+                    const progressPct = Math.round(vacateProgress.progress * 100)
+                    const progressColor =
+                      progressPct <= 25
+                        ? '#22c55e'
+                        : progressPct <= 50
+                          ? '#eab308'
+                          : progressPct <= 75
+                            ? '#f97316'
+                            : '#ef4444'
+                    return (
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between text-xs text-muted-foreground">
+                          <span>Submitted</span>
+                          <span>{vacateProgress.endLabel}</span>
+                        </div>
+                        <div className="h-3 w-full rounded-full bg-slate-200 overflow-hidden">
+                          <div
+                            className="h-full rounded-full transition-all duration-700"
+                            style={{
+                              width: `${progressPct}%`,
+                              backgroundColor: progressColor,
+                            }}
+                          />
+                        </div>
+                        <div className="flex items-center justify-between text-xs text-slate-600">
+                          <span>{progressPct}% complete</span>
+                          <span>
+                            {vacateProgress.daysRemaining} days left of {vacateProgress.totalDays}
+                          </span>
+                        </div>
+                      </div>
+                    )
+                  })()}
+                </CardContent>
+              </Card>
+            ) : null}
+
             <Card className="border border-emerald-100/70 bg-gradient-to-br from-white via-white to-emerald-50/30 shadow-sm">
               <CardHeader className="bg-gradient-to-r from-emerald-50/70 via-white to-sky-50/60 rounded-t-xl">
                 <CardTitle>Documents</CardTitle>
                 <CardDescription>Secure links provided by management.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
-                {signed.notice_document_url ? (
+                {noticeDocUrl ? (
                   <a
                     className="inline-flex items-center gap-2 rounded-lg border border-indigo-200/70 bg-indigo-50/70 px-3 py-2 text-sm font-semibold text-indigo-700 shadow-sm transition hover:bg-indigo-100"
-                    href={signed.notice_document_url}
+                    href={noticeDocUrl}
                     target="_blank"
                     rel="noreferrer"
                     download
