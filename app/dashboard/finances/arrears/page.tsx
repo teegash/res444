@@ -24,6 +24,8 @@ type ArrearsRow = {
   unit_id: string | null
   unit_number: string | null
   arrears_amount: number
+  arrears_rent: number
+  arrears_water: number
   open_invoices_count: number
   oldest_due_date: string | null
   building_id: string | null
@@ -63,6 +65,7 @@ export default function ArrearsPage() {
   const [buildings, setBuildings] = useState<Building[]>([])
   const [buildingId, setBuildingId] = useState<string>('all')
   const [minArrears, setMinArrears] = useState<string>('')
+  const [arrearsType, setArrearsType] = useState<'all' | 'rent' | 'water'>('all')
   const [summary, setSummary] = useState<{
     active_tenants: number
     defaulters: number
@@ -142,29 +145,27 @@ export default function ArrearsPage() {
         setLoading(true)
         setError(null)
         const params = new URLSearchParams()
-        if (buildingId !== 'all') params.set('buildingId', buildingId)
+        if (buildingId !== 'all') params.set('propertyId', buildingId)
         const min = Number(minArrears || '0')
-        const res = await fetch(`/api/manager/statements?${params.toString()}`, { cache: 'no-store' })
+        const res = await fetch(`/api/manager/reports/arrears?${params.toString()}`, { cache: 'no-store' })
         const json = await res.json()
         if (!res.ok || !json.success) throw new Error(json.error || 'Failed to load arrears')
-        const baseRows = Array.isArray(json.rows)
-          ? json.rows
-          : Array.isArray(json.data)
-          ? json.data
-          : []
+        const baseRows = Array.isArray(json.data?.defaulters) ? json.data.defaulters : []
         const mapped: ArrearsRow[] = baseRows.map((row: any) => ({
-          organization_id: row.organization_id || '',
-          lease_id: row.lease_id,
+          organization_id: '',
+          lease_id: row.lease_id || '',
           tenant_user_id: row.tenant_user_id,
           tenant_name: row.tenant_name ?? null,
           tenant_phone: row.tenant_phone ?? null,
           unit_id: null,
-          unit_number: row.unit_number ?? null,
-          arrears_amount: Number(row.current_balance || 0),
-          open_invoices_count: Number(row.open_invoices_count || 0),
-          oldest_due_date: row.oldest_due_date ?? null,
-          building_id: row.building_id ?? null,
-          building_name: row.building_name ?? null,
+          unit_number: row.unitNumber ?? null,
+          arrears_amount: Number(row.arrearsTotal || 0),
+          arrears_rent: Number(row.arrearsRent || 0),
+          arrears_water: Number(row.arrearsWater || 0),
+          open_invoices_count: Number(row.openInvoices || 0),
+          oldest_due_date: row.oldestDueDate ?? null,
+          building_id: row.propertyId ?? null,
+          building_name: row.propertyName ?? null,
           building_location: null,
         }))
         const filteredRows = mapped.filter((row) => {
@@ -186,20 +187,27 @@ export default function ArrearsPage() {
 
   const filtered = useMemo(() => {
     const query = q.trim().toLowerCase()
-    if (!query) return rows
     return rows.filter((r) => {
+      if (arrearsType === 'rent' && r.arrears_rent <= 0) return false
+      if (arrearsType === 'water' && r.arrears_water <= 0) return false
+      if (!query) return true
       const unit = (r.unit_number ?? '').toLowerCase()
       const name = (r.tenant_name ?? '').toLowerCase()
       const phone = (r.tenant_phone ?? '').toLowerCase()
       const building = (r.building_name ?? '').toLowerCase()
       return unit.includes(query) || name.includes(query) || phone.includes(query) || building.includes(query)
     })
-  }, [rows, q])
+  }, [rows, q, arrearsType])
 
-  const totalArrears = useMemo(
-    () => filtered.reduce((sum, row) => sum + Number(row.arrears_amount || 0), 0),
-    [filtered]
-  )
+  const totalArrears = useMemo(() => {
+    if (arrearsType === 'rent') {
+      return filtered.reduce((sum, row) => sum + Number(row.arrears_rent || 0), 0)
+    }
+    if (arrearsType === 'water') {
+      return filtered.reduce((sum, row) => sum + Number(row.arrears_water || 0), 0)
+    }
+    return filtered.reduce((sum, row) => sum + Number(row.arrears_amount || 0), 0)
+  }, [filtered, arrearsType])
 
   useEffect(() => {
     gridApiRef.current?.setGridOption('quickFilterText', q)
@@ -218,9 +226,9 @@ export default function ArrearsPage() {
                   <ArrowLeft className="h-4 w-4" />
                 </Button>
                 <div>
-                  <h1 className="text-3xl font-bold">Rent Arrears</h1>
+                  <h1 className="text-3xl font-bold">Arrears</h1>
                   <p className="text-sm text-muted-foreground">
-                    Rent-only arrears computed from unpaid/overdue rent invoices.
+                    Combined rent and water bill arrears for overdue invoices.
                   </p>
                 </div>
               </div>
@@ -286,6 +294,18 @@ export default function ArrearsPage() {
                 </div>
 
                 <div className="w-full sm:w-56">
+                  <select
+                    className="w-full border rounded-md h-10 px-3 text-sm bg-white"
+                    value={arrearsType}
+                    onChange={(e) => setArrearsType(e.target.value as 'all' | 'rent' | 'water')}
+                  >
+                    <option value="all">All arrears</option>
+                    <option value="rent">Rent arrears</option>
+                    <option value="water">Water bill arrears</option>
+                  </select>
+                </div>
+
+                <div className="w-full sm:w-56">
                   <Input
                     placeholder="Min arrears (KES)"
                     value={minArrears}
@@ -297,6 +317,7 @@ export default function ArrearsPage() {
                   variant="outline"
                   onClick={() => {
                     setBuildingId('all')
+                    setArrearsType('all')
                     setMinArrears('0')
                     setQ('')
                   }}

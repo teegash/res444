@@ -3,6 +3,27 @@ import { requireAuth } from '@/lib/rbac/routeGuards'
 import { getUserRole } from '@/lib/rbac/userRole'
 import { createAdminClient } from '@/lib/supabase/admin'
 
+function clamp0(value: number) {
+  return value < 0 ? 0 : value
+}
+
+function monthStartIso(value: string | null | undefined) {
+  if (!value) return null
+  const parsed = new Date(`${value.slice(0, 10)}T00:00:00Z`)
+  if (Number.isNaN(parsed.getTime())) return null
+  const year = parsed.getUTCFullYear()
+  const month = String(parsed.getUTCMonth() + 1).padStart(2, '0')
+  return `${year}-${month}-01`
+}
+
+function isRentPrepaid(inv: any) {
+  if (String(inv?.invoice_type || '') !== 'rent') return false
+  const paidUntil = monthStartIso(inv?.lease?.rent_paid_until)
+  const periodStart = monthStartIso(inv?.period_start || inv?.due_date)
+  if (!paidUntil || !periodStart) return false
+  return paidUntil >= periodStart
+}
+
 export async function GET() {
   try {
     const { userId, role } = await requireAuth()
@@ -57,60 +78,67 @@ export async function GET() {
     if (activeErr) throw activeErr
 
     const { data: arrearsRows, error: arrearsErr } = await admin
-      .from('vw_lease_arrears_detail')
-      .select('lease_id, unit_id, tenant_user_id, arrears_amount')
+      .from('invoices')
+      .select(
+        `
+        id,
+        invoice_type,
+        amount,
+        total_paid,
+        due_date,
+        period_start,
+        status_text,
+        status,
+        lease:leases!invoices_lease_org_fk (
+          tenant_user_id,
+          rent_paid_until,
+          unit:apartment_units!leases_unit_org_fk (
+            id,
+            building:apartment_buildings!apartment_units_building_org_fk ( id, name )
+          )
+        )
+      `
+      )
       .eq('organization_id', organizationId)
-      .gt('arrears_amount', 0)
-      .limit(2000)
+      .in('invoice_type', ['rent', 'water'])
+      .lt('due_date', new Date().toISOString().slice(0, 10))
+      .limit(5000)
 
     if (arrearsErr) throw arrearsErr
 
-    const scopedArrears = (arrearsRows || []).filter(
-      (row: any) => !row?.tenant_user_id || !archivedTenantIds.has(row.tenant_user_id)
-    )
-    const defaulterTenantIds = new Set(
-      scopedArrears.map((row: any) => row.tenant_user_id).filter(Boolean)
-    )
+    const defaulterTenantIds = new Set<string>()
+    const buildingTotals = new Map<string, { name: string; sum: number }>()
+    let totalArrearsAmount = 0
+
+    for (const inv of arrearsRows || []) {
+      const statusText = String(inv?.status_text || '').toLowerCase()
+      if (statusText === 'void') continue
+      if (isRentPrepaid(inv)) continue
+
+      const tenantId = inv?.lease?.tenant_user_id
+      if (!tenantId || archivedTenantIds.has(tenantId)) continue
+
+      const amount = Number(inv?.amount || 0)
+      const paid = Number(inv?.total_paid || 0)
+      const outstanding = clamp0(amount - paid)
+      if (outstanding <= 0) continue
+
+      defaulterTenantIds.add(tenantId)
+      totalArrearsAmount += outstanding
+
+      const building = inv?.lease?.unit?.building
+      if (building?.id) {
+        const current = buildingTotals.get(building.id) || { name: building.name || 'Building', sum: 0 }
+        buildingTotals.set(building.id, { name: current.name, sum: current.sum + outstanding })
+      }
+    }
+
     const defaulters = defaulterTenantIds.size
-    const totalArrearsAmount = scopedArrears.reduce(
-      (sum: number, r: any) => sum + Number(r.arrears_amount || 0),
-      0
-    )
 
-    let topBuilding:
-      | null
-      | { building_id: string; building_name: string; arrears_amount: number } = null
-
-    const unitIds = Array.from(new Set(scopedArrears.map((r: any) => r.unit_id).filter(Boolean)))
-
-    if (unitIds.length > 0) {
-      const { data: units, error: unitErr } = await admin
-        .from('apartment_units')
-        .select('id, building_id, apartment_buildings ( id, name )')
-        .eq('organization_id', organizationId)
-        .in('id', unitIds)
-
-      if (!unitErr && units) {
-        const unitToBuilding = new Map<string, { id: string; name: string }>()
-        for (const u of units as any[]) {
-          const b = u.apartment_buildings
-          if (u.id && b?.id) unitToBuilding.set(u.id, { id: b.id, name: b.name || 'Building' })
-        }
-
-        const buildingTotals = new Map<string, { name: string; sum: number }>()
-        for (const row of scopedArrears as any[]) {
-          const unitId = row.unit_id
-          const b = unitToBuilding.get(unitId)
-          if (!b) continue
-          const current = buildingTotals.get(b.id) || { name: b.name, sum: 0 }
-          buildingTotals.set(b.id, { name: current.name, sum: current.sum + Number(row.arrears_amount || 0) })
-        }
-
-        for (const [buildingId, v] of buildingTotals.entries()) {
-          if (!topBuilding || v.sum > topBuilding.arrears_amount) {
-            topBuilding = { building_id: buildingId, building_name: v.name, arrears_amount: v.sum }
-          }
-        }
+    let topBuilding: { building_id: string; building_name: string; arrears_amount: number } | null = null
+    for (const [buildingId, v] of buildingTotals.entries()) {
+      if (!topBuilding || v.sum > topBuilding.arrears_amount) {
+        topBuilding = { building_id: buildingId, building_name: v.name, arrears_amount: v.sum }
       }
     }
 

@@ -219,6 +219,7 @@ export async function GET(req: NextRequest) {
         tenant_user_id: tenantId,
         tenant_name: tenantId ? profilesById.get(tenantId)?.full_name || 'Tenant' : 'Tenant',
         tenant_phone: tenantId ? profilesById.get(tenantId)?.phone_number || null : null,
+        lease_id: inv.lease?.id || null,
         propertyId,
         propertyName,
         unitNumber,
