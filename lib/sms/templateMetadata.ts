@@ -84,8 +84,8 @@ export const TEMPLATE_METADATA: Record<TemplateKey, TemplateMeta> = {
   },
   rent_stage_5: {
     key: 'rent_stage_5',
-    name: 'Rent Stage 5 (+30 days)',
-    description: 'Reminder 30 days after due date.',
+    name: 'Rent Stage 5 (+15 days)',
+    description: 'Reminder 15 days after due date.',
     placeholders: [
       { token: '{{tenant_name}}', label: 'Tenant name', sample: 'Jane' },
       { token: '{{unit_label}}', label: 'Unit / property label', sample: '12B · Kilimani Heights' },
