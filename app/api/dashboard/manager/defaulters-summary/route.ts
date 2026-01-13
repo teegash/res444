@@ -16,27 +16,6 @@ function monthStartIso(value: string | null | undefined) {
   return `${year}-${month}-01`
 }
 
-function normalizeIsoDate(value: string | null | undefined) {
-  if (!value) return null
-  const parsed = new Date(value)
-  if (Number.isNaN(parsed.getTime())) return null
-  return parsed.toISOString().slice(0, 10)
-}
-
-function isPastDue(dueIso: string | null, todayIso: string) {
-  if (!dueIso) return false
-  return dueIso < todayIso
-}
-
-function isInvoiceEffectivelyPaid(inv: any) {
-  const amount = Number(inv?.amount ?? 0)
-  const totalPaid = Number(inv?.total_paid ?? 0)
-  const statusText = String(inv?.status_text || '').toLowerCase()
-  if (statusText === 'paid') return true
-  if (inv?.status === true) return true
-  return totalPaid >= amount - 0.05
-}
-
 function isRentPrepaid(inv: any) {
   if (String(inv?.invoice_type || '') !== 'rent') return false
   const paidUntil = monthStartIso(inv?.lease?.rent_paid_until)
@@ -45,7 +24,7 @@ function isRentPrepaid(inv: any) {
   return paidUntil >= periodStart
 }
 
-const ACTIVE_LEASE_STATUSES = new Set(['active', 'pending'])
+const ACTIVE_LEASE_STATUSES = new Set(['active', 'pending', 'renewed', 'valid'])
 
 export async function GET() {
   try {
@@ -100,8 +79,6 @@ export async function GET() {
 
     if (activeErr) throw activeErr
 
-    const todayIso = new Date().toISOString().slice(0, 10)
-
     const { data: arrearsRows, error: arrearsErr } = await admin
       .from('invoices')
       .select(
@@ -137,17 +114,13 @@ export async function GET() {
 
     for (const inv of arrearsRows || []) {
       const statusText = String(inv?.status_text || '').toLowerCase()
-      if (statusText === 'void') continue
+      if (statusText === 'void' || statusText === 'paid' || inv?.status === true) continue
       if (isRentPrepaid(inv)) continue
 
       const tenantId = inv?.lease?.tenant_user_id
       if (!tenantId || archivedTenantIds.has(tenantId)) continue
       const leaseStatus = String(inv?.lease?.status || '').toLowerCase()
       if (leaseStatus && !ACTIVE_LEASE_STATUSES.has(leaseStatus)) continue
-
-      const dueIso = normalizeIsoDate(inv?.due_date)
-      if (!isPastDue(dueIso, todayIso)) continue
-      if (isInvoiceEffectivelyPaid(inv)) continue
 
       const amount = Number(inv?.amount || 0)
       const paid = Number(inv?.total_paid || 0)

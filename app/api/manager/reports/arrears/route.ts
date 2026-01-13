@@ -30,27 +30,6 @@ function monthStartIso(value: string | null | undefined) {
   return `${year}-${month}-01`
 }
 
-function normalizeIsoDate(value: string | null | undefined) {
-  if (!value) return null
-  const parsed = new Date(value)
-  if (Number.isNaN(parsed.getTime())) return null
-  return parsed.toISOString().slice(0, 10)
-}
-
-function isPastDue(dueIso: string | null, todayIso: string) {
-  if (!dueIso) return false
-  return dueIso < todayIso
-}
-
-function isInvoiceEffectivelyPaid(inv: any) {
-  const amount = Number(inv?.amount ?? 0)
-  const totalPaid = Number(inv?.total_paid ?? 0)
-  const statusText = String(inv?.status_text || '').toLowerCase()
-  if (statusText === 'paid') return true
-  if (inv?.status === true) return true
-  return totalPaid >= amount - 0.05
-}
-
 function isRentPrepaid(inv: any) {
   if (String(inv?.invoice_type || '') !== 'rent') return false
   const paidUntil = monthStartIso(inv?.lease?.rent_paid_until)
@@ -195,14 +174,13 @@ export async function GET(req: NextRequest) {
 
     for (const inv of visibleInvoices) {
       const statusText = String(inv?.status_text || '').toLowerCase()
-      if (statusText === 'void') continue
+      if (statusText === 'void' || statusText === 'paid' || inv?.status === true) continue
       const leaseStatus = String(inv?.lease?.status || '').toLowerCase()
-      if (leaseStatus && !['active', 'pending'].includes(leaseStatus)) continue
+      if (leaseStatus && !['active', 'pending', 'renewed', 'valid'].includes(leaseStatus)) continue
       if (isRentPrepaid(inv)) continue
 
-      const dueIso = normalizeIsoDate(inv?.due_date)
-      if (!isPastDue(dueIso, todayISO)) continue
-      if (isInvoiceEffectivelyPaid(inv)) continue
+      const due = inv.due_date || inv.period_start
+      if (!due) continue
 
       const amount = Number(inv.amount || 0)
       const paid = Number(inv.total_paid || 0)
@@ -210,7 +188,7 @@ export async function GET(req: NextRequest) {
       if (outstanding <= 0) continue
       overdueInvoicesCount += 1
 
-      const days = daysBetween(dueIso || '', nowISO)
+      const days = daysBetween(due, nowISO)
       const bucket = ageingBucket(days)
 
       const propertyId = inv.lease?.unit?.building?.id
