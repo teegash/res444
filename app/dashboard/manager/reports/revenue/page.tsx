@@ -15,6 +15,15 @@ import {
 } from '@/components/ui/dropdown-menu'
 import Link from 'next/link'
 import { ArrowLeft, Download, TrendingUp } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 
 import { ReportFilters, type ReportFilterState } from '@/components/reports/ReportFilters'
 import { KpiTiles } from '@/components/reports/KpiTiles'
@@ -104,6 +113,7 @@ const perfConfig = {
 
 export default function RevenueReportPage() {
   const { toast } = useToast()
+  const router = useRouter()
   const gridApiRef = React.useRef<GridApi | null>(null)
 
   const [filters, setFilters] = React.useState<ReportFilterState>({
@@ -116,6 +126,8 @@ export default function RevenueReportPage() {
 
   const [loading, setLoading] = React.useState(true)
   const [payload, setPayload] = React.useState<RevenuePayload | null>(null)
+  const [detailOpen, setDetailOpen] = React.useState(false)
+  const [selectedRow, setSelectedRow] = React.useState<PropertyRow | null>(null)
 
   const handleFiltersChange = React.useCallback((next: ReportFilterState) => {
     if (next.period === 'custom' && (!next.startDate || !next.endDate)) {
@@ -195,6 +207,11 @@ export default function RevenueReportPage() {
       },
     ]
   }, [k, payload, filters.propertyId, properties])
+
+  const periodLabel =
+    filters.period === 'custom' && filters.startDate && filters.endDate
+      ? `${filters.startDate} to ${filters.endDate}`
+      : filters.period
 
   const exportRows = React.useMemo(() => {
     return (payload?.byProperty || []).map((row) => ({
@@ -467,6 +484,12 @@ export default function RevenueReportPage() {
                         gridApiRef.current = params.api
                         params.api.sizeColumnsToFit()
                       }}
+                      onRowClicked={(event) => {
+                        if (!event.data) return
+                        setSelectedRow(event.data)
+                        setDetailOpen(true)
+                        event.node.setSelected(true)
+                      }}
                     />
                   </div>
 
@@ -479,6 +502,89 @@ export default function RevenueReportPage() {
           )}
         </main>
       </div>
+
+      <Dialog
+        open={detailOpen}
+        onOpenChange={(open) => {
+          setDetailOpen(open)
+          if (!open) setSelectedRow(null)
+        }}
+      >
+        <DialogContent className="sm:max-w-[640px]">
+          <DialogHeader>
+            <DialogTitle>Property revenue details</DialogTitle>
+            <DialogDescription>Deep dive for the selected property.</DialogDescription>
+          </DialogHeader>
+
+          {selectedRow ? (
+            <div className="space-y-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm text-muted-foreground">Property</p>
+                  <p className="text-base font-semibold">{selectedRow.propertyName}</p>
+                  <p className="text-sm text-muted-foreground">Period: {periodLabel}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm text-muted-foreground">Collection rate</p>
+                  <p className="text-base font-semibold text-emerald-700">
+                    {selectedRow.collectionRate.toFixed(1)}%
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                <div className="rounded-xl border bg-white p-3">
+                  <p className="text-xs text-muted-foreground">Billed total</p>
+                  <p className="text-lg font-bold">{kes(selectedRow.billedTotal)}</p>
+                </div>
+                <div className="rounded-xl border bg-white p-3">
+                  <p className="text-xs text-muted-foreground">Rent billed</p>
+                  <p className="text-lg font-bold">{kes(selectedRow.billedRent)}</p>
+                </div>
+                <div className="rounded-xl border bg-white p-3">
+                  <p className="text-xs text-muted-foreground">Water billed</p>
+                  <p className="text-lg font-bold">{kes(selectedRow.billedWater)}</p>
+                </div>
+                <div className="rounded-xl border bg-white p-3">
+                  <p className="text-xs text-muted-foreground">Collected</p>
+                  <p className="text-lg font-bold text-emerald-700">{kes(selectedRow.collectedTotal)}</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="rounded-xl border bg-slate-50 p-3">
+                  <p className="text-xs text-muted-foreground">Arrears now</p>
+                  <p className="text-sm font-medium">{kes(selectedRow.arrearsNow)}</p>
+                </div>
+                <div className="rounded-xl border bg-slate-50 p-3">
+                  <p className="text-xs text-muted-foreground">Net (period)</p>
+                  <p className="text-sm font-medium">
+                    {kes(selectedRow.collectedTotal - selectedRow.billedTotal)}
+                  </p>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="py-6 text-sm text-muted-foreground">No row selected.</div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDetailOpen(false)}>
+              Close
+            </Button>
+            <Button
+              disabled={!selectedRow?.propertyId}
+              onClick={() => {
+                if (!selectedRow?.propertyId) return
+                router.push(`/dashboard/properties/${selectedRow.propertyId}`)
+                setDetailOpen(false)
+              }}
+            >
+              View property
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

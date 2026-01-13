@@ -74,6 +74,7 @@ type ArrearsPayload = {
     tenant_phone: string | null
     is_archived?: boolean
     archived_at?: string | null
+    lease_id?: string | null
     propertyId: string | null
     propertyName: string
     unitNumber: string
@@ -587,6 +588,22 @@ export default function ArrearsReportPage() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setDetailOpen(false)}>
               Close
+            </Button>
+            <Button
+              disabled={!selectedRow?.tenant_user_id}
+              onClick={() => {
+                if (!selectedRow?.tenant_user_id) return
+                const qs = new URLSearchParams()
+                if (selectedRow.lease_id) qs.set('leaseId', selectedRow.lease_id)
+                router.push(
+                  `/dashboard/manager/statements/${encodeURIComponent(selectedRow.tenant_user_id)}${
+                    qs.toString() ? `?${qs.toString()}` : ''
+                  }`
+                )
+                setDetailOpen(false)
+              }}
+            >
+              View statement
             </Button>
           </DialogFooter>
         </DialogContent>
