@@ -144,6 +144,26 @@ export async function GET(req: NextRequest) {
       )
     }
 
+    const archivedByTenant = new Map<string, string | null>()
+    if (tenantIds.length) {
+      const { data: archives, error: archiveError } = await admin
+        .from('tenant_archives')
+        .select('tenant_user_id, archived_at')
+        .eq('organization_id', orgId)
+        .eq('is_active', true)
+        .in('tenant_user_id', tenantIds)
+
+      if (archiveError) {
+        console.warn('[Reports.Arrears] archive lookup failed', archiveError)
+      } else {
+        ;(archives || []).forEach((row: any) => {
+          if (row?.tenant_user_id) {
+            archivedByTenant.set(row.tenant_user_id, row.archived_at || null)
+          }
+        })
+      }
+    }
+
     let arrearsTotal = 0
     let arrearsRent = 0
     let arrearsWater = 0
@@ -201,6 +221,8 @@ export async function GET(req: NextRequest) {
         tenant_user_id: tenantId,
         tenant_name: tenantId ? profilesById.get(tenantId)?.full_name || 'Tenant' : 'Tenant',
         tenant_phone: tenantId ? profilesById.get(tenantId)?.phone_number || null : null,
+        is_archived: tenantId ? archivedByTenant.has(tenantId) : false,
+        archived_at: tenantId ? archivedByTenant.get(tenantId) || null : null,
         lease_id: inv.lease?.id || null,
         propertyId,
         propertyName,

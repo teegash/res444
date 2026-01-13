@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { SkeletonLoader } from '@/components/ui/skeletons'
 import { useToast } from '@/components/ui/use-toast'
+import { Badge } from '@/components/ui/badge'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -15,6 +16,14 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { ArrowLeft, Download, AlertTriangle } from 'lucide-react'
 import { useRouter } from 'next/navigation'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 
 import { ReportFilters, type ReportFilterState } from '@/components/reports/ReportFilters'
 import { KpiTiles } from '@/components/reports/KpiTiles'
@@ -63,6 +72,8 @@ type ArrearsPayload = {
     tenant_user_id: string | null
     tenant_name: string
     tenant_phone: string | null
+    is_archived?: boolean
+    archived_at?: string | null
     propertyId: string | null
     propertyName: string
     unitNumber: string
@@ -107,6 +118,9 @@ export default function ArrearsReportPage() {
 
   const [loading, setLoading] = React.useState(true)
   const [payload, setPayload] = React.useState<ArrearsPayload | null>(null)
+  const [detailOpen, setDetailOpen] = React.useState(false)
+  const [selectedRow, setSelectedRow] =
+    React.useState<ArrearsPayload['defaulters'][number] | null>(null)
 
   const handleFiltersChange = React.useCallback((next: ReportFilterState) => {
     if (next.period === 'custom' && (!next.startDate || !next.endDate)) {
@@ -306,6 +320,13 @@ export default function ArrearsReportPage() {
     []
   )
 
+  const formatDate = (value?: string | null) => {
+    if (!value) return '—'
+    const date = new Date(value)
+    if (Number.isNaN(date.getTime())) return '—'
+    return date.toLocaleDateString()
+  }
+
   return (
     <div className="flex min-h-screen bg-muted/20">
       <Sidebar />
@@ -463,6 +484,12 @@ export default function ArrearsReportPage() {
                         params.api.sizeColumnsToFit()
                       }}
                       onGridSizeChanged={(params) => params.api.sizeColumnsToFit()}
+                      onRowClicked={(event) => {
+                        if (!event.data) return
+                        setSelectedRow(event.data)
+                        setDetailOpen(true)
+                        event.node.setSelected(true)
+                      }}
                     />
                   </div>
 
@@ -475,6 +502,95 @@ export default function ArrearsReportPage() {
           )}
         </main>
       </div>
+
+      <Dialog
+        open={detailOpen}
+        onOpenChange={(open) => {
+          setDetailOpen(open)
+          if (!open) setSelectedRow(null)
+        }}
+      >
+        <DialogContent className="sm:max-w-[640px]">
+          <DialogHeader>
+            <DialogTitle>Tenant arrears details</DialogTitle>
+            <DialogDescription>Snapshot of overdue invoices for this tenant.</DialogDescription>
+          </DialogHeader>
+
+          {selectedRow ? (
+            <div className="space-y-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm text-muted-foreground">Tenant</p>
+                  <p className="text-base font-semibold">{selectedRow.tenant_name}</p>
+                  <p className="text-sm text-muted-foreground">{selectedRow.tenant_phone || '—'}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm text-muted-foreground">Status</p>
+                  {selectedRow.is_archived ? (
+                    <Badge variant="destructive">Archived</Badge>
+                  ) : (
+                    <Badge variant="secondary">Active</Badge>
+                  )}
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {selectedRow.is_archived
+                      ? `Archived on ${formatDate(selectedRow.archived_at)}`
+                      : 'Active tenant'}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-muted-foreground">Property</p>
+                  <p className="text-base font-semibold">{selectedRow.propertyName}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm text-muted-foreground">Unit</p>
+                  <p className="text-base font-semibold">{selectedRow.unitNumber}</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                <div className="rounded-xl border bg-white p-3">
+                  <p className="text-xs text-muted-foreground">Total arrears</p>
+                  <p className="text-lg font-bold text-rose-700">{kes(selectedRow.arrearsTotal)}</p>
+                </div>
+                <div className="rounded-xl border bg-white p-3">
+                  <p className="text-xs text-muted-foreground">Rent arrears</p>
+                  <p className="text-lg font-bold">{kes(selectedRow.arrearsRent)}</p>
+                </div>
+                <div className="rounded-xl border bg-white p-3">
+                  <p className="text-xs text-muted-foreground">Water arrears</p>
+                  <p className="text-lg font-bold">{kes(selectedRow.arrearsWater)}</p>
+                </div>
+                <div className="rounded-xl border bg-white p-3">
+                  <p className="text-xs text-muted-foreground">Open invoices</p>
+                  <p className="text-lg font-bold">{selectedRow.openInvoices}</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="rounded-xl border bg-slate-50 p-3">
+                  <p className="text-xs text-muted-foreground">Oldest due date</p>
+                  <p className="text-sm font-medium">{formatDate(selectedRow.oldestDueDate)}</p>
+                </div>
+                <div className="rounded-xl border bg-slate-50 p-3">
+                  <p className="text-xs text-muted-foreground">Max days overdue</p>
+                  <p className="text-sm font-medium">{selectedRow.maxDaysOverdue} days</p>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="py-6 text-sm text-muted-foreground">No row selected.</div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDetailOpen(false)}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
