@@ -135,8 +135,7 @@ function toStatementTransaction(row: any, fallbackId: string): StatementTransact
   if (!status) {
     status = row?.verified === true ? 'verified' : 'posted'
   }
-  const verified =
-    row?.verified === true || row?.verified === 'true' || row?.verified === 1
+  const verified = row?.verified === true || status.toLowerCase().includes('verified')
 
   const postedAt =
     coerceString(row?.posted_at) ||
@@ -219,12 +218,11 @@ export function buildStatementPayloadFromRpc(args: {
   const rawRows = normalizeRpcRows(args.rpcData)
   const mappedTransactions = rawRows
     .map((row, index) => toStatementTransaction(row, `row-${index + 1}`))
-    .filter((transaction) => {
-      const isPayment = transaction.kind === 'payment' || transaction.amount < 0
-      return isPayment
+    .filter((transaction) =>
+      transaction.kind === 'payment'
         ? transaction.verified === true && !isFailedPaymentStatus(transaction.status)
         : true
-    })
+    )
 
   mappedTransactions.sort((a, b) => {
     const aTime = a.posted_at ? new Date(a.posted_at).getTime() : 0
