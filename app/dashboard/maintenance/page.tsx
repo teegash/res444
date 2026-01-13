@@ -1,6 +1,6 @@
 'use client'
 
-import { FormEvent, useEffect, useMemo, useState, useCallback } from 'react'
+import { FormEvent, useEffect, useMemo, useState, useCallback, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { format } from 'date-fns'
@@ -166,6 +166,7 @@ export default function MaintenancePage() {
   const [maintenanceCostAmount, setMaintenanceCostAmount] = useState('0')
   const [maintenanceCostNotes, setMaintenanceCostNotes] = useState('')
   const [completeSubmitting, setCompleteSubmitting] = useState(false)
+  const listTopRef = useRef<HTMLDivElement | null>(null)
   const { toast } = useToast()
   const applyScope = useCallback(
     (items: MaintenanceRequest[]) =>
@@ -302,6 +303,13 @@ export default function MaintenancePage() {
       setCurrentPage(totalPages)
     }
   }, [currentPage, totalPages])
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page)
+    requestAnimationFrame(() => {
+      listTopRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    })
+  }
 
   useEffect(() => {
     const fetchRequests = async () => {
@@ -785,6 +793,7 @@ export default function MaintenancePage() {
                 </div>
                 {loadingRequests && <p className="text-xs text-muted-foreground">Refreshing…</p>}
               </div>
+              <div ref={listTopRef} />
               {requestError ? (
                 <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
                   {requestError}
@@ -979,7 +988,7 @@ export default function MaintenancePage() {
                             type="button"
                             variant={isActive ? 'default' : 'outline'}
                             size="sm"
-                            onClick={() => setCurrentPage(page)}
+                            onClick={() => handlePageChange(page)}
                             className="h-8 w-9 px-0"
                           >
                             {page}
