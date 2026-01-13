@@ -9,6 +9,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { SkeletonLoader } from '@/components/ui/skeletons'
 import { useToast } from '@/components/ui/use-toast'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { ReportFilters, type ReportFilterState } from '@/components/reports/ReportFilters'
 import { KpiTiles } from '@/components/reports/KpiTiles'
 import {
@@ -156,6 +164,8 @@ export default function BenchmarkReportPage() {
   const [loading, setLoading] = React.useState(true)
   const [payload, setPayload] = React.useState<Payload | null>(null)
   const [spotlightIndex, setSpotlightIndex] = React.useState(0)
+  const [detailOpen, setDetailOpen] = React.useState(false)
+  const [selectedRow, setSelectedRow] = React.useState<Row | null>(null)
   const gridApiRef = React.useRef<GridApi | null>(null)
   const { isPrinting, triggerPrint } = usePrintMode({
     onBeforePrint: () => {
@@ -414,6 +424,13 @@ export default function BenchmarkReportPage() {
     ]
   }, [isPrinting])
 
+  const periodLabel = React.useMemo(() => {
+    if (filters.period === 'custom' && filters.startDate && filters.endDate) {
+      return `${filters.startDate} → ${filters.endDate}`
+    }
+    return filters.period
+  }, [filters.period, filters.startDate, filters.endDate])
+
   return (
     <div className="flex min-h-screen bg-muted/20">
       <Sidebar />
@@ -591,20 +608,137 @@ export default function BenchmarkReportPage() {
                       pagination={!isPrinting}
                       paginationPageSize={25}
                       animateRows
+                      rowSelection="single"
                       onGridReady={(params) => {
                         gridApiRef.current = params.api
                         params.api.sizeColumnsToFit()
                       }}
                       onGridSizeChanged={(params) => params.api.sizeColumnsToFit()}
+                      onRowClicked={(event) => {
+                        if (!event.data) return
+                        setSelectedRow(event.data)
+                        setDetailOpen(true)
+                        event.node.setSelected(true)
+                      }}
                     />
                   </div>
                 </CardContent>
               </Card>
               </>
-            )}
+          )}
           </section>
         </main>
       </div>
+
+      <Dialog
+        open={detailOpen}
+        onOpenChange={(open) => {
+          setDetailOpen(open)
+          if (!open) setSelectedRow(null)
+        }}
+      >
+        <DialogContent className="sm:max-w-[640px]">
+          <DialogHeader>
+            <DialogTitle>Peer benchmark details</DialogTitle>
+            <DialogDescription>
+              Deeper property snapshot for the selected period.
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedRow ? (
+            <div className="space-y-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm text-muted-foreground">Property</p>
+                  <p className="text-base font-semibold">{selectedRow.propertyName}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm text-muted-foreground">Period</p>
+                  <p className="text-base font-semibold capitalize">{periodLabel}</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                <div className="rounded-xl border bg-white p-3">
+                  <p className="text-xs text-muted-foreground">Collected</p>
+                  <p className="text-lg font-bold text-emerald-700">{kes(selectedRow.collected)}</p>
+                </div>
+                <div className="rounded-xl border bg-white p-3">
+                  <p className="text-xs text-muted-foreground">Billed</p>
+                  <p className="text-lg font-bold">{kes(selectedRow.billed)}</p>
+                </div>
+                <div className="rounded-xl border bg-white p-3">
+                  <p className="text-xs text-muted-foreground">Arrears (Now)</p>
+                  <p className="text-lg font-bold text-rose-700">{kes(selectedRow.arrearsNow)}</p>
+                </div>
+                <div className="rounded-xl border bg-white p-3">
+                  <p className="text-xs text-muted-foreground">Collection %</p>
+                  <p className="text-lg font-bold text-blue-700">
+                    {selectedRow.collectionRate.toFixed(1)}%
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                <div className="rounded-xl border bg-white p-3">
+                  <p className="text-xs text-muted-foreground">Occupancy %</p>
+                  <p className="text-lg font-bold">{selectedRow.occupancyRate.toFixed(1)}%</p>
+                </div>
+                <div className="rounded-xl border bg-white p-3">
+                  <p className="text-xs text-muted-foreground">Units</p>
+                  <p className="text-lg font-bold">{selectedRow.unitCount.toLocaleString()}</p>
+                </div>
+                <div className="rounded-xl border bg-white p-3">
+                  <p className="text-xs text-muted-foreground">Expenses</p>
+                  <p className="text-lg font-bold text-rose-700">{kes(selectedRow.expenses)}</p>
+                </div>
+                <div className="rounded-xl border bg-white p-3">
+                  <p className="text-xs text-muted-foreground">NOI Margin</p>
+                  <p className="text-lg font-bold">{selectedRow.noiMargin.toFixed(1)}%</p>
+                </div>
+              </div>
+
+              <div className="rounded-xl border bg-slate-50 p-3">
+                <p className="text-sm text-muted-foreground">Notes:</p>
+                <ul className="text-sm list-disc pl-5 space-y-1">
+                  <li>Collection rate is based on collected vs billed for the period.</li>
+                  <li>Arrears now reflects overdue unpaid invoices for the same scope.</li>
+                  <li>NOI margin = NOI / collected for the period.</li>
+                </ul>
+              </div>
+            </div>
+          ) : (
+            <div className="py-6 text-sm text-muted-foreground">No row selected.</div>
+          )}
+
+          <DialogFooter className="gap-2 sm:gap-2">
+            <Button variant="outline" onClick={() => setDetailOpen(false)}>
+              Close
+            </Button>
+            <Button
+              variant="secondary"
+              disabled={!selectedRow}
+              onClick={() => {
+                if (!selectedRow) return
+                router.push(`/dashboard/manager/reports/revenue?property=${selectedRow.propertyId}`)
+                setDetailOpen(false)
+              }}
+            >
+              View revenue report
+            </Button>
+            <Button
+              disabled={!selectedRow}
+              onClick={() => {
+                if (!selectedRow) return
+                router.push(`/dashboard/manager/reports/arrears?property=${selectedRow.propertyId}`)
+                setDetailOpen(false)
+              }}
+            >
+              View arrears report
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

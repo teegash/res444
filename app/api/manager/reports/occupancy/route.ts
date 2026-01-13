@@ -4,6 +4,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { resolveRange } from '../utils'
 
 type UnitStatus = 'vacant' | 'renovating' | 'occupied' | 'notice' | 'unknown'
+type LeaseStatus = 'active' | 'renewed' | 'valid' | 'expired' | 'ended' | 'cancelled' | 'unknown'
 
 function normalizeStatus(status: any): UnitStatus {
   const value = String(status || '').toLowerCase()
@@ -12,6 +13,26 @@ function normalizeStatus(status: any): UnitStatus {
   if (value === 'occupied') return 'occupied'
   if (value === 'notice') return 'notice'
   return 'unknown'
+}
+
+function normalizeLeaseStatus(status: any): LeaseStatus {
+  const value = String(status || '').toLowerCase()
+  if (value === 'active') return 'active'
+  if (value === 'renewed') return 'renewed'
+  if (value === 'valid') return 'valid'
+  if (value === 'expired') return 'expired'
+  if (value === 'ended') return 'ended'
+  if (value === 'cancelled') return 'cancelled'
+  return 'unknown'
+}
+
+function resolveLeaseStatus(lease: any, today: string): LeaseStatus {
+  const rawStatus = normalizeLeaseStatus(lease?.status)
+  const endDate = lease?.end_date || null
+  if (endDate && endDate < today && rawStatus !== 'ended' && rawStatus !== 'cancelled') {
+    return 'expired'
+  }
+  return rawStatus
 }
 
 function safePct(n: number, d: number) {
@@ -88,20 +109,18 @@ export async function GET(req: NextRequest) {
     if (unitsErr) throw unitsErr
 
     const nowIso = new Date().toISOString().slice(0, 10)
+    const allowedLeaseStatuses = new Set<LeaseStatus>(['active', 'renewed', 'valid', 'expired'])
     const units = (unitsRaw || []).map((unit: any) => {
       const leases = Array.isArray(unit.leases) ? unit.leases : []
+      const sortedLeases = leases
+        .slice()
+        .sort((a: any, b: any) => String(b.start_date || '').localeCompare(String(a.start_date || '')))
       const activeLease =
-        leases.find((l: any) => String(l.status || '').toLowerCase() === 'active') ||
-        leases.find((l: any) => l.end_date && l.end_date >= nowIso) ||
-        leases[0] ||
-        null
-      let leaseStatus = activeLease?.status || null
-      if (activeLease?.end_date && activeLease.end_date < nowIso) {
-        const normalized = String(leaseStatus || '').toLowerCase()
-        if (!normalized || !['ended', 'cancelled', 'expired'].includes(normalized)) {
-          leaseStatus = 'expired'
-        }
-      }
+        sortedLeases.find((lease: any) => {
+          const status = resolveLeaseStatus(lease, nowIso)
+          return allowedLeaseStatuses.has(status)
+        }) || null
+      const leaseStatus = activeLease ? resolveLeaseStatus(activeLease, nowIso) : null
 
       return {
         id: unit.id,
