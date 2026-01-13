@@ -24,6 +24,8 @@ function isRentPrepaid(inv: any) {
   return paidUntil >= periodStart
 }
 
+const ACTIVE_LEASE_STATUSES = new Set(['active', 'pending', 'renewed', 'valid'])
+
 export async function GET() {
   try {
     const { userId, role } = await requireAuth()
@@ -92,6 +94,7 @@ export async function GET() {
         lease:leases!invoices_lease_org_fk (
           tenant_user_id,
           rent_paid_until,
+          status,
           unit:apartment_units!leases_unit_org_fk (
             id,
             building:apartment_buildings!apartment_units_building_org_fk ( id, name )
@@ -101,7 +104,6 @@ export async function GET() {
       )
       .eq('organization_id', organizationId)
       .in('invoice_type', ['rent', 'water'])
-      .lt('due_date', new Date().toISOString().slice(0, 10))
       .limit(5000)
 
     if (arrearsErr) throw arrearsErr
@@ -112,11 +114,13 @@ export async function GET() {
 
     for (const inv of arrearsRows || []) {
       const statusText = String(inv?.status_text || '').toLowerCase()
-      if (statusText === 'void') continue
+      if (statusText === 'void' || statusText === 'paid' || inv?.status === true) continue
       if (isRentPrepaid(inv)) continue
 
       const tenantId = inv?.lease?.tenant_user_id
       if (!tenantId || archivedTenantIds.has(tenantId)) continue
+      const leaseStatus = String(inv?.lease?.status || '').toLowerCase()
+      if (leaseStatus && !ACTIVE_LEASE_STATUSES.has(leaseStatus)) continue
 
       const amount = Number(inv?.amount || 0)
       const paid = Number(inv?.total_paid || 0)

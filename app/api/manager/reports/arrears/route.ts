@@ -96,10 +96,12 @@ export async function GET(req: NextRequest) {
         due_date,
         period_start,
         status_text,
+        status,
         lease:leases!invoices_lease_org_fk (
           id,
           tenant_user_id,
           rent_paid_until,
+          status,
           unit:apartment_units!leases_unit_org_fk (
             id,
             unit_number,
@@ -110,7 +112,6 @@ export async function GET(req: NextRequest) {
       )
       .eq('organization_id', orgId)
       .in('invoice_type', ['rent', 'water'])
-      .lt('due_date', todayISO)
       .neq('status_text', 'paid')
 
     const { data: overdueInvoices, error: invErr } = await invoiceQuery
@@ -172,10 +173,13 @@ export async function GET(req: NextRequest) {
     const defaulters: Record<string, any> = {}
 
     for (const inv of visibleInvoices) {
-      if (String(inv?.status_text || '').toLowerCase() === 'void') continue
+      const statusText = String(inv?.status_text || '').toLowerCase()
+      if (statusText === 'void' || statusText === 'paid' || inv?.status === true) continue
+      const leaseStatus = String(inv?.lease?.status || '').toLowerCase()
+      if (leaseStatus && !['active', 'pending', 'renewed', 'valid'].includes(leaseStatus)) continue
       if (isRentPrepaid(inv)) continue
 
-      const due = inv.due_date
+      const due = inv.due_date || inv.period_start
       if (!due) continue
 
       const amount = Number(inv.amount || 0)
