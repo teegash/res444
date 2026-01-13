@@ -46,7 +46,7 @@ export async function GET(req: Request, ctx: { params: { id: string } }) {
   const now = new Date()
   const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - (months - 1), 1))
   const end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()))
-  const yearStart = new Date(Date.UTC(now.getUTCFullYear(), 0, 1))
+  const rollingStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 11, 1))
   const rangeStart = toISODate(start)
   const rangeEnd = toISODate(end)
 
@@ -130,7 +130,7 @@ export async function GET(req: Request, ctx: { params: { id: string } }) {
     monthlyExpenses[key] = (monthlyExpenses[key] || 0) + amt
   }
 
-  const paymentStart = yearStart < start ? yearStart : start
+  const paymentStart = rollingStart < start ? rollingStart : start
   const { data: payments, error: payErr } = await admin
     .from('payments')
     .select(
@@ -176,11 +176,12 @@ export async function GET(req: Request, ctx: { params: { id: string } }) {
   const monthlyPropertyRentIncome: Record<string, number> = {}
   let totalPropertyRentIncome = 0
   let ytdPropertyRentIncome = 0
+  let ytdPropertyGrossIncome = 0
   const peerRentIncomeByBuilding: Record<string, number> = {}
 
   for (const p of payments || []) {
     const inv: any = (p as any).invoice
-    if (!inv || String(inv.invoice_type || '').toLowerCase() !== 'rent') continue
+    if (!inv) continue
 
     const lease = inv.lease
     const unitId = lease?.unit_id
@@ -190,20 +191,26 @@ export async function GET(req: Request, ctx: { params: { id: string } }) {
     const d = new Date((p as any).payment_date)
     const mKey = monthKeyUTC(new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1)))
     const inRange = d >= start && d <= end
-    const inYtd = d >= yearStart && d <= end
+    const inRolling = d >= rollingStart && d <= end
+    const invoiceType = String(inv.invoice_type || '').toLowerCase()
 
     const bId = unitToBuilding.get(unitId)
-    if (bId && inRange) {
+    if (bId && inRange && invoiceType === 'rent') {
       peerRentIncomeByBuilding[bId] = (peerRentIncomeByBuilding[bId] || 0) + amt
     }
 
     if (unitIds.includes(unitId)) {
       if (inRange) {
-        totalPropertyRentIncome += amt
-        monthlyPropertyRentIncome[mKey] = (monthlyPropertyRentIncome[mKey] || 0) + amt
+        if (invoiceType === 'rent') {
+          totalPropertyRentIncome += amt
+          monthlyPropertyRentIncome[mKey] = (monthlyPropertyRentIncome[mKey] || 0) + amt
+        }
       }
-      if (inYtd) {
-        ytdPropertyRentIncome += amt
+      if (inRolling) {
+        if (invoiceType === 'rent') {
+          ytdPropertyRentIncome += amt
+        }
+        ytdPropertyGrossIncome += amt
       }
     }
   }
@@ -258,6 +265,7 @@ export async function GET(req: Request, ctx: { params: { id: string } }) {
       kpis: {
         rent_income: totalPropertyRentIncome,
         ytd_rent_income: ytdPropertyRentIncome,
+        ytd_gross_income: ytdPropertyGrossIncome,
         expenses: totalExpenses,
         net: totalPropertyRentIncome - totalExpenses,
         arrears_amount: arrearsAmount,

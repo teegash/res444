@@ -165,7 +165,7 @@ export async function getStatementSummaryRows({
     `
     )
     .eq('organization_id', orgId)
-    .in('status', ['active', 'pending'])
+    .in('status', ['active', 'pending', 'renewed'])
     .order('created_at', { ascending: false })
     .limit(1000)
 

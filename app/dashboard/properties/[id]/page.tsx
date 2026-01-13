@@ -209,7 +209,9 @@ export default function PropertyDetailPage() {
     return Math.round((defaulters / occupied) * 100)
   })()
 
-  const ytdRevenue = Number(snapshot?.kpis?.ytd_rent_income ?? snapshot?.kpis?.rent_income ?? 0)
+  const ytdRevenue = Number(
+    snapshot?.kpis?.ytd_gross_income ?? snapshot?.kpis?.ytd_rent_income ?? snapshot?.kpis?.rent_income ?? 0
+  )
 
   return (
     <div className="flex min-h-screen bg-gray-50">
@@ -267,7 +269,7 @@ export default function PropertyDetailPage() {
                     <div>
                       <p className="text-base text-gray-700 font-bold">Revenue YTD</p>
                       <p className="text-2xl font-bold">{formatCurrency(ytdRevenue)}</p>
-                      <p className="text-sm text-gray-500 mt-1">Rent only</p>
+                      <p className="text-sm text-gray-500 mt-1">Last 12 months</p>
                     </div>
                     <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
                       <Building2 className="w-5 h-5 text-[#4682B4]" />
