@@ -574,19 +574,19 @@ export function Header() {
                 </Badge>
               )}
             </Button>
-            <SheetContent side="right" className="w-[28rem] px-0">
-              <div className="px-6 pt-6 pb-4 border-b border-border/60 bg-gradient-to-r from-[#f4f6fb] to-white sticky top-0 z-10">
+            <SheetContent side="right" className="w-[92vw] max-w-[360px] px-0 sm:w-[28rem] sm:max-w-none">
+              <div className="px-4 pt-4 pb-3 sm:px-6 sm:pt-6 sm:pb-4 border-b border-border/60 bg-gradient-to-r from-[#f4f6fb] to-white sticky top-0 z-10">
                 <div className="flex items-center justify-between gap-4">
                   <div className="flex-1">
-                    <SheetTitle className="text-lg flex items-center gap-2">
+                    <SheetTitle className="text-base sm:text-lg flex items-center gap-2">
                       Notifications
                       {expiredCount > 0 && (
-                        <Badge className="bg-rose-500/80 text-white rounded-full px-2 py-0.5 text-xs">
+                        <Badge className="bg-rose-500/80 text-white rounded-full px-2 py-0.5 text-[10px] sm:text-xs">
                           Lease expired ({expiredCount})
                         </Badge>
                       )}
                     </SheetTitle>
-                    <p className="text-xs text-muted-foreground mt-1">
+                    <p className="text-[11px] sm:text-xs text-muted-foreground mt-1">
                       Stay updated on tenant activity and billing alerts
                     </p>
                     {unreadCount > 0 && (
@@ -594,7 +594,7 @@ export function Header() {
                         variant="ghost"
                         size="sm"
                         onClick={handleMarkAllAsRead}
-                        className="text-xs mt-2"
+                        className="text-[11px] sm:text-xs mt-2"
                       >
                         Mark all as read
                       </Button>
@@ -603,7 +603,7 @@ export function Header() {
                   <SheetClose asChild>
                     <button
                       type="button"
-                      className="flex items-center justify-center w-8 h-8 rounded-full border border-border text-foreground hover:bg-muted transition"
+                      className="flex items-center justify-center w-7 h-7 sm:w-8 sm:h-8 rounded-full border border-border text-foreground hover:bg-muted transition"
                       aria-label="Close notifications"
                     >
                       <X className="w-4 h-4" />
@@ -611,9 +611,9 @@ export function Header() {
                   </SheetClose>
                 </div>
               </div>
-              <div className="max-h-[70vh] overflow-y-auto px-6 py-4 space-y-3">
+              <div className="max-h-[60vh] sm:max-h-[70vh] overflow-y-auto px-4 py-3 sm:px-6 sm:py-4 space-y-2 sm:space-y-3">
                 {notifications.length === 0 ? (
-                  <p className="text-center text-muted-foreground py-8">No notifications</p>
+                  <p className="text-center text-muted-foreground py-8 text-xs sm:text-sm">No notifications</p>
                 ) : (
                   notifications.map((notification) => {
                     const type = (notification.related_entity_type || '').toLowerCase()
@@ -644,33 +644,33 @@ export function Header() {
                       key={notification.id}
                       type="button"
                       onClick={() => handleNotificationClick(notification)}
-                      className={`w-full text-left p-4 rounded-2xl border cursor-pointer transition-all hover:-translate-y-0.5 hover:shadow-sm ${rowClasses}`}
+                      className={`w-full text-left p-3 sm:p-4 rounded-2xl border cursor-pointer transition-all hover:-translate-y-0.5 hover:shadow-sm ${rowClasses}`}
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex-1">
-                          <p className="font-medium text-sm flex items-center gap-2">
+                          <p className="font-medium text-xs sm:text-sm flex items-center gap-2">
                             {isPayment ? (
-                              <Badge className="bg-red-500/80 text-white rounded-full px-2 py-0.5">
+                              <Badge className="bg-red-500/80 text-white rounded-full px-2 py-0.5 text-[10px] sm:text-xs">
                                 Payment alert
                               </Badge>
                             ) : isMaintenance ? (
-                              <Badge className="bg-orange-500/80 text-white rounded-full px-2 py-0.5">
+                              <Badge className="bg-orange-500/80 text-white rounded-full px-2 py-0.5 text-[10px] sm:text-xs">
                                 Maintenance request
                               </Badge>
                             ) : isLeaseRenewal ? (
-                              <Badge className="bg-violet-500/80 text-white rounded-full px-2 py-0.5">
+                              <Badge className="bg-violet-500/80 text-white rounded-full px-2 py-0.5 text-[10px] sm:text-xs">
                                 Lease renewal
                               </Badge>
                             ) : isLeaseExpired ? (
-                              <Badge className="bg-rose-500/80 text-white rounded-full px-2 py-0.5">
+                              <Badge className="bg-rose-500/80 text-white rounded-full px-2 py-0.5 text-[10px] sm:text-xs">
                                 Lease expired
                               </Badge>
                             ) : isVacateNotice ? (
-                              <Badge className="bg-amber-500/80 text-white rounded-full px-2 py-0.5">
+                              <Badge className="bg-amber-500/80 text-white rounded-full px-2 py-0.5 text-[10px] sm:text-xs">
                                 Vacate notice
                               </Badge>
                             ) : isTransition ? (
-                              <Badge className="bg-indigo-500/80 text-white rounded-full px-2 py-0.5">
+                              <Badge className="bg-indigo-500/80 text-white rounded-full px-2 py-0.5 text-[10px] sm:text-xs">
                                 Transition
                               </Badge>
                             ) : null}
@@ -691,7 +691,7 @@ export function Header() {
                             </span>
                           </p>
                           <p
-                            className={`text-xs mt-2 leading-relaxed ${
+                            className={`text-[11px] sm:text-xs mt-2 leading-relaxed ${
                               isLeaseExpired
                                 ? 'text-rose-700'
                                 : isVacateNotice
@@ -708,7 +708,7 @@ export function Header() {
                           <div className="w-2 h-2 bg-primary rounded-full mt-1 flex-shrink-0" />
                         )}
                       </div>
-                      <p className="text-xs text-muted-foreground mt-3">
+                      <p className="text-[11px] sm:text-xs text-muted-foreground mt-3">
                         {notification.created_at ? formatRelative(notification.created_at) : ''}
                       </p>
                     </button>

@@ -153,6 +153,7 @@ export default function MaintenancePage() {
   const [categoryFilter, setCategoryFilter] = useState('all')
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
+  const [currentPage, setCurrentPage] = useState(1)
   const [professionOptions, setProfessionOptions] = useState<ProfessionOption[]>([])
   const [technicianOptions, setTechnicianOptions] = useState<TechnicianOption[]>([])
   const [assignProfessionId, setAssignProfessionId] = useState('')
@@ -178,6 +179,7 @@ export default function MaintenancePage() {
     setCategoryFilter('all')
     setStartDate('')
     setEndDate('')
+    setCurrentPage(1)
   }
 
   const openRequests = useMemo(() => requests.filter((r) => r.status === 'open').length, [requests])
@@ -280,6 +282,26 @@ export default function MaintenancePage() {
       return true
     })
   }, [requests, searchTerm, statusFilter, priorityFilter, categoryFilter, startDate, endDate])
+  const pageSize = 10
+  const totalPages = useMemo(
+    () => Math.max(1, Math.ceil(filteredRequests.length / pageSize)),
+    [filteredRequests.length]
+  )
+  const pagedRequests = useMemo(() => {
+    const safePage = Math.min(currentPage, totalPages)
+    const start = (safePage - 1) * pageSize
+    return filteredRequests.slice(start, start + pageSize)
+  }, [filteredRequests, currentPage, totalPages])
+
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchTerm, statusFilter, priorityFilter, categoryFilter, startDate, endDate])
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages)
+    }
+  }, [currentPage, totalPages])
 
   useEffect(() => {
     const fetchRequests = async () => {
@@ -778,7 +800,7 @@ export default function MaintenancePage() {
                         : 'No requests match your current filters.'}
                     </div>
                   ) : (
-                    filteredRequests.map((request) => {
+                    pagedRequests.map((request) => {
                       const meta = extractDescriptionMeta(request.description)
                       const submittedAt = formatDate(request.created_at)
                     const tenantName = request.tenant?.full_name || 'Tenant'
@@ -946,6 +968,26 @@ export default function MaintenancePage() {
                   </Card>
                     )})
                   )}
+                  {filteredRequests.length > 0 && totalPages > 1 ? (
+                    <div className="mt-2 flex flex-wrap items-center justify-center gap-2">
+                      {Array.from({ length: totalPages }, (_, index) => {
+                        const page = index + 1
+                        const isActive = page === Math.min(currentPage, totalPages)
+                        return (
+                          <Button
+                            key={page}
+                            type="button"
+                            variant={isActive ? 'default' : 'outline'}
+                            size="sm"
+                            onClick={() => setCurrentPage(page)}
+                            className="h-8 w-9 px-0"
+                          >
+                            {page}
+                          </Button>
+                        )
+                      })}
+                    </div>
+                  ) : null}
                   {!isCaretaker && (
                     <div className="rounded-xl border border-slate-200 bg-white/90 p-4 shadow-sm">
                       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">

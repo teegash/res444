@@ -900,7 +900,7 @@ export default function CommunicationsPage() {
                   </p>
                 </CardHeader>
                 <CardContent>
-                  <div className="border rounded-lg overflow-hidden">
+                  <div className="border rounded-lg max-h-[560px] overflow-y-auto">
                     <Table>
                       <TableHeader>
                         <TableRow>
@@ -975,7 +975,7 @@ export default function CommunicationsPage() {
                   <p className="text-xs text-muted-foreground">Most recent SMS reminder sends and statuses.</p>
                 </CardHeader>
                 <CardContent>
-                  <div className="border rounded-lg overflow-hidden">
+                  <div className="border rounded-lg max-h-[560px] overflow-y-auto">
                     <Table>
                       <TableHeader>
                         <TableRow>

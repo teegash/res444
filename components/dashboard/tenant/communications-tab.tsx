@@ -10,6 +10,7 @@ import { Send, Loader2 } from 'lucide-react'
 import { useToast } from '@/components/ui/use-toast'
 import { useAuth } from '@/lib/auth/context'
 import { createClient } from '@/lib/supabase/client'
+import { useMediaQuery } from '@/hooks/useMediaQuery'
 
 interface CommunicationMessage {
   id: string
@@ -33,6 +34,7 @@ export function CommunicationsTab() {
   const [sending, setSending] = useState(false)
   const bottomRef = useRef<HTMLDivElement | null>(null)
   const initialRender = useRef(true)
+  const isMobile = useMediaQuery('(max-width: 767px)')
   const tenantAvatarRef = useRef<string | null>(null)
   const orgAvatarRef = useRef<string | null>(null)
 
@@ -86,10 +88,14 @@ export function CommunicationsTab() {
 
   useEffect(() => {
     if (loading) return
+    if (isMobile && initialRender.current) {
+      initialRender.current = false
+      return
+    }
     const behavior: ScrollBehavior = initialRender.current ? 'auto' : 'smooth'
     bottomRef.current?.scrollIntoView({ behavior })
     initialRender.current = false
-  }, [messages, loading])
+  }, [messages, loading, isMobile])
 
   useEffect(() => {
     if (!user?.id) return

@@ -49,7 +49,7 @@ export async function GET(req: NextRequest) {
     )
     .eq('organization_id', organizationId)
     .order('started_at', { ascending: false })
-    .limit(25)
+    .limit(100)
 
   if (type === 'sms') {
     query = query.or('function_name.ilike.%sms%,function_name.ilike.%reminder%')

@@ -266,14 +266,21 @@ export function TenantHeader({ summary, loading }: TenantHeaderProps) {
                   )}
                 </Button>
               </SheetTrigger>
-              <SheetContent className="w-96 px-0">
-                <SheetHeader className="px-6 pt-6 pb-4 border-b border-border/60 bg-gradient-to-r from-[#f4f6fb] to-white sticky top-0 z-10">
+              <SheetContent className="w-[92vw] max-w-[360px] px-0 sm:w-96 sm:max-w-none">
+                <SheetHeader className="px-4 pt-4 pb-3 sm:px-6 sm:pt-6 sm:pb-4 border-b border-border/60 bg-gradient-to-r from-[#f4f6fb] to-white sticky top-0 z-10">
                   <div className="flex items-center justify-between gap-4">
                     <div className="flex-1">
-                      <SheetTitle className="text-lg">Notifications</SheetTitle>
-                      <SheetDescription>Latest updates from your property team.</SheetDescription>
+                      <SheetTitle className="text-base sm:text-lg">Notifications</SheetTitle>
+                      <SheetDescription className="text-xs sm:text-sm">
+                        Latest updates from your property team.
+                      </SheetDescription>
                       {unreadCount > 0 && (
-                        <Button variant="ghost" size="sm" onClick={markAllAsRead} className="text-xs mt-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={markAllAsRead}
+                          className="text-[11px] sm:text-xs mt-2"
+                        >
                           Mark all as read
                         </Button>
                       )}
@@ -281,7 +288,7 @@ export function TenantHeader({ summary, loading }: TenantHeaderProps) {
                     <SheetClose asChild>
                       <button
                         type="button"
-                        className="flex items-center justify-center w-8 h-8 rounded-full border border-border text-foreground hover:bg-muted transition"
+                        className="flex items-center justify-center w-7 h-7 sm:w-8 sm:h-8 rounded-full border border-border text-foreground hover:bg-muted transition"
                         aria-label="Close notifications"
                       >
                         <X className="w-4 h-4" />
@@ -289,13 +296,13 @@ export function TenantHeader({ summary, loading }: TenantHeaderProps) {
                     </SheetClose>
                   </div>
                 </SheetHeader>
-                <div className="space-y-3 px-6 py-4 max-h-[70vh] overflow-y-auto">
+                <div className="space-y-2 sm:space-y-3 px-4 py-3 sm:px-6 sm:py-4 max-h-[60vh] sm:max-h-[70vh] overflow-y-auto">
                   {leaseExpired && (
-                    <div className="rounded-lg border border-rose-200 bg-rose-50 p-4">
+                    <div className="rounded-lg border border-rose-200 bg-rose-50 p-3 sm:p-4">
                       <div className="flex items-start justify-between gap-3">
                         <div>
-                          <p className="text-sm font-semibold text-rose-800">Lease expired</p>
-                          <p className="text-xs text-rose-700 mt-1">
+                          <p className="text-xs sm:text-sm font-semibold text-rose-800">Lease expired</p>
+                          <p className="text-[11px] sm:text-xs text-rose-700 mt-1">
                             Your lease ended{leaseExpiryDateLabel ? ` on ${leaseExpiryDateLabel}` : ''}. Please renew to
                             avoid interruptions.
                           </p>
@@ -303,7 +310,7 @@ export function TenantHeader({ summary, loading }: TenantHeaderProps) {
                         <Button
                           variant="outline"
                           size="sm"
-                          className="border-rose-200 text-rose-700 hover:bg-rose-100 hover:text-black"
+                          className="border-rose-200 text-rose-700 hover:bg-rose-100 hover:text-black text-xs"
                           onClick={() => {
                             setSheetOpen(false)
                             router.push('/dashboard/tenant/lease')
@@ -315,7 +322,7 @@ export function TenantHeader({ summary, loading }: TenantHeaderProps) {
                     </div>
                   )}
                   {notifications.length === 0 && !leaseExpired ? (
-                    <p className="text-center text-muted-foreground py-6">No notifications yet.</p>
+                    <p className="text-center text-muted-foreground py-6 text-xs sm:text-sm">No notifications yet.</p>
                   ) : (
                     notifications.map((notification) => {
                       const isPayment =
@@ -342,27 +349,27 @@ export function TenantHeader({ summary, loading }: TenantHeaderProps) {
                           key={notification.id}
                           type="button"
                           onClick={() => handleNotificationClick(notification)}
-                          className={`w-full text-left p-4 rounded-lg border transition ${rowClasses}`}
+                          className={`w-full text-left p-3 sm:p-4 rounded-lg border transition ${rowClasses}`}
                         >
                           <div className="flex items-start justify-between mb-1">
-                            <h4 className="font-semibold text-sm flex items-center gap-2">
+                            <h4 className="font-semibold text-xs sm:text-sm flex items-center gap-2">
                               {isPayment && (
-                                <Badge className="bg-red-500 text-white rounded-full px-2 py-0.5 text-[10px]">
+                                <Badge className="bg-red-500 text-white rounded-full px-2 py-0.5 text-[9px] sm:text-[10px]">
                                   Payment
                                 </Badge>
                               )}
                               {isLeaseExpired && (
-                                <Badge className="bg-rose-600 text-white rounded-full px-2 py-0.5 text-[10px]">
+                                <Badge className="bg-rose-600 text-white rounded-full px-2 py-0.5 text-[9px] sm:text-[10px]">
                                   Lease expired
                                 </Badge>
                               )}
                               {isVacateNotice && (
-                                <Badge className="bg-amber-500 text-white rounded-full px-2 py-0.5 text-[10px]">
+                                <Badge className="bg-amber-500 text-white rounded-full px-2 py-0.5 text-[9px] sm:text-[10px]">
                                   Vacate
                                 </Badge>
                               )}
                               {isTransition && (
-                                <Badge className="bg-indigo-500 text-white rounded-full px-2 py-0.5 text-[10px]">
+                                <Badge className="bg-indigo-500 text-white rounded-full px-2 py-0.5 text-[9px] sm:text-[10px]">
                                   Transition
                                 </Badge>
                               )}
@@ -376,10 +383,12 @@ export function TenantHeader({ summary, loading }: TenantHeaderProps) {
                                       : 'New message'}
                               </span>
                             </h4>
-                            {!notification.read && <Badge className="bg-[#4682B4]">New</Badge>}
+                            {!notification.read && (
+                              <Badge className="bg-[#4682B4] text-[10px] sm:text-xs">New</Badge>
+                            )}
                           </div>
                           <p
-                            className={`text-sm mb-2 ${
+                            className={`text-xs sm:text-sm mb-2 ${
                               isPayment
                                 ? 'text-red-700'
                                 : isLeaseExpired
@@ -391,7 +400,7 @@ export function TenantHeader({ summary, loading }: TenantHeaderProps) {
                           >
                             {notification.message_text}
                           </p>
-                          <p className="text-xs text-gray-500">
+                          <p className="text-[11px] sm:text-xs text-gray-500">
                             {notification.created_at ? formatRelative(notification.created_at) : ''}
                           </p>
                         </button>

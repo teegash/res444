@@ -48,7 +48,7 @@ export async function GET() {
     .eq('organization_id', organizationId)
     .eq('channel', 'sms')
     .order('created_at', { ascending: false })
-    .limit(50)
+    .limit(100)
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 400 })

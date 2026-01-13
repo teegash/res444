@@ -54,7 +54,7 @@ export async function GET() {
 
   const { data, error } = await admin
     .from('reminders')
-    .select('scheduled_for, sent_at, delivery_status, payload, last_error')
+    .select('scheduled_for, sent_at, delivery_status, payload, last_error, reminder_type, stage')
     .eq('organization_id', organizationId)
     .eq('reminder_type', 'rent_payment')
     .gte('scheduled_for', since.toISOString())
@@ -66,7 +66,17 @@ export async function GET() {
   const rows = Array.isArray(data) ? data : []
 
   const reminders = REMINDER_DEFS.map((def) => {
-    const matching = rows.filter((row) => (row as any)?.payload?.template_key === def.key)
+    const stageKey = def.key.split('_').pop() || ''
+    const matching = rows.filter((row) => {
+      const payloadKey = (row as any)?.payload?.template_key
+      const reminderType = (row as any)?.reminder_type
+      const stage = (row as any)?.stage
+      return (
+        payloadKey === def.key ||
+        reminderType === def.key ||
+        (stage && String(stage) === stageKey)
+      )
+    })
     const pending = matching.filter((row) => row.delivery_status === 'pending')
     const sortedByScheduled = [...matching]
       .map((row) => ({ ...row }))
@@ -75,11 +85,12 @@ export async function GET() {
 
     const latest = sortedByScheduled[sortedByScheduled.length - 1] || null
 
-    const nextScheduled =
-      pending
-        .map((row) => row.scheduled_for)
-        .filter(Boolean)
-        .sort()[0] || null
+    const nextScheduled = matching
+      .map((row) => row.scheduled_for)
+      .filter(Boolean)
+      .map((value) => ({ value, time: new Date(value as string).getTime() }))
+      .filter((item) => !Number.isNaN(item.time) && item.time >= now.getTime())
+      .sort((a, b) => a.time - b.time)[0]?.value || null
 
     const lastSentAt =
       matching
