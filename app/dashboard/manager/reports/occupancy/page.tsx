@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { SkeletonLoader } from '@/components/ui/skeletons'
 import { useToast } from '@/components/ui/use-toast'
+import { Badge } from '@/components/ui/badge'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -16,6 +17,14 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { ArrowLeft, Download, Home } from 'lucide-react'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 
 import { ReportFilters, type ReportFilterState } from '@/components/reports/ReportFilters'
 import { KpiTiles } from '@/components/reports/KpiTiles'
@@ -125,6 +134,9 @@ export default function OccupancyReportPage() {
 
   const [loading, setLoading] = React.useState(true)
   const [payload, setPayload] = React.useState<OccupancyPayload | null>(null)
+  const [detailOpen, setDetailOpen] = React.useState(false)
+  const [selectedRow, setSelectedRow] =
+    React.useState<OccupancyPayload['units'][number] | null>(null)
 
   const handleFiltersChange = React.useCallback((next: ReportFilterState) => {
     if (next.period === 'custom' && (!next.startDate || !next.endDate)) {
@@ -356,6 +368,13 @@ export default function OccupancyReportPage() {
     []
   )
 
+  const formatDate = (value?: string | null) => {
+    if (!value) return '—'
+    const date = new Date(value)
+    if (Number.isNaN(date.getTime())) return '—'
+    return date.toLocaleDateString()
+  }
+
   return (
     <div className="flex min-h-screen bg-muted/20">
       <Sidebar />
@@ -524,6 +543,12 @@ export default function OccupancyReportPage() {
                         gridApiRef.current = params.api
                         params.api.sizeColumnsToFit()
                       }}
+                      onRowClicked={(event) => {
+                        if (!event.data) return
+                        setSelectedRow(event.data)
+                        setDetailOpen(true)
+                        event.node.setSelected(true)
+                      }}
                     />
                   </div>
 
@@ -536,6 +561,88 @@ export default function OccupancyReportPage() {
           )}
         </main>
       </div>
+
+      <Dialog
+        open={detailOpen}
+        onOpenChange={(open) => {
+          setDetailOpen(open)
+          if (!open) setSelectedRow(null)
+        }}
+      >
+        <DialogContent className="sm:max-w-[640px]">
+          <DialogHeader>
+            <DialogTitle>Unit occupancy details</DialogTitle>
+            <DialogDescription>Deeper view of the selected unit’s occupancy state.</DialogDescription>
+          </DialogHeader>
+
+          {selectedRow ? (
+            <div className="space-y-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm text-muted-foreground">Property</p>
+                  <p className="text-base font-semibold">{selectedRow.building_name}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm text-muted-foreground">Unit</p>
+                  <p className="text-base font-semibold">{selectedRow.unit_number}</p>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-muted-foreground">Tenant</p>
+                  <p className="text-base font-semibold">{selectedRow.tenant_name || '—'}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm text-muted-foreground">Status</p>
+                  <Badge className="capitalize">{formatStatus(selectedRow.status)}</Badge>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="rounded-xl border bg-white p-3">
+                  <p className="text-xs text-muted-foreground">Lease status</p>
+                  <p className="text-sm font-medium capitalize">
+                    {formatLeaseStatus(selectedRow.lease_status)}
+                  </p>
+                </div>
+                <div className="rounded-xl border bg-white p-3">
+                  <p className="text-xs text-muted-foreground">Notice vacate</p>
+                  <p className="text-sm font-medium">{formatDate(selectedRow.notice_vacate_date)}</p>
+                </div>
+                <div className="rounded-xl border bg-white p-3">
+                  <p className="text-xs text-muted-foreground">Lease start</p>
+                  <p className="text-sm font-medium">{formatDate(selectedRow.lease_start)}</p>
+                </div>
+                <div className="rounded-xl border bg-white p-3">
+                  <p className="text-xs text-muted-foreground">Lease end</p>
+                  <p className="text-sm font-medium">{formatDate(selectedRow.lease_end)}</p>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="py-6 text-sm text-muted-foreground">No row selected.</div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDetailOpen(false)}>
+              Close
+            </Button>
+            <Button
+              disabled={!selectedRow?.tenant_user_id}
+              onClick={() => {
+                if (!selectedRow?.tenant_user_id) return
+                router.push(
+                  `/dashboard/tenants/${selectedRow.tenant_user_id}/lease?returnTo=${RETURN_TO_OCCUPANCY}`
+                )
+                setDetailOpen(false)
+              }}
+            >
+              View lease
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

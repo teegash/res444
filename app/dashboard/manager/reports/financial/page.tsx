@@ -111,6 +111,9 @@ export default function FinancialReportPage() {
 
   const [loading, setLoading] = React.useState(true)
   const [payload, setPayload] = React.useState<FinancialPayload | null>(null)
+  const [detailOpen, setDetailOpen] = React.useState(false)
+  const [selectedRow, setSelectedRow] =
+    React.useState<FinancialPayload['byProperty'][number] | null>(null)
 
   const handleFiltersChange = React.useCallback((next: ReportFilterState) => {
     if (next.period === 'custom' && (!next.startDate || !next.endDate)) {
@@ -238,6 +241,10 @@ export default function FinancialReportPage() {
   }, [expenseBreakdown])
 
   const propertyRows = payload?.byProperty || []
+  const periodLabel =
+    filters.period === 'custom' && filters.startDate && filters.endDate
+      ? `${filters.startDate} to ${filters.endDate}`
+      : filters.period
 
   const columnDefs = React.useMemo<ColDef<FinancialPayload['byProperty'][number]>[]>(
     () => [
@@ -580,6 +587,12 @@ export default function FinancialReportPage() {
                         params.api.sizeColumnsToFit()
                       }}
                       onGridSizeChanged={(params) => params.api.sizeColumnsToFit()}
+                      onRowClicked={(event) => {
+                        if (!event.data) return
+                        setSelectedRow(event.data)
+                        setDetailOpen(true)
+                        event.node.setSelected(true)
+                      }}
                     />
                   </div>
                 </CardContent>
@@ -719,6 +732,82 @@ export default function FinancialReportPage() {
           )}
         </main>
       </div>
+
+      <Dialog
+        open={detailOpen}
+        onOpenChange={(open) => {
+          setDetailOpen(open)
+          if (!open) setSelectedRow(null)
+        }}
+      >
+        <DialogContent className="sm:max-w-[640px]">
+          <DialogHeader>
+            <DialogTitle>Property P&amp;L details</DialogTitle>
+            <DialogDescription>Deeper view of income, expenses, and NOI for this property.</DialogDescription>
+          </DialogHeader>
+
+          {selectedRow ? (
+            <div className="space-y-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm text-muted-foreground">Property</p>
+                  <p className="text-base font-semibold">{selectedRow.propertyName}</p>
+                  <p className="text-sm text-muted-foreground">Period: {periodLabel}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm text-muted-foreground">NOI margin</p>
+                  <p className="text-base font-semibold">
+                    {selectedRow.income > 0
+                      ? `${((selectedRow.noi / selectedRow.income) * 100).toFixed(1)}%`
+                      : '—'}
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div className="rounded-xl border bg-white p-3">
+                  <p className="text-xs text-muted-foreground">Income</p>
+                  <p className="text-lg font-bold text-emerald-700">{kes(selectedRow.income)}</p>
+                </div>
+                <div className="rounded-xl border bg-white p-3">
+                  <p className="text-xs text-muted-foreground">Expenses</p>
+                  <p className="text-lg font-bold text-rose-700">{kes(selectedRow.expenses)}</p>
+                </div>
+                <div className="rounded-xl border bg-white p-3">
+                  <p className="text-xs text-muted-foreground">NOI</p>
+                  <p className="text-lg font-bold">{kes(selectedRow.noi)}</p>
+                </div>
+              </div>
+
+              <div className="rounded-xl border bg-slate-50 p-3">
+                <p className="text-sm text-muted-foreground">Summary</p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <Badge variant="secondary">Income − Expenses = NOI</Badge>
+                  <Badge className="bg-blue-100 text-blue-700">Scope: {periodLabel}</Badge>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="py-6 text-sm text-muted-foreground">No row selected.</div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDetailOpen(false)}>
+              Close
+            </Button>
+            <Button
+              disabled={!selectedRow?.propertyId}
+              onClick={() => {
+                if (!selectedRow?.propertyId) return
+                router.push(`/dashboard/properties/${selectedRow.propertyId}`)
+                setDetailOpen(false)
+              }}
+            >
+              View property
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

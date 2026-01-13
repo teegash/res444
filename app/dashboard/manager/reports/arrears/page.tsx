@@ -530,7 +530,7 @@ export default function ArrearsReportPage() {
                   {selectedRow.is_archived ? (
                     <Badge variant="destructive">Archived</Badge>
                   ) : (
-                    <Badge variant="secondary">Active</Badge>
+                    <Badge className="bg-emerald-100 text-emerald-700">Active</Badge>
                   )}
                   <p className="mt-1 text-xs text-muted-foreground">
                     {selectedRow.is_archived

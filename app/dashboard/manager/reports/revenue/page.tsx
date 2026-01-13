@@ -208,6 +208,27 @@ export default function RevenueReportPage() {
     ]
   }, [k, payload, filters.propertyId, properties])
 
+  const averageMonthlyForPeriod = (total: number) => {
+    if (filters.period === 'custom' && filters.startDate && filters.endDate) {
+      const start = new Date(filters.startDate)
+      const end = new Date(filters.endDate)
+      if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return total
+      const months =
+        (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth()) + 1
+      return months > 0 ? total / months : total
+    }
+
+    const map: Record<string, number> = {
+      month: 1,
+      quarter: 3,
+      half_year: 6,
+      year: 12,
+      all: 12,
+    }
+    const months = map[filters.period] ?? 1
+    return total / months
+  }
+
   const periodLabel =
     filters.period === 'custom' && filters.startDate && filters.endDate
       ? `${filters.startDate} to ${filters.endDate}`
@@ -557,9 +578,9 @@ export default function RevenueReportPage() {
                   <p className="text-sm font-medium">{kes(selectedRow.arrearsNow)}</p>
                 </div>
                 <div className="rounded-xl border bg-slate-50 p-3">
-                  <p className="text-xs text-muted-foreground">Net (period)</p>
+                  <p className="text-xs text-muted-foreground">Avg monthly collected</p>
                   <p className="text-sm font-medium">
-                    {kes(selectedRow.collectedTotal - selectedRow.billedTotal)}
+                    {kes(averageMonthlyForPeriod(selectedRow.collectedTotal))}
                   </p>
                 </div>
               </div>
