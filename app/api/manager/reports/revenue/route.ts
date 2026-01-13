@@ -64,6 +64,7 @@ export async function GET(req: NextRequest) {
         due_date,
         period_start,
         lease:leases!invoices_lease_org_fk (
+          status,
           unit:apartment_units (
             building:apartment_buildings!apartment_units_building_org_fk ( id, name )
           )
@@ -79,9 +80,14 @@ export async function GET(req: NextRequest) {
     const { data: invoices, error: invErr } = await invQ
     if (invErr) throw invErr
 
+    const validLeaseStatuses = new Set(['active', 'renewed', 'ended', 'expired', 'valid'])
+    const filteredInvoices = (invoices || []).filter((i: any) => {
+      const leaseStatus = String(i?.lease?.status || '').toLowerCase()
+      return validLeaseStatuses.has(leaseStatus)
+    })
     const scopedInvoices = scopePropertyId
-      ? (invoices || []).filter((i: any) => i.lease?.unit?.building?.id === scopePropertyId)
-      : (invoices || [])
+      ? filteredInvoices.filter((i: any) => i.lease?.unit?.building?.id === scopePropertyId)
+      : filteredInvoices
 
     let payQ = admin
       .from('payments')
@@ -94,6 +100,7 @@ export async function GET(req: NextRequest) {
         invoice:invoices!payments_invoice_org_fk (
           id,
           lease:leases!invoices_lease_org_fk (
+            status,
             unit:apartment_units (
               building:apartment_buildings!apartment_units_building_org_fk ( id, name )
             )
@@ -110,9 +117,13 @@ export async function GET(req: NextRequest) {
     const { data: payments, error: payErr } = await payQ
     if (payErr) throw payErr
 
+    const filteredPayments = (payments || []).filter((p: any) => {
+      const leaseStatus = String(p?.invoice?.lease?.status || '').toLowerCase()
+      return validLeaseStatuses.has(leaseStatus)
+    })
     const scopedPayments = scopePropertyId
-      ? (payments || []).filter((p: any) => p.invoice?.lease?.unit?.building?.id === scopePropertyId)
-      : (payments || [])
+      ? filteredPayments.filter((p: any) => p.invoice?.lease?.unit?.building?.id === scopePropertyId)
+      : filteredPayments
 
     const billedRent = scopedInvoices
       .filter((i: any) => i.invoice_type === 'rent')
