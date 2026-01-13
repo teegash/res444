@@ -116,6 +116,7 @@ export async function GET(req: NextRequest) {
         lease_status: leaseStatus,
         tenant_user_id: activeLease?.tenant_user_id || null,
         tenant_name: null as string | null,
+        is_archived: false,
       }
     })
 
@@ -151,8 +152,8 @@ export async function GET(req: NextRequest) {
       for (const unit of units) {
         if (unit.tenant_user_id) {
           unit.tenant_name = tenantNameById.get(unit.tenant_user_id) || null
+          unit.is_archived = archivedTenantIds.has(unit.tenant_user_id)
         }
-        unit.is_archived = unit.tenant_user_id ? archivedTenantIds.has(unit.tenant_user_id) : false
       }
     }
 

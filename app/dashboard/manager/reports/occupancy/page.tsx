@@ -83,6 +83,7 @@ type OccupancyPayload = {
     lease_status: string | null
     tenant_user_id: string | null
     tenant_name: string | null
+    is_archived?: boolean
   }>
 }
 
@@ -215,6 +216,9 @@ export default function OccupancyReportPage() {
 
   const properties = payload?.properties || []
   const k = payload?.kpis
+  const visibleUnits = React.useMemo(() => {
+    return (payload?.units || []).filter((unit) => !unit.is_archived)
+  }, [payload?.units])
 
   const kpis = React.useMemo(() => {
     if (!k || !payload) return []
@@ -578,7 +582,7 @@ export default function OccupancyReportPage() {
                   >
                     <AgGridReact<OccupancyPayload['units'][number]>
                       theme="legacy"
-                      rowData={payload?.units || []}
+                      rowData={visibleUnits}
                       columnDefs={columnDefs}
                       defaultColDef={{
                         sortable: true,
@@ -603,7 +607,7 @@ export default function OccupancyReportPage() {
                     />
                   </div>
 
-                  {!payload?.units?.length ? (
+                  {!visibleUnits.length ? (
                     <div className="mt-3 text-sm text-muted-foreground">No units found for this scope.</div>
                   ) : null}
                 </CardContent>
