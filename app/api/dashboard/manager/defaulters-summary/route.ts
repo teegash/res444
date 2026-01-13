@@ -2,29 +2,7 @@ import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/rbac/routeGuards'
 import { getUserRole } from '@/lib/rbac/userRole'
 import { createAdminClient } from '@/lib/supabase/admin'
-
-function clamp0(value: number) {
-  return value < 0 ? 0 : value
-}
-
-function monthStartIso(value: string | null | undefined) {
-  if (!value) return null
-  const parsed = new Date(`${value.slice(0, 10)}T00:00:00Z`)
-  if (Number.isNaN(parsed.getTime())) return null
-  const year = parsed.getUTCFullYear()
-  const month = String(parsed.getUTCMonth() + 1).padStart(2, '0')
-  return `${year}-${month}-01`
-}
-
-function isRentPrepaid(inv: any) {
-  if (String(inv?.invoice_type || '') !== 'rent') return false
-  const paidUntil = monthStartIso(inv?.lease?.rent_paid_until)
-  const periodStart = monthStartIso(inv?.period_start || inv?.due_date)
-  if (!paidUntil || !periodStart) return false
-  return paidUntil >= periodStart
-}
-
-const ACTIVE_LEASE_STATUSES = new Set(['active', 'pending', 'renewed', 'valid'])
+import { getStatementSummaryRows } from '@/lib/statements/summary'
 
 export async function GET() {
   try {
@@ -79,65 +57,25 @@ export async function GET() {
 
     if (activeErr) throw activeErr
 
-    const { data: arrearsRows, error: arrearsErr } = await admin
-      .from('invoices')
-      .select(
-        `
-        id,
-        invoice_type,
-        amount,
-        total_paid,
-        due_date,
-        period_start,
-        status_text,
-        status,
-        lease:leases!invoices_lease_org_fk (
-          tenant_user_id,
-          rent_paid_until,
-          status,
-          unit:apartment_units!leases_unit_org_fk (
-            id,
-            building:apartment_buildings!apartment_units_building_org_fk ( id, name )
-          )
-        )
-      `
-      )
-      .eq('organization_id', organizationId)
-      .in('invoice_type', ['rent', 'water'])
-      .limit(5000)
+    const summaryRows = await getStatementSummaryRows({
+      admin,
+      orgId: organizationId,
+      limit: 5000,
+    })
 
-    if (arrearsErr) throw arrearsErr
+    const rowsWithArrears = summaryRows.filter((row) => Number(row.current_balance || 0) > 0)
+    const defaulters = rowsWithArrears.length
+    const totalArrearsAmount = rowsWithArrears.reduce(
+      (sum, row) => sum + Number(row.current_balance || 0),
+      0
+    )
 
-    const defaulterTenantIds = new Set<string>()
     const buildingTotals = new Map<string, { name: string; sum: number }>()
-    let totalArrearsAmount = 0
-
-    for (const inv of arrearsRows || []) {
-      const statusText = String(inv?.status_text || '').toLowerCase()
-      if (statusText === 'void' || statusText === 'paid' || inv?.status === true) continue
-      if (isRentPrepaid(inv)) continue
-
-      const tenantId = inv?.lease?.tenant_user_id
-      if (!tenantId || archivedTenantIds.has(tenantId)) continue
-      const leaseStatus = String(inv?.lease?.status || '').toLowerCase()
-      if (leaseStatus && !ACTIVE_LEASE_STATUSES.has(leaseStatus)) continue
-
-      const amount = Number(inv?.amount || 0)
-      const paid = Number(inv?.total_paid || 0)
-      const outstanding = clamp0(amount - paid)
-      if (outstanding <= 0) continue
-
-      defaulterTenantIds.add(tenantId)
-      totalArrearsAmount += outstanding
-
-      const building = inv?.lease?.unit?.building
-      if (building?.id) {
-        const current = buildingTotals.get(building.id) || { name: building.name || 'Building', sum: 0 }
-        buildingTotals.set(building.id, { name: current.name, sum: current.sum + outstanding })
-      }
+    for (const row of rowsWithArrears) {
+      if (!row.building_id) continue
+      const current = buildingTotals.get(row.building_id) || { name: row.building_name || 'Building', sum: 0 }
+      buildingTotals.set(row.building_id, { name: current.name, sum: current.sum + Number(row.current_balance || 0) })
     }
-
-    const defaulters = defaulterTenantIds.size
 
     let topBuilding: { building_id: string; building_name: string; arrears_amount: number } | null = null
     for (const [buildingId, v] of buildingTotals.entries()) {

@@ -145,12 +145,12 @@ export default function ArrearsPage() {
         setLoading(true)
         setError(null)
         const params = new URLSearchParams()
-        if (buildingId !== 'all') params.set('propertyId', buildingId)
+        if (buildingId !== 'all') params.set('buildingId', buildingId)
         const min = Number(minArrears || '0')
-        const res = await fetch(`/api/manager/reports/arrears?${params.toString()}`, { cache: 'no-store' })
+        const res = await fetch(`/api/manager/statements?${params.toString()}`, { cache: 'no-store' })
         const json = await res.json()
         if (!res.ok || !json.success) throw new Error(json.error || 'Failed to load arrears')
-        const baseRows = Array.isArray(json.data?.defaulters) ? json.data.defaulters : []
+        const baseRows = Array.isArray(json.rows) ? json.rows : Array.isArray(json.data) ? json.data : []
         const mapped: ArrearsRow[] = baseRows.map((row: any) => ({
           organization_id: '',
           lease_id: row.lease_id || '',
@@ -158,14 +158,14 @@ export default function ArrearsPage() {
           tenant_name: row.tenant_name ?? null,
           tenant_phone: row.tenant_phone ?? null,
           unit_id: null,
-          unit_number: row.unitNumber ?? null,
-          arrears_amount: Number(row.arrearsTotal || 0),
-          arrears_rent: Number(row.arrearsRent || 0),
-          arrears_water: Number(row.arrearsWater || 0),
-          open_invoices_count: Number(row.openInvoices || 0),
-          oldest_due_date: row.oldestDueDate ?? null,
-          building_id: row.propertyId ?? null,
-          building_name: row.propertyName ?? null,
+          unit_number: row.unit_number ?? null,
+          arrears_amount: Number(row.current_balance || 0),
+          arrears_rent: Number(row.arrears_rent || 0),
+          arrears_water: Number(row.arrears_water || 0),
+          open_invoices_count: Number(row.open_invoices_count || 0),
+          oldest_due_date: row.oldest_due_date ?? null,
+          building_id: row.building_id ?? null,
+          building_name: row.building_name ?? null,
           building_location: null,
         }))
         const filteredRows = mapped.filter((row) => {
