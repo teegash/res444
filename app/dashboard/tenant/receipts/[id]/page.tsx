@@ -242,7 +242,7 @@ export default function TenantReceiptPage({ params }: { params: { id: string } }
             <div className="bg-green-50 p-6 rounded-lg text-center mb-8">
               <p className="text-lg font-semibold text-green-900 mb-2">Thank you for your payment!</p>
               <p className="text-sm text-green-700">
-                For any inquiries, please contact us at support@res.com or call +254 712 345 678
+                For any inquiries, please contact us at support@res.co.ke or call +254 712 345 678
               </p>
             </div>
 

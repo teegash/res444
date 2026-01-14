@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Input } from '@/components/ui/input'
+import { Skeleton } from '@/components/ui/skeleton'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -517,30 +518,59 @@ export default function PaymentHistoryPage() {
 
         {/* Stats Cards */}
         <div className="grid gap-4 md:grid-cols-3">
-          <Card>
-            <CardHeader className="pb-3">
-              <CardDescription>Total Paid (Last 6 months)</CardDescription>
-              <CardTitle className="text-3xl text-green-600">
-                {hasSixMonths && totalPaidLastSix !== null ? `KES ${totalPaidLastSix.toLocaleString()}` : 'Not enough history'}
-              </CardTitle>
-            </CardHeader>
-          </Card>
-          <Card>
-            <CardHeader className="pb-3">
-              <CardDescription>On-time Payment Rate</CardDescription>
-              <CardTitle className="text-3xl text-blue-600">
-                {hasSixMonths && onTimeRate !== null ? `${onTimeRate}%` : 'Not enough history'}
-              </CardTitle>
-            </CardHeader>
-          </Card>
-          <Card>
-            <CardHeader className="pb-3">
-              <CardDescription>Avg. Monthly Payment</CardDescription>
-              <CardTitle className="text-3xl text-purple-600">
-                {hasSixMonths && averageMonthly !== null ? `KES ${averageMonthly.toLocaleString()}` : 'Not enough history'}
-              </CardTitle>
-            </CardHeader>
-          </Card>
+          {loading ? (
+            <>
+              <Card>
+                <CardHeader className="pb-3 space-y-2">
+                  <Skeleton className="h-4 w-40" />
+                  <Skeleton className="h-8 w-48" />
+                </CardHeader>
+              </Card>
+              <Card>
+                <CardHeader className="pb-3 space-y-2">
+                  <Skeleton className="h-4 w-36" />
+                  <Skeleton className="h-8 w-32" />
+                </CardHeader>
+              </Card>
+              <Card>
+                <CardHeader className="pb-3 space-y-2">
+                  <Skeleton className="h-4 w-44" />
+                  <Skeleton className="h-8 w-52" />
+                </CardHeader>
+              </Card>
+            </>
+          ) : (
+            <>
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardDescription>Total Paid (Last 6 months)</CardDescription>
+                  <CardTitle className="text-3xl text-green-600">
+                    {hasSixMonths && totalPaidLastSix !== null
+                      ? `KES ${totalPaidLastSix.toLocaleString()}`
+                      : 'Not enough history'}
+                  </CardTitle>
+                </CardHeader>
+              </Card>
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardDescription>On-time Payment Rate</CardDescription>
+                  <CardTitle className="text-3xl text-blue-600">
+                    {hasSixMonths && onTimeRate !== null ? `${onTimeRate}%` : 'Not enough history'}
+                  </CardTitle>
+                </CardHeader>
+              </Card>
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardDescription>Avg. Monthly Payment</CardDescription>
+                  <CardTitle className="text-3xl text-purple-600">
+                    {hasSixMonths && averageMonthly !== null
+                      ? `KES ${averageMonthly.toLocaleString()}`
+                      : 'Not enough history'}
+                  </CardTitle>
+                </CardHeader>
+              </Card>
+            </>
+          )}
         </div>
 
         {/* Upcoming Payments */}
@@ -821,7 +851,7 @@ export default function PaymentHistoryPage() {
                     {isSuccess ? (
                       <>
                         <p className="font-semibold">Thank you for keeping your payments up to date!</p>
-                        <p>Need help? Reach us at support@res.com</p>
+                        <p>Need help? Reach us at support@res.co.ke</p>
                       </>
                     ) : (
                       <p className="font-semibold">

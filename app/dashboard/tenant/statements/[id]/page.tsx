@@ -360,7 +360,7 @@ export default function TenantStatementPage({ params }: { params: { id: string }
                 This statement is a summary of your account activity for the specified period.
               </p>
               <p className="text-muted-foreground">
-                For any inquiries, please contact us at support@res.com or call +254 712 345 678
+                For any inquiries, please contact us at support@res.co.ke or call +254 712 345 678
               </p>
             </div>
 
