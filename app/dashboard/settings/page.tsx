@@ -62,10 +62,17 @@ export default function SettingsPage() {
   const [properties, setProperties] = useState<Array<{ id: string; name: string }>>([])
   const [propertiesLoading, setPropertiesLoading] = useState(false)
   const [propertiesError, setPropertiesError] = useState<string | null>(null)
+  const [orgName, setOrgName] = useState('')
+  const [orgLogoUrl, setOrgLogoUrl] = useState<string | null>(null)
+  const [orgLogoLoadFailed, setOrgLogoLoadFailed] = useState(false)
+  const [logoFile, setLogoFile] = useState<File | null>(null)
+  const [logoPreviewUrl, setLogoPreviewUrl] = useState<string | null>(null)
+  const [logoUploading, setLogoUploading] = useState(false)
   const { setTheme, theme } = useTheme()
   const { toast } = useToast()
   const { role } = useRole()
   const isCaretaker = role === 'caretaker'
+  const canEditOrgLogo = role === 'admin' || role === 'manager'
   const tabColumns = isCaretaker ? 'grid-cols-2' : 'grid-cols-3'
   const filteredTeamMembers = useMemo(() => {
     if (roleFilter === 'all') return teamMembers
@@ -73,12 +80,36 @@ export default function SettingsPage() {
       (member) => String(member.role || '').toLowerCase() === roleFilter
     )
   }, [roleFilter, teamMembers])
+  const orgInitials = useMemo(() => {
+    const name = (orgName || '').trim()
+    if (!name) return 'ORG'
+    return name
+      .split(/\s+/)
+      .map((word) => word.charAt(0))
+      .join('')
+      .substring(0, 2)
+      .toUpperCase()
+  }, [orgName])
 
   useEffect(() => {
     if (isCaretaker && activeTab === 'team') {
       setActiveTab('account')
     }
   }, [activeTab, isCaretaker])
+
+  useEffect(() => {
+    setOrgLogoLoadFailed(false)
+  }, [orgLogoUrl])
+
+  useEffect(() => {
+    if (!logoFile) {
+      setLogoPreviewUrl(null)
+      return
+    }
+    const url = URL.createObjectURL(logoFile)
+    setLogoPreviewUrl(url)
+    return () => URL.revokeObjectURL(url)
+  }, [logoFile])
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -136,6 +167,20 @@ export default function SettingsPage() {
     }
 
     loadProperties()
+    const loadOrganization = async () => {
+      try {
+        const res = await fetch('/api/organizations/current', { cache: 'no-store' })
+        const json = await res.json()
+        if (!res.ok || !json.success) return
+        setOrgName(json.data?.name || '')
+        setOrgLogoUrl(json.data?.logo_url || null)
+        setOrgLogoLoadFailed(false)
+      } catch {
+        // Non-blocking for settings page
+      }
+    }
+
+    loadOrganization()
   }, [])
 
   const handleProfileSave = async () => {
@@ -220,6 +265,70 @@ export default function SettingsPage() {
       })
     } finally {
       setResettingPassword(false)
+    }
+  }
+
+  const handleUploadLogo = async () => {
+    if (!logoFile) {
+      toast({ title: 'Select a logo', description: 'Choose an image to upload.', variant: 'destructive' })
+      return
+    }
+
+    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp']
+    if (!allowedTypes.includes(logoFile.type)) {
+      toast({
+        title: 'Invalid file type',
+        description: 'Only JPEG, PNG, and WebP images are allowed.',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    const maxSize = 5 * 1024 * 1024
+    if (logoFile.size > maxSize) {
+      toast({ title: 'File too large', description: 'Max size is 5MB.', variant: 'destructive' })
+      return
+    }
+
+    try {
+      setLogoUploading(true)
+      const timestamp = Date.now()
+      const ext = logoFile.name.split('.').pop() || 'png'
+      const filePath = `organizations/${timestamp}-${Math.random().toString(36).substring(7)}.${ext}`
+      const bucketName = 'profile-pictures'
+
+      const { error: uploadErr } = await supabase.storage.from(bucketName).upload(filePath, logoFile, {
+        contentType: logoFile.type,
+        cacheControl: '3600',
+        upsert: false,
+      })
+      if (uploadErr) throw uploadErr
+
+      const { data: urlData } = supabase.storage.from(bucketName).getPublicUrl(filePath)
+      const publicUrl = urlData?.publicUrl
+      if (!publicUrl) throw new Error('Failed to get public URL for uploaded logo')
+
+      const res = await fetch('/api/organizations/logo', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ logo_url: publicUrl }),
+      })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok || !json?.success) {
+        throw new Error(json?.error || 'Failed to update organization logo')
+      }
+
+      setOrgLogoUrl(publicUrl)
+      setLogoFile(null)
+      toast({ title: 'Logo updated', description: 'Your export logo was updated successfully.' })
+    } catch (err) {
+      toast({
+        title: 'Upload failed',
+        description: err instanceof Error ? err.message : 'Could not upload logo.',
+        variant: 'destructive',
+      })
+    } finally {
+      setLogoUploading(false)
     }
   }
 
@@ -430,6 +539,63 @@ export default function SettingsPage() {
         {/* Team */}
         {!isCaretaker && (
           <TabsContent value="team" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>Export Branding</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="h-12 w-12 rounded-lg border border-slate-200 bg-slate-50 overflow-hidden flex items-center justify-center">
+                      {logoPreviewUrl ? (
+                        <img
+                          src={logoPreviewUrl}
+                          alt="Selected organization logo preview"
+                          className="h-full w-full object-contain bg-white"
+                        />
+                      ) : orgLogoUrl && !orgLogoLoadFailed ? (
+                        <img
+                          src={orgLogoUrl}
+                          alt={orgName || 'Organization logo'}
+                          className="h-full w-full object-contain bg-white"
+                          onError={() => setOrgLogoLoadFailed(true)}
+                        />
+                      ) : (
+                        <span className="text-xs font-semibold text-slate-500">{orgInitials}</span>
+                      )}
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold">Organization logo for exports</p>
+                      <p className="text-xs text-muted-foreground">
+                        Used in PDF/Excel headers for statements and reports.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Input
+                      type="file"
+                      accept="image/png,image/jpeg,image/jpg,image/webp"
+                      className="w-[220px]"
+                      onChange={(e) => setLogoFile(e.target.files?.[0] || null)}
+                      disabled={!canEditOrgLogo || logoUploading}
+                    />
+                    <Button
+                      size="sm"
+                      onClick={handleUploadLogo}
+                      disabled={!canEditOrgLogo || logoUploading || !logoFile}
+                    >
+                      {logoUploading ? 'Uploading…' : 'Upload'}
+                    </Button>
+                  </div>
+                </div>
+                {!canEditOrgLogo ? (
+                  <p className="text-xs text-muted-foreground">
+                    Only admins or managers can update the export logo.
+                  </p>
+                ) : null}
+              </CardContent>
+            </Card>
             <Card>
               <CardHeader className="flex flex-row items-center justify-between">
                 <CardTitle>Team Members</CardTitle>
