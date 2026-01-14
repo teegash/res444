@@ -63,8 +63,8 @@ export default function SettingsPage() {
   const [propertiesLoading, setPropertiesLoading] = useState(false)
   const [propertiesError, setPropertiesError] = useState<string | null>(null)
   const [orgName, setOrgName] = useState('')
-  const [orgLogoUrl, setOrgLogoUrl] = useState<string | null>(null)
-  const [orgLogoLoadFailed, setOrgLogoLoadFailed] = useState(false)
+  const [exportLogoUrl, setExportLogoUrl] = useState<string | null>(null)
+  const [exportLogoLoadFailed, setExportLogoLoadFailed] = useState(false)
   const [logoFile, setLogoFile] = useState<File | null>(null)
   const [logoPreviewUrl, setLogoPreviewUrl] = useState<string | null>(null)
   const [logoUploading, setLogoUploading] = useState(false)
@@ -98,8 +98,8 @@ export default function SettingsPage() {
   }, [activeTab, isCaretaker])
 
   useEffect(() => {
-    setOrgLogoLoadFailed(false)
-  }, [orgLogoUrl])
+    setExportLogoLoadFailed(false)
+  }, [exportLogoUrl])
 
   useEffect(() => {
     if (!logoFile) {
@@ -173,8 +173,8 @@ export default function SettingsPage() {
         const json = await res.json()
         if (!res.ok || !json.success) return
         setOrgName(json.data?.name || '')
-        setOrgLogoUrl(json.data?.logo_url || null)
-        setOrgLogoLoadFailed(false)
+        setExportLogoUrl(json.data?.export_logo_url || null)
+        setExportLogoLoadFailed(false)
       } catch {
         // Non-blocking for settings page
       }
@@ -294,7 +294,9 @@ export default function SettingsPage() {
       setLogoUploading(true)
       const timestamp = Date.now()
       const ext = logoFile.name.split('.').pop() || 'png'
-      const filePath = `organizations/${timestamp}-${Math.random().toString(36).substring(7)}.${ext}`
+      const filePath = `organizations/exports-${timestamp}-${Math.random()
+        .toString(36)
+        .substring(7)}.${ext}`
       const bucketName = 'profile-pictures'
 
       const { error: uploadErr } = await supabase.storage.from(bucketName).upload(filePath, logoFile, {
@@ -308,17 +310,17 @@ export default function SettingsPage() {
       const publicUrl = urlData?.publicUrl
       if (!publicUrl) throw new Error('Failed to get public URL for uploaded logo')
 
-      const res = await fetch('/api/organizations/logo', {
+      const res = await fetch('/api/organizations/export-logo', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ logo_url: publicUrl }),
+        body: JSON.stringify({ export_logo_url: publicUrl }),
       })
       const json = await res.json().catch(() => ({}))
       if (!res.ok || !json?.success) {
         throw new Error(json?.error || 'Failed to update organization logo')
       }
 
-      setOrgLogoUrl(publicUrl)
+      setExportLogoUrl(publicUrl)
       setLogoFile(null)
       toast({ title: 'Logo updated', description: 'Your export logo was updated successfully.' })
     } catch (err) {
@@ -553,12 +555,12 @@ export default function SettingsPage() {
                           alt="Selected organization logo preview"
                           className="h-full w-full object-contain bg-white"
                         />
-                      ) : orgLogoUrl && !orgLogoLoadFailed ? (
+                      ) : exportLogoUrl && !exportLogoLoadFailed ? (
                         <img
-                          src={orgLogoUrl}
+                          src={exportLogoUrl}
                           alt={orgName || 'Organization logo'}
                           className="h-full w-full object-contain bg-white"
-                          onError={() => setOrgLogoLoadFailed(true)}
+                          onError={() => setExportLogoLoadFailed(true)}
                         />
                       ) : (
                         <span className="text-xs font-semibold text-slate-500">{orgInitials}</span>
