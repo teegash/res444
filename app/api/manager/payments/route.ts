@@ -287,7 +287,7 @@ export async function GET() {
       return ctx.error
     }
     const { adminSupabase, role, propertyId, orgId } = ctx
-    const settings = await getMpesaSettings()
+    const settings = await getMpesaSettings(ctx.orgId)
 
     await expireLongPendingMpesaPayments(adminSupabase, orgId)
 
@@ -505,9 +505,9 @@ export async function POST(request: NextRequest) {
       return ctx.error
     }
 
-    const settings = await getMpesaSettings()
+    const settings = await getMpesaSettings(ctx.orgId)
 
-    const result = await autoVerifyMpesaPayments(settings)
+    const result = await autoVerifyMpesaPayments(settings, ctx.orgId)
 
     return NextResponse.json({
       success: result.success,

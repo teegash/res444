@@ -1,17 +1,20 @@
 'use server'
 
 import { createAdminClient } from '@/lib/supabase/admin'
-import { queryTransactionStatus, getDarajaConfig } from './queryStatus'
+import { queryTransactionStatus } from './queryStatus'
 import { updateInvoiceStatus, calculateInvoiceStatus } from '@/lib/invoices/invoiceGeneration'
 import { processRentPrepayment } from '@/lib/payments/prepayment'
 import { getMpesaSettings, MpesaSettings } from '@/lib/mpesa/settings'
 import { logNotification } from '@/lib/communications/notifications'
+import { buildCallbackUrl, buildDarajaConfig, getMpesaCredentials } from '@/lib/mpesa/credentials'
 
 export interface PendingPayment {
   id: string
+  organization_id: string
   invoice_id: string
   tenant_user_id: string
   amount_paid: number
+  mpesa_checkout_request_id: string | null
   mpesa_receipt_number: string | null
   retry_count: number
   created_at: string
@@ -46,7 +49,10 @@ export interface AutoVerifyResult {
  * Get pending M-Pesa payments that need verification
  * Criteria: verified = FALSE, payment_method = 'mpesa', created > 24 hours ago
  */
-async function getPendingMpesaPayments(maxRetries: number): Promise<PendingPayment[]> {
+async function getPendingMpesaPayments(
+  maxRetries: number,
+  orgId?: string | null
+): Promise<PendingPayment[]> {
   try {
     const supabase = createAdminClient()
 
@@ -56,15 +62,23 @@ async function getPendingMpesaPayments(maxRetries: number): Promise<PendingPayme
     // 2. Not verified
     // 3. Created more than 24 hours ago
     // 4. Have a receipt number OR checkout request ID in notes
-    const { data: payments, error } = await supabase
+    const query = supabase
       .from('payments')
-      .select('id, invoice_id, tenant_user_id, amount_paid, mpesa_receipt_number, retry_count, created_at, last_status_check, notes, months_paid, payment_date')
+      .select(
+        'id, organization_id, invoice_id, tenant_user_id, amount_paid, mpesa_checkout_request_id, mpesa_receipt_number, retry_count, created_at, last_status_check, notes, months_paid, payment_date'
+      )
       .eq('payment_method', 'mpesa')
       .eq('verified', false)
-      .or('mpesa_receipt_number.not.is.null,notes.ilike.%CheckoutRequestID%')
-      .lt('retry_count', maxRetries) // Only get payments that haven't exceeded max retries
+      .or('mpesa_checkout_request_id.not.is.null,mpesa_receipt_number.not.is.null')
+      .lt('retry_count', maxRetries)
       .order('created_at', { ascending: true })
-      .limit(100) // Limit to prevent overwhelming the API
+      .limit(100)
+
+    if (orgId) {
+      query.eq('organization_id', orgId)
+    }
+
+    const { data: payments, error } = await query
 
     if (error) {
       console.error('Error fetching pending payments:', error)
@@ -133,6 +147,7 @@ async function sendPaymentConfirmationSMS(
  * Create audit log entry
  */
 async function createAuditLog(
+  organizationId: string,
   paymentId: string,
   queryResult: {
     resultCode?: number
@@ -145,6 +160,7 @@ async function createAuditLog(
     const supabase = createAdminClient()
 
     await supabase.from('mpesa_verification_audit').insert({
+      organization_id: organizationId,
       payment_id: paymentId,
       query_timestamp: new Date().toISOString(),
       response_code: queryResult.resultCode !== undefined ? String(queryResult.resultCode) : null,
@@ -163,8 +179,9 @@ async function createAuditLog(
  */
 async function verifyPayment(
   payment: PendingPayment,
-  config: ReturnType<typeof getDarajaConfig>,
-  maxRetries: number
+  config: ReturnType<typeof buildDarajaConfig>,
+  maxRetries: number,
+  opts?: { initiatorName?: string | null; securityCredential?: string | null }
 ): Promise<{
   success: boolean
   verified: boolean
@@ -187,68 +204,27 @@ async function verifyPayment(
       }
     }
 
-    // 2. Get receipt number (could be in mpesa_receipt_number or notes)
-    let receiptNumber = payment.mpesa_receipt_number
-    let transactionId = receiptNumber
-
-    if (!receiptNumber) {
-      // Try to extract from notes (payment object already has notes from query)
-      if (payment.notes) {
-        // Extract checkout request ID or receipt number from notes
-        const checkoutMatch = payment.notes.match(/CheckoutRequestID:\s*(\w+)/i)
-        const receiptMatch = payment.notes.match(/Receipt[:\s]+(\w+)/i)
-        
-        if (receiptMatch) {
-          receiptNumber = receiptMatch[1]
-          transactionId = receiptNumber
-        } else if (checkoutMatch) {
-          // Use checkout request ID as transaction ID
-          transactionId = checkoutMatch[1]
-        }
-      }
-    }
-
-    // If still no transaction ID, try querying payment again
-    if (!transactionId) {
-      const { data: paymentWithNotes } = await supabase
-        .from('payments')
-        .select('notes, mpesa_receipt_number')
-        .eq('id', payment.id)
-        .single()
-
-      if (paymentWithNotes) {
-        if (paymentWithNotes.mpesa_receipt_number) {
-          transactionId = paymentWithNotes.mpesa_receipt_number
-          receiptNumber = paymentWithNotes.mpesa_receipt_number
-        } else if (paymentWithNotes.notes) {
-          const checkoutMatch = paymentWithNotes.notes.match(/CheckoutRequestID:\s*(\w+)/i)
-          const receiptMatch = paymentWithNotes.notes.match(/Receipt[:\s]+(\w+)/i)
-          
-          if (receiptMatch) {
-            transactionId = receiptMatch[1]
-            receiptNumber = receiptMatch[1]
-          } else if (checkoutMatch) {
-            transactionId = checkoutMatch[1]
-          }
-        }
-      }
-    }
+    // 2. Use receipt when present, otherwise checkout request id
+    const receiptNumber = payment.mpesa_receipt_number || null
+    const transactionId = receiptNumber || payment.mpesa_checkout_request_id || null
 
     if (!transactionId) {
       return {
         success: false,
         verified: false,
-        error: 'No receipt number or checkout request ID found for transaction query',
+        error: 'No checkout request ID found for transaction query',
       }
     }
 
     // 3. Query transaction status using transaction ID
     const queryResult = await queryTransactionStatus(config, {
       transactionId: transactionId,
+      initiatorName: opts?.initiatorName || undefined,
+      securityCredential: opts?.securityCredential || undefined,
     })
 
     // 4. Create audit log
-    await createAuditLog(payment.id, queryResult)
+    await createAuditLog(payment.organization_id, payment.id, queryResult)
 
     // 5. Update last_status_check
     await supabase
@@ -375,7 +351,7 @@ async function verifyPayment(
       // If max retries reached, mark for manual review
       if (newRetryCount >= maxRetries) {
         const reason = fallbackReason || 'Timeout'
-        updateData.notes = `${payment.mpesa_receipt_number ? `Receipt: ${payment.mpesa_receipt_number}. ` : ''}Auto-verification failed after ${maxRetries} attempts. Reason: ${reason}.`
+        updateData.notes = `${payment.mpesa_checkout_request_id ? `CheckoutRequestID: ${payment.mpesa_checkout_request_id}. ` : ''}Auto-verification failed after ${maxRetries} attempts. Reason: ${reason}.`
         if (!fallbackReason) {
           updateData.mpesa_query_status = `Auto verification timed out after ${maxRetries} attempts`
         }
@@ -404,9 +380,12 @@ async function verifyPayment(
 /**
  * Auto-verify pending M-Pesa payments
  */
-export async function autoVerifyMpesaPayments(settingsOverride?: MpesaSettings): Promise<AutoVerifyResult> {
+export async function autoVerifyMpesaPayments(
+  settingsOverride?: MpesaSettings,
+  orgId?: string | null
+): Promise<AutoVerifyResult> {
   try {
-    const settings = settingsOverride ?? (await getMpesaSettings())
+    const settings = settingsOverride ?? (await getMpesaSettings(orgId))
 
     if (!settings.auto_verify_enabled) {
       return {
@@ -421,32 +400,8 @@ export async function autoVerifyMpesaPayments(settingsOverride?: MpesaSettings):
       }
     }
 
-    // Get Daraja config
-    const config = getDarajaConfig()
-
-    // Validate config
-    if (!config.consumerKey || !config.consumerSecret || !config.passKey) {
-      console.error('M-Pesa configuration is missing')
-      return {
-        success: false,
-        checked_count: 0,
-        verified_count: 0,
-        failed_count: 0,
-        pending_count: 0,
-        skipped_count: 0,
-        error_count: 1,
-        payments_auto_verified: [],
-        errors: [
-          {
-            payment_id: 'config',
-            error: 'M-Pesa configuration is missing',
-          },
-        ],
-      }
-    }
-
     // Get pending payments
-    const pendingPayments = await getPendingMpesaPayments(settings.max_retries)
+    const pendingPayments = await getPendingMpesaPayments(settings.max_retries, orgId)
 
     if (pendingPayments.length === 0) {
       return {
@@ -470,59 +425,93 @@ export async function autoVerifyMpesaPayments(settingsOverride?: MpesaSettings):
     const verifiedPayments: AutoVerifyResult['payments_auto_verified'] = []
     const errors: Array<{ payment_id: string; error: string }> = []
 
-    // Process each payment
+    const paymentsByOrg = new Map<string, PendingPayment[]>()
     for (const payment of pendingPayments) {
+      if (!payment.organization_id) {
+        errorCount++
+        errors.push({ payment_id: payment.id, error: 'Missing organization_id on payment.' })
+        continue
+      }
+      const list = paymentsByOrg.get(payment.organization_id) || []
+      list.push(payment)
+      paymentsByOrg.set(payment.organization_id, list)
+    }
+
+    for (const [groupOrgId, groupPayments] of paymentsByOrg.entries()) {
+      let creds: Awaited<ReturnType<typeof getMpesaCredentials>> | null = null
       try {
-        checkedCount++
+        creds = await getMpesaCredentials(groupOrgId)
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Failed to load M-Pesa credentials.'
+        errorCount += groupPayments.length
+        errors.push({ payment_id: 'config', error: message })
+        continue
+      }
+      if (!creds || !creds.isEnabled) {
+        skippedCount += groupPayments.length
+        continue
+      }
 
-        // Skip if already at max retries (will be handled separately)
-        if (payment.retry_count >= settings.max_retries) {
-          skippedCount++
-          continue
-        }
+      const callbackUrl = buildCallbackUrl(groupOrgId, creds.callbackSecret)
+      const config = buildDarajaConfig(creds, callbackUrl)
 
-        // Verify payment
-        const result = await verifyPayment(payment, config, settings.max_retries)
+      if (!config.consumerKey || !config.consumerSecret || !config.passKey) {
+        errorCount += groupPayments.length
+        errors.push({
+          payment_id: 'config',
+          error: `Missing M-Pesa credentials for organization ${groupOrgId}`,
+        })
+        continue
+      }
 
-        if (result.verified) {
-          verifiedCount++
-          verifiedPayments.push({
-            payment_id: payment.id,
-            amount: parseFloat(payment.amount_paid.toString()),
-            status: 'verified',
-            timestamp: new Date().toISOString(),
-            receipt_number: payment.mpesa_receipt_number || undefined,
-          })
-        } else if (result.success) {
-          // Query was successful but payment not verified
-          const resultCode = result.resultCode || 1
+      for (const payment of groupPayments) {
+        try {
+          checkedCount++
 
-          if (resultCode === 17) {
-            // Pending - will retry next cycle
-            pendingCount++
-          } else {
-            // Failed
-            failedCount++
+          if (payment.retry_count >= settings.max_retries) {
+            skippedCount++
+            continue
           }
-        } else {
-          // Error during verification
+
+          const result = await verifyPayment(payment, config, settings.max_retries, {
+            initiatorName: creds.initiatorName,
+            securityCredential: creds.securityCredential,
+          })
+
+          if (result.verified) {
+            verifiedCount++
+            verifiedPayments.push({
+              payment_id: payment.id,
+              amount: parseFloat(payment.amount_paid.toString()),
+              status: 'verified',
+              timestamp: new Date().toISOString(),
+              receipt_number: payment.mpesa_receipt_number || undefined,
+            })
+          } else if (result.success) {
+            const resultCode = result.resultCode || 1
+            if (resultCode === 17) {
+              pendingCount++
+            } else {
+              failedCount++
+            }
+          } else {
+            errorCount++
+            errors.push({
+              payment_id: payment.id,
+              error: result.error || 'Unknown error',
+            })
+          }
+
+          await new Promise((resolve) => setTimeout(resolve, 100))
+        } catch (error) {
+          const err = error as Error
           errorCount++
           errors.push({
             payment_id: payment.id,
-            error: result.error || 'Unknown error',
+            error: err.message || 'Unexpected error',
           })
+          console.error(`Error processing payment ${payment.id}:`, err)
         }
-
-        // Add small delay to avoid rate limiting
-        await new Promise((resolve) => setTimeout(resolve, 100))
-      } catch (error) {
-        const err = error as Error
-        errorCount++
-        errors.push({
-          payment_id: payment.id,
-          error: err.message || 'Unexpected error',
-        })
-        console.error(`Error processing payment ${payment.id}:`, err)
       }
     }
 

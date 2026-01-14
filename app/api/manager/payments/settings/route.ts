@@ -60,7 +60,7 @@ export async function GET() {
     return auth.error
   }
 
-  const settings = await getMpesaSettings()
+  const settings = await getMpesaSettings(auth.organizationId)
   return NextResponse.json({
     success: true,
     data: normalize(settings),
@@ -121,7 +121,7 @@ export async function PUT(request: NextRequest) {
       )
     }
 
-    const updated = await updateMpesaSettings(auth.user.id, updates)
+    const updated = await updateMpesaSettings(auth.user.id, updates, auth.organizationId)
 
     return NextResponse.json({
       success: true,

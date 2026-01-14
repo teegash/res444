@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { initiateSTKPush, DarajaConfig } from '@/lib/mpesa/daraja'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { updateInvoiceStatus } from '@/lib/invoices/invoiceGeneration'
 import { createClient } from '@/lib/supabase/server'
+import { buildCallbackUrl, buildDarajaConfig, getMpesaCredentials } from '@/lib/mpesa/credentials'
 
 export async function POST(request: NextRequest) {
   try {
@@ -178,21 +178,40 @@ export async function POST(request: NextRequest) {
     }
 
     // 8. Get Daraja configuration
-    const darajaConfig: DarajaConfig = {
-      consumerKey: process.env.MPESA_CONSUMER_KEY!,
-      consumerSecret: process.env.MPESA_CONSUMER_SECRET!,
-      businessShortCode: process.env.MPESA_SHORTCODE || '174379',
-      passKey: process.env.MPESA_PASSKEY!,
-      callbackUrl: process.env.MPESA_CALLBACK_URL || `${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/api/payments/mpesa/callback`,
-      environment: (process.env.MPESA_ENVIRONMENT as 'sandbox' | 'production') || 'sandbox',
+    const orgId = invoice.organization_id
+    let credentials = null
+    try {
+      credentials = await getMpesaCredentials(orgId)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to load M-Pesa credentials'
+      return NextResponse.json(
+        {
+          success: false,
+          error: message || 'M-Pesa credentials are not configured.',
+        },
+        { status: 500 }
+      )
     }
 
-    // Validate required env vars
+    if (!credentials || !credentials.isEnabled) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'M-Pesa is not configured for this organization.',
+        },
+        { status: 400 }
+      )
+    }
+
+    const callbackUrl = buildCallbackUrl(orgId, credentials.callbackSecret)
+    const darajaConfig: DarajaConfig = buildDarajaConfig(credentials, callbackUrl)
+
+    // Validate required credentials
     if (!darajaConfig.consumerKey || !darajaConfig.consumerSecret || !darajaConfig.passKey) {
       return NextResponse.json(
         {
           success: false,
-          error: 'M-Pesa configuration is missing. Please contact support.',
+          error: 'M-Pesa credentials are missing. Please contact support.',
         },
         { status: 500 }
       )
@@ -215,6 +234,7 @@ export async function POST(request: NextRequest) {
         verified: false,
         months_paid: monthsCovered,
         notes: `M-Pesa payment initiated for ${transactionDesc} covering ${monthsCovered} month(s).`,
+        mpesa_checkout_request_id: null,
       })
       .select('id')
       .single()
@@ -254,12 +274,11 @@ export async function POST(request: NextRequest) {
     }
 
     // 11. Update payment record with checkout request ID
-    // Store checkout request ID in notes for callback lookup
-    // The actual receipt number will be set by the callback
     await supabase
       .from('payments')
       .update({
-        mpesa_receipt_number: stkResponse.checkoutRequestId || null, // Temporary storage
+        mpesa_checkout_request_id: stkResponse.checkoutRequestId || null,
+        mpesa_merchant_request_id: stkResponse.merchantRequestId || null,
         notes: `STK push initiated. CheckoutRequestID: ${stkResponse.checkoutRequestId}. MerchantRequestID: ${stkResponse.merchantRequestId}`,
       })
       .eq('id', payment.id)
