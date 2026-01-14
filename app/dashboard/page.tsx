@@ -610,12 +610,14 @@ function DashboardContent() {
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-base text-gray-700 font-bold">Monthly Revenue</p>
-                        <p className="text-[clamp(0.9rem,1.6vw,1.25rem)] font-semibold whitespace-nowrap">
-                          {overview?.summary ? formatCurrency(overview.summary.monthlyRevenue || 0, 'KES') : '—'}
-                        </p>
+                        <div className="mt-1">
+                          <p className="text-[clamp(0.9rem,1.6vw,1.25rem)] font-semibold whitespace-nowrap">
+                            {overview?.summary ? formatCurrency(overview.summary.monthlyRevenue || 0, 'KES') : '—'}
+                          </p>
+                        </div>
                         {overview?.summary?.revenueDelta !== null ? (
                           <p
-                            className={`text-xs mt-1 flex items-center gap-1 whitespace-nowrap ${
+                            className={`text-xs mt-2 flex items-center gap-1 whitespace-nowrap ${
                               (overview?.summary?.revenueDelta || 0) >= 0 ? 'text-green-600' : 'text-red-600'
                             }`}
                           >
