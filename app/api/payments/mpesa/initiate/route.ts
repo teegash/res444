@@ -219,6 +219,9 @@ export async function POST(request: NextRequest) {
         verified: false,
         months_paid: monthsCovered,
         notes: `M-Pesa payment initiated for ${transactionDesc} covering ${monthsCovered} month(s).`,
+        mpesa_phone_number: phoneNumber,
+        mpesa_initiated_at: new Date().toISOString(),
+        mpesa_query_status: 'INITIATED',
         mpesa_checkout_request_id: null,
       })
       .select('id')
@@ -264,6 +267,9 @@ export async function POST(request: NextRequest) {
       .update({
         mpesa_checkout_request_id: stkResponse.checkoutRequestId || null,
         mpesa_merchant_request_id: stkResponse.merchantRequestId || null,
+        mpesa_query_status: 'STK_SENT',
+        mpesa_response_code: stkResponse.responseCode || null,
+        last_status_check: new Date().toISOString(),
         notes: `STK push initiated. CheckoutRequestID: ${stkResponse.checkoutRequestId}. MerchantRequestID: ${stkResponse.merchantRequestId}`,
       })
       .eq('id', payment.id)

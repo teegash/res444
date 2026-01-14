@@ -6,6 +6,10 @@ import { updateInvoiceStatus } from '@/lib/invoices/invoiceGeneration'
 import { logNotification } from '@/lib/communications/notifications'
 import { getMpesaCredentials } from '@/lib/mpesa/credentials'
 
+export async function GET() {
+  return NextResponse.json({ ok: true, message: 'Callback endpoint is live' }, { status: 200 })
+}
+
 export async function POST(
   request: NextRequest,
   { params }: { params: { orgId: string; secret: string } }
