@@ -610,12 +610,12 @@ function DashboardContent() {
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-base text-gray-700 font-bold">Monthly Revenue</p>
-                        <p className="text-[clamp(1rem,2vw,1.5rem)] font-semibold whitespace-nowrap leading-tight">
+                        <p className="text-[clamp(0.9rem,1.6vw,1.25rem)] font-semibold whitespace-nowrap leading-tight">
                           {overview?.summary ? formatCurrency(overview.summary.monthlyRevenue || 0, 'KES') : '—'}
                         </p>
                         {overview?.summary?.revenueDelta !== null ? (
                           <p
-                            className={`text-sm mt-1 flex items-center gap-1 ${
+                            className={`text-xs mt-1 flex items-center gap-1 whitespace-nowrap ${
                               (overview?.summary?.revenueDelta || 0) >= 0 ? 'text-green-600' : 'text-red-600'
                             }`}
                           >
@@ -627,7 +627,7 @@ function DashboardContent() {
                             {Math.abs(overview?.summary?.revenueDelta || 0).toFixed(1)}% vs last month
                           </p>
                         ) : (
-                          <p className="text-sm text-gray-500 mt-1">Trend pending</p>
+                          <p className="text-xs text-gray-500 mt-1 whitespace-nowrap">Trend pending</p>
                         )}
                       </div>
                       <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center">
