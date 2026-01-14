@@ -40,6 +40,7 @@ import {
 import { Bar, BarChart, CartesianGrid, Pie, PieChart, XAxis, YAxis } from 'recharts'
 
 import { exportRowsAsCSV, exportRowsAsExcel, exportRowsAsPDF } from '@/lib/export/download'
+import { formatCompactNumber } from '@/lib/format/currency'
 import { downloadReceiptPdf } from '@/lib/payments/receiptPdf'
 import { downloadExpenseReceiptPdf } from '@/lib/expenses/expenseReceiptPdf'
 import { AgGridReact } from 'ag-grid-react'
@@ -528,7 +529,13 @@ export default function FinancialReportPage() {
                       <BarChart data={cashflowSeries} margin={{ left: 12, right: 12 }}>
                         <CartesianGrid vertical={false} />
                         <XAxis dataKey="period" tickLine={false} axisLine={false} tickMargin={8} minTickGap={24} />
-                        <YAxis tickLine={false} axisLine={false} tickMargin={8} width={60} />
+                        <YAxis
+                          tickLine={false}
+                          axisLine={false}
+                          tickMargin={8}
+                          width={60}
+                          tickFormatter={(value) => formatCompactNumber(Number(value || 0))}
+                        />
                         <ChartTooltip content={<ChartTooltipContent indicator="dot" />} />
                         <ChartLegend content={<ChartLegendContent />} />
                         <Bar dataKey="income" fill="var(--color-income)" radius={[6, 6, 0, 0]} />
@@ -818,7 +825,12 @@ export default function FinancialReportPage() {
                   >
                     <CartesianGrid vertical={false} />
                     <XAxis dataKey="name" tickLine={false} axisLine={false} />
-                    <YAxis tickLine={false} axisLine={false} tickMargin={6} />
+                    <YAxis
+                      tickLine={false}
+                      axisLine={false}
+                      tickMargin={6}
+                      tickFormatter={(value) => formatCompactNumber(Number(value || 0))}
+                    />
                     <ChartTooltip content={<ChartTooltipContent indicator="dot" />} />
                     <Bar dataKey="income" fill="var(--color-income)" radius={[6, 6, 0, 0]} />
                     <Bar dataKey="expenses" fill="var(--color-expenses)" radius={[6, 6, 0, 0]} />

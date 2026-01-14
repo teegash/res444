@@ -40,6 +40,7 @@ import {
 import { Bar, BarChart, CartesianGrid, LabelList, Pie, PieChart, XAxis, YAxis } from 'recharts'
 
 import { exportRowsAsCSV, exportRowsAsExcel, exportRowsAsPDF } from '@/lib/export/download'
+import { formatCompactNumber } from '@/lib/format/currency'
 import { AgGridReact } from 'ag-grid-react'
 import type { ColDef, GridApi } from 'ag-grid-community'
 import { AllCommunityModule, ModuleRegistry } from 'ag-grid-community'
@@ -419,7 +420,12 @@ export default function ArrearsReportPage() {
                         margin={{ left: 12, right: 12 }}
                       >
                         <CartesianGrid horizontal={false} />
-                        <XAxis type="number" tickLine={false} axisLine={false} />
+                        <XAxis
+                          type="number"
+                          tickLine={false}
+                          axisLine={false}
+                          tickFormatter={(value) => formatCompactNumber(Number(value || 0))}
+                        />
                         <YAxis type="category" dataKey="propertyName" tickLine={false} axisLine={false} hide />
                         <ChartTooltip content={<ChartTooltipContent indicator="dot" />} />
                         <Bar dataKey="arrearsTotal" fill="var(--color-arrearsTotal)" radius={[0, 6, 6, 0]}>
@@ -446,7 +452,11 @@ export default function ArrearsReportPage() {
                       <BarChart data={payload?.byProperty?.slice(0, 12) || []} margin={{ left: 12, right: 12 }}>
                         <CartesianGrid vertical={false} />
                         <XAxis dataKey="propertyName" tickLine={false} axisLine={false} tickMargin={8} minTickGap={24} />
-                        <YAxis tickLine={false} axisLine={false} />
+                        <YAxis
+                          tickLine={false}
+                          axisLine={false}
+                          tickFormatter={(value) => formatCompactNumber(Number(value || 0))}
+                        />
                         <ChartTooltip content={<ChartTooltipContent indicator="dot" />} />
                         <ChartLegend content={<ChartLegendContent />} />
                         <Bar dataKey="arrearsRent" stackId="a" fill="var(--color-arrearsRent)" />

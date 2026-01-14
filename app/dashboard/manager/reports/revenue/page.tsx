@@ -50,6 +50,7 @@ import { AgGridReact } from 'ag-grid-react'
 import type { ColDef, GridApi } from 'ag-grid-community'
 import { AllCommunityModule, ModuleRegistry } from 'ag-grid-community'
 import { exportRowsAsCSV, exportRowsAsExcel, exportRowsAsPDF } from '@/lib/export/download'
+import { formatCompactNumber } from '@/lib/format/currency'
 
 ModuleRegistry.registerModules([AllCommunityModule])
 
@@ -95,12 +96,7 @@ function kes(value: number) {
 }
 
 function kesAbbrev(value: number) {
-  const abs = Math.abs(value)
-  const sign = value < 0 ? '-' : ''
-  if (abs >= 1_000_000_000) return `${sign}KES ${(abs / 1_000_000_000).toFixed(1)}B`
-  if (abs >= 1_000_000) return `${sign}KES ${(abs / 1_000_000).toFixed(1)}M`
-  if (abs >= 1_000) return `${sign}KES ${(abs / 1_000).toFixed(1)}K`
-  return `${sign}KES ${Math.round(abs).toLocaleString()}`
+  return formatCompactNumber(value)
 }
 
 const perfConfig = {
@@ -416,7 +412,13 @@ export default function RevenueReportPage() {
                       <BarChart data={payload?.timeseries || []} margin={{ left: 12, right: 12 }}>
                         <CartesianGrid vertical={false} />
                         <XAxis dataKey="period" tickLine={false} axisLine={false} tickMargin={8} minTickGap={24} />
-                        <YAxis tickLine={false} axisLine={false} tickMargin={8} width={60} />
+                        <YAxis
+                          tickLine={false}
+                          axisLine={false}
+                          tickMargin={8}
+                          width={60}
+                          tickFormatter={(value) => formatCompactNumber(Number(value || 0))}
+                        />
                         <ChartTooltip content={<ChartTooltipContent indicator="dot" />} />
                         <ChartLegend content={<ChartLegendContent />} />
                         <Bar dataKey="billedRent" stackId="billed" fill="var(--color-billedRent)" radius={[6, 6, 0, 0]} />

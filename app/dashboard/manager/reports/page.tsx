@@ -56,6 +56,7 @@ import { exportRowsAsCSV, exportRowsAsExcel, exportRowsAsPDF } from '@/lib/expor
 import { ParticleButton } from '@/components/ui/particle-button'
 import { Switch } from '@/components/ui/switch'
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card'
+import { formatCompactNumber } from '@/lib/format/currency'
 
 type OverviewPayload = {
   range: { start: string | null; end: string }
@@ -583,7 +584,13 @@ export default function ReportsOverviewPage() {
                       <AreaChart data={chartSeries} margin={{ left: 12, right: 12 }}>
                         <CartesianGrid vertical={false} />
                         <XAxis dataKey="period" tickLine={false} axisLine={false} tickMargin={8} minTickGap={24} />
-                        <YAxis tickLine={false} axisLine={false} tickMargin={8} width={60} />
+                        <YAxis
+                          tickLine={false}
+                          axisLine={false}
+                          tickMargin={8}
+                          width={60}
+                          tickFormatter={(value) => formatCompactNumber(Number(value || 0))}
+                        />
                         <ChartTooltip content={<ChartTooltipContent indicator="dot" />} />
                         <ChartLegend content={<ChartLegendContent />} />
                         <Area
@@ -615,7 +622,13 @@ export default function ReportsOverviewPage() {
                       <BarChart data={chartSeries} margin={{ left: 12, right: 12 }}>
                         <CartesianGrid vertical={false} />
                         <XAxis dataKey="period" tickLine={false} axisLine={false} tickMargin={8} minTickGap={24} />
-                        <YAxis tickLine={false} axisLine={false} tickMargin={8} width={60} />
+                        <YAxis
+                          tickLine={false}
+                          axisLine={false}
+                          tickMargin={8}
+                          width={60}
+                          tickFormatter={(value) => formatCompactNumber(Number(value || 0))}
+                        />
                         <ChartTooltip content={<ChartTooltipContent indicator="dot" />} />
                         <ChartLegend content={<ChartLegendContent />} />
                         <Bar dataKey="collected" fill="var(--color-collected)" radius={[6, 6, 0, 0]} />

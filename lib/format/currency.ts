@@ -13,3 +13,13 @@ export function formatCurrency(
     maximumFractionDigits: 0,
   }).format(value)
 }
+
+export function formatCompactNumber(value: number): string {
+  const numeric = Number(value || 0)
+  const abs = Math.abs(numeric)
+  const sign = numeric < 0 ? '-' : ''
+  if (abs >= 1_000_000_000) return `${sign}${(abs / 1_000_000_000).toFixed(1)}B`
+  if (abs >= 1_000_000) return `${sign}${(abs / 1_000_000).toFixed(1)}M`
+  if (abs >= 1_000) return `${sign}${Math.round(abs / 1_000)}k`
+  return `${sign}${Math.round(abs)}`
+}
