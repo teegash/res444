@@ -18,7 +18,9 @@ export async function getOrgDarajaConfig(organizationId: string): Promise<OrgDar
 
   if (error || !data || data.is_enabled !== true) return null
 
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://www.res.co.ke'
+  const siteUrl =
+    (process.env.NEXT_PUBLIC_SITE_URL && process.env.NEXT_PUBLIC_SITE_URL.trim()) ||
+    'https://www.res.co.ke'
   const callbackUrl = `${siteUrl.replace(/\/$/, '')}/api/payments/mpesa/callback/${organizationId}/${data.callback_secret}`
 
   return {

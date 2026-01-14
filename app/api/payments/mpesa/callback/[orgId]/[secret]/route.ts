@@ -22,9 +22,17 @@ export async function POST(
     NextResponse.json({ success: true, message: 'Callback received' }, { status: 200 })
 
   try {
-    if (!orgId || !secret) return okAck()
-
     const admin = createAdminClient()
+
+    if (orgId && admin) {
+      await admin.from('mpesa_callback_audit').insert({
+        organization_id: orgId,
+        raw_payload: { inbound: true, headers: Object.fromEntries(request.headers.entries()) },
+        received_at: new Date().toISOString(),
+      })
+    }
+
+    if (!orgId || !secret) return okAck()
 
     const creds = await getMpesaCredentials(orgId)
     if (!creds || !creds.isEnabled) return okAck()
