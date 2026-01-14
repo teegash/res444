@@ -30,14 +30,24 @@ export function KpiTiles(props: { items: KpiItem[]; className?: string }) {
         >
           <CardContent className="p-4">
             <div className="text-xs text-muted-foreground">{kpi.label}</div>
-            <div
-              className={cn(
-                'mt-1 text-lg font-semibold tracking-tight leading-tight tabular-nums sm:text-xl',
-                kpi.valueClassName
-              )}
-            >
-              {kpi.value}
-            </div>
+            {/** Keep currency values on one line with a tighter size for 8+ digits */}
+            {(() => {
+              const isCurrency = typeof kpi.value === 'string' && /^(KES|Ksh)\s/i.test(kpi.value)
+              const baseClass = isCurrency
+                ? 'text-base sm:text-lg whitespace-nowrap'
+                : 'text-lg sm:text-xl'
+              return (
+                <div
+                  className={cn(
+                    'mt-1 font-semibold tracking-tight leading-tight tabular-nums',
+                    baseClass,
+                    kpi.valueClassName
+                  )}
+                >
+                  {kpi.value}
+                </div>
+              )
+            })()}
 
             {(kpi.subtext || kpi.trend) && (
               <div className="mt-2 flex items-center justify-between gap-2 text-xs">
