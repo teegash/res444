@@ -112,6 +112,12 @@ export default function MaintenancePerformanceReportPage() {
   const [search, setSearch] = useState('')
   const [detailOpen, setDetailOpen] = useState(false)
   const [selectedRow, setSelectedRow] = useState<Row | null>(null)
+  const [pendingRange, setPendingRange] = useState(false)
+
+  const clearSearchFilter = () => {
+    setSearch('')
+    gridApiRef.current?.setGridOption('quickFilterText', '')
+  }
 
   const computeFlag = (row: Row) => {
     if ((row.rent_collected || 0) <= 0) return { text: 'No collections', variant: 'secondary' as const }
@@ -280,8 +286,15 @@ export default function MaintenancePerformanceReportPage() {
 
   useEffect(() => {
     if (!initialized) return
+    if (startDate || endDate) {
+      if (!startDate || !endDate) return
+    }
     loadReport({ year, propertyId, unitId, startDate, endDate })
   }, [year, propertyId, unitId, startDate, endDate, initialized])
+
+  useEffect(() => {
+    if (startDate && endDate) setPendingRange(false)
+  }, [startDate, endDate])
 
   const handleExport = (format: 'pdf' | 'excel' | 'csv') => {
     const filename = `maintenance-performance-${year}-${propertyId}-${unitId}-${new Date()
@@ -399,7 +412,16 @@ export default function MaintenancePerformanceReportPage() {
 
                 <div className="space-y-1">
                   <Label className="text-xs text-muted-foreground">Year</Label>
-                  <Select value={year} onValueChange={setYear}>
+                  <Select
+                    value={year}
+                    onValueChange={(next) => {
+                      setYear(next)
+                      setStartDate(null)
+                      setEndDate(null)
+                      setPendingRange(false)
+                      clearSearchFilter()
+                    }}
+                  >
                     <SelectTrigger className="w-[120px]">
                       <SelectValue placeholder="Year" />
                     </SelectTrigger>
@@ -415,7 +437,16 @@ export default function MaintenancePerformanceReportPage() {
 
                 <div className="space-y-1">
                   <Label className="text-xs text-muted-foreground">Property</Label>
-                  <Select value={propertyId} onValueChange={setPropertyId}>
+                  <Select
+                    value={propertyId}
+                    onValueChange={(next) => {
+                      setPropertyId(next)
+                      setStartDate(null)
+                      setEndDate(null)
+                      setPendingRange(false)
+                      clearSearchFilter()
+                    }}
+                  >
                     <SelectTrigger className="w-[220px]">
                       <SelectValue placeholder="Property" />
                     </SelectTrigger>
@@ -432,7 +463,17 @@ export default function MaintenancePerformanceReportPage() {
 
                 <div className="space-y-1">
                   <Label className="text-xs text-muted-foreground">Unit</Label>
-                  <Select value={unitId} onValueChange={setUnitId} disabled={propertyId === 'all'}>
+                  <Select
+                    value={unitId}
+                    onValueChange={(next) => {
+                      setUnitId(next)
+                      setStartDate(null)
+                      setEndDate(null)
+                      setPendingRange(false)
+                      clearSearchFilter()
+                    }}
+                    disabled={propertyId === 'all'}
+                  >
                     <SelectTrigger className="w-[160px]">
                       <SelectValue placeholder="Unit" />
                     </SelectTrigger>
@@ -455,11 +496,16 @@ export default function MaintenancePerformanceReportPage() {
                       onChange={(date) => {
                         const iso = toDateString(date)
                         setStartDate(iso)
-                        if (iso && (!endDate || iso > endDate)) setEndDate(iso)
+                        setPendingRange(Boolean(iso && !endDate))
+                        if (!iso) setPendingRange(false)
+                        clearSearchFilter()
                       }}
                       maxDate={fromDateString(endDate)}
                       className="w-[180px] text-xs"
                     />
+                    {pendingRange && (
+                      <p className="text-[11px] text-muted-foreground">Select an end date to apply.</p>
+                    )}
                   </div>
                   <div className="space-y-1">
                     <Label className="text-xs text-muted-foreground">End date</Label>
@@ -468,7 +514,9 @@ export default function MaintenancePerformanceReportPage() {
                       onChange={(date) => {
                         const iso = toDateString(date)
                         setEndDate(iso)
-                        if (iso && (!startDate || iso < startDate)) setStartDate(iso)
+                        setPendingRange(Boolean(iso && !startDate))
+                        if (!iso) setPendingRange(false)
+                        clearSearchFilter()
                       }}
                       minDate={fromDateString(startDate)}
                       className="w-[180px] text-xs"
@@ -482,6 +530,7 @@ export default function MaintenancePerformanceReportPage() {
                     onClick={() => {
                       setStartDate(null)
                       setEndDate(null)
+                      setPendingRange(false)
                     }}
                   >
                     Clear
