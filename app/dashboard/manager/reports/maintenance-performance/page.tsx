@@ -458,7 +458,7 @@ export default function MaintenancePerformanceReportPage() {
                         if (iso && (!endDate || iso > endDate)) setEndDate(iso)
                       }}
                       maxDate={fromDateString(endDate)}
-                      className="w-[180px]"
+                      className="w-[180px] text-xs"
                     />
                   </div>
                   <div className="space-y-1">
@@ -471,7 +471,7 @@ export default function MaintenancePerformanceReportPage() {
                         if (iso && (!startDate || iso < startDate)) setStartDate(iso)
                       }}
                       minDate={fromDateString(startDate)}
-                      className="w-[180px]"
+                      className="w-[180px] text-xs"
                     />
                   </div>
                   <Button
