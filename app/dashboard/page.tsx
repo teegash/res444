@@ -51,6 +51,14 @@ function DashboardContent() {
   } | null>(null)
   const [loadingOrg, setLoadingOrg] = useState(true)
 
+  const formatAxisTick = useCallback((value: number) => {
+    const numeric = Number(value || 0)
+    const abs = Math.abs(numeric)
+    if (abs >= 1000000) return `${(numeric / 1000000).toFixed(1)}M`
+    if (abs >= 1000) return `${Math.round(numeric / 1000)}k`
+    return String(Math.round(numeric))
+  }, [])
+
   useEffect(() => {
     let cancelled = false
 
@@ -710,7 +718,7 @@ function DashboardContent() {
                         axisLine={false}
                         tickMargin={8}
                         width={56}
-                        tickFormatter={(value) => `${Math.abs(Number(value)) >= 1000000 ? `${Math.round(Number(value) / 1000000)}M` : Math.abs(Number(value)) >= 1000 ? `${Math.round(Number(value) / 1000)}k` : Number(value)}`}
+                        tickFormatter={formatAxisTick}
                       />
                       <XAxis
                         dataKey="label"
@@ -764,7 +772,7 @@ function DashboardContent() {
                         axisLine={false}
                         tickMargin={8}
                         width={56}
-                        tickFormatter={(value) => `${Math.abs(Number(value)) >= 1000000 ? `${Math.round(Number(value) / 1000000)}M` : Math.abs(Number(value)) >= 1000 ? `${Math.round(Number(value) / 1000)}k` : Number(value)}`}
+                        tickFormatter={formatAxisTick}
                       />
                       <XAxis
                         dataKey="label"
