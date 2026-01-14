@@ -344,9 +344,14 @@ export default function PaymentHistoryPage() {
 
   type ExportRow = TenantPaymentRecord & { isTotalRow?: boolean }
 
+  const exportablePayments = useMemo(
+    () => filteredPayments.filter((payment) => payment.verified),
+    [filteredPayments]
+  )
+
   const totalAmountPaid = useMemo(
-    () => payments.reduce((sum, payment) => sum + payment.amount_paid, 0),
-    [payments]
+    () => exportablePayments.reduce((sum, payment) => sum + payment.amount_paid, 0),
+    [exportablePayments]
   )
 
   const exportColumns: ExportColumn<ExportRow>[] = [
@@ -419,7 +424,7 @@ export default function PaymentHistoryPage() {
       generatedAtISO,
     }
     const rows: ExportRow[] = [
-      ...payments,
+      ...exportablePayments,
       {
         id: '__total__',
         invoice_id: null,

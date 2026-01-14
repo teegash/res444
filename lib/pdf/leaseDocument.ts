@@ -25,6 +25,23 @@ const DARK = '#0f172a'
 const MUTED = '#475569'
 const PAGE_MARGIN = 48
 
+async function fetchLogoDataUrl(url?: string | null) {
+  if (!url) return null
+  try {
+    const res = await fetch(url, { cache: 'no-store' })
+    if (!res.ok) return null
+    const blob = await res.blob()
+    return await new Promise<string | null>((resolve) => {
+      const reader = new FileReader()
+      reader.onloadend = () => resolve(typeof reader.result === 'string' ? reader.result : null)
+      reader.onerror = () => resolve(null)
+      reader.readAsDataURL(blob)
+    })
+  } catch {
+    return null
+  }
+}
+
 const ensureSpace = (
   doc: jsPDF,
   cursorY: number,
@@ -79,6 +96,7 @@ export async function exportLeasePdf(options: LeasePdfOptions) {
   }
 
   const org = await fetchCurrentOrganizationBrand()
+  const orgLogoDataUrl = await fetchLogoDataUrl(org?.logo_url ?? null)
   const generatedAtISO = options.letterhead?.generatedAtISO || new Date().toISOString()
 
   const meta: LetterheadMeta = {
@@ -89,6 +107,7 @@ export async function exportLeasePdf(options: LeasePdfOptions) {
       options.letterhead?.organizationLogoUrl !== undefined
         ? options.letterhead.organizationLogoUrl
         : org?.logo_url ?? null,
+    organizationLogoDataUrl: orgLogoDataUrl ?? null,
     tenantName: options.letterhead?.tenantName,
     tenantPhone: options.letterhead?.tenantPhone,
     propertyName: options.letterhead?.propertyName,
