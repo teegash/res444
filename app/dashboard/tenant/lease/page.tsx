@@ -619,6 +619,7 @@ export default function LeasePage() {
       fileName: 'lease-agreement.pdf',
       headerTitle: 'Tenant Lease Agreement',
       headerSubtitle: 'Certified tenant portal copy',
+      compact: true,
       summary,
       sections,
       notes,
