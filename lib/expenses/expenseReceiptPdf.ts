@@ -24,6 +24,23 @@ type ExpenseReceiptPdfPayload = {
 const PAGE_MARGIN = 48
 const EXPENSE_ORANGE: [number, number, number] = [234, 88, 12]
 
+async function fetchLogoDataUrl(url?: string | null) {
+  if (!url) return null
+  try {
+    const res = await fetch(url, { cache: 'no-store' })
+    if (!res.ok) return null
+    const blob = await res.blob()
+    return await new Promise<string | null>((resolve) => {
+      const reader = new FileReader()
+      reader.onloadend = () => resolve(typeof reader.result === 'string' ? reader.result : null)
+      reader.onerror = () => resolve(null)
+      reader.readAsDataURL(blob)
+    })
+  } catch {
+    return null
+  }
+}
+
 function safeDateLabel(iso: string | null | undefined) {
   if (!iso) return ''
   const d = new Date(iso)
@@ -38,10 +55,12 @@ function safeMoney(value: number) {
 
 export async function downloadExpenseReceiptPdf(receipt: ExpenseReceiptPdfPayload) {
   const org = await fetchCurrentOrganizationBrand()
+  const orgLogoDataUrl = await fetchLogoDataUrl(org?.logo_url ?? null)
   const meta: LetterheadMeta = {
     organizationName: org?.name || 'RES',
     organizationLocation: org?.location ?? undefined,
     organizationPhone: org?.phone ?? undefined,
+    organizationLogoDataUrl: orgLogoDataUrl ?? null,
     propertyName: receipt.property?.property_name || undefined,
     documentTitle: 'Expense Receipt',
     generatedAtISO: new Date().toISOString(),
