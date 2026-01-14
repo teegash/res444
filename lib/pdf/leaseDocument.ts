@@ -76,23 +76,23 @@ const writeRow = (
 
 export async function exportLeasePdf(options: LeasePdfOptions) {
   const layout = {
-    summaryRowHeight: options.compact ? 44 : 60,
-    summaryMinHeight: options.compact ? 88 : 120,
+    summaryRowHeight: options.compact ? 46 : 60,
+    summaryMinHeight: options.compact ? 92 : 120,
     summaryLabelSize: options.compact ? 9 : 12,
-    summaryValueSize: options.compact ? 10 : 12,
-    sectionTitleSize: options.compact ? 12 : 15,
-    sectionHeaderHeight: options.compact ? 44 : 60,
-    sectionDividerGap: options.compact ? 10 : 16,
-    rowHeight: options.compact ? 24 : 32,
-    rowFontSize: options.compact ? 8 : 11,
-    rowLineHeight: options.compact ? 12 : 18,
-    rowWrapLineHeight: options.compact ? 9 : 12,
-    summarySpacing: options.compact ? 16 : 24,
-    noteHeaderHeight: options.compact ? 52 : 80,
-    noteRowHeight: options.compact ? 24 : 40,
+    summaryValueSize: options.compact ? 11 : 12,
+    sectionTitleSize: options.compact ? 13 : 15,
+    sectionHeaderHeight: options.compact ? 46 : 60,
+    sectionDividerGap: options.compact ? 12 : 16,
+    rowHeight: options.compact ? 25 : 32,
+    rowFontSize: options.compact ? 9 : 11,
+    rowLineHeight: options.compact ? 13 : 18,
+    rowWrapLineHeight: options.compact ? 10 : 12,
+    summarySpacing: options.compact ? 20 : 24,
+    noteHeaderHeight: options.compact ? 54 : 80,
+    noteRowHeight: options.compact ? 26 : 40,
     noteTitleSize: options.compact ? 11 : 14,
-    noteFontSize: options.compact ? 8 : 11,
-    noteLineHeight: options.compact ? 11 : 14,
+    noteFontSize: options.compact ? 9 : 11,
+    noteLineHeight: options.compact ? 12 : 14,
   }
 
   const org = await fetchCurrentOrganizationBrand()
