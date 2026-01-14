@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { Analytics } from '@vercel/analytics/next'
 import { AuthProvider } from '@/lib/auth/context'
 import { MobileNavRoot } from '@/components/navigation/mobile-nav-root'
+import DashboardTour from '@/components/dashboard/tour/DashboardTour'
 import Script from 'next/script'
 import './globals.css'
 
@@ -46,6 +47,7 @@ export default function RootLayout({
         </Script>
         <AuthProvider>
           {children}
+          <DashboardTour />
           <MobileNavRoot />
         </AuthProvider>
         <Analytics />
