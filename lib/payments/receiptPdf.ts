@@ -87,6 +87,7 @@ export async function downloadReceiptPdf(receipt: ReceiptPdfPayload) {
   const pageWidth = doc.internal.pageSize.getWidth()
 
   const drawHeader = () => {
+    if (doc.internal.getNumberOfPages() !== 1) return
     drawLetterhead(doc, { meta, headerHeight, accentColor: RECEIPT_GREEN })
   }
 
@@ -125,10 +126,6 @@ export async function downloadReceiptPdf(receipt: ReceiptPdfPayload) {
     .filter(Boolean)
     .join(' • ')
 
-  const didDrawPage = () => {
-    drawHeader()
-  }
-
   autoTable(doc, {
     startY: headerHeight + 74,
     margin: { left: PAGE_MARGIN, right: PAGE_MARGIN },
@@ -158,7 +155,6 @@ export async function downloadReceiptPdf(receipt: ReceiptPdfPayload) {
       0: { cellWidth: 140, fontStyle: 'bold' },
       1: { cellWidth: 'auto' },
     },
-    didDrawPage,
   })
 
   const description =
@@ -185,7 +181,6 @@ export async function downloadReceiptPdf(receipt: ReceiptPdfPayload) {
       0: { cellWidth: 'auto' },
       1: { cellWidth: 120, halign: 'right' },
     },
-    didDrawPage,
   })
 
   doc.setFont('helvetica', 'italic')

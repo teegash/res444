@@ -122,13 +122,17 @@ export async function exportLeasePdf(options: LeasePdfOptions) {
   const pageWidth = doc.internal.pageSize.getWidth()
 
   const headerHeight = getLetterheadHeight(meta, subtitle)
+  const firstPageCursor = headerHeight + 18
+  const followupCursor = PAGE_MARGIN
   const drawHeader = () => {
     drawLetterhead(doc, { meta, subtitle, headerHeight })
-    return headerHeight + 18
+    return firstPageCursor
   }
   const newPageCursor = () => {
-    drawHeader()
-    return headerHeight + 18
+    if (doc.internal.getNumberOfPages() === 1) {
+      return drawHeader()
+    }
+    return followupCursor
   }
 
   let cursorY = drawHeader()

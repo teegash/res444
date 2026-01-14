@@ -180,10 +180,12 @@ export function exportTablePdf(options: PdfExportTableOptions) {
   })
 
   const headerHeight = computeHeaderHeight(options.meta, options.subtitle)
+  const firstPageTop = headerHeight + 36
+  const followupTop = Math.max(44, EXPORT_THEME.page.headerTopPad + 18)
   const margin = {
     left: PAGE_MARGIN_X,
     right: PAGE_MARGIN_X,
-    top: headerHeight + 36,
+    top: firstPageTop,
     bottom: FOOTER_HEIGHT,
   }
 
@@ -229,12 +231,18 @@ export function exportTablePdf(options: PdfExportTableOptions) {
         data.cell.styles.fillColor = SUMMARY_FILL_RGB as any
       }
     },
-    didDrawPage: () => {
+    willDrawPage: (data) => {
+      if (data.pageNumber !== 1) return
       drawLetterhead(doc, {
         meta: options.meta,
         subtitle: options.subtitle,
         headerHeight,
       })
+    },
+    didDrawPage: (data) => {
+      if (data.pageNumber === 1) {
+        data.settings.margin.top = followupTop
+      }
       drawFooter(doc, options.meta, options.footerNote)
     },
   })

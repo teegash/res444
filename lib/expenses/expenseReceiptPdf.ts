@@ -71,6 +71,7 @@ export async function downloadExpenseReceiptPdf(receipt: ExpenseReceiptPdfPayloa
   const pageWidth = doc.internal.pageSize.getWidth()
 
   const drawHeader = () => {
+    if (doc.internal.getNumberOfPages() !== 1) return
     drawLetterhead(doc, { meta, headerHeight, accentColor: EXPENSE_ORANGE })
   }
 
@@ -91,10 +92,6 @@ export async function downloadExpenseReceiptPdf(receipt: ExpenseReceiptPdfPayloa
 
   const reference = receipt.expense.reference || receipt.expense.id
   const propertyLabel = receipt.property?.property_name || '—'
-
-  const didDrawPage = () => {
-    drawHeader()
-  }
 
   autoTable(doc, {
     startY: headerHeight + 74,
@@ -123,7 +120,6 @@ export async function downloadExpenseReceiptPdf(receipt: ExpenseReceiptPdfPayloa
       0: { cellWidth: 140, fontStyle: 'bold' },
       1: { cellWidth: 'auto' },
     },
-    didDrawPage,
   })
 
   const description = receipt.expense.notes || receipt.expense.category || 'Expense'
@@ -148,7 +144,6 @@ export async function downloadExpenseReceiptPdf(receipt: ExpenseReceiptPdfPayloa
       0: { cellWidth: 'auto' },
       1: { cellWidth: 120, halign: 'right' },
     },
-    didDrawPage,
   })
 
   doc.setFont('helvetica', 'italic')
