@@ -92,6 +92,23 @@ async function resolveLetterheadMeta(args: {
   }
 }
 
+async function fetchLogoDataUrl(url?: string | null) {
+  if (!url) return null
+  try {
+    const res = await fetch(url, { cache: 'no-store' })
+    if (!res.ok) return null
+    const blob = await res.blob()
+    return await new Promise<string | null>((resolve) => {
+      const reader = new FileReader()
+      reader.onloadend = () => resolve(typeof reader.result === 'string' ? reader.result : null)
+      reader.onerror = () => resolve(null)
+      reader.readAsDataURL(blob)
+    })
+  } catch {
+    return null
+  }
+}
+
 export async function exportRowsAsCSV<T>(
   filename: string,
   columns: ExportColumn<T>[],
@@ -157,6 +174,12 @@ export async function exportRowsAsPDF<T>(
     title: options?.title,
     letterhead: options?.letterhead,
   })
+  const logoDataUrl =
+    meta.organizationLogoDataUrl ?? (await fetchLogoDataUrl(meta.organizationLogoUrl))
+  const metaWithLogo = {
+    ...meta,
+    organizationLogoDataUrl: logoDataUrl ?? null,
+  }
 
   const pdfColumns = columns.map((col) => ({
     header: col.header,
@@ -167,7 +190,7 @@ export async function exportRowsAsPDF<T>(
 
   exportTablePdf({
     filenameBase,
-    meta,
+    meta: metaWithLogo,
     subtitle: options?.subtitle,
     columns: pdfColumns,
     body: body as any,

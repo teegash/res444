@@ -49,7 +49,8 @@ function computeHeaderHeight(meta: LetterheadMeta, subtitle?: string) {
   const { left, right } = buildLetterheadLines(meta)
   const lineCount = Math.max(left.length, right.length)
   const extraSubtitle = subtitle ? 1 : 0
-  const base = 140
+  const hasLogo = Boolean(meta.organizationLogoDataUrl || meta.organizationLogoUrl)
+  const base = hasLogo ? 150 : 130
   return base + lineCount * 16 + extraSubtitle * 20
 }
 
@@ -66,27 +67,51 @@ export function drawLetterhead(
   const pageWidth = doc.internal.pageSize.getWidth()
   void accentColor
   void ACCENT_RGB
+  const headerTop = EXPORT_THEME.page.headerTopPad
+  const rightX = pageWidth - PAGE_MARGIN_X
 
-  doc.setTextColor(...TEXT_RGB)
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(EXPORT_THEME.pdf.orgSize)
-  doc.text(meta.organizationName || 'Organization', PAGE_MARGIN_X, 60, {
-    maxWidth: pageWidth - PAGE_MARGIN_X * 2,
-  })
+  const logoDataUrl = meta.organizationLogoDataUrl
+  const orgName = meta.organizationName || 'Organization'
+
+  const inferImageFormat = (dataUrl: string) => {
+    if (dataUrl.startsWith('data:image/png')) return 'PNG'
+    if (dataUrl.startsWith('data:image/jpeg') || dataUrl.startsWith('data:image/jpg')) return 'JPEG'
+    if (dataUrl.startsWith('data:image/webp')) return 'WEBP'
+    return 'PNG'
+  }
+
+  let titleStartY = headerTop + 48
+  if (logoDataUrl) {
+    try {
+      const logoHeight = 32
+      const logoWidth = 120
+      doc.addImage(logoDataUrl, inferImageFormat(logoDataUrl), PAGE_MARGIN_X, headerTop, logoWidth, logoHeight)
+      titleStartY = headerTop + logoHeight + 30
+    } catch {
+      // ignore logo rendering errors
+    }
+  } else {
+    doc.setTextColor(...TEXT_RGB)
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(EXPORT_THEME.pdf.orgSize)
+    doc.text(orgName, PAGE_MARGIN_X, headerTop + 24, {
+      maxWidth: pageWidth - PAGE_MARGIN_X * 2,
+    })
+  }
 
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(EXPORT_THEME.pdf.metaSize)
   doc.setTextColor(...MUTED_RGB)
-  doc.text(`Generated: ${formatGeneratedAt(meta.generatedAtISO)}`, pageWidth - PAGE_MARGIN_X, 60, {
+  doc.text(`Generated: ${formatGeneratedAt(meta.generatedAtISO)}`, rightX, headerTop + 18, {
     align: 'right',
   })
 
   doc.setTextColor(...TEXT_RGB)
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(EXPORT_THEME.pdf.titleSize)
-  doc.text(meta.documentTitle || 'Document', PAGE_MARGIN_X, 92)
+  doc.text(meta.documentTitle || 'Document', PAGE_MARGIN_X, titleStartY)
 
-  let cursorY = 116
+  let cursorY = titleStartY + 24
   if (subtitle) {
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(10)

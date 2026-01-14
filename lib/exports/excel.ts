@@ -6,6 +6,30 @@ import type { LetterheadMeta } from './letterhead'
 import { formatGeneratedAt, safeFilename } from './letterhead'
 import { EXPORT_THEME } from './theme'
 
+async function fetchLogoDataUrl(url?: string | null) {
+  if (!url) return null
+  try {
+    const res = await fetch(url, { cache: 'no-store' })
+    if (!res.ok) return null
+    const blob = await res.blob()
+    return await new Promise<string | null>((resolve) => {
+      const reader = new FileReader()
+      reader.onloadend = () => resolve(typeof reader.result === 'string' ? reader.result : null)
+      reader.onerror = () => resolve(null)
+      reader.readAsDataURL(blob)
+    })
+  } catch {
+    return null
+  }
+}
+
+function dataUrlExtension(dataUrl: string) {
+  const match = dataUrl.match(/^data:image\/(png|jpe?g|webp)/i)
+  if (!match) return 'png'
+  const ext = match[1].toLowerCase()
+  return ext === 'jpg' ? 'jpeg' : ext
+}
+
 function normalizeCell(value: unknown) {
   if (value === null || value === undefined) return ''
   if (typeof value === 'number') return Number.isFinite(value) ? value : ''
@@ -110,15 +134,17 @@ export async function exportExcelWithLetterhead(args: {
   if (meta) {
     const maxCols = Math.max(args.headers.length, 8)
     const midCol = Math.max(4, Math.floor(maxCols / 2))
+    const logoDataUrl = await fetchLogoDataUrl(meta.organizationLogoUrl)
+    const hasLogo = Boolean(logoDataUrl)
 
-    worksheet.getRow(1).height = EXPORT_THEME.excel.metaRowHeights.org
+    worksheet.getRow(1).height = hasLogo ? 30 : EXPORT_THEME.excel.metaRowHeights.org
     worksheet.getRow(2).height = EXPORT_THEME.excel.metaRowHeights.title
     worksheet.getRow(3).height = EXPORT_THEME.excel.metaRowHeights.meta
     worksheet.getRow(4).height = EXPORT_THEME.excel.metaRowHeights.details
 
     worksheet.mergeCells(1, 1, 1, midCol)
     const orgCell = worksheet.getCell(1, 1)
-    orgCell.value = meta.organizationName || 'RES'
+    orgCell.value = hasLogo ? '' : meta.organizationName || 'RES'
     orgCell.font = { bold: true, size: 16, color: { argb: EXPORT_THEME.excel.fonts.text } }
     orgCell.alignment = { vertical: 'middle', horizontal: 'left' }
 
@@ -166,6 +192,21 @@ export async function exportExcelWithLetterhead(args: {
 
     for (let c = 1; c <= maxCols; c += 1) {
       worksheet.getCell(5, c).border = { bottom: { style: 'thin', color: { argb: 'FFE2E8F0' } } }
+    }
+
+    if (logoDataUrl) {
+      try {
+        const imageId = workbook.addImage({
+          base64: logoDataUrl,
+          extension: dataUrlExtension(logoDataUrl),
+        })
+        worksheet.addImage(imageId, {
+          tl: { col: 0, row: 0 },
+          ext: { width: 120, height: 32 },
+        })
+      } catch {
+        // ignore logo errors
+      }
     }
 
     startRow = 7
