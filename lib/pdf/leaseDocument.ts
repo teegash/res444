@@ -87,7 +87,7 @@ export async function exportLeasePdf(options: LeasePdfOptions) {
     rowFontSize: options.compact ? 9 : 11,
     rowLineHeight: options.compact ? 13 : 18,
     rowWrapLineHeight: options.compact ? 10 : 12,
-    summarySpacing: options.compact ? 20 : 24,
+    summarySpacing: options.compact ? 24 : 24,
     noteHeaderHeight: options.compact ? 54 : 80,
     noteRowHeight: options.compact ? 26 : 40,
     noteTitleSize: options.compact ? 11 : 14,
