@@ -32,8 +32,10 @@ export function normalizeMpesaCredentials(raw: any): MpesaCredentials | null {
   const orgId = asString(raw.organization_id)
   const consumerKey = asString(raw.consumer_key ?? raw.consumerKey)
   const consumerSecret = asString(raw.consumer_secret ?? raw.consumerSecret)
-  const passKey = asString(raw.pass_key ?? raw.passkey ?? raw.passKey)
-  const businessShortCode = asString(raw.business_short_code ?? raw.shortcode ?? raw.businessShortCode)
+  const passKey = asString(raw.pass_key ?? raw.passkey ?? raw.passKey ?? raw.stk_passkey ?? raw.stkPasskey)
+  const businessShortCode = asString(
+    raw.business_short_code ?? raw.shortcode ?? raw.businessShortCode ?? raw.stk_shortcode ?? raw.stkShortcode
+  )
   const callbackSecret = asString(raw.callback_secret ?? raw.callbackSecret)
   const environmentRaw = asString(raw.environment ?? raw.daraja_environment)
   const environment = environmentRaw === 'production' ? 'production' : 'sandbox'

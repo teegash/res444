@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { initiateSTKPush, DarajaConfig } from '@/lib/mpesa/daraja'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
-import { buildCallbackUrl, buildDarajaConfig, getMpesaCredentials } from '@/lib/mpesa/credentials'
+import { getOrgDarajaConfig } from '@/lib/mpesa/orgConfig'
 
 export async function POST(request: NextRequest) {
   try {
@@ -178,22 +178,8 @@ export async function POST(request: NextRequest) {
     }
 
     // 8. Get Daraja configuration
-    const orgId = invoice.organization_id
-    let credentials = null
-    try {
-      credentials = await getMpesaCredentials(orgId)
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to load M-Pesa credentials'
-      return NextResponse.json(
-        {
-          success: false,
-          error: message || 'M-Pesa credentials are not configured.',
-        },
-        { status: 500 }
-      )
-    }
-
-    if (!credentials || !credentials.isEnabled) {
+    const orgConfig = await getOrgDarajaConfig(invoice.organization_id)
+    if (!orgConfig) {
       return NextResponse.json(
         {
           success: false,
@@ -203,8 +189,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const callbackUrl = buildCallbackUrl(orgId, credentials.callbackSecret)
-    const darajaConfig: DarajaConfig = buildDarajaConfig(credentials, callbackUrl)
+    const darajaConfig: DarajaConfig = orgConfig
 
     // Validate required credentials
     if (!darajaConfig.consumerKey || !darajaConfig.consumerSecret || !darajaConfig.passKey) {
