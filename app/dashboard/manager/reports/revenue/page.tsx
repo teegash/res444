@@ -556,30 +556,40 @@ export default function RevenueReportPage() {
               <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
                 <div className="rounded-xl border bg-white p-3">
                   <p className="text-xs text-muted-foreground">Billed total</p>
-                  <p className="text-lg font-bold">{kes(selectedRow.billedTotal)}</p>
+                  <p className="text-sm font-semibold tabular-nums whitespace-nowrap sm:text-base">
+                    {kes(selectedRow.billedTotal)}
+                  </p>
                 </div>
                 <div className="rounded-xl border bg-white p-3">
                   <p className="text-xs text-muted-foreground">Rent billed</p>
-                  <p className="text-lg font-bold">{kes(selectedRow.billedRent)}</p>
+                  <p className="text-sm font-semibold tabular-nums whitespace-nowrap sm:text-base">
+                    {kes(selectedRow.billedRent)}
+                  </p>
                 </div>
                 <div className="rounded-xl border bg-white p-3">
                   <p className="text-xs text-muted-foreground">Water billed</p>
-                  <p className="text-lg font-bold">{kes(selectedRow.billedWater)}</p>
+                  <p className="text-sm font-semibold tabular-nums whitespace-nowrap sm:text-base">
+                    {kes(selectedRow.billedWater)}
+                  </p>
                 </div>
                 <div className="rounded-xl border bg-white p-3">
                   <p className="text-xs text-muted-foreground">Collected</p>
-                  <p className="text-lg font-bold text-emerald-700">{kes(selectedRow.collectedTotal)}</p>
+                  <p className="text-sm font-semibold tabular-nums whitespace-nowrap text-emerald-700 sm:text-base">
+                    {kes(selectedRow.collectedTotal)}
+                  </p>
                 </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div className="rounded-xl border bg-slate-50 p-3">
                   <p className="text-xs text-muted-foreground">Arrears now</p>
-                  <p className="text-sm font-medium">{kes(selectedRow.arrearsNow)}</p>
+                  <p className="text-sm font-semibold tabular-nums whitespace-nowrap">
+                    {kes(selectedRow.arrearsNow)}
+                  </p>
                 </div>
                 <div className="rounded-xl border bg-slate-50 p-3">
                   <p className="text-xs text-muted-foreground">Avg monthly collected</p>
-                  <p className="text-sm font-medium">
+                  <p className="text-sm font-semibold tabular-nums whitespace-nowrap">
                     {kes(averageMonthlyForPeriod(selectedRow.collectedTotal))}
                   </p>
                 </div>

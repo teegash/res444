@@ -661,19 +661,25 @@ export default function BenchmarkReportPage() {
               <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
                 <div className="rounded-xl border bg-white p-3">
                   <p className="text-xs text-muted-foreground">Collected</p>
-                  <p className="text-lg font-bold text-emerald-700">{kes(selectedRow.collected)}</p>
+                  <p className="text-sm font-semibold tabular-nums whitespace-nowrap text-emerald-700 sm:text-base">
+                    {kes(selectedRow.collected)}
+                  </p>
                 </div>
                 <div className="rounded-xl border bg-white p-3">
                   <p className="text-xs text-muted-foreground">Billed</p>
-                  <p className="text-lg font-bold">{kes(selectedRow.billed)}</p>
+                  <p className="text-sm font-semibold tabular-nums whitespace-nowrap sm:text-base">
+                    {kes(selectedRow.billed)}
+                  </p>
                 </div>
                 <div className="rounded-xl border bg-white p-3">
                   <p className="text-xs text-muted-foreground">Arrears (Now)</p>
-                  <p className="text-lg font-bold text-rose-700">{kes(selectedRow.arrearsNow)}</p>
+                  <p className="text-sm font-semibold tabular-nums whitespace-nowrap text-rose-700 sm:text-base">
+                    {kes(selectedRow.arrearsNow)}
+                  </p>
                 </div>
                 <div className="rounded-xl border bg-white p-3">
                   <p className="text-xs text-muted-foreground">Collection %</p>
-                  <p className="text-lg font-bold text-blue-700">
+                  <p className="text-sm font-semibold tabular-nums whitespace-nowrap text-blue-700 sm:text-base">
                     {selectedRow.collectionRate.toFixed(1)}%
                   </p>
                 </div>
@@ -682,19 +688,27 @@ export default function BenchmarkReportPage() {
               <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
                 <div className="rounded-xl border bg-white p-3">
                   <p className="text-xs text-muted-foreground">Occupancy %</p>
-                  <p className="text-lg font-bold">{selectedRow.occupancyRate.toFixed(1)}%</p>
+                  <p className="text-sm font-semibold tabular-nums whitespace-nowrap sm:text-base">
+                    {selectedRow.occupancyRate.toFixed(1)}%
+                  </p>
                 </div>
                 <div className="rounded-xl border bg-white p-3">
                   <p className="text-xs text-muted-foreground">Units</p>
-                  <p className="text-lg font-bold">{selectedRow.unitCount.toLocaleString()}</p>
+                  <p className="text-sm font-semibold tabular-nums whitespace-nowrap sm:text-base">
+                    {selectedRow.unitCount.toLocaleString()}
+                  </p>
                 </div>
                 <div className="rounded-xl border bg-white p-3">
                   <p className="text-xs text-muted-foreground">Expenses</p>
-                  <p className="text-lg font-bold text-rose-700">{kes(selectedRow.expenses)}</p>
+                  <p className="text-sm font-semibold tabular-nums whitespace-nowrap text-rose-700 sm:text-base">
+                    {kes(selectedRow.expenses)}
+                  </p>
                 </div>
                 <div className="rounded-xl border bg-white p-3">
                   <p className="text-xs text-muted-foreground">NOI Margin</p>
-                  <p className="text-lg font-bold">{selectedRow.noiMargin.toFixed(1)}%</p>
+                  <p className="text-sm font-semibold tabular-nums whitespace-nowrap sm:text-base">
+                    {selectedRow.noiMargin.toFixed(1)}%
+                  </p>
                 </div>
               </div>
 

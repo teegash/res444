@@ -771,15 +771,21 @@ export default function FinancialReportPage() {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 <div className="rounded-xl border bg-white p-3">
                   <p className="text-xs text-muted-foreground">Income</p>
-                  <p className="text-lg font-bold text-emerald-700">{kes(selectedRow.income)}</p>
+                  <p className="text-sm font-semibold tabular-nums whitespace-nowrap text-emerald-700 sm:text-base">
+                    {kes(selectedRow.income)}
+                  </p>
                 </div>
                 <div className="rounded-xl border bg-white p-3">
                   <p className="text-xs text-muted-foreground">Expenses</p>
-                  <p className="text-lg font-bold text-rose-700">{kes(selectedRow.expenses)}</p>
+                  <p className="text-sm font-semibold tabular-nums whitespace-nowrap text-rose-700 sm:text-base">
+                    {kes(selectedRow.expenses)}
+                  </p>
                 </div>
                 <div className="rounded-xl border bg-white p-3">
                   <p className="text-xs text-muted-foreground">NOI</p>
-                  <p className="text-lg font-bold">{kes(selectedRow.noi)}</p>
+                  <p className="text-sm font-semibold tabular-nums whitespace-nowrap sm:text-base">
+                    {kes(selectedRow.noi)}
+                  </p>
                 </div>
               </div>
 

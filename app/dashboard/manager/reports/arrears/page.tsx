@@ -554,19 +554,27 @@ export default function ArrearsReportPage() {
               <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
                 <div className="rounded-xl border bg-white p-3">
                   <p className="text-xs text-muted-foreground">Total arrears</p>
-                  <p className="text-lg font-bold text-rose-700">{kes(selectedRow.arrearsTotal)}</p>
+                  <p className="text-sm font-semibold tabular-nums whitespace-nowrap text-rose-700 sm:text-base">
+                    {kes(selectedRow.arrearsTotal)}
+                  </p>
                 </div>
                 <div className="rounded-xl border bg-white p-3">
                   <p className="text-xs text-muted-foreground">Rent arrears</p>
-                  <p className="text-lg font-bold">{kes(selectedRow.arrearsRent)}</p>
+                  <p className="text-sm font-semibold tabular-nums whitespace-nowrap sm:text-base">
+                    {kes(selectedRow.arrearsRent)}
+                  </p>
                 </div>
                 <div className="rounded-xl border bg-white p-3">
                   <p className="text-xs text-muted-foreground">Water arrears</p>
-                  <p className="text-lg font-bold">{kes(selectedRow.arrearsWater)}</p>
+                  <p className="text-sm font-semibold tabular-nums whitespace-nowrap sm:text-base">
+                    {kes(selectedRow.arrearsWater)}
+                  </p>
                 </div>
                 <div className="rounded-xl border bg-white p-3">
                   <p className="text-xs text-muted-foreground">Open invoices</p>
-                  <p className="text-lg font-bold">{selectedRow.openInvoices}</p>
+                  <p className="text-sm font-semibold tabular-nums whitespace-nowrap sm:text-base">
+                    {selectedRow.openInvoices}
+                  </p>
                 </div>
               </div>
 

@@ -648,26 +648,28 @@ export default function MaintenancePerformanceReportPage() {
               <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
                 <div className="rounded-xl border bg-white p-3">
                   <p className="text-xs text-muted-foreground">Collected</p>
-                  <p className="text-lg font-bold text-emerald-700">
+                  <p className="text-sm font-semibold tabular-nums whitespace-nowrap text-emerald-700 sm:text-base">
                     {fmtKES(selectedRow.rent_collected)}
                   </p>
                 </div>
 
                 <div className="rounded-xl border bg-white p-3">
                   <p className="text-xs text-muted-foreground">Maintenance spend</p>
-                  <p className="text-lg font-bold text-rose-700">
+                  <p className="text-sm font-semibold tabular-nums whitespace-nowrap text-rose-700 sm:text-base">
                     {fmtKES(selectedRow.maintenance_spend)}
                   </p>
                 </div>
 
                 <div className="rounded-xl border bg-white p-3">
                   <p className="text-xs text-muted-foreground">Net income</p>
-                  <p className="text-lg font-bold">{fmtKES(selectedRow.net_income)}</p>
+                  <p className="text-sm font-semibold tabular-nums whitespace-nowrap sm:text-base">
+                    {fmtKES(selectedRow.net_income)}
+                  </p>
                 </div>
 
                 <div className="rounded-xl border bg-white p-3">
                   <p className="text-xs text-muted-foreground">Spend ratio</p>
-                  <p className="text-lg font-bold text-blue-700">
+                  <p className="text-sm font-semibold tabular-nums whitespace-nowrap text-blue-700 sm:text-base">
                     {fmtPct(selectedRow.maintenance_to_collections_ratio)}
                   </p>
                 </div>
