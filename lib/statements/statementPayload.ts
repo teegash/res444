@@ -225,13 +225,33 @@ export function buildStatementPayloadFromRpc(args: {
     )
 
   mappedTransactions.sort((a, b) => {
-    const aTime = a.posted_at ? new Date(a.posted_at).getTime() : 0
-    const bTime = b.posted_at ? new Date(b.posted_at).getTime() : 0
-    if (aTime === bTime) {
-      if (a.kind === b.kind) return 0
-      return a.kind === 'charge' ? -1 : 1
+    const toDateKey = (value?: string | null) => {
+      if (!value) return ''
+      const match = String(value).match(/^\d{4}-\d{2}-\d{2}/)
+      if (match) return match[0]
+      const parsed = new Date(value)
+      if (Number.isNaN(parsed.getTime())) return ''
+      return parsed.toISOString().slice(0, 10)
     }
-    return aTime - bTime
+    const toTimeKey = (value?: string | null) => {
+      if (!value) return 0
+      const parsed = new Date(value)
+      if (Number.isNaN(parsed.getTime())) return 0
+      return parsed.getTime()
+    }
+
+    const aDate = toDateKey(a.posted_at)
+    const bDate = toDateKey(b.posted_at)
+    if (aDate === bDate) {
+      if (a.kind !== b.kind) return a.kind === 'charge' ? -1 : 1
+      const aTime = toTimeKey(a.posted_at)
+      const bTime = toTimeKey(b.posted_at)
+      if (aTime === bTime) return 0
+      return aTime - bTime
+    }
+    if (!aDate) return 1
+    if (!bDate) return -1
+    return aDate.localeCompare(bDate)
   })
 
   let runningBalance = 0
