@@ -22,7 +22,6 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { useAuth } from '@/lib/auth/context'
 import { createClient } from '@/lib/supabase/client'
-import TourButton from '@/components/dashboard/tour/TourButton'
 
 interface NotificationItem {
   id: string
@@ -470,7 +469,7 @@ export function Header() {
     <header className="border-b border-border bg-card sticky top-0 z-30">
       <div className="flex items-center justify-between p-6 max-w-full w-full">
         {/* Search */}
-        <div className="flex items-center flex-1 mr-6 gap-2">
+        <div className="flex items-center flex-1 mr-6">
           <div className="relative w-full max-w-md">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
             <Input
@@ -556,7 +555,6 @@ export function Header() {
               </div>
             ) : null}
           </div>
-          <TourButton />
         </div>
 
         {/* Right Actions */}

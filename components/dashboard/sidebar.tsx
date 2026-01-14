@@ -395,7 +395,7 @@ const menuItems = [
 	        </Dialog>
 
         {/* Menu Items */}
-        <nav data-tour="sidebar-nav" className="flex-1 p-4 space-y-2 overflow-y-auto">
+        <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
           {visibleMenuItems.map((item) => {
             const Icon = item.icon
             const isActive = pathname === item.href || pathname.startsWith(item.href + '/')
@@ -412,7 +412,6 @@ const menuItems = [
                       : 'text-gray-700 hover:text-gray-900 hover:bg-gray-200/70'
                   )}
                   title={!isExpanded ? item.label : undefined}
-                  data-tour={item.href === '/dashboard/water-bills' ? 'nav-water-bills' : undefined}
                 >
                   <Icon className={cn("w-5 h-5", isExpanded && "mr-3")} />
                   {isExpanded && <span className="whitespace-nowrap">{item.label}</span>}

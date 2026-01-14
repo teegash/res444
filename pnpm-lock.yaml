@@ -194,9 +194,6 @@ importers:
       react-hook-form:
         specifier: latest
         version: 7.66.1(react@19.2.0)
-      react-joyride:
-        specifier: ^2.9.3
-        version: 2.9.3(@types/react@19.2.6)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
       react-resizable-panels:
         specifier: latest
         version: 3.0.6(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
@@ -2278,12 +2275,6 @@ packages:
 
   react-is@19.2.0:
     resolution: {integrity: sha512-x3Ax3kNSMIIkyVYhWPyO09bu0uttcAIoecO/um/rKGQ4EltYWVYtyiGkS/3xMynrbVQdS69Jhlv8FXUEZehlzA==}
-
-  react-joyride@2.9.3:
-    resolution: {integrity: sha512-1+Mg34XK5zaqJ63eeBhqdbk7dlGCFp36FXwsEvgpjqrtyywX2C6h9vr3jgxP0bGHCw8Ilsp/nRDzNVq6HJ3rNw==}
-    peerDependencies:
-      react: 15 - 18
-      react-dom: 15 - 18
 
   react-redux@9.2.0:
     resolution: {integrity: sha512-ROY9fvHhwOD9ySfrF0wmvu//bKCQ6AeZZq1nJNtbDC+kk5DuSuNX/n6YWYF/SYy7bSba4D4FSz8DJeKY/S/r+g==}
@@ -4609,24 +4600,6 @@ snapshots:
   react-is@16.13.1: {}
 
   react-is@19.2.0: {}
-
-  react-joyride@2.9.3(@types/react@19.2.6)(react-dom@19.2.0(react@19.2.0))(react@19.2.0):
-    dependencies:
-      '@gilbarbara/deep-equal': 0.3.1
-      deep-diff: 1.0.2
-      deepmerge: 4.3.1
-      is-lite: 1.2.1
-      react: 19.2.0
-      react-dom: 19.2.0(react@19.2.0)
-      react-floater: 0.7.9(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
-      react-innertext: 1.1.5(@types/react@19.2.6)(react@19.2.0)
-      react-is: 16.13.1
-      scroll: 3.0.1
-      scrollparent: 2.1.0
-      tree-changes: 0.11.3
-      type-fest: 4.41.0
-    transitivePeerDependencies:
-      - '@types/react'
 
   react-redux@9.2.0(@types/react@19.2.6)(react@19.2.0)(redux@5.0.1):
     dependencies:

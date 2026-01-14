@@ -419,10 +419,7 @@ export default function WaterBillsPage() {
         <Header />
         <main className="flex-1 p-8 overflow-auto">
           {/* Header */}
-          <div
-            data-tour="water-bills-header"
-            className="mb-8 flex flex-col gap-4 md:flex-row md:items-center md:justify-between"
-          >
+          <div className="mb-8 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div>
               <div className="flex items-center gap-3 mb-2">
                 <div className="p-2 bg-blue-100 rounded-lg">
@@ -435,12 +432,7 @@ export default function WaterBillsPage() {
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2 w-full md:w-auto md:ml-auto">
-              <Button
-                data-tour="water-bills-bulk-btn"
-                asChild
-                variant="default"
-                className="w-full md:w-auto"
-              >
+              <Button asChild variant="default" className="w-full md:w-auto">
                 <Link href="/dashboard/water-bills/bulk">Bulk Billing</Link>
               </Button>
               <Button asChild variant="outline" className="w-full md:w-auto">
@@ -459,7 +451,7 @@ export default function WaterBillsPage() {
 
               <div className="space-y-4">
                 {invoiceSent ? (
-                  <Card data-tour="water-bills-single-form">
+                  <Card>
                     <CardContent className="py-10 text-center space-y-4">
                       <Droplet className="mx-auto h-10 w-10 text-[#4682B4]" />
                       <h2 className="text-2xl font-bold">Invoice Sent Successfully</h2>
@@ -476,7 +468,7 @@ export default function WaterBillsPage() {
                     </CardContent>
                   </Card>
                 ) : (
-                  <Card data-tour="water-bills-single-form">
+                  <Card>
                     <CardHeader className="bg-gradient-to-r from-[#4682B4] to-[#5a9fd4] text-white pt-7 pb-6">
                       <CardTitle className="flex items-center gap-2">
                         <Calculator className="h-5 w-5" />
