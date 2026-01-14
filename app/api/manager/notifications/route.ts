@@ -207,15 +207,63 @@ export async function PATCH(request: NextRequest) {
 
     const orgId = membership.organization_id
 
-    const { error } = await adminSupabase
-      .from('communications')
-      .update({ read: true })
-      .in('id', ids)
-      .eq('recipient_user_id', user.id)
+    const { data: staffRows, error: staffErr } = await adminSupabase
+      .from('organization_members')
+      .select('user_id, role')
       .eq('organization_id', orgId)
+      .in('role', Array.from(MANAGER_ROLES))
 
-    if (error) {
-      throw error
+    if (staffErr) {
+      throw staffErr
+    }
+
+    const staffIds = (staffRows || []).map((row) => row.user_id).filter(Boolean)
+    const scopedStaffIds = staffIds.length ? staffIds : [user.id]
+
+    const { data: rows, error: rowsErr } = await adminSupabase
+      .from('communications')
+      .select('id, related_entity_type, related_entity_id')
+      .eq('organization_id', orgId)
+      .in('id', ids)
+
+    if (rowsErr) {
+      throw rowsErr
+    }
+
+    const withEntity = (rows || []).filter(
+      (row: any) => row.related_entity_type && row.related_entity_id
+    ) as Array<{ related_entity_type: string; related_entity_id: string }>
+    const withoutEntity = (rows || []).filter(
+      (row: any) => !row.related_entity_type || !row.related_entity_id
+    ) as Array<{ id: string }>
+
+    const uniquePairs = new Map<string, { type: string; id: string }>()
+    withEntity.forEach((row) => {
+      const key = `${row.related_entity_type}|${row.related_entity_id}`
+      if (!uniquePairs.has(key)) {
+        uniquePairs.set(key, { type: row.related_entity_type, id: row.related_entity_id })
+      }
+    })
+
+    for (const pair of uniquePairs.values()) {
+      const { error } = await adminSupabase
+        .from('communications')
+        .update({ read: true })
+        .eq('organization_id', orgId)
+        .eq('related_entity_type', pair.type)
+        .eq('related_entity_id', pair.id)
+        .in('recipient_user_id', scopedStaffIds)
+      if (error) throw error
+    }
+
+    if (withoutEntity.length) {
+      const { error } = await adminSupabase
+        .from('communications')
+        .update({ read: true })
+        .eq('organization_id', orgId)
+        .in('id', withoutEntity.map((row) => row.id))
+        .in('recipient_user_id', scopedStaffIds)
+      if (error) throw error
     }
 
     return NextResponse.json({ success: true })

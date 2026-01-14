@@ -272,6 +272,30 @@ export async function PATCH(request: NextRequest) {
         read: false,
       })
 
+      const { data: staffRows, error: staffErr } = await adminSupabase
+        .from('organization_members')
+        .select('user_id, role')
+        .eq('organization_id', membership.organization_id)
+        .in('role', ['admin', 'manager', 'caretaker'])
+
+      if (staffErr) {
+        console.error('[ManagerMaintenance.PATCH] Failed to resolve staff ids', staffErr)
+      } else {
+        const staffIds = (staffRows || []).map((row: any) => row.user_id).filter(Boolean)
+        if (staffIds.length) {
+          const { error: clearErr } = await adminSupabase
+            .from('communications')
+            .update({ read: true })
+            .eq('organization_id', membership.organization_id)
+            .eq('related_entity_type', 'maintenance_request')
+            .eq('related_entity_id', updated.id)
+            .in('recipient_user_id', staffIds)
+          if (clearErr) {
+            console.error('[ManagerMaintenance.PATCH] Failed to clear staff notifications', clearErr)
+          }
+        }
+      }
+
       return NextResponse.json({ success: true, data: updated })
     }
 
