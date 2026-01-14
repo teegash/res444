@@ -452,7 +452,7 @@ export default function RevenueReportPage() {
                           tickLine={false}
                           axisLine={false}
                           tickMargin={8}
-                          tickFormatter={(value) => `KES ${kesAbbrev(Number(value || 0))}`}
+                          tickFormatter={(value) => `${kesAbbrev(Number(value || 0))}`}
                         />
                         <ChartTooltip cursor={false} content={<ChartTooltipContent indicator="line" />} />
                         <Bar dataKey="collectedTotal" fill="#2563eb" radius={6}>
