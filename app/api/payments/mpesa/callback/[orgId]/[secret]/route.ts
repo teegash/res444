@@ -8,8 +8,16 @@ import { getMpesaCredentials } from '@/lib/mpesa/credentials'
 
 type Ctx = { params: Promise<{ orgId: string; secret: string }> }
 
-export async function GET() {
-  return NextResponse.json({ ok: true, message: 'Callback endpoint is live' }, { status: 200 })
+export async function GET(_req: NextRequest, { params }: Ctx) {
+  const resolved = await params
+  return NextResponse.json(
+    {
+      ok: true,
+      orgIdPresent: !!resolved?.orgId,
+      secretPresent: !!resolved?.secret,
+    },
+    { status: 200 }
+  )
 }
 
 export async function POST(request: NextRequest, { params }: Ctx) {
@@ -49,9 +57,21 @@ export async function POST(request: NextRequest, { params }: Ctx) {
       return okAck({ auditInsert: 'failed', auditErr: inboundAuditErr.message })
     }
 
-    const creds = await getMpesaCredentials(orgId)
+    let creds: Awaited<ReturnType<typeof getMpesaCredentials>> | null = null
+    try {
+      creds = await getMpesaCredentials(orgId)
+    } catch (err) {
+      console.error('[MpesaCallback] credentials load failed', err)
+      return okAck({ auditInsert: 'ok' })
+    }
     if (!creds || !creds.isEnabled) return okAck({ auditInsert: 'ok' })
-    if (String(creds.callbackSecret) !== String(secret)) return okAck({ auditInsert: 'ok' })
+    if (String(creds.callbackSecret) !== String(secret)) {
+      console.warn('[MpesaCallback] secret mismatch', {
+        orgId,
+        secretSuffix: String(secret || '').slice(-4),
+      })
+      return okAck({ auditInsert: 'ok' })
+    }
 
     let callbackData: any
     try {
@@ -122,6 +142,17 @@ export async function POST(request: NextRequest, { params }: Ctx) {
       console.error('[MpesaCallback] payment lookup failed', payErr)
     }
     if (payErr || !payment) {
+      if (!payErr && parsed.checkoutRequestId) {
+        await admin
+          .from('mpesa_callback_audit')
+          .insert({
+            organization_id: orgId,
+            checkout_request_id: parsed.checkoutRequestId,
+            raw_payload: { note: 'payment_not_found' },
+            received_at: new Date().toISOString(),
+          })
+          .catch(() => {})
+      }
       return okAck({ auditInsert: 'ok' })
     }
 
@@ -142,22 +173,25 @@ export async function POST(request: NextRequest, { params }: Ctx) {
       console.error('[MpesaCallback] payment update failed', updateErr)
     }
 
-    if (parsed.resultCode === 0) {
-      if (!payment.verified) {
-        const { error: verifyErr } = await admin
-          .from('payments')
-          .update({
-            verified: true,
-            verified_at: nowIso,
-            mpesa_auto_verified: true,
-            mpesa_verification_timestamp: nowIso,
-          })
-          .eq('id', payment.id)
-        if (verifyErr) {
-          console.error('[MpesaCallback] payment verify update failed', verifyErr)
-        }
+    let didVerify = false
+    if (parsed.resultCode === 0 && !payment.verified) {
+      const { error: verifyErr } = await admin
+        .from('payments')
+        .update({
+          verified: true,
+          verified_at: nowIso,
+          mpesa_auto_verified: true,
+          mpesa_verification_timestamp: nowIso,
+        })
+        .eq('id', payment.id)
+      if (verifyErr) {
+        console.error('[MpesaCallback] payment verify update failed', verifyErr)
+      } else {
+        didVerify = true
       }
+    }
 
+    if (didVerify) {
       const invoice = payment.invoices as
         | { id: string; lease_id: string; invoice_type: 'rent' | 'water' | string }
         | null
@@ -184,19 +218,27 @@ export async function POST(request: NextRequest, { params }: Ctx) {
         }
       }
 
-      await logNotification({
-        senderUserId: null,
-        recipientUserId: payment.tenant_user_id,
-        messageText: `Payment of KES ${Number(payment.amount_paid).toLocaleString()} confirmed.`,
-        relatedEntityType: 'payment',
-        relatedEntityId: payment.id,
-      })
+      try {
+        await logNotification({
+          senderUserId: null,
+          recipientUserId: payment.tenant_user_id,
+          messageText: `Payment of KES ${Number(payment.amount_paid).toLocaleString()} confirmed.`,
+          relatedEntityType: 'payment',
+          relatedEntityId: payment.id,
+        })
+      } catch (err) {
+        console.error('[MpesaCallback] logNotification failed', err)
+      }
 
-      sendPaymentConfirmationSMS(payment.tenant_user_id, {
-        amount: Number(payment.amount_paid),
-        receiptNumber: parsed.receiptNumber || 'N/A',
-        invoiceId: payment.invoice_id,
-      }).catch(() => {})
+      try {
+        await sendPaymentConfirmationSMS(payment.tenant_user_id, {
+          amount: Number(payment.amount_paid),
+          receiptNumber: parsed.receiptNumber || 'N/A',
+          invoiceId: payment.invoice_id,
+        })
+      } catch (err) {
+        console.error('[MpesaCallback] sendPaymentConfirmationSMS failed', err)
+      }
     }
 
     return okAck({ auditInsert: 'ok' })
@@ -215,31 +257,36 @@ async function sendPaymentConfirmationSMS(
   tenantUserId: string,
   paymentDetails: { amount: number; receiptNumber: string; invoiceId: string }
 ) {
-  const supabase = createAdminClient()
+  try {
+    const supabase = createAdminClient()
+    if (!supabase) return
 
-  const { data: profile } = await supabase
-    .from('user_profiles')
-    .select('phone_number')
-    .eq('id', tenantUserId)
-    .single()
+    const { data: profile } = await supabase
+      .from('user_profiles')
+      .select('phone_number')
+      .eq('id', tenantUserId)
+      .single()
 
-  if (!profile?.phone_number) return
+    if (!profile?.phone_number) return
 
-  const formattedAmount = new Intl.NumberFormat('en-KE', {
-    style: 'currency',
-    currency: 'KES',
-    minimumFractionDigits: 0,
-  }).format(paymentDetails.amount)
+    const formattedAmount = new Intl.NumberFormat('en-KE', {
+      style: 'currency',
+      currency: 'KES',
+      minimumFractionDigits: 0,
+    }).format(paymentDetails.amount)
 
-  const message = `RES: Your payment of ${formattedAmount} has been confirmed. Receipt: ${paymentDetails.receiptNumber}. Invoice #${paymentDetails.invoiceId.substring(0, 8)}. Thank you!`
+    const message = `RES: Your payment of ${formattedAmount} has been confirmed. Receipt: ${paymentDetails.receiptNumber}. Invoice #${paymentDetails.invoiceId.substring(0, 8)}. Thank you!`
 
-  const { sendSMSWithLogging } = await import('@/lib/sms/smsService')
+    const { sendSMSWithLogging } = await import('@/lib/sms/smsService')
 
-  await sendSMSWithLogging({
-    phoneNumber: profile.phone_number,
-    message,
-    recipientUserId: tenantUserId,
-    relatedEntityType: 'payment',
-    relatedEntityId: paymentDetails.invoiceId,
-  })
+    await sendSMSWithLogging({
+      phoneNumber: profile.phone_number,
+      message,
+      recipientUserId: tenantUserId,
+      relatedEntityType: 'payment',
+      relatedEntityId: paymentDetails.invoiceId,
+    })
+  } catch (err) {
+    console.error('[MpesaCallback] SMS send failed', err)
+  }
 }
