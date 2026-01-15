@@ -27,6 +27,14 @@ function isoDate(value: string | null | undefined) {
   return value.length >= 10 ? value.slice(0, 10) : null
 }
 
+function endExclusiveIso(endIso: string | null | undefined) {
+  if (!endIso) return null
+  const d = new Date(`${endIso.slice(0, 10)}T00:00:00Z`)
+  if (Number.isNaN(d.getTime())) return null
+  d.setUTCDate(d.getUTCDate() + 1)
+  return d.toISOString().slice(0, 10)
+}
+
 function monthStartUtc(dateIso: string) {
   const d = new Date(`${dateIso.slice(0, 10)}T00:00:00Z`)
   if (Number.isNaN(d.getTime())) return null
@@ -76,6 +84,7 @@ export async function GET(req: NextRequest) {
     const orgId = membership.organization_id
     const range = resolveRange({ period, startDate, endDate })
     const scopePropertyId = propertyId !== "all" ? propertyId : null
+    const paymentEndExclusive = endExclusiveIso(range.end)
 
     /* =========================================================
        1) Properties
@@ -267,7 +276,7 @@ export async function GET(req: NextRequest) {
       .eq("verified", true)
 
     if (range.start) paymentsQuery = paymentsQuery.gte("payment_date", range.start)
-    paymentsQuery = paymentsQuery.lte("payment_date", range.end)
+    if (paymentEndExclusive) paymentsQuery = paymentsQuery.lt("payment_date", paymentEndExclusive)
 
     const { data: paymentsRaw, error: payErr } = await paymentsQuery
     if (payErr) throw payErr

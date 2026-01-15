@@ -18,6 +18,14 @@ function isoDate(value: string | null | undefined) {
   return value.length >= 10 ? value.slice(0, 10) : null
 }
 
+function endExclusiveIso(endIso: string | null | undefined) {
+  if (!endIso) return null
+  const d = new Date(`${endIso.slice(0, 10)}T00:00:00Z`)
+  if (Number.isNaN(d.getTime())) return null
+  d.setUTCDate(d.getUTCDate() + 1)
+  return d.toISOString().slice(0, 10)
+}
+
 export async function GET(request: NextRequest) {
   try {
     const url = new URL(request.url)
@@ -60,6 +68,7 @@ export async function GET(request: NextRequest) {
     const range = resolveRange({ period, startDate, endDate })
     const groupBy: GroupBy = groupByParam || defaultGroupBy(range.start, range.end)
     const scopePropertyId = propertyId !== 'all' ? propertyId : null
+    const paymentEndExclusive = endExclusiveIso(range.end)
 
     const { data: properties, error: propErr } = await admin
       .from('apartment_buildings')
@@ -99,7 +108,7 @@ export async function GET(request: NextRequest) {
       .eq('verified', true)
 
     if (range.start) paymentsQuery = paymentsQuery.gte('payment_date', range.start)
-    paymentsQuery = paymentsQuery.lte('payment_date', range.end)
+    if (paymentEndExclusive) paymentsQuery = paymentsQuery.lt('payment_date', paymentEndExclusive)
 
     const { data: payments, error: paymentsError } = await paymentsQuery
     if (paymentsError) throw paymentsError
@@ -419,6 +428,7 @@ async function handleStatement(args: {
   const period = request.nextUrl.searchParams.get('period') || 'quarter'
   const propertyFilter = request.nextUrl.searchParams.get('property') || 'all'
   const { startDate, endDate } = getPeriodRange(period)
+  const paymentEndExclusive = endExclusiveIso(endDate)
 
   const paymentsQuery = admin
     .from('payments')
@@ -445,6 +455,9 @@ async function handleStatement(args: {
 
   if (startDate) {
     paymentsQuery.gte('payment_date', startDate)
+  }
+  if (paymentEndExclusive) {
+    paymentsQuery.lt('payment_date', paymentEndExclusive)
   }
 
   const { data: payments, error: paymentsError } = await paymentsQuery

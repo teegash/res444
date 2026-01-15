@@ -10,6 +10,14 @@ function isoDate(value: string | null | undefined) {
   return value.length >= 10 ? value.slice(0, 10) : null
 }
 
+function endExclusiveIso(endIso: string | null | undefined) {
+  if (!endIso) return null
+  const d = new Date(`${endIso.slice(0, 10)}T00:00:00Z`)
+  if (Number.isNaN(d.getTime())) return null
+  d.setUTCDate(d.getUTCDate() + 1)
+  return d.toISOString().slice(0, 10)
+}
+
 function monthStartIso(value: string | null | undefined) {
   if (!value) return null
   const date = new Date(`${value.slice(0, 10)}T00:00:00Z`)
@@ -85,6 +93,7 @@ export async function GET(req: NextRequest) {
 
     const range = resolveRange({ period, startDate, endDate })
     const groupBy: GroupBy = groupByParam || defaultGroupBy(range.start, range.end)
+    const paymentEndExclusive = endExclusiveIso(range.end)
 
     const { data: properties, error: propErr } = await admin
       .from('apartment_buildings')
@@ -178,7 +187,7 @@ export async function GET(req: NextRequest) {
       .eq('verified', true)
 
     if (range.start) paymentQuery = paymentQuery.gte('payment_date', range.start)
-    paymentQuery = paymentQuery.lte('payment_date', range.end)
+    if (paymentEndExclusive) paymentQuery = paymentQuery.lt('payment_date', paymentEndExclusive)
 
     const { data: payments, error: payErr } = await paymentQuery
     if (payErr) throw payErr

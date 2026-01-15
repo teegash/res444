@@ -34,11 +34,20 @@ type LeaseRow = {
   } | null
 }
 
+function endExclusiveIso(endIso: string | null | undefined) {
+  if (!endIso) return null
+  const d = new Date(`${endIso.slice(0, 10)}T00:00:00Z`)
+  if (Number.isNaN(d.getTime())) return null
+  d.setUTCDate(d.getUTCDate() + 1)
+  return d.toISOString().slice(0, 10)
+}
+
 export async function GET(request: NextRequest) {
   try {
     const period = request.nextUrl.searchParams.get('period') || 'quarter'
     const { startDate, endDate } = getPeriodRange(period)
     const { prevStart, prevEnd } = getPreviousPeriod(startDate, endDate)
+    const paymentEndExclusive = endExclusiveIso(endDate)
 
     const supabase = await createClient()
     const {
@@ -87,6 +96,9 @@ export async function GET(request: NextRequest) {
 
     if (startDate) {
       paymentsQuery.gte('payment_date', startDate)
+    }
+    if (paymentEndExclusive) {
+      paymentsQuery.lt('payment_date', paymentEndExclusive)
     }
 
     const { data: payments, error: paymentsError } = await paymentsQuery
@@ -234,7 +246,10 @@ export async function GET(request: NextRequest) {
         .from('payments')
         .select('amount_paid, payment_date')
         .gte('payment_date', prevStart)
-        .lte('payment_date', prevEnd)
+      const prevEndExclusive = endExclusiveIso(prevEnd)
+      if (prevEndExclusive) {
+        prevPaymentsQuery.lt('payment_date', prevEndExclusive)
+      }
       const { data: prevPayments } = await prevPaymentsQuery
       const prevCollected = (prevPayments || []).reduce(
         (sum, row: any) => sum + Number(row.amount_paid || 0),
