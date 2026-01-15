@@ -146,7 +146,7 @@ export async function GET() {
         : payment.mpesa_response_code && payment.mpesa_response_code !== '0'
           ? 'failed'
           : payment.mpesa_query_status &&
-              /fail|cancel|timeout|insufficient/i.test(payment.mpesa_query_status)
+              /fail|cancel|timeout|expired|insufficient/i.test(payment.mpesa_query_status)
             ? 'failed'
             : 'pending'
 

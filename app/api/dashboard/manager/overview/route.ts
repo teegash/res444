@@ -659,7 +659,8 @@ export async function GET() {
     const isFailedPayment = (p: PaymentRow) =>
       !p.verified &&
       ((p.mpesa_response_code && p.mpesa_response_code !== '0') ||
-        (p.mpesa_query_status && /fail|cancel|timeout|insufficient/i.test(p.mpesa_query_status)))
+        (p.mpesa_query_status &&
+          /fail|cancel|timeout|expired|insufficient/i.test(p.mpesa_query_status)))
 
     const failedCount = payments.filter(isFailedPayment).length
     const paidCount = payments.filter((p: PaymentRow) => p.verified).length

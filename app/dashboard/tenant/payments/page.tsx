@@ -522,20 +522,20 @@ export default function PaymentHistoryPage() {
             <>
               <Card>
                 <CardHeader className="pb-3 space-y-2">
-                  <Skeleton className="h-4 w-40" />
-                  <Skeleton className="h-8 w-48" />
+                  <Skeleton className="h-4 w-40 bg-slate-200" />
+                  <Skeleton className="h-8 w-48 bg-slate-200" />
                 </CardHeader>
               </Card>
               <Card>
                 <CardHeader className="pb-3 space-y-2">
-                  <Skeleton className="h-4 w-36" />
-                  <Skeleton className="h-8 w-32" />
+                  <Skeleton className="h-4 w-36 bg-slate-200" />
+                  <Skeleton className="h-8 w-32 bg-slate-200" />
                 </CardHeader>
               </Card>
               <Card>
                 <CardHeader className="pb-3 space-y-2">
-                  <Skeleton className="h-4 w-44" />
-                  <Skeleton className="h-8 w-52" />
+                  <Skeleton className="h-4 w-44 bg-slate-200" />
+                  <Skeleton className="h-8 w-52 bg-slate-200" />
                 </CardHeader>
               </Card>
             </>

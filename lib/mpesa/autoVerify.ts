@@ -19,6 +19,8 @@ export interface PendingPayment {
   retry_count: number
   created_at: string
   last_status_check: string | null
+  mpesa_initiated_at?: string | null
+  mpesa_query_status?: string | null
   notes?: string | null
   months_paid?: number | null
   payment_date?: string | null
@@ -51,28 +53,34 @@ export interface AutoVerifyResult {
  */
 async function getPendingMpesaPayments(
   maxRetries: number,
+  minIntervalSeconds: number,
   orgId?: string | null
 ): Promise<PendingPayment[]> {
   try {
     const supabase = createAdminClient()
 
-    // Calculate 24 hours ago
+    const intervalSeconds = Number.isFinite(minIntervalSeconds) && minIntervalSeconds > 0
+      ? Math.max(30, Math.floor(minIntervalSeconds))
+      : 60
+    const thresholdIso = new Date(Date.now() - intervalSeconds * 1000).toISOString()
+
     // Query payments that:
     // 1. Are M-Pesa payments
     // 2. Not verified
-    // 3. Created more than 24 hours ago
-    // 4. Have a receipt number OR checkout request ID in notes
+    // 3. Have a checkout request id or receipt number
+    // 4. Have not been checked recently (fallback verification)
     const query = supabase
       .from('payments')
       .select(
-        'id, organization_id, invoice_id, tenant_user_id, amount_paid, mpesa_checkout_request_id, mpesa_receipt_number, retry_count, created_at, last_status_check, notes, months_paid, payment_date'
+        'id, organization_id, invoice_id, tenant_user_id, amount_paid, mpesa_checkout_request_id, mpesa_receipt_number, retry_count, created_at, last_status_check, mpesa_initiated_at, mpesa_query_status, notes, months_paid, payment_date'
       )
       .eq('payment_method', 'mpesa')
       .eq('verified', false)
       .or('mpesa_checkout_request_id.not.is.null,mpesa_receipt_number.not.is.null')
+      .or(`last_status_check.is.null,last_status_check.lt.${thresholdIso}`)
       .lt('retry_count', maxRetries)
       .order('created_at', { ascending: true })
-      .limit(100)
+      .limit(25)
 
     if (orgId) {
       query.eq('organization_id', orgId)
@@ -103,6 +111,7 @@ async function sendPaymentConfirmationSMS(
 ): Promise<void> {
   try {
     const supabase = createAdminClient()
+    if (!supabase) return
 
     // Get tenant phone number
     const { data: profile } = await supabase
@@ -401,7 +410,11 @@ export async function autoVerifyMpesaPayments(
     }
 
     // Get pending payments
-    const pendingPayments = await getPendingMpesaPayments(settings.max_retries, orgId)
+    const pendingPayments = await getPendingMpesaPayments(
+      settings.max_retries,
+      settings.auto_verify_frequency_seconds,
+      orgId
+    )
 
     if (pendingPayments.length === 0) {
       return {
@@ -437,6 +450,24 @@ export async function autoVerifyMpesaPayments(
       paymentsByOrg.set(payment.organization_id, list)
     }
 
+    const admin = createAdminClient()
+    if (!admin) {
+      return {
+        success: false,
+        checked_count: 0,
+        verified_count: 0,
+        failed_count: 0,
+        pending_count: 0,
+        skipped_count: 0,
+        error_count: pendingPayments.length,
+        payments_auto_verified: [],
+        errors: pendingPayments.map((payment) => ({
+          payment_id: payment.id,
+          error: 'Supabase admin client unavailable',
+        })),
+      }
+    }
+
     for (const [groupOrgId, groupPayments] of paymentsByOrg.entries()) {
       let creds: Awaited<ReturnType<typeof getMpesaCredentials>> | null = null
       try {
@@ -467,6 +498,43 @@ export async function autoVerifyMpesaPayments(
       for (const payment of groupPayments) {
         try {
           checkedCount++
+
+          const baseTime = payment.mpesa_initiated_at || payment.created_at
+          const initiatedAt = baseTime ? Date.parse(baseTime) : NaN
+          if (Number.isFinite(initiatedAt)) {
+            const ageMs = Date.now() - initiatedAt
+            const tenMinutesMs = 10 * 60 * 1000
+            const thirtyMinutesMs = 30 * 60 * 1000
+            const statusLower = String(payment.mpesa_query_status || '').toLowerCase()
+
+            if (ageMs >= thirtyMinutesMs) {
+              if (!statusLower.includes('expired')) {
+                await admin
+                  .from('payments')
+                  .update({
+                    mpesa_query_status: 'expired (30m)',
+                    last_status_check: new Date().toISOString(),
+                  })
+                  .eq('id', payment.id)
+              }
+              failedCount++
+              continue
+            }
+
+            if (ageMs >= tenMinutesMs) {
+              if (!statusLower.includes('timeout')) {
+                await admin
+                  .from('payments')
+                  .update({
+                    mpesa_query_status: 'timeout (10m)',
+                    last_status_check: new Date().toISOString(),
+                  })
+                  .eq('id', payment.id)
+              }
+              pendingCount++
+              continue
+            }
+          }
 
           if (payment.retry_count >= settings.max_retries) {
             skippedCount++

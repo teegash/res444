@@ -59,7 +59,12 @@ export async function GET(
       message = payment.mpesa_query_status || 'Payment failed. Please try again.'
     } else if (payment.mpesa_query_status) {
       const lowered = payment.mpesa_query_status.toLowerCase()
-      if (lowered.includes('fail') || lowered.includes('cancel') || lowered.includes('timeout')) {
+      if (
+        lowered.includes('fail') ||
+        lowered.includes('cancel') ||
+        lowered.includes('timeout') ||
+        lowered.includes('expired')
+      ) {
         status = 'failed'
         message = payment.mpesa_query_status
       }
