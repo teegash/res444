@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { parseCallbackData } from '@/lib/mpesa/daraja'
 import { processRentPrepayment } from '@/lib/payments/prepayment'
@@ -6,14 +6,21 @@ import { updateInvoiceStatus } from '@/lib/invoices/invoiceGeneration'
 import { logNotification } from '@/lib/communications/notifications'
 import { getMpesaCredentials } from '@/lib/mpesa/credentials'
 
-export async function GET() {
-  return NextResponse.json({ ok: true, message: 'Callback endpoint is live' }, { status: 200 })
+type Ctx = { params: { orgId: string; secret: string } }
+
+export async function GET(_req: Request, { params }: Ctx) {
+  return NextResponse.json(
+    {
+      ok: true,
+      message: 'Callback endpoint is live',
+      orgIdPresent: !!params?.orgId,
+      secretPresent: !!params?.secret,
+    },
+    { status: 200 }
+  )
 }
 
-export async function POST(
-  request: NextRequest,
-  { params }: { params: { orgId: string; secret: string } }
-) {
+export async function POST(request: Request, { params }: Ctx) {
   const startedAt = Date.now()
   const orgId = params?.orgId?.trim()
   const secret = params?.secret?.trim()
