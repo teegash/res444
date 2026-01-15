@@ -18,11 +18,29 @@ export async function POST(
   const orgId = params?.orgId?.trim()
   const secret = params?.secret?.trim()
 
-  const okAck = () =>
-    NextResponse.json({ success: true, message: 'Callback received' }, { status: 200 })
+  const okAck = (extra?: Record<string, any>) =>
+    NextResponse.json(
+      {
+        success: true,
+        message: 'Callback received',
+        debug_version: 'mpesa-callback-2026-01-15-0625',
+        ...extra,
+      },
+      { status: 200 }
+    )
 
   try {
     const admin = createAdminClient()
+
+    return okAck({
+      hit: true,
+      orgIdPresent: !!orgId,
+      secretPresent: !!secret,
+      adminPresent: !!admin,
+      supabaseUrlHost: process.env.NEXT_PUBLIC_SUPABASE_URL
+        ? process.env.NEXT_PUBLIC_SUPABASE_URL.replace(/^https?:\/\//, '').split('/')[0]
+        : null,
+    })
 
     if (orgId && admin) {
       const { error: inboundAuditErr } = await admin.from('mpesa_callback_audit').insert({
