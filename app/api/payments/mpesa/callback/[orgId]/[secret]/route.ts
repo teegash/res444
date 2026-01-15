@@ -46,17 +46,6 @@ export async function POST(request: NextRequest, { params }: Ctx) {
       return okAck({ auditInsert: 'skipped', reason: 'missing_params' })
     }
 
-    const { error: inboundAuditErr } = await admin.from('mpesa_callback_audit').insert({
-      organization_id: orgId,
-      raw_payload: { inbound: true, headers: Object.fromEntries(request.headers.entries()) },
-      received_at: new Date().toISOString(),
-    })
-
-    if (inboundAuditErr) {
-      console.error('[MpesaCallback] inbound audit insert failed', inboundAuditErr)
-      return okAck({ auditInsert: 'failed', auditErr: inboundAuditErr.message })
-    }
-
     let creds: Awaited<ReturnType<typeof getMpesaCredentials>> | null = null
     try {
       creds = await getMpesaCredentials(orgId)
@@ -84,28 +73,12 @@ export async function POST(request: NextRequest, { params }: Ctx) {
       })
       if (parseAuditErr) {
         console.error('[MpesaCallback] parse audit insert failed', parseAuditErr)
+        return okAck({ auditInsert: 'failed', auditErr: parseAuditErr.message, parseError: true })
       }
       return okAck({ auditInsert: 'ok', parseError: true })
     }
 
     const parsed = parseCallbackData(callbackData as any)
-
-    const { error: auditErr } = await admin.from('mpesa_callback_audit').insert({
-      organization_id: orgId,
-      merchant_request_id: parsed.merchantRequestId || null,
-      checkout_request_id: parsed.checkoutRequestId || null,
-      result_code: Number.isFinite(parsed.resultCode) ? parsed.resultCode : null,
-      result_desc: parsed.resultDesc || null,
-      receipt_number: parsed.receiptNumber || null,
-      amount: parsed.amount ?? null,
-      phone_number: parsed.phoneNumber || null,
-      raw_payload: callbackData,
-      received_at: new Date().toISOString(),
-    })
-
-    if (auditErr) {
-      console.error('[MpesaCallback] audit insert failed', auditErr)
-    }
 
     if (!parsed.checkoutRequestId) {
       return okAck({ auditInsert: 'ok' })
@@ -137,6 +110,24 @@ export async function POST(request: NextRequest, { params }: Ctx) {
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle()
+
+    const { error: auditErr } = await admin.from('mpesa_callback_audit').insert({
+      organization_id: orgId,
+      payment_id: payment?.id ?? null,
+      merchant_request_id: parsed.merchantRequestId || null,
+      checkout_request_id: parsed.checkoutRequestId || null,
+      result_code: Number.isFinite(parsed.resultCode) ? parsed.resultCode : null,
+      result_desc: parsed.resultDesc || null,
+      receipt_number: parsed.receiptNumber || null,
+      amount: parsed.amount ?? null,
+      phone_number: parsed.phoneNumber || null,
+      raw_payload: callbackData,
+      received_at: new Date().toISOString(),
+    })
+
+    if (auditErr) {
+      console.error('[MpesaCallback] audit insert failed', auditErr)
+    }
 
     if (payErr) {
       console.error('[MpesaCallback] payment lookup failed', payErr)
@@ -173,8 +164,9 @@ export async function POST(request: NextRequest, { params }: Ctx) {
       console.error('[MpesaCallback] payment update failed', updateErr)
     }
 
+    const wasVerified = !!payment.verified
     let didVerify = false
-    if (parsed.resultCode === 0 && !payment.verified) {
+    if (parsed.resultCode === 0 && !wasVerified) {
       const { error: verifyErr } = await admin
         .from('payments')
         .update({
@@ -184,6 +176,7 @@ export async function POST(request: NextRequest, { params }: Ctx) {
           mpesa_verification_timestamp: nowIso,
         })
         .eq('id', payment.id)
+        .eq('verified', false)
       if (verifyErr) {
         console.error('[MpesaCallback] payment verify update failed', verifyErr)
       } else {
