@@ -21,20 +21,21 @@ type TenantSummary = {
     profile_picture_url: string | null
     address: string | null
   } | null
-  lease: {
-    id: string
-    status: string | null
-    start_date: string | null
-    end_date: string | null
-    monthly_rent: number | null
-    unit_number: string | null
-    unit_label: string | null
-    property_name: string | null
-    property_location: string | null
-    unit_price_text: string | null
-    rent_paid_until?: string | null
+    lease: {
+      id: string
+      status: string | null
+      start_date: string | null
+      end_date: string | null
+      monthly_rent: number | null
+      unit_number: string | null
+      unit_label: string | null
+      property_name: string | null
+      property_location: string | null
+      property_image_url?: string | null
+      unit_price_text: string | null
+      rent_paid_until?: string | null
+    } | null
   } | null
-} | null
 
 type TenantInvoiceRecord = {
   id: string

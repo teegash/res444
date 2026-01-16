@@ -114,7 +114,8 @@ export async function GET() {
           building:apartment_buildings (
             id,
             name,
-            location
+            location,
+            image_url
           )
         )
       `
@@ -234,6 +235,7 @@ export async function GET() {
             unit_label: unitLabel,
             property_name: lease.unit?.building?.name || null,
             property_location: lease.unit?.building?.location || null,
+            property_image_url: lease.unit?.building?.image_url || null,
             unit_price_text: lease.unit?.unit_price_category || null,
             rent_paid_until: lease.rent_paid_until || null,
             next_rent_due_date: lease.next_rent_due_date || null,

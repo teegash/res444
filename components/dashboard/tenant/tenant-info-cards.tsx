@@ -10,6 +10,7 @@ interface TenantInfoCardsProps {
     lease: {
       property_name: string | null
       property_location: string | null
+      property_image_url?: string | null
       unit_label: string | null
       monthly_rent: number | null
       rent_paid_until?: string | null
@@ -49,6 +50,7 @@ const formatDate = (value: string | null | undefined) => {
 export function TenantInfoCards({ summary, loading }: TenantInfoCardsProps) {
   const propertyName = summary?.lease?.property_name || 'Your Property'
   const propertyLocation = summary?.lease?.property_location || 'Awaiting assignment'
+  const propertyImage = summary?.lease?.property_image_url || null
   const monthlyRent = formatCurrency(summary?.lease?.monthly_rent)
   const leaseEnd = formatDate(summary?.lease?.end_date)
   const unitLabel = summary?.lease?.unit_label
@@ -67,8 +69,18 @@ export function TenantInfoCards({ summary, loading }: TenantInfoCardsProps) {
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-      <Card className="bg-white border shadow-sm hover:shadow-md transition-shadow">
-        <CardContent className="p-6">
+      <Card className="bg-white border shadow-sm hover:shadow-md transition-shadow relative overflow-hidden">
+        {propertyImage ? (
+          <div aria-hidden className="absolute inset-0 pointer-events-none">
+            <img
+              src={propertyImage}
+              alt=""
+              loading="lazy"
+              className="h-full w-full object-cover opacity-30"
+            />
+          </div>
+        ) : null}
+        <CardContent className="p-6 relative z-10">
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 bg-blue-500/10 rounded-xl flex items-center justify-center shrink-0">
               <Home className="w-6 h-6 text-blue-600" />
