@@ -105,7 +105,60 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // 1. Determine next rent period (month identity)
+    // 1. Prefer oldest unpaid rent invoice (enterprise rule)
+    const { data: unpaidInvoice } = await admin
+      .from('invoices')
+      .select(
+        `
+        id,
+        amount,
+        period_start,
+        due_date,
+        status,
+        status_text,
+        invoice_type,
+        description,
+        months_covered,
+        lease:leases (
+          id,
+          rent_paid_until,
+          unit:apartment_units (
+            unit_number,
+            building:apartment_buildings (
+              name,
+              location
+            )
+          )
+        )
+      `
+      )
+      .eq('lease_id', lease.id)
+      .eq('invoice_type', 'rent')
+      .or('status.eq.false,status_text.eq.unpaid,status_text.eq.overdue,status_text.eq.partially_paid,status_text.is.null')
+      .order('period_start', { ascending: true })
+      .order('due_date', { ascending: true })
+      .limit(1)
+      .maybeSingle()
+
+    if (unpaidInvoice?.id) {
+      const transformedInvoice = {
+        ...unpaidInvoice,
+        property_name: unpaidInvoice?.lease?.unit?.building?.name || null,
+        property_location: unpaidInvoice?.lease?.unit?.building?.location || null,
+        unit_label: unpaidInvoice?.lease?.unit?.unit_number || null,
+        lease: {
+          rent_paid_until: unpaidInvoice?.lease?.rent_paid_until || null,
+        },
+      }
+      return NextResponse.json({
+        success: true,
+        data: {
+          invoice: transformedInvoice,
+        },
+      })
+    }
+
+    // 2. Determine next rent period (month identity) when none are unpaid
     const pointer = lease.next_rent_due_date ? startOfMonthUtc(new Date(lease.next_rent_due_date)) : today
     let nextDue = pointer
     if (lease.rent_paid_until) {
@@ -123,7 +176,7 @@ export async function GET(request: NextRequest) {
       const periodStartIso = toIsoDate(nextDue)
       const dueDateIso = rentDueDateForPeriod(nextDue)
 
-      // 2. Check if invoice exists for this month
+      // 3. Check if invoice exists for this month
       const { data: existing } = await admin
         .from('invoices')
         .select(`
@@ -171,7 +224,7 @@ export async function GET(request: NextRequest) {
         })
       }
 
-      // 3. Create the invoice (safe upsert)
+      // 4. Create the invoice (safe upsert)
       const { data: created, error: createError } = await admin
         .from('invoices')
         .upsert(
