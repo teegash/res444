@@ -421,8 +421,16 @@ export default function TenantPaymentPortal() {
         ? `${payload.message || 'STK push initiated successfully.'} Checkout ID: ${checkoutId}`
         : payload.message || 'STK push initiated successfully. Approve the prompt on your phone.'
       setMpesaMessage(toastDescription)
-      setSecurityModalStatus('prompt')
-      setSecurityModalMessage('Awaiting confirmation from Safaricom…')
+      if (checkoutId) {
+        setSecurityModalStatus('success')
+        setSecurityModalMessage(`Confirming payment… Checkout ID: ${checkoutId}`)
+        setTimeout(() => {
+          router.push('/dashboard/tenant')
+        }, 350)
+      } else {
+        setSecurityModalStatus('prompt')
+        setSecurityModalMessage('Awaiting confirmation from Safaricom…')
+      }
       toast({
         title: 'STK push sent',
         description: toastDescription,
