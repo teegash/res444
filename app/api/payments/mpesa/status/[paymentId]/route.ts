@@ -116,6 +116,8 @@ export async function GET(
               tenantUserId: payment.tenant_user_id,
               kind: 'success',
               amountPaid: payment.amount_paid,
+              invoiceType: invoice?.invoice_type ?? null,
+              paymentMethod: payment.payment_method ?? 'mpesa',
               receiptNumber: payment.mpesa_receipt_number || null,
               occurredAtISO: nowIso,
             })

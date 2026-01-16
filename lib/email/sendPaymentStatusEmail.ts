@@ -11,6 +11,8 @@ type SendPaymentStatusEmailArgs = {
   tenantUserId: string
   kind: PaymentEmailKind
   amountPaid?: number | string | null
+  invoiceType?: string | null
+  paymentMethod?: string | null
   currency?: string
   receiptNumber?: string | null
   resultCode?: number | string | null
@@ -27,6 +29,24 @@ function formatKES(amount: number | string | null | undefined) {
   return `KES ${n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`
 }
 
+function formatPaymentType(value?: string | null) {
+  if (!value) return null
+  const lowered = String(value).trim().toLowerCase()
+  if (lowered === 'rent') return 'Rent'
+  if (lowered === 'water') return 'Water bill'
+  return safeText(value)
+}
+
+function formatPaymentMethod(value?: string | null) {
+  if (!value) return null
+  const lowered = String(value).trim().toLowerCase()
+  if (lowered === 'mpesa') return 'M-Pesa'
+  if (lowered === 'bank_transfer') return 'Bank deposit'
+  if (lowered === 'cash') return 'Cash'
+  if (lowered === 'cheque') return 'Cheque'
+  return safeText(value)
+}
+
 function buildPaymentEmailHTML(opts: {
   kind: PaymentEmailKind
   orgName: string
@@ -34,6 +54,8 @@ function buildPaymentEmailHTML(opts: {
   logoUrl?: string | null
   tenantName?: string | null
   amountLabel: string
+  paymentTypeLabel?: string | null
+  paymentMethodLabel?: string | null
   receiptNumber?: string | null
   resultDesc?: string | null
   occurredAtLabel?: string | null
@@ -72,12 +94,34 @@ function buildPaymentEmailHTML(opts: {
     ? `
       <div style="margin-top: 10px; padding: 12px; border-radius: 12px; background: ${accentSoftBg}; border: 1px solid rgba(15,23,42,0.08);">
         <div style="font-family: Arial, Helvetica, sans-serif; font-size: 12px; color:#0f172a; font-weight:700; margin-bottom: 6px;">
-          Reason (from M-Pesa)
+          Reason
         </div>
         <div style="font-family: Arial, Helvetica, sans-serif; font-size: 13px; color:#334155; line-height: 1.5;">
           ${safeText(opts.resultDesc)}
         </div>
       </div>
+    `
+    : ''
+
+  const paymentTypeRow = opts.paymentTypeLabel
+    ? `
+      <tr>
+        <td style="padding:10px 0; font-family: Arial, Helvetica, sans-serif; font-size:13px; color:#475569;">Payment type</td>
+        <td style="padding:10px 0; font-family: Arial, Helvetica, sans-serif; font-size:13px; color:#0f172a; font-weight:700; text-align:right;">
+          ${safeText(opts.paymentTypeLabel)}
+        </td>
+      </tr>
+    `
+    : ''
+
+  const paymentMethodRow = opts.paymentMethodLabel
+    ? `
+      <tr>
+        <td style="padding:10px 0; font-family: Arial, Helvetica, sans-serif; font-size:13px; color:#475569;">Payment method</td>
+        <td style="padding:10px 0; font-family: Arial, Helvetica, sans-serif; font-size:13px; color:#0f172a; font-weight:700; text-align:right;">
+          ${safeText(opts.paymentMethodLabel)}
+        </td>
+      </tr>
     `
     : ''
 
@@ -143,6 +187,8 @@ function buildPaymentEmailHTML(opts: {
                         ${opts.amountLabel}
                       </td>
                     </tr>
+                    ${paymentTypeRow}
+                    ${paymentMethodRow}
                     ${receiptRow}
                     ${occurredRow}
                   </table>
@@ -185,6 +231,8 @@ export async function sendPaymentStatusEmail(args: SendPaymentStatusEmailArgs) {
   const currency = args.currency ?? 'KES'
   const amountLabel =
     currency === 'KES' ? formatKES(args.amountPaid as any) : `${currency} ${safeText(args.amountPaid)}`
+  const paymentTypeLabel = formatPaymentType(args.invoiceType)
+  const paymentMethodLabel = formatPaymentMethod(args.paymentMethod)
 
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, '')
   if (!siteUrl) {
@@ -229,6 +277,8 @@ export async function sendPaymentStatusEmail(args: SendPaymentStatusEmailArgs) {
     resultCode: args.resultCode ?? null,
     resultDesc: args.resultDesc ?? null,
     receiptNumber: args.receiptNumber ?? null,
+    invoiceType: args.invoiceType ?? null,
+    paymentMethod: args.paymentMethod ?? null,
   }
 
   const insertRes = await args.admin
@@ -265,16 +315,25 @@ export async function sendPaymentStatusEmail(args: SendPaymentStatusEmailArgs) {
     logoUrl,
     tenantName,
     amountLabel,
+    paymentTypeLabel,
+    paymentMethodLabel,
     receiptNumber: args.receiptNumber ?? null,
     resultDesc: args.resultDesc ?? null,
     occurredAtLabel,
     loginUrl,
   })
 
+  const paymentDetailsText = [
+    paymentTypeLabel ? `Type: ${paymentTypeLabel}` : null,
+    paymentMethodLabel ? `Method: ${paymentMethodLabel}` : null,
+  ]
+    .filter(Boolean)
+    .join('. ')
+
   const text =
     args.kind === 'success'
-      ? `Payment confirmed. Amount: ${amountLabel}. Receipt: ${safeText(args.receiptNumber ?? '')}. Login: ${loginUrl}`
-      : `Payment failed. Amount: ${amountLabel}. Reason: ${safeText(args.resultDesc ?? '')}. Login: ${loginUrl}`
+      ? `Payment confirmed. ${paymentDetailsText ? `${paymentDetailsText}. ` : ''}Amount: ${amountLabel}. Receipt: ${safeText(args.receiptNumber ?? '')}. Login: ${loginUrl}`
+      : `Payment failed. ${paymentDetailsText ? `${paymentDetailsText}. ` : ''}Amount: ${amountLabel}. Reason: ${safeText(args.resultDesc ?? '')}. Login: ${loginUrl}`
 
   const sent = await sendEmail({
     to: recipientEmail,

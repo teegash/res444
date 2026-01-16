@@ -165,6 +165,12 @@ export async function POST(request: NextRequest, { params }: Ctx) {
       console.error('[MpesaCallback] payment update failed', updateErr)
     }
 
+    const invoice = payment.invoices as
+      | { id: string; lease_id: string; invoice_type: 'rent' | 'water' | string }
+      | null
+    const invoiceType = invoice?.invoice_type ?? null
+    const paymentMethod = 'mpesa'
+
     const wasVerified = !!payment.verified
     let didVerify = false
     if (parsed.resultCode === 0 && !wasVerified) {
@@ -186,10 +192,6 @@ export async function POST(request: NextRequest, { params }: Ctx) {
     }
 
     if (didVerify) {
-      const invoice = payment.invoices as
-        | { id: string; lease_id: string; invoice_type: 'rent' | 'water' | string }
-        | null
-
       if (invoice) {
         const monthsPaidRaw = Number(payment.months_paid ?? 1)
         const monthsPaid =
@@ -243,6 +245,8 @@ export async function POST(request: NextRequest, { params }: Ctx) {
           tenantUserId: payment.tenant_user_id,
           kind: 'success',
           amountPaid: payment.amount_paid,
+          invoiceType,
+          paymentMethod,
           receiptNumber: parsed.receiptNumber || payment.mpesa_receipt_number || null,
           occurredAtISO: nowIso,
         })
@@ -259,6 +263,8 @@ export async function POST(request: NextRequest, { params }: Ctx) {
           tenantUserId: payment.tenant_user_id,
           kind: 'failed',
           amountPaid: payment.amount_paid,
+          invoiceType,
+          paymentMethod,
           resultCode: parsed.resultCode,
           resultDesc: parsed.resultDesc,
           occurredAtISO: nowIso,

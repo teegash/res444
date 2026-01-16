@@ -502,6 +502,8 @@ export async function approvePayment(
           tenantUserId: payment.tenant_user_id,
           kind: 'success',
           amountPaid,
+          invoiceType,
+          paymentMethod,
           receiptNumber: payment.bank_reference_number || null,
           occurredAtISO: new Date().toISOString(),
         })
@@ -563,7 +565,8 @@ export async function rejectPayment(
         bank_reference_number,
         deposit_slip_url,
         invoices (
-          id
+          id,
+          invoice_type
         )
       `
       )
@@ -585,7 +588,7 @@ export async function rejectPayment(
       }
     }
 
-    const invoice = payment.invoices as { id: string } | null
+    const invoice = payment.invoices as { id: string; invoice_type?: 'rent' | 'water' } | null
 
     if (!invoice) {
       return {
@@ -637,6 +640,8 @@ export async function rejectPayment(
           tenantUserId: payment.tenant_user_id,
           kind: 'failed',
           amountPaid: parseFloat(payment.amount_paid.toString()),
+          invoiceType: invoice.invoice_type ?? null,
+          paymentMethod: payment.payment_method ?? 'bank_transfer',
           receiptNumber: payment.bank_reference_number || null,
           resultDesc: request.reason,
           occurredAtISO: new Date().toISOString(),
