@@ -67,15 +67,15 @@ export function TenantInfoCards({ summary, loading }: TenantInfoCardsProps) {
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-      <Card className="bg-white border shadow-sm hover:shadow-md transition-shadow">
+      <Card className="bg-white border border-slate-200/70 shadow-sm hover:shadow-md transition-shadow rounded-2xl">
         <CardContent className="p-6">
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-blue-500/10 rounded-xl flex items-center justify-center shrink-0">
+            <div className="w-12 h-12 bg-slate-100 rounded-2xl flex items-center justify-center shrink-0">
               <Home className="w-6 h-6 text-blue-600" />
             </div>
             <div>
-              <p className="text-sm text-muted-foreground font-medium">Property</p>
-              <p className="text-xl font-bold text-foreground">
+              <p className="text-xs uppercase tracking-wide text-muted-foreground font-semibold">Property</p>
+              <p className="text-lg font-bold text-foreground">
                 {loading ? 'Loading…' : propertyName}
               </p>
               <p className="text-xs text-muted-foreground">
@@ -86,15 +86,15 @@ export function TenantInfoCards({ summary, loading }: TenantInfoCardsProps) {
         </CardContent>
       </Card>
 
-      <Card className="bg-white border shadow-sm hover:shadow-md transition-shadow">
+      <Card className="bg-white border border-slate-200/70 shadow-sm hover:shadow-md transition-shadow rounded-2xl">
         <CardContent className="p-6 space-y-4">
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center shrink-0">
+            <div className="w-12 h-12 bg-slate-100 rounded-2xl flex items-center justify-center shrink-0">
               <DollarSign className="w-6 h-6 text-primary" />
             </div>
             <div>
-              <p className="text-sm text-muted-foreground font-medium">Monthly Rent</p>
-              <p className="text-xl font-bold text-primary">
+              <p className="text-xs uppercase tracking-wide text-muted-foreground font-semibold">Monthly Rent</p>
+              <p className="text-lg font-bold text-primary">
                 {loading ? 'Loading…' : monthlyRent}
               </p>
             </div>
@@ -129,18 +129,18 @@ export function TenantInfoCards({ summary, loading }: TenantInfoCardsProps) {
       </Card>
 
       <Card
-        className={`border shadow-sm transition-shadow ${
-          leaseExpired ? 'bg-rose-50/70 border-rose-200/70' : 'bg-white hover:shadow-md'
+        className={`border shadow-sm transition-shadow rounded-2xl ${
+          leaseExpired ? 'bg-rose-50/70 border-rose-200/70' : 'bg-white hover:shadow-md border-slate-200/70'
         }`}
       >
         <CardContent className="p-6 space-y-4">
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-orange-500/10 rounded-xl flex items-center justify-center shrink-0">
+            <div className="w-12 h-12 bg-slate-100 rounded-2xl flex items-center justify-center shrink-0">
               <Calendar className="w-6 h-6 text-orange-600" />
             </div>
             <div>
-              <p className="text-sm text-muted-foreground font-medium">Lease Expires</p>
-              <p className="text-xl font-bold text-foreground">
+              <p className="text-xs uppercase tracking-wide text-muted-foreground font-semibold">Lease Expires</p>
+              <p className="text-lg font-bold text-foreground">
                 {loading ? 'Loading…' : leaseEnd}
               </p>
             </div>
