@@ -133,6 +133,7 @@ export async function POST(request: NextRequest) {
       messageText: `${typeLabel} payment of KES ${Number(amount).toLocaleString()} confirmed.`,
       relatedEntityType: 'payment',
       relatedEntityId: payment.id,
+      organizationId: invoice.organization_id,
     })
 
     return NextResponse.json({

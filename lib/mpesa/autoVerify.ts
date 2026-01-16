@@ -343,6 +343,7 @@ async function verifyPayment(
             messageText: `${typeLabel} payment of KES ${Number(payment.amount_paid).toLocaleString()} confirmed.`,
             relatedEntityType: 'payment',
             relatedEntityId: payment.id,
+            organizationId: payment.organization_id,
           })
         }
       }

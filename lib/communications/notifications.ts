@@ -7,6 +7,7 @@ type NotificationPayload = {
   relatedEntityType?: string | null
   relatedEntityId?: string | null
   messageType?: 'in_app' | 'sms'
+  organizationId?: string | null
 }
 
 /**
@@ -20,6 +21,7 @@ export async function logNotification({
   relatedEntityType = null,
   relatedEntityId = null,
   messageType = 'in_app',
+  organizationId = null,
 }: NotificationPayload) {
   if (!recipientUserId || !messageText) {
     return
@@ -27,7 +29,7 @@ export async function logNotification({
 
   try {
     const adminSupabase = createAdminClient()
-    await adminSupabase.from('communications').insert({
+    const payload: Record<string, any> = {
       sender_user_id: senderUserId,
       recipient_user_id: recipientUserId,
       message_text: messageText,
@@ -35,7 +37,11 @@ export async function logNotification({
       related_entity_id: relatedEntityId,
       message_type: messageType,
       read: false,
-    })
+    }
+    if (organizationId) {
+      payload.organization_id = organizationId
+    }
+    await adminSupabase.from('communications').insert(payload)
   } catch (error) {
     console.error('[notifications] Failed to log notification', error)
   }

@@ -178,10 +178,20 @@ export async function createPaymentWithDepositSlip(
             messageText: `New bank deposit submitted for verification.`,
             relatedEntityType: 'payment',
             relatedEntityId: payment.id,
+            organizationId: buildingOrgId,
           })
         )
       )
     }
+
+    await logNotification({
+      senderUserId: userId,
+      recipientUserId: userId,
+      messageText: 'Deposit slip submitted successfully. Management will verify your payment shortly.',
+      relatedEntityType: 'payment',
+      relatedEntityId: payment.id,
+      organizationId: buildingOrgId,
+    })
 
     return {
       success: true,
@@ -358,6 +368,7 @@ export async function approvePayment(
           messageText: `Rent payment of KES ${Number(payment.amount_paid).toLocaleString()} confirmed.`,
           relatedEntityType: 'payment',
           relatedEntityId: paymentId,
+          organizationId: payment.organization_id,
         })
 
         return {
@@ -509,6 +520,7 @@ export async function approvePayment(
       messageText: `${typeLabel} payment of KES ${Number(amountPaid).toLocaleString()} confirmed.`,
       relatedEntityType: 'payment',
       relatedEntityId: paymentId,
+      organizationId: payment.organization_id,
     })
 
     if (payment.payment_method === 'bank_transfer') {

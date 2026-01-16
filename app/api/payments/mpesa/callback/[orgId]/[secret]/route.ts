@@ -223,6 +223,7 @@ export async function POST(request: NextRequest, { params }: Ctx) {
           messageText: `Payment of KES ${Number(payment.amount_paid).toLocaleString()} confirmed.`,
           relatedEntityType: 'payment',
           relatedEntityId: payment.id,
+          organizationId: orgId,
         })
       } catch (err) {
         console.error('[MpesaCallback] logNotification failed', err)
