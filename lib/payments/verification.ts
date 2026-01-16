@@ -6,6 +6,7 @@ import { logNotification } from '@/lib/communications/notifications'
 import { processRentPrepayment, applyRentPayment } from '@/lib/payments/prepayment'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { startOfMonthUtc } from '@/lib/invoices/rentPeriods'
+import { sendPaymentStatusEmail } from '@/lib/email/sendPaymentStatusEmail'
 
 export interface VerifyPaymentRequest {
   invoice_id: string
@@ -213,6 +214,7 @@ export async function approvePayment(
       .select(
         `
         id,
+        organization_id,
         invoice_id,
         tenant_user_id,
         amount_paid,
@@ -222,6 +224,7 @@ export async function approvePayment(
         payment_date,
         months_paid,
         payment_method,
+        bank_reference_number,
         applied_to_prepayment,
         batch_id,
         notes,
@@ -489,6 +492,24 @@ export async function approvePayment(
       relatedEntityId: paymentId,
     })
 
+    if (payment.payment_method === 'bank_transfer') {
+      try {
+        await sendPaymentStatusEmail({
+          admin,
+          organizationId: payment.organization_id,
+          paymentId,
+          invoiceId: primaryInvoiceId,
+          tenantUserId: payment.tenant_user_id,
+          kind: 'success',
+          amountPaid,
+          receiptNumber: payment.bank_reference_number || null,
+          occurredAtISO: new Date().toISOString(),
+        })
+      } catch (emailError) {
+        console.error('[approvePayment] payment success email failed', emailError)
+      }
+    }
+
     return {
       success: true,
       message: 'Payment verified successfully',
@@ -533,10 +554,13 @@ export async function rejectPayment(
       .select(
         `
         id,
+        organization_id,
         invoice_id,
         tenant_user_id,
         amount_paid,
         verified,
+        payment_method,
+        bank_reference_number,
         deposit_slip_url,
         invoices (
           id
@@ -602,6 +626,25 @@ export async function rejectPayment(
       'rejected',
       request.reason
     )
+
+    if (payment.payment_method === 'bank_transfer') {
+      try {
+        await sendPaymentStatusEmail({
+          admin,
+          organizationId: payment.organization_id,
+          paymentId,
+          invoiceId: invoice.id,
+          tenantUserId: payment.tenant_user_id,
+          kind: 'failed',
+          amountPaid: parseFloat(payment.amount_paid.toString()),
+          receiptNumber: payment.bank_reference_number || null,
+          resultDesc: request.reason,
+          occurredAtISO: new Date().toISOString(),
+        })
+      } catch (emailError) {
+        console.error('[rejectPayment] payment failed email failed', emailError)
+      }
+    }
 
     return {
       success: true,
