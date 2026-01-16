@@ -28,36 +28,36 @@ export default function PaymentsPage() {
     return new Date(basis).toLocaleString()
   }, [manualSyncedAt, autoSyncedAt])
 
-  const handleManualSync = async () => {
-    try {
-      setIsSyncing(true)
-      const response = await fetch('/api/manager/payments', { method: 'POST' })
-      const payload = await response.json().catch(() => ({}))
-      if (!response.ok) {
-        throw new Error(payload.error || 'Manual sync failed.')
-      }
-      toast({
-        title: 'M-Pesa sync complete',
-        description: payload.message || 'Payment statuses refreshed.',
-      })
-      const now = new Date().toISOString()
-      setManualSyncedAt(now)
-      setRefreshKey((key) => key + 1)
-    } catch (error) {
-      toast({
-        title: 'Sync failed',
-        description: error instanceof Error ? error.message : 'Unable to sync payments.',
-        variant: 'destructive',
-      })
-    } finally {
-      setIsSyncing(false)
-    }
+  const handleManualSync = () => {
+    setIsSyncing(true)
+    setLoadingSummary(true)
+    setRefreshKey((key) => key + 1)
   }
 
-  const handleIntegrationUpdate = useCallback((integration: IntegrationSummary | null) => {
-    setAutoSyncedAt(integration?.lastAutoCheck || null)
-    setLoadingSummary(false)
-  }, [])
+  const handleIntegrationUpdate = useCallback(
+    (integration: IntegrationSummary | null) => {
+      setAutoSyncedAt(integration?.lastAutoCheck || null)
+      setLoadingSummary(false)
+      if (isSyncing) {
+        if (integration) {
+          const now = new Date().toISOString()
+          setManualSyncedAt(now)
+          toast({
+            title: 'M-Pesa integration refreshed',
+            description: 'Payment data has been updated.',
+          })
+        } else {
+          toast({
+            title: 'Refresh failed',
+            description: 'Unable to refresh payment data. Please try again.',
+            variant: 'destructive',
+          })
+        }
+        setIsSyncing(false)
+      }
+    },
+    [isSyncing, toast]
+  )
 
   const propertyScope =
     (user?.user_metadata as any)?.property_id ||
@@ -109,7 +109,7 @@ export default function PaymentsPage() {
                       ) : (
                         <>
                           <Activity className="w-4 h-4" />
-                          Sync M-Pesa Now
+                          Refresh M-Pesa
                         </>
                       )}
                     </Button>
