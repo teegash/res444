@@ -3,6 +3,7 @@ import { requireAuth } from '@/lib/rbac/routeGuards'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { applyRentPayment } from '@/lib/payments/prepayment'
 import { processRentPrepayment } from '@/lib/payments/prepayment'
+import { sendPaymentStatusEmail } from '@/lib/email/sendPaymentStatusEmail'
 
 export async function GET(
   request: NextRequest,
@@ -45,6 +46,7 @@ export async function GET(
       return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 })
     }
 
+    const wasVerified = payment.verified === true
     let status: 'pending' | 'success' | 'failed' = 'pending'
     let message = payment.mpesa_query_status || 'Awaiting confirmation from Safaricom.'
 
@@ -97,10 +99,30 @@ export async function GET(
       }
 
       if (!payment.verified) {
-        await admin
+        const nowIso = new Date().toISOString()
+        const { error: verifyErr } = await admin
           .from('payments')
-          .update({ verified: true, verified_at: new Date().toISOString() })
+          .update({ verified: true, verified_at: nowIso })
           .eq('id', paymentId)
+          .eq('verified', false)
+
+        if (!verifyErr && !wasVerified) {
+          try {
+            await sendPaymentStatusEmail({
+              admin,
+              organizationId: payment.organization_id,
+              paymentId: payment.id,
+              invoiceId: payment.invoice_id,
+              tenantUserId: payment.tenant_user_id,
+              kind: 'success',
+              amountPaid: payment.amount_paid,
+              receiptNumber: payment.mpesa_receipt_number || null,
+              occurredAtISO: nowIso,
+            })
+          } catch (err) {
+            console.error('[MpesaStatus] sendPaymentStatusEmail failed', err)
+          }
+        }
       }
     }
 

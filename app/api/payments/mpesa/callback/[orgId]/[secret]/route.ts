@@ -5,6 +5,7 @@ import { processRentPrepayment } from '@/lib/payments/prepayment'
 import { updateInvoiceStatus } from '@/lib/invoices/invoiceGeneration'
 import { logNotification } from '@/lib/communications/notifications'
 import { getMpesaCredentials } from '@/lib/mpesa/credentials'
+import { sendPaymentStatusEmail } from '@/lib/email/sendPaymentStatusEmail'
 
 type Ctx = { params: Promise<{ orgId: string; secret: string }> }
 
@@ -231,6 +232,39 @@ export async function POST(request: NextRequest, { params }: Ctx) {
         })
       } catch (err) {
         console.error('[MpesaCallback] sendPaymentConfirmationSMS failed', err)
+      }
+
+      try {
+        await sendPaymentStatusEmail({
+          admin,
+          organizationId: orgId,
+          paymentId: payment.id,
+          invoiceId: payment.invoice_id,
+          tenantUserId: payment.tenant_user_id,
+          kind: 'success',
+          amountPaid: payment.amount_paid,
+          receiptNumber: parsed.receiptNumber || payment.mpesa_receipt_number || null,
+          occurredAtISO: nowIso,
+        })
+      } catch (err) {
+        console.error('[MpesaCallback] sendPaymentStatusEmail success failed', err)
+      }
+    } else if (parsed.resultCode !== 0 && !wasVerified) {
+      try {
+        await sendPaymentStatusEmail({
+          admin,
+          organizationId: orgId,
+          paymentId: payment.id,
+          invoiceId: payment.invoice_id,
+          tenantUserId: payment.tenant_user_id,
+          kind: 'failed',
+          amountPaid: payment.amount_paid,
+          resultCode: parsed.resultCode,
+          resultDesc: parsed.resultDesc,
+          occurredAtISO: nowIso,
+        })
+      } catch (err) {
+        console.error('[MpesaCallback] sendPaymentStatusEmail failed', err)
       }
     }
 
