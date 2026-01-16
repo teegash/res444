@@ -59,19 +59,19 @@ export function TenantQuickActions() {
   ]
 
   return (
-    <Card className="bg-white border border-slate-200/70 shadow-sm rounded-2xl">
+    <Card className="bg-gradient-to-br from-orange-50/50 to-yellow-50/30 border-orange-100">
       <CardContent className="p-6">
-        <h3 className="text-lg font-bold mb-2">Quick Actions</h3>
-        <p className="text-xs text-muted-foreground mb-4">Access your most-used features</p>
-
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+        <h3 className="text-lg font-bold mb-4">Quick Actions</h3>
+        <p className="text-sm text-muted-foreground mb-4">Access your most-used features</p>
+        
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {actions.map((action, index) => {
             const Icon = action.icon
             return (
               <Link key={index} href={action.href}>
                 <Button
                   variant="outline"
-                  className={`w-full h-auto flex-col gap-2 py-4 ${action.bgColor} border-slate-200/70 transition-all hover:shadow-sm`}
+                  className={`w-full h-auto flex-col gap-2 py-4 ${action.bgColor} border-transparent transition-all hover:scale-105`}
                 >
                   <Icon className={`h-6 w-6 ${action.color}`} />
                   <span className="text-xs font-medium text-foreground">{action.label}</span>

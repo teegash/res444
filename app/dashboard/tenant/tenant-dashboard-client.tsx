@@ -545,268 +545,298 @@ export default function TenantDashboardClient() {
   }
 
   return (
-    <div className={`min-h-screen ${leaseExpired ? 'bg-rose-50' : 'bg-slate-100'}`}>
-      <div className="max-w-7xl mx-auto px-4 py-6 lg:py-8">
+    <div
+      className={`min-h-screen ${
+        leaseExpired
+          ? 'bg-gradient-to-b from-rose-200/90 via-rose-50/70 to-rose-200/60'
+          : 'bg-gradient-to-b from-slate-50/60 via-white to-orange-50/30'
+      }`}
+    >
+      <div className="max-w-7xl mx-auto p-4 md:p-6 lg:p-8">
+        <div
+          className={`rounded-3xl bg-white/80 ring-1 shadow-sm backdrop-blur p-4 md:p-6 lg:p-8 space-y-6 ${
+            leaseExpired ? 'ring-rose-200/70' : 'ring-slate-200/60'
+          }`}
+        >
         {error && (
           <Alert variant="destructive">
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         )}
+        <TenantHeader summary={summary} loading={loading} />
+        <TenantInfoCards summary={summary} loading={loading} />
 
-        <div className="grid gap-6 lg:grid-cols-[320px_1fr]">
-          <aside className="space-y-5">
-            <TenantHeader summary={summary} loading={loading} />
-
-            <Card className="border border-slate-200/70 shadow-sm">
-              <CardContent className="space-y-3 p-5">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Your arrears</p>
-                  <p className="text-sm text-slate-700">
-                    Oldest due date:{' '}
-                    {arrears.oldest_due_date ? new Date(arrears.oldest_due_date).toLocaleDateString() : '—'}
-                  </p>
-                </div>
-                {arrears.total > 0 ? (
-                  <div className="space-y-3">
-                    <Badge variant="destructive" className="text-base py-1 px-3">
-                      Outstanding: KES {arrears.total.toLocaleString()}
-                    </Badge>
-                    <Link href="/dashboard/tenant/invoices">
-                      <Button className="w-full">View invoices</Button>
-                    </Link>
-                  </div>
-                ) : (
-                  <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-700">
-                    You have no rent arrears.
-                  </Badge>
-                )}
-              </CardContent>
-            </Card>
-
-            <div className="rounded-2xl border border-slate-200/70 bg-white p-4 shadow-sm">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Legal & Privacy</p>
-              <p className="text-xs text-muted-foreground mt-1">
-                Review how your data is used, and how reminders/communications work.
+        <Card className="shadow-sm">
+          <CardContent className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 py-4">
+            <div>
+              <p className="text-sm font-semibold text-gray-900">Your arrears</p>
+              <p className="text-xs text-gray-500">
+                Oldest due date: {arrears.oldest_due_date ? new Date(arrears.oldest_due_date).toLocaleDateString() : '—'}
               </p>
-              <div className="flex flex-wrap items-center gap-2 pt-3 text-xs font-medium text-slate-700">
-                <Link className="hover:text-slate-900" href="/dashboard/tenant/legal/privacy">
+            </div>
+            {arrears.total > 0 ? (
+              <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                <Badge variant="destructive" className="text-base py-1 px-3">
+                  Outstanding: KES {arrears.total.toLocaleString()}
+                </Badge>
+                <Link href="/dashboard/tenant/invoices">
+                  <Button>View invoices</Button>
+                </Link>
+              </div>
+            ) : (
+              <Badge variant="outline" className="text-green-700 border-green-200 bg-green-50">
+                You have no rent arrears.
+              </Badge>
+            )}
+          </CardContent>
+        </Card>
+        
+        <div className="grid gap-6 md:grid-cols-3 mt-8">
+          {/* Recent Activity */}
+          <Card className="md:col-span-2 shadow-sm hover:shadow-md transition-shadow">
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Clock className="h-5 w-5 text-blue-600" />
+                Recent Activity
+              </CardTitle>
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-2"
+                onClick={refreshRecentActivity}
+                disabled={recentActivityRefreshing}
+              >
+                <RefreshCw className={`h-4 w-4 ${recentActivityRefreshing ? 'animate-spin' : ''}`} />
+                {recentActivityRefreshing ? 'Refreshing…' : 'Refresh'}
+              </Button>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {loading ? (
+                <SkeletonTable rows={4} columns={3} />
+              ) : recentActivity.length === 0 ? (
+                <div className="text-sm text-muted-foreground text-center py-4">
+                  No recent invoices, payments, or maintenance updates yet.
+                </div>
+              ) : (
+                recentActivity.map((activity) => {
+                  const tone = activity.tone
+                  const icon =
+                    tone === 'maintenance'
+                      ? <CheckCircle2 className="h-4 w-4 text-amber-500" />
+                      : tone === 'water'
+                      ? <Droplet className="h-4 w-4 text-blue-500" />
+                      : tone === 'rent'
+                      ? <TrendingUp className="h-4 w-4 text-green-600" />
+                      : <Clock className="h-4 w-4 text-slate-500" />
+                  const toneClasses =
+                    tone === 'maintenance'
+                      ? 'border-amber-200/70 bg-amber-50/70'
+                      : tone === 'water'
+                      ? 'border-blue-200/70 bg-blue-50/70'
+                      : tone === 'rent'
+                      ? 'border-emerald-200/70 bg-emerald-50/70'
+                      : 'border-slate-200/70 bg-white'
+
+                  return (
+                    <Link
+                      key={activity.id}
+                      href={activity.href}
+                      className="block focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-200 focus-visible:ring-offset-2"
+                    >
+                      <div
+                        className={`flex items-start justify-between gap-3 rounded-xl border p-3 transition ${toneClasses} hover:shadow-sm`}
+                      >
+                        <div className="flex gap-3">
+                          <div className="mt-1">{icon}</div>
+                          <div>
+                            <p className="font-semibold text-gray-900">{activity.title}</p>
+                            <p className="text-xs text-gray-500">{activity.description}</p>
+                            <div className="flex items-center gap-2 text-xs text-gray-500 mt-1">
+                              <span>{activity.dateLabel}</span>
+                              <span>•</span>
+                              <span className="capitalize">{activity.tagLabel}</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </Link>
+                  )
+                })
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Quick actions / stats */}
+          <Card className="relative overflow-hidden border-rose-300/70 bg-gradient-to-br from-rose-100 via-white to-amber-50/80 shadow-sm hover:shadow-md transition-shadow">
+            <div
+              aria-hidden
+              className="pointer-events-none absolute -left-16 -bottom-16 h-40 w-40 rounded-full bg-rose-300/50 blur-3xl"
+            />
+            <CardHeader className="pb-2">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Calendar className="h-5 w-5 text-rose-600" />
+                Next Payment
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="grid gap-2">
+                <div className="flex items-center justify-between rounded-xl border border-rose-300/70 bg-white/80 px-3 py-2 shadow-sm">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-rose-700/80">Next rent invoice</p>
+                  <Badge variant={hasPending ? 'destructive' : 'secondary'}>
+                    {hasPending ? 'Pending' : 'Clear'}
+                  </Badge>
+                </div>
+                <div className="rounded-xl border border-rose-300/70 bg-white/80 px-3 py-3 shadow-sm">
+                  <p className="text-[11px] uppercase tracking-wide text-rose-600/80">Amount</p>
+                  <div className="text-2xl font-bold text-rose-900">
+                    {hasPending ? `${pendingInvoices[0]?.amount?.toLocaleString('en-KE', { maximumFractionDigits: 0 })} KES` : '—'}
+                  </div>
+                </div>
+                <div className="rounded-xl border border-rose-300/70 bg-white/80 px-3 py-3 shadow-sm">
+                  <p className="text-[11px] uppercase tracking-wide text-rose-600/80">Due date</p>
+                  <div className="text-sm font-medium text-rose-800/80">
+                    {hasPending && pendingInvoices[0]?.due_date
+                      ? new Date(pendingInvoices[0]?.due_date || '').toLocaleDateString(undefined, {
+                          month: 'long',
+                          day: 'numeric',
+                        })
+                      : 'No pending invoices'}
+                  </div>
+                </div>
+              </div>
+              <div className="h-px bg-gradient-to-r from-rose-200/0 via-rose-200/80 to-rose-200/0" aria-hidden />
+              <Button asChild className="w-full">
+                <Link href="/dashboard/tenant/invoices">View invoices</Link>
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Quick actions */}
+        <TenantQuickActions />
+
+        {/* On-time performance */}
+        <Card
+          className={`relative overflow-hidden shadow-sm hover:shadow-md transition-shadow ${performanceTheme.card}`}
+        >
+          <div
+            aria-hidden
+            className={`pointer-events-none absolute -right-20 -top-16 h-40 w-40 rounded-full blur-3xl ${performanceTheme.glow}`}
+          />
+          <CardHeader className="flex flex-row items-center justify-between">
+            <div>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <TrendingUp className={`h-5 w-5 ${performanceTheme.icon}`} />
+                Payment Performance
+              </CardTitle>
+              <p className={`text-sm ${performanceTheme.subtleText}`}>
+                {hasRating ? `${paymentsMade} payments recorded` : 'No rating yet'}
+              </p>
+            </div>
+            <div
+              className={`flex items-center gap-2 rounded-full bg-white/70 px-3 py-1 text-sm font-semibold shadow-sm ring-1 ${performanceTheme.accentText} ${performanceTheme.badgeRing}`}
+            >
+              <span className={`h-2.5 w-2.5 rounded-full ${ratingDot}`} aria-hidden />
+              {hasRating ? `${onTimeRate}% on time` : 'No rating yet'}
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              <div className={`rounded-2xl border p-3 shadow-sm ${performanceTheme.panel}`}>
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    <div className="relative h-7 w-7">
+                      <div className={`absolute inset-0 rounded-full bg-gradient-to-r ${performanceTheme.progress} animate-spin`} />
+                      <div className={`absolute inset-[2px] rounded-full bg-white/90 ring-1 flex items-center justify-center ${performanceTheme.badgeRing}`}>
+                        <Clock className={`h-3.5 w-3.5 ${performanceTheme.accentText}`} />
+                      </div>
+                    </div>
+                    <p className={`text-xs font-semibold uppercase tracking-wide ${performanceTheme.accentText}`}>
+                      Upcoming payments
+                    </p>
+                  </div>
+                  <span
+                    className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-semibold ${
+                      hasPending
+                        ? 'bg-amber-100 text-amber-700'
+                        : 'bg-emerald-100 text-emerald-700'
+                    }`}
+                  >
+                    {hasPending ? 'Pending' : 'All clear'}
+                  </span>
+                </div>
+                <div className={`mt-2 text-sm ${performanceTheme.panelText}`}>
+                  {hasPending ? 'Pending invoices detected in your account.' : 'No pending invoices right now.'}
+                </div>
+                <div className={`mt-2 text-xs ${performanceTheme.panelMuted}`}>
+                  {hasPending
+                    ? 'Pay early to keep your on-time score high.'
+                    : 'Great work staying ahead on rent.'}
+                </div>
+              </div>
+              <div className="space-y-2">
+                <p className={`text-sm ${performanceTheme.labelText}`}>
+                  {hasRating ? 'On-time payments' : 'Rating pending'}
+                </p>
+                <div className={`w-full bg-white/70 h-2 rounded-full overflow-hidden ring-1 ${performanceTheme.trackRing}`}>
+                  <div
+                    className={`h-2 rounded-full bg-gradient-to-r ${performanceTheme.progress}`}
+                    style={{ width: `${hasRating ? Math.min(onTimeRate || 0, 100) : 0}%` }}
+                  />
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        
+        <footer className="pt-6">
+          <div className="rounded-2xl border bg-white/70 p-4 shadow-sm">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-sm font-semibold text-slate-900">Legal & Privacy</p>
+                <p className="text-xs text-muted-foreground">
+                  Review how your data is used, and how reminders/communications work.
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <Link
+                  className="text-sm font-medium text-slate-700 hover:text-slate-900 underline-offset-4 hover:underline"
+                  href="/dashboard/tenant/legal/privacy"
+                >
                   Privacy Policy
                 </Link>
                 <span className="text-slate-300">•</span>
-                <Link className="hover:text-slate-900" href="/dashboard/tenant/legal/consent">
+                <Link
+                  className="text-sm font-medium text-slate-700 hover:text-slate-900 underline-offset-4 hover:underline"
+                  href="/dashboard/tenant/legal/consent"
+                >
                   Consent
                 </Link>
                 <span className="text-slate-300">•</span>
-                <Link className="hover:text-slate-900" href="/dashboard/tenant/legal/terms">
+                <Link
+                  className="text-sm font-medium text-slate-700 hover:text-slate-900 underline-offset-4 hover:underline"
+                  href="/dashboard/tenant/legal/terms"
+                >
                   Terms
                 </Link>
                 <span className="text-slate-300">•</span>
-                <Link className="hover:text-slate-900" href="/dashboard/tenant/legal/security">
+                <Link
+                  className="text-sm font-medium text-slate-700 hover:text-slate-900 underline-offset-4 hover:underline"
+                  href="/dashboard/tenant/legal/security"
+                >
                   Security Policy
                 </Link>
                 <span className="text-slate-300">•</span>
-                <Link className="hover:text-slate-900" href="/dashboard/tenant/legal/cookies">
+                <Link
+                  className="text-sm font-medium text-slate-700 hover:text-slate-900 underline-offset-4 hover:underline"
+                  href="/dashboard/tenant/legal/cookies"
+                >
                   Cookie Notice
                 </Link>
               </div>
             </div>
-          </aside>
-
-          <section className="space-y-6">
-            <TenantInfoCards summary={summary} loading={loading} />
-
-            <div className="grid gap-6 xl:grid-cols-[2fr_1fr]">
-              <Card className="shadow-sm border border-slate-200/70">
-                <CardHeader className="flex flex-row items-center justify-between">
-                  <CardTitle className="text-lg flex items-center gap-2">
-                    <Clock className="h-5 w-5 text-emerald-600" />
-                    Recent Activity
-                  </CardTitle>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="gap-2"
-                    onClick={refreshRecentActivity}
-                    disabled={recentActivityRefreshing}
-                  >
-                    <RefreshCw className={`h-4 w-4 ${recentActivityRefreshing ? 'animate-spin' : ''}`} />
-                    {recentActivityRefreshing ? 'Refreshing…' : 'Refresh'}
-                  </Button>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {loading ? (
-                    <SkeletonTable rows={4} columns={3} />
-                  ) : recentActivity.length === 0 ? (
-                    <div className="text-sm text-muted-foreground text-center py-4">
-                      No recent invoices, payments, or maintenance updates yet.
-                    </div>
-                  ) : (
-                    recentActivity.map((activity) => {
-                      const tone = activity.tone
-                      const icon =
-                        tone === 'maintenance'
-                          ? <CheckCircle2 className="h-4 w-4 text-amber-500" />
-                          : tone === 'water'
-                          ? <Droplet className="h-4 w-4 text-blue-500" />
-                          : tone === 'rent'
-                          ? <TrendingUp className="h-4 w-4 text-emerald-600" />
-                          : <Clock className="h-4 w-4 text-slate-500" />
-                      const toneClasses =
-                        tone === 'maintenance'
-                          ? 'border-amber-200/70 bg-amber-50/70'
-                          : tone === 'water'
-                          ? 'border-blue-200/70 bg-blue-50/70'
-                          : tone === 'rent'
-                          ? 'border-emerald-200/70 bg-emerald-50/70'
-                          : 'border-slate-200/70 bg-white'
-
-                      return (
-                        <Link
-                          key={activity.id}
-                          href={activity.href}
-                          className="block focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-200 focus-visible:ring-offset-2"
-                        >
-                          <div
-                            className={`flex items-start justify-between gap-3 rounded-xl border p-3 transition ${toneClasses} hover:shadow-sm`}
-                          >
-                            <div className="flex gap-3">
-                              <div className="mt-1">{icon}</div>
-                              <div>
-                                <p className="font-semibold text-gray-900">{activity.title}</p>
-                                <p className="text-xs text-gray-500">{activity.description}</p>
-                                <div className="flex items-center gap-2 text-xs text-gray-500 mt-1">
-                                  <span>{activity.dateLabel}</span>
-                                  <span>•</span>
-                                  <span className="capitalize">{activity.tagLabel}</span>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        </Link>
-                      )
-                    })
-                  )}
-                </CardContent>
-              </Card>
-
-              <Card className="border border-slate-200/70 shadow-sm">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-lg flex items-center gap-2">
-                    <Calendar className="h-5 w-5 text-emerald-600" />
-                    Next Payment
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <div className="grid gap-2">
-                    <div className="flex items-center justify-between rounded-xl border border-slate-200/70 bg-white px-3 py-2 shadow-sm">
-                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-600">Next rent invoice</p>
-                      <Badge variant={hasPending ? 'destructive' : 'secondary'}>
-                        {hasPending ? 'Pending' : 'Clear'}
-                      </Badge>
-                    </div>
-                    <div className="rounded-xl border border-slate-200/70 bg-white px-3 py-3 shadow-sm">
-                      <p className="text-[11px] uppercase tracking-wide text-slate-500">Amount</p>
-                      <div className="text-2xl font-bold text-slate-900">
-                        {hasPending
-                          ? `${pendingInvoices[0]?.amount?.toLocaleString('en-KE', { maximumFractionDigits: 0 })} KES`
-                          : '—'}
-                      </div>
-                    </div>
-                    <div className="rounded-xl border border-slate-200/70 bg-white px-3 py-3 shadow-sm">
-                      <p className="text-[11px] uppercase tracking-wide text-slate-500">Due date</p>
-                      <div className="text-sm font-medium text-slate-700">
-                        {hasPending && pendingInvoices[0]?.due_date
-                          ? new Date(pendingInvoices[0]?.due_date || '').toLocaleDateString(undefined, {
-                              month: 'long',
-                              day: 'numeric',
-                            })
-                          : 'No pending invoices'}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="h-px bg-gradient-to-r from-slate-100 via-slate-200 to-slate-100" aria-hidden />
-                  <Button asChild className="w-full">
-                    <Link href="/dashboard/tenant/invoices">View invoices</Link>
-                  </Button>
-                </CardContent>
-              </Card>
-            </div>
-
-            <TenantQuickActions />
-
-            <Card
-              className={`relative overflow-hidden shadow-sm transition-shadow border border-slate-200/60 ${performanceTheme.card}`}
-            >
-              <div
-                aria-hidden
-                className={`pointer-events-none absolute -right-20 -top-16 h-40 w-40 rounded-full blur-3xl ${performanceTheme.glow}`}
-              />
-              <CardHeader className="flex flex-row items-center justify-between">
-                <div>
-                  <CardTitle className="text-lg flex items-center gap-2">
-                    <TrendingUp className={`h-5 w-5 ${performanceTheme.icon}`} />
-                    Payment Performance
-                  </CardTitle>
-                  <p className={`text-sm ${performanceTheme.subtleText}`}>
-                    {hasRating ? `${paymentsMade} payments recorded` : 'No rating yet'}
-                  </p>
-                </div>
-                <div
-                  className={`flex items-center gap-2 rounded-full bg-white/70 px-3 py-1 text-sm font-semibold shadow-sm ring-1 ${performanceTheme.accentText} ${performanceTheme.badgeRing}`}
-                >
-                  <span className={`h-2.5 w-2.5 rounded-full ${ratingDot}`} aria-hidden />
-                  {hasRating ? `${onTimeRate}% on time` : 'No rating yet'}
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  <div className={`rounded-2xl border p-3 shadow-sm ${performanceTheme.panel}`}>
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="flex items-center gap-2">
-                        <div className="relative h-7 w-7">
-                          <div className={`absolute inset-0 rounded-full bg-gradient-to-r ${performanceTheme.progress} animate-spin`} />
-                          <div className={`absolute inset-[2px] rounded-full bg-white/90 ring-1 flex items-center justify-center ${performanceTheme.badgeRing}`}>
-                            <Clock className={`h-3.5 w-3.5 ${performanceTheme.accentText}`} />
-                          </div>
-                        </div>
-                        <p className={`text-xs font-semibold uppercase tracking-wide ${performanceTheme.accentText}`}>
-                          Upcoming payments
-                        </p>
-                      </div>
-                      <span
-                        className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-semibold ${
-                          hasPending
-                            ? 'bg-amber-100 text-amber-700'
-                            : 'bg-emerald-100 text-emerald-700'
-                        }`}
-                      >
-                        {hasPending ? 'Pending' : 'All clear'}
-                      </span>
-                    </div>
-                    <div className={`mt-2 text-sm ${performanceTheme.panelText}`}>
-                      {hasPending ? 'Pending invoices detected in your account.' : 'No pending invoices right now.'}
-                    </div>
-                    <div className={`mt-2 text-xs ${performanceTheme.panelMuted}`}>
-                      {hasPending
-                        ? 'Pay early to keep your on-time score high.'
-                        : 'Great work staying ahead on rent.'}
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <p className={`text-sm ${performanceTheme.labelText}`}>
-                      {hasRating ? 'On-time payments' : 'Rating pending'}
-                    </p>
-                    <div className={`w-full bg-white/70 h-2 rounded-full overflow-hidden ring-1 ${performanceTheme.trackRing}`}>
-                      <div
-                        className={`h-2 rounded-full bg-gradient-to-r ${performanceTheme.progress}`}
-                        style={{ width: `${hasRating ? Math.min(onTimeRate || 0, 100) : 0}%` }}
-                      />
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </section>
+          </div>
+        </footer>
         </div>
       </div>
     </div>

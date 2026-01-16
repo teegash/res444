@@ -234,8 +234,8 @@ export function TenantHeader({ summary, loading }: TenantHeaderProps) {
   const profileImage = summary?.profile?.profile_picture_url || null
 
   return (
-    <Card className="rounded-2xl border border-slate-200/70 shadow-sm bg-white">
-      <div className="p-5">
+    <Card className="border border-white/60 shadow-sm bg-white/70 backdrop-blur-md supports-[backdrop-filter]:bg-white/50 sticky top-0 z-10">
+      <div className="px-6 py-4">
         <div className="flex flex-wrap items-center gap-4">
           <div className="order-1">
             <div className="relative w-20 h-20 rounded-2xl border border-slate-200 overflow-hidden bg-slate-50">
