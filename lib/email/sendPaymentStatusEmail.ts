@@ -47,6 +47,12 @@ function formatPaymentMethod(value?: string | null) {
   return safeText(value)
 }
 
+function formatInvoiceNumber(value?: string | null) {
+  if (!value) return null
+  const raw = String(value).trim()
+  return raw.length > 8 ? raw.slice(0, 8) : raw
+}
+
 function buildPaymentEmailHTML(opts: {
   kind: PaymentEmailKind
   orgName: string
@@ -56,6 +62,7 @@ function buildPaymentEmailHTML(opts: {
   amountLabel: string
   paymentTypeLabel?: string | null
   paymentMethodLabel?: string | null
+  invoiceIdLabel?: string | null
   receiptNumber?: string | null
   resultDesc?: string | null
   occurredAtLabel?: string | null
@@ -125,6 +132,17 @@ function buildPaymentEmailHTML(opts: {
     `
     : ''
 
+  const invoiceRow = opts.invoiceIdLabel
+    ? `
+      <tr>
+        <td style="padding:10px 0; font-family: Arial, Helvetica, sans-serif; font-size:13px; color:#475569;">Invoice #</td>
+        <td style="padding:10px 0; font-family: Arial, Helvetica, sans-serif; font-size:13px; color:#0f172a; font-weight:700; text-align:right;">
+          ${safeText(opts.invoiceIdLabel)}
+        </td>
+      </tr>
+    `
+    : ''
+
   const receiptRow = isSuccess && opts.receiptNumber
     ? `
       <tr>
@@ -189,6 +207,7 @@ function buildPaymentEmailHTML(opts: {
                     </tr>
                     ${paymentTypeRow}
                     ${paymentMethodRow}
+                    ${invoiceRow}
                     ${receiptRow}
                     ${occurredRow}
                   </table>
@@ -233,6 +252,7 @@ export async function sendPaymentStatusEmail(args: SendPaymentStatusEmailArgs) {
     currency === 'KES' ? formatKES(args.amountPaid as any) : `${currency} ${safeText(args.amountPaid)}`
   const paymentTypeLabel = formatPaymentType(args.invoiceType)
   const paymentMethodLabel = formatPaymentMethod(args.paymentMethod)
+  const invoiceIdLabel = formatInvoiceNumber(args.invoiceId)
 
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, '')
   if (!siteUrl) {
@@ -317,6 +337,7 @@ export async function sendPaymentStatusEmail(args: SendPaymentStatusEmailArgs) {
     amountLabel,
     paymentTypeLabel,
     paymentMethodLabel,
+    invoiceIdLabel,
     receiptNumber: args.receiptNumber ?? null,
     resultDesc: args.resultDesc ?? null,
     occurredAtLabel,
@@ -326,6 +347,7 @@ export async function sendPaymentStatusEmail(args: SendPaymentStatusEmailArgs) {
   const paymentDetailsText = [
     paymentTypeLabel ? `Type: ${paymentTypeLabel}` : null,
     paymentMethodLabel ? `Method: ${paymentMethodLabel}` : null,
+    invoiceIdLabel ? `Invoice #: ${invoiceIdLabel}` : null,
   ]
     .filter(Boolean)
     .join('. ')
