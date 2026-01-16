@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Calendar, TrendingUp, Clock, CheckCircle2, Droplet } from 'lucide-react'
+import { Calendar, TrendingUp, Clock, CheckCircle2, Droplet, RefreshCw } from 'lucide-react'
 import Link from 'next/link'
 import { SkeletonLoader, SkeletonPropertyCard, SkeletonTable } from '@/components/ui/skeletons'
 import { AiGlowButton } from '@/components/ui/AiGlowButton'
@@ -87,6 +87,7 @@ export default function TenantDashboardClient() {
   const [recentActivity, setRecentActivity] = useState<ActivityItem[]>([])
   const [tenantPayments, setTenantPayments] = useState<TenantPaymentActivity[]>([])
   const [maintenanceCount, setMaintenanceCount] = useState<number>(0)
+  const [recentActivityRefreshing, setRecentActivityRefreshing] = useState(false)
   const [arrears, setArrears] = useState<{ total: number; oldest_due_date: string | null }>({
     total: 0,
     oldest_due_date: null,
@@ -394,15 +395,25 @@ export default function TenantDashboardClient() {
       setMaintenanceCount(openMaintenance.length)
     } catch (error) {
       console.warn('[TenantDashboard] Failed to load recent activity', error)
+      setRecentActivity([])
       setTenantPayments([])
       setMaintenanceCount(0)
     }
   }, [])
 
+  const refreshRecentActivity = useCallback(async () => {
+    setRecentActivityRefreshing(true)
+    try {
+      await fetchRecentActivity()
+    } finally {
+      setRecentActivityRefreshing(false)
+    }
+  }, [fetchRecentActivity])
+
   useEffect(() => {
     fetchPendingInvoices()
-    fetchRecentActivity()
-  }, [fetchPendingInvoices, fetchRecentActivity])
+    refreshRecentActivity()
+  }, [fetchPendingInvoices, refreshRecentActivity])
 
   const formatDate = (value: string | null | undefined) => {
     if (!value) return '—'
@@ -588,8 +599,15 @@ export default function TenantDashboardClient() {
                 <Clock className="h-5 w-5 text-blue-600" />
                 Recent Activity
               </CardTitle>
-              <Button variant="outline" size="sm" className="gap-2" onClick={fetchRecentActivity}>
-                Refresh
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-2"
+                onClick={refreshRecentActivity}
+                disabled={recentActivityRefreshing}
+              >
+                <RefreshCw className={`h-4 w-4 ${recentActivityRefreshing ? 'animate-spin' : ''}`} />
+                {recentActivityRefreshing ? 'Refreshing…' : 'Refresh'}
               </Button>
             </CardHeader>
             <CardContent className="space-y-4">
