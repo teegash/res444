@@ -808,7 +808,11 @@ export default function TenantPaymentPortal() {
                 </div>
               )}
 
-              <Button onClick={handleSubmit} disabled={submitting || isInvoicePaid} className="w-full gap-2 bg-[#4682B4] hover:bg-[#3b6c99]">
+              <Button
+                onClick={handleSubmit}
+                disabled={submitting || isInvoicePaid || (paymentMethod === 'bank' && !depositSnapshot)}
+                className="w-full gap-2 bg-[#4682B4] hover:bg-[#3b6c99]"
+              >
                 <CheckCircle2 className="h-5 w-5" />
                 {isInvoicePaid ? 'Invoice already paid' : submitting ? 'Processing…' : 'Confirm payment option'}
               </Button>
