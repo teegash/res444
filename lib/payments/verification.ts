@@ -89,6 +89,8 @@ export async function createPaymentWithDepositSlip(
     }
 
     const lease = invoice.leases as { tenant_user_id: string } | null
+    const invoiceOrgId =
+      invoice.organization_id || (invoice as any)?.leases?.unit?.building?.organization_id || null
 
     // 2. Verify user is the tenant for this invoice
     if (lease?.tenant_user_id !== userId) {
@@ -124,7 +126,7 @@ export async function createPaymentWithDepositSlip(
       .from('payments')
       .insert({
         invoice_id: request.invoice_id,
-        organization_id: invoice.organization_id,
+        organization_id: invoiceOrgId,
         tenant_user_id: userId,
         amount_paid: request.amount,
         payment_method: request.payment_method,
@@ -150,15 +152,24 @@ export async function createPaymentWithDepositSlip(
     }
 
     // 5. Notify organization staff for review
-    const buildingOrgId = invoice.organization_id || (lease?.unit as any)?.building?.organization_id || null
+    const buildingOrgId = invoiceOrgId
     if (buildingOrgId) {
       const { data: staff } = await admin
         .from('organization_members')
         .select('user_id, role')
         .eq('organization_id', buildingOrgId)
-        .in('role', ['admin', 'manager', 'caretaker'])
 
-      const staffIds = Array.from(new Set((staff || []).map((row: any) => row.user_id).filter(Boolean)))
+      const allowedRoles = new Set(['admin', 'manager', 'caretaker'])
+      const staffIds = Array.from(
+        new Set(
+          (staff || [])
+            .filter((row: any) =>
+              allowedRoles.has(String(row?.role || '').trim().toLowerCase())
+            )
+            .map((row: any) => row.user_id)
+            .filter(Boolean)
+        )
+      )
       await Promise.all(
         staffIds.map((recipientId) =>
           logNotification({
