@@ -140,7 +140,7 @@ export async function POST(request: NextRequest) {
           .eq('tenant_user_id', tenantUserId)
           .eq('unit_id', unitId)
           .eq('organization_id', orgId)
-          .in('status', ['active', 'pending'])
+          .in('status', ['active', 'pending', 'renewed'])
           .order('start_date', { ascending: false })
           .limit(1)
           .maybeSingle()

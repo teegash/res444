@@ -169,7 +169,7 @@ export async function POST(request: NextRequest) {
       `
       )
       .eq('tenant_user_id', user.id)
-      .in('status', ['active', 'pending'])
+      .in('status', ['active', 'pending', 'renewed'])
       .order('start_date', { ascending: false })
       .limit(1)
       .maybeSingle()

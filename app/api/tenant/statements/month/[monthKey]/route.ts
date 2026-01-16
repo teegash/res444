@@ -70,7 +70,7 @@ export async function GET(
       `
       )
       .eq('tenant_user_id', user.id)
-      .eq('status', 'active')
+      .in('status', ['active', 'renewed'])
       .maybeSingle()
 
     if (leaseError) {

@@ -82,7 +82,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         )
       `
       )
-      .in('status', ['active', 'pending'])
+      .in('status', ['active', 'pending', 'renewed'])
       .eq('tenant_user_id', tenantId)
       .order('start_date', { ascending: false })
       .limit(1)

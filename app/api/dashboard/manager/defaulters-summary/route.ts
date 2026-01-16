@@ -51,7 +51,7 @@ export async function GET() {
       .from('leases')
       .select('tenant_user_id')
       .eq('organization_id', organizationId)
-      .eq('status', 'active')
+      .in('status', ['active', 'renewed'])
       .not('unit_id', 'is', null)
       .not('tenant_user_id', 'is', null)
 

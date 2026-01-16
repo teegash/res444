@@ -49,7 +49,7 @@ export async function GET() {
       .from('leases')
       .select('id, tenant_user_id, unit_id, status')
       .eq('organization_id', membership.organization_id)
-      .in('status', ['active', 'pending'])
+      .in('status', ['active', 'pending', 'renewed'])
 
     if (leasesError) throw leasesError
 

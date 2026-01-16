@@ -50,7 +50,7 @@ export async function GET(request: NextRequest) {
       `
       )
       .eq('tenant_user_id', user.id)
-      .in('status', ['active', 'pending'])
+      .in('status', ['active', 'pending', 'renewed'])
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle()

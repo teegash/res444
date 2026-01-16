@@ -427,7 +427,7 @@ export async function generateOccupancyReport(
       )
     `
     )
-    .eq('status', 'active')
+    .in('status', ['active', 'renewed'])
     .not('end_date', 'is', null)
 
   const leaseExpirations: OccupancyReport['leaseExpirations'] = []

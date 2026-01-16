@@ -125,7 +125,7 @@ export async function GET(request: NextRequest) {
       `
       )
       .eq('organization_id', orgId)
-      .in('status', ['active', 'pending'])
+      .in('status', ['active', 'pending', 'renewed'])
 
     const { data: leases, error: leasesError } = await leasesQuery
     if (leasesError) {

@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
         )`
       )
       .eq('tenant_user_id', user.id)
-      .in('status', ['active', 'pending'])
+      .in('status', ['active', 'pending', 'renewed'])
 
     if (leaseError) {
       throw leaseError

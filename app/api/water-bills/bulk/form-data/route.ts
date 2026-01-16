@@ -76,7 +76,7 @@ export async function GET(request: NextRequest) {
       .from('leases')
       .select('id, tenant_user_id, unit_id, status, start_date')
       .eq('organization_id', orgId)
-      .in('status', ['active', 'pending'])
+      .in('status', ['active', 'pending', 'renewed'])
       .in('unit_id', unitIds)
       .order('start_date', { ascending: false })
 

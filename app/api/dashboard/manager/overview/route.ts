@@ -207,7 +207,7 @@ export async function GET() {
           .from('leases')
           .select('id, tenant_user_id, unit_id, rent_paid_until, next_rent_due_date, status')
           .eq('organization_id', orgId)
-          .eq('status', 'active'),
+          .in('status', ['active', 'renewed']),
         admin
           .from('leases')
           .select('tenant_user_id, unit_id, status')
@@ -601,7 +601,7 @@ export async function GET() {
       const leasesArr = Array.isArray(unit.leases) ? unit.leases : []
       const activeLease = leasesArr.find((l: any) => {
         const status = (l?.status || '').toLowerCase()
-        return status === 'active' || status === 'pending'
+        return status === 'active' || status === 'pending' || status === 'renewed'
       })
       const rent =
         parseRent(activeLease?.monthly_rent) ||
@@ -695,7 +695,10 @@ export async function GET() {
       const bucket = occupancyMap.get(bid) || { total: 0, occupied: 0 }
       bucket.total += 1
       const hasActiveLease = Array.isArray(unit.leases)
-        ? unit.leases.some((l: any) => (l?.status || '').toLowerCase() === 'active')
+        ? unit.leases.some((l: any) => {
+            const status = (l?.status || '').toLowerCase()
+            return status === 'active' || status === 'renewed'
+          })
         : false
       if (hasActiveLease) bucket.occupied += 1
       occupancyMap.set(bid, bucket)

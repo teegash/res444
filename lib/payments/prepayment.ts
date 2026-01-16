@@ -527,7 +527,7 @@ const ensureLeaseActive = (lease: LeaseRecord, errors: string[]) => {
     errors.push('Lease not found.')
     return
   }
-  if (lease.status !== 'active' && lease.status !== 'pending') {
+  if (lease.status !== 'active' && lease.status !== 'pending' && lease.status !== 'renewed') {
     errors.push('Lease is not active and cannot accept payments.')
   }
 }
@@ -991,7 +991,7 @@ export async function autoCreateMissingInvoices(
   const query = admin
     .from('leases')
     .select('id, organization_id, tenant_user_id, monthly_rent, status, start_date, end_date, rent_paid_until, next_rent_due_date')
-    .eq('status', 'active')
+    .in('status', ['active', 'renewed'])
 
   if (options.leaseIds?.length) {
     query.in('id', options.leaseIds)
