@@ -29,6 +29,24 @@ export async function logNotification({
 
   try {
     const adminSupabase = createAdminClient()
+    if (!adminSupabase) return
+    let resolvedOrgId = organizationId
+    if (!resolvedOrgId) {
+      const { data: profile } = await adminSupabase
+        .from('user_profiles')
+        .select('organization_id')
+        .eq('id', recipientUserId)
+        .maybeSingle()
+      resolvedOrgId = profile?.organization_id || null
+    }
+    if (!resolvedOrgId) {
+      const { data: member } = await adminSupabase
+        .from('organization_members')
+        .select('organization_id')
+        .eq('user_id', recipientUserId)
+        .maybeSingle()
+      resolvedOrgId = member?.organization_id || null
+    }
     const payload: Record<string, any> = {
       sender_user_id: senderUserId,
       recipient_user_id: recipientUserId,
@@ -38,8 +56,8 @@ export async function logNotification({
       message_type: messageType,
       read: false,
     }
-    if (organizationId) {
-      payload.organization_id = organizationId
+    if (resolvedOrgId) {
+      payload.organization_id = resolvedOrgId
     }
     await adminSupabase.from('communications').insert(payload)
   } catch (error) {
