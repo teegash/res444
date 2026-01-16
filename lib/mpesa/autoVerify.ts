@@ -7,6 +7,8 @@ import { processRentPrepayment } from '@/lib/payments/prepayment'
 import { getMpesaSettings, MpesaSettings } from '@/lib/mpesa/settings'
 import { logNotification } from '@/lib/communications/notifications'
 import { buildCallbackUrl, buildDarajaConfig, getMpesaCredentials } from '@/lib/mpesa/credentials'
+import { getTemplateContent } from '@/lib/sms/templateStore'
+import { renderTemplateContent } from '@/lib/sms/templateRenderer'
 
 export interface PendingPayment {
   id: string
@@ -104,6 +106,7 @@ async function getPendingMpesaPayments(
  * Send SMS confirmation to tenant
  */
 async function sendPaymentConfirmationSMS(
+  organizationId: string,
   tenantUserId: string,
   amount: number,
   invoiceId: string,
@@ -132,9 +135,18 @@ async function sendPaymentConfirmationSMS(
       minimumFractionDigits: 0,
     }).format(amount)
 
-    // Generate message
+    const template = await getTemplateContent(organizationId, 'payment_confirmed')
     const invoiceShortId = invoiceId.substring(0, 8).toUpperCase()
-    const message = `Your payment of ${formattedAmount} has been confirmed by M-Pesa. Invoice #${invoiceShortId} is now paid. Receipt: ${receiptNumber}. Thank you!`
+    const receiptText = receiptNumber ? ` Receipt: ${receiptNumber}.` : ''
+    const message = renderTemplateContent(template, {
+      '[AMOUNT]': formattedAmount,
+      '[PAYMENT_METHOD]': 'M-Pesa',
+      '[INVOICE_ID]': invoiceShortId,
+      '[RECEIPT_NUMBER]': receiptNumber,
+      '[RECEIPT_TEXT]': receiptText,
+    })
+      .replace(/\s+/g, ' ')
+      .trim()
 
     // Send SMS via Africa's Talking
     const { sendSMSWithLogging } = await import('@/lib/sms/smsService')
@@ -317,6 +329,7 @@ async function verifyPayment(
 
         if (invoiceStatus) {
           await sendPaymentConfirmationSMS(
+            payment.organization_id,
             payment.tenant_user_id,
             parseFloat(payment.amount_paid.toString()),
             targetInvoiceId,

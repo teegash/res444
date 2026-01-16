@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sendSMSWithLogging } from '@/lib/sms/smsService'
+import { getTemplateContent } from '@/lib/sms/templateStore'
+import { renderTemplateContent } from '@/lib/sms/templateRenderer'
 import { validatePhoneNumber } from '@/lib/sms/africasTalking'
 import { toIsoDate, waterPeriodStartForCreatedAt, waterDueDateForCreatedAt } from '@/lib/invoices/rentPeriods'
 
@@ -213,20 +215,23 @@ export async function POST(request: NextRequest) {
         const formattedUnits = unitsConsumed.toFixed(2)
         const formattedRate = rate.toFixed(2)
         const formattedTotal = totalAmount.toFixed(2)
-
-        const smsMessage = [
-          `Hello ${raw.tenantName || 'tenant'},`,
-          `Water bill for ${propertyName || building.name || 'your property'}${
-            raw.unitNumber ? ` (Unit ${raw.unitNumber})` : ''
-          }.`,
-          `Prev: ${prev ?? '-'} | Curr: ${curr ?? '-'}.`,
-          `Usage: ${formattedUnits} units @ KES ${formattedRate}. Total: KES ${formattedTotal}.`,
-          `Due: ${dueDateDisplay}. Ref: ${invoiceRef}.`,
-          raw.notes || notes ? `Note: ${String(raw.notes || notes).slice(0, 100)}` : '',
-          'Thank you.',
-        ]
-          .filter(Boolean)
-          .join(' ')
+        const template = await getTemplateContent(orgId, 'water_bill_invoice')
+        const noteLine = raw.notes || notes ? `Note: ${String(raw.notes || notes).slice(0, 100)}` : ''
+        const smsMessage = renderTemplateContent(template, {
+          '[TENANT_NAME]': raw.tenantName || 'tenant',
+          '[PROPERTY_NAME]': propertyName || building.name || 'your property',
+          '[UNIT_NUMBER]': raw.unitNumber || '-',
+          '[PREVIOUS_READING]': prev ?? '-',
+          '[CURRENT_READING]': curr ?? '-',
+          '[USAGE_UNITS]': formattedUnits,
+          '[RATE]': formattedRate,
+          '[TOTAL]': formattedTotal,
+          '[DUE_DATE]': dueDateDisplay,
+          '[INVOICE_REF]': invoiceRef,
+          '[NOTE_LINE]': noteLine,
+        })
+          .replace(/\s+/g, ' ')
+          .trim()
 
         const smsResult = await sendSMSWithLogging({
           phoneNumber: raw.tenantPhone,

@@ -7,6 +7,8 @@ import { processRentPrepayment, applyRentPayment } from '@/lib/payments/prepayme
 import { createAdminClient } from '@/lib/supabase/admin'
 import { startOfMonthUtc } from '@/lib/invoices/rentPeriods'
 import { sendPaymentStatusEmail } from '@/lib/email/sendPaymentStatusEmail'
+import { getTemplateContent } from '@/lib/sms/templateStore'
+import { renderTemplateContent } from '@/lib/sms/templateRenderer'
 
 export interface VerifyPaymentRequest {
   invoice_id: string
@@ -330,10 +332,13 @@ export async function approvePayment(
         const primaryInvoiceId = prepaymentResult.appliedInvoices[0] || invoice.id
 
         await sendPaymentVerificationNotification(
+          payment.organization_id,
           payment.tenant_user_id,
           primaryInvoiceId,
           parseFloat(payment.amount_paid.toString()),
-          'approved'
+          'approved',
+          undefined,
+          paymentMethod
         )
 
         await logNotification({
@@ -477,10 +482,13 @@ export async function approvePayment(
 
     // 5. Send notification to tenant
     await sendPaymentVerificationNotification(
+      payment.organization_id,
       payment.tenant_user_id,
       primaryInvoiceId,
       amountPaid,
-      'approved'
+      'approved',
+      undefined,
+      paymentMethod
     )
 
     const typeLabel = invoiceType === 'water' ? 'Water bill' : 'Rent'
@@ -623,11 +631,13 @@ export async function rejectPayment(
 
     // 5. Send notification to tenant
     await sendPaymentVerificationNotification(
+      payment.organization_id,
       payment.tenant_user_id,
       invoice.id,
       parseFloat(payment.amount_paid.toString()),
       'rejected',
-      request.reason
+      request.reason,
+      payment.payment_method ?? 'bank_transfer'
     )
 
     if (payment.payment_method === 'bank_transfer') {
@@ -675,14 +685,15 @@ export async function rejectPayment(
  * Send payment verification notification to tenant
  */
 async function sendPaymentVerificationNotification(
+  organizationId: string,
   tenantUserId: string,
   invoiceId: string,
   amount: number,
   status: 'approved' | 'rejected',
-  reason?: string
+  reason?: string,
+  paymentMethod?: string | null
 ): Promise<void> {
   try {
-    const supabase = await createClient()
     const admin = createAdminClient()
     if (!admin) return
 
@@ -718,14 +729,29 @@ async function sendPaymentVerificationNotification(
 
     const invoiceShortId = invoiceId.substring(0, 8).toUpperCase()
 
-    // Generate message
-    let message: string
-    if (status === 'approved') {
-      message = `RES: Your payment of ${formattedAmount} has been verified and approved. Invoice #${invoiceShortId} is now paid. Thank you!`
-    } else {
-      const reasonText = reason ? ` Reason: ${reason}.` : ''
-      message = `RES: Your payment of ${formattedAmount} for Invoice #${invoiceShortId} has been rejected.${reasonText} Please contact support for assistance.`
-    }
+    const templateKey = status === 'approved' ? 'payment_verified' : 'payment_rejected'
+    const template = await getTemplateContent(organizationId, templateKey)
+    const paymentMethodLabel =
+      paymentMethod === 'mpesa'
+        ? 'M-Pesa'
+        : paymentMethod === 'bank_transfer'
+          ? 'Bank deposit'
+          : paymentMethod === 'cash'
+            ? 'Cash'
+            : paymentMethod === 'cheque'
+              ? 'Cheque'
+              : paymentMethod || ''
+    const reasonText = reason ? ` Reason: ${reason}.` : ''
+
+    const message = renderTemplateContent(template, {
+      '[AMOUNT]': formattedAmount,
+      '[INVOICE_ID]': invoiceShortId,
+      '[PAYMENT_METHOD]': paymentMethodLabel,
+      '[REASON]': reason || '',
+      '[REASON_TEXT]': reasonText,
+    })
+      .replace(/\s+/g, ' ')
+      .trim()
 
     // Send SMS via Africa's Talking
     const { sendSMSWithLogging } = await import('@/lib/sms/smsService')

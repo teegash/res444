@@ -4,6 +4,8 @@ import { validatePhoneNumber } from '@/lib/sms/africasTalking'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { toIsoDate, waterPeriodStartForCreatedAt, waterDueDateForCreatedAt } from '@/lib/invoices/rentPeriods'
+import { getTemplateContent } from '@/lib/sms/templateStore'
+import { renderTemplateContent } from '@/lib/sms/templateRenderer'
 
 export async function POST(request: NextRequest) {
   try {
@@ -67,18 +69,6 @@ export async function POST(request: NextRequest) {
     const periodStart = waterPeriodStartForCreatedAt(createdAt)
     const periodStartIso = toIsoDate(periodStart)
     const dueDateDisplay = dueDate || waterDueDateForCreatedAt(createdAt)
-
-    const message = [
-      `Hello ${tenantName || 'tenant'},`,
-      `Water bill for ${propertyName || 'your property'}${unitNumber ? ` (Unit ${unitNumber})` : ''}.`,
-      `Prev: ${previousReading || '-'} | Curr: ${currentReading || '-'}.`,
-      `Usage: ${formattedUnits} units @ KES ${formattedRate}. Total: KES ${formattedTotal}.`,
-      `Due: ${dueDateDisplay}. Ref: ${invoiceRef}.`,
-      notes ? `Note: ${notes.slice(0, 100)}` : '',
-      'Thank you.'
-    ]
-      .filter(Boolean)
-      .join(' ')
 
     if (!tenantUserId || !unitId) {
       return NextResponse.json(
@@ -231,6 +221,24 @@ export async function POST(request: NextRequest) {
       message_type: 'in_app',
       read: false,
     })
+
+    const template = await getTemplateContent(membership.organization_id, 'water_bill_invoice')
+    const noteLine = notes ? `Note: ${String(notes).slice(0, 100)}` : ''
+    const message = renderTemplateContent(template, {
+      '[TENANT_NAME]': tenantName || 'tenant',
+      '[PROPERTY_NAME]': propertyName || 'your property',
+      '[UNIT_NUMBER]': unitNumber || '-',
+      '[PREVIOUS_READING]': previousReading ?? '-',
+      '[CURRENT_READING]': currentReading ?? '-',
+      '[USAGE_UNITS]': formattedUnits,
+      '[RATE]': formattedRate,
+      '[TOTAL]': formattedTotal,
+      '[DUE_DATE]': dueDateDisplay,
+      '[INVOICE_REF]': invoiceRef,
+      '[NOTE_LINE]': noteLine,
+    })
+      .replace(/\s+/g, ' ')
+      .trim()
 
     const smsResult = await sendSMSWithLogging({
       phoneNumber: tenantPhone,

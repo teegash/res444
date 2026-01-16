@@ -6,6 +6,8 @@ import { updateInvoiceStatus } from '@/lib/invoices/invoiceGeneration'
 import { logNotification } from '@/lib/communications/notifications'
 import { getMpesaCredentials } from '@/lib/mpesa/credentials'
 import { sendPaymentStatusEmail } from '@/lib/email/sendPaymentStatusEmail'
+import { getTemplateContent } from '@/lib/sms/templateStore'
+import { renderTemplateContent } from '@/lib/sms/templateRenderer'
 
 type Ctx = { params: Promise<{ orgId: string; secret: string }> }
 
@@ -227,7 +229,7 @@ export async function POST(request: NextRequest, { params }: Ctx) {
       }
 
       try {
-        await sendPaymentConfirmationSMS(payment.tenant_user_id, {
+        await sendPaymentConfirmationSMS(orgId, payment.tenant_user_id, {
           amount: Number(payment.amount_paid),
           receiptNumber: parsed.receiptNumber || 'N/A',
           invoiceId: payment.invoice_id,
@@ -287,6 +289,7 @@ export async function POST(request: NextRequest, { params }: Ctx) {
 }
 
 async function sendPaymentConfirmationSMS(
+  organizationId: string,
   tenantUserId: string,
   paymentDetails: { amount: number; receiptNumber: string; invoiceId: string }
 ) {
@@ -308,7 +311,18 @@ async function sendPaymentConfirmationSMS(
       minimumFractionDigits: 0,
     }).format(paymentDetails.amount)
 
-    const message = `RES: Your payment of ${formattedAmount} has been confirmed. Receipt: ${paymentDetails.receiptNumber}. Invoice #${paymentDetails.invoiceId.substring(0, 8)}. Thank you!`
+    const template = await getTemplateContent(organizationId, 'payment_confirmed')
+    const invoiceShortId = paymentDetails.invoiceId.substring(0, 8).toUpperCase()
+    const receiptText = paymentDetails.receiptNumber ? ` Receipt: ${paymentDetails.receiptNumber}.` : ''
+    const message = renderTemplateContent(template, {
+      '[AMOUNT]': formattedAmount,
+      '[PAYMENT_METHOD]': 'M-Pesa',
+      '[INVOICE_ID]': invoiceShortId,
+      '[RECEIPT_NUMBER]': paymentDetails.receiptNumber,
+      '[RECEIPT_TEXT]': receiptText,
+    })
+      .replace(/\s+/g, ' ')
+      .trim()
 
     const { sendSMSWithLogging } = await import('@/lib/sms/smsService')
 

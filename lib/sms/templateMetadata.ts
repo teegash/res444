@@ -1,8 +1,12 @@
 export type TemplateKey =
   | 'rent_payment'
   | 'water_bill'
+  | 'water_bill_invoice'
   | 'maintenance_update'
   | 'lease_renewal'
+  | 'payment_confirmed'
+  | 'payment_verified'
+  | 'payment_rejected'
   | 'rent_stage_1'
   | 'rent_stage_2'
   | 'rent_stage_3'
@@ -124,6 +128,65 @@ export const TEMPLATE_METADATA: Record<TemplateKey, TemplateMeta> = {
     ],
     defaultContent:
       'RES: Water bill for [PROPERTY_NAME] Unit [UNIT_NUMBER] - [BILL_MONTH] totals [AMOUNT]. Kindly settle via tenant portal.',
+  },
+  water_bill_invoice: {
+    key: 'water_bill_invoice',
+    name: 'Water Bill Invoice SMS',
+    description: 'Sent when a new water bill invoice is issued via SMS.',
+    placeholders: [
+      { token: '[TENANT_NAME]', label: 'Tenant name', sample: 'Jane' },
+      { token: '[PROPERTY_NAME]', label: 'Property name', sample: 'Kilimani Heights' },
+      { token: '[UNIT_NUMBER]', label: 'Unit number', sample: '12B' },
+      { token: '[PREVIOUS_READING]', label: 'Previous meter reading', sample: '120.50' },
+      { token: '[CURRENT_READING]', label: 'Current meter reading', sample: '140.10' },
+      { token: '[USAGE_UNITS]', label: 'Units consumed', sample: '19.60' },
+      { token: '[RATE]', label: 'Rate per unit', sample: '150.00' },
+      { token: '[TOTAL]', label: 'Total amount', sample: '2,940.00' },
+      { token: '[DUE_DATE]', label: 'Due date', sample: '2025-03-05' },
+      { token: '[INVOICE_REF]', label: 'Invoice reference', sample: 'INV-123456' },
+      { token: '[NOTE_LINE]', label: 'Optional note line', sample: 'Note: Please confirm the reading.' },
+    ],
+    defaultContent:
+      'Hello [TENANT_NAME], Water bill for [PROPERTY_NAME] (Unit [UNIT_NUMBER]). Prev: [PREVIOUS_READING] | Curr: [CURRENT_READING]. Usage: [USAGE_UNITS] units @ KES [RATE]. Total: KES [TOTAL]. Due: [DUE_DATE]. Ref: [INVOICE_REF]. [NOTE_LINE] Thank you.',
+  },
+  payment_confirmed: {
+    key: 'payment_confirmed',
+    name: 'Payment Confirmed (Auto)',
+    description: 'Sent when a payment is confirmed automatically (e.g., M-Pesa).',
+    placeholders: [
+      { token: '[AMOUNT]', label: 'Amount paid', sample: 'KES 45,000' },
+      { token: '[PAYMENT_METHOD]', label: 'Payment method', sample: 'M-Pesa' },
+      { token: '[INVOICE_ID]', label: 'Invoice number', sample: 'INV-1234' },
+      { token: '[RECEIPT_NUMBER]', label: 'Receipt number', sample: 'QWE123ABC9' },
+      { token: '[RECEIPT_TEXT]', label: 'Receipt sentence (optional)', sample: ' Receipt: QWE123ABC9.' },
+    ],
+    defaultContent:
+      'RES: Your payment of [AMOUNT] via [PAYMENT_METHOD] has been confirmed. Invoice #[INVOICE_ID] is now paid.[RECEIPT_TEXT] Thank you!',
+  },
+  payment_verified: {
+    key: 'payment_verified',
+    name: 'Payment Verified (Manual)',
+    description: 'Sent when a manager verifies a payment manually.',
+    placeholders: [
+      { token: '[AMOUNT]', label: 'Amount paid', sample: 'KES 45,000' },
+      { token: '[INVOICE_ID]', label: 'Invoice number', sample: 'INV-1234' },
+      { token: '[PAYMENT_METHOD]', label: 'Payment method', sample: 'Bank deposit' },
+    ],
+    defaultContent:
+      'RES: Your payment of [AMOUNT] has been verified and approved. Invoice #[INVOICE_ID] is now paid. Thank you!',
+  },
+  payment_rejected: {
+    key: 'payment_rejected',
+    name: 'Payment Rejected',
+    description: 'Sent when a payment is rejected by management.',
+    placeholders: [
+      { token: '[AMOUNT]', label: 'Amount paid', sample: 'KES 45,000' },
+      { token: '[INVOICE_ID]', label: 'Invoice number', sample: 'INV-1234' },
+      { token: '[REASON]', label: 'Rejection reason', sample: 'Receipt not clear' },
+      { token: '[REASON_TEXT]', label: 'Reason sentence (optional)', sample: ' Reason: Receipt not clear.' },
+    ],
+    defaultContent:
+      'RES: Your payment of [AMOUNT] for Invoice #[INVOICE_ID] has been rejected.[REASON_TEXT] Please contact support for assistance.',
   },
   maintenance_update: {
     key: 'maintenance_update',
