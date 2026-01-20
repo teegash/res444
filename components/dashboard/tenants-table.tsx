@@ -263,6 +263,7 @@ export function TenantsTable({
 
   const [tenantToDelete, setTenantToDelete] = useState<TenantRecord | null>(null)
   const [removingTenant, setRemovingTenant] = useState(false)
+  const [removeConfirmText, setRemoveConfirmText] = useState('')
   const [tenantToArchive, setTenantToArchive] = useState<TenantRecord | null>(null)
   const [archivingTenant, setArchivingTenant] = useState(false)
   const [archiveReason, setArchiveReason] = useState('')
@@ -271,6 +272,11 @@ export function TenantsTable({
   const [deleteSummaryOpen, setDeleteSummaryOpen] = useState(false)
   const [deletedTenantName, setDeletedTenantName] = useState<string | null>(null)
   const [deletedTenantEmail, setDeletedTenantEmail] = useState<string | null>(null)
+
+  const openRemoveDialog = (tenant: TenantRecord) => {
+    setTenantToDelete(tenant)
+    setRemoveConfirmText('')
+  }
 
   const openArchiveDialog = (tenant: TenantRecord) => {
     setTenantToArchive(tenant)
@@ -455,6 +461,7 @@ export function TenantsTable({
 
   const handleRemoveTenant = async () => {
     if (!tenantToDelete) return
+    if (removeConfirmText.trim().toLowerCase() !== 'remove') return
     setRemovingTenant(true)
     setDeletedTenantName(tenantToDelete.full_name)
     setDeletedTenantEmail(tenantToDelete.email || null)
@@ -483,6 +490,7 @@ export function TenantsTable({
         description: `${tenantToDelete.full_name} has been removed from your roster.`,
       })
       setTenantToDelete(null)
+      setRemoveConfirmText('')
       setRefreshIndex((index) => index + 1)
     } catch (deleteError) {
       toast({
@@ -917,7 +925,7 @@ export function TenantsTable({
                       <TableCell className="text-right">
                         <TenantActions
                           tenant={tenant}
-                          onRemove={setTenantToDelete}
+                          onRemove={openRemoveDialog}
                           onArchive={openArchiveDialog}
                         />
                       </TableCell>
@@ -933,7 +941,15 @@ export function TenantsTable({
       {/* Send message modal */}
 
       {/* Delete confirmation modal */}
-      <Dialog open={!!tenantToDelete} onOpenChange={(open) => !open && setTenantToDelete(null)}>
+      <Dialog
+        open={!!tenantToDelete}
+        onOpenChange={(open) => {
+          if (!open) {
+            setTenantToDelete(null)
+            setRemoveConfirmText('')
+          }
+        }}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Remove tenant</DialogTitle>
@@ -948,14 +964,32 @@ export function TenantsTable({
             <p>Email: {tenantToDelete?.email || '—'}</p>
             <p>Unit: {tenantToDelete?.unit_label || 'Unassigned'}</p>
           </div>
+          <div className="space-y-2">
+            <label className="text-xs font-medium text-slate-600" htmlFor="remove-confirm">
+              Type REMOVE to confirm
+            </label>
+            <Input
+              id="remove-confirm"
+              value={removeConfirmText}
+              onChange={(event) => setRemoveConfirmText(event.target.value)}
+              placeholder="REMOVE"
+            />
+          </div>
           <DialogFooter className="gap-2 sm:space-x-2">
-            <Button variant="outline" onClick={() => setTenantToDelete(null)} disabled={removingTenant}>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setTenantToDelete(null)
+                setRemoveConfirmText('')
+              }}
+              disabled={removingTenant}
+            >
               Cancel
             </Button>
             <Button
               variant="destructive"
               onClick={handleRemoveTenant}
-              disabled={removingTenant}
+              disabled={removingTenant || removeConfirmText.trim().toLowerCase() !== 'remove'}
             >
               {removingTenant ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
               Remove tenant
