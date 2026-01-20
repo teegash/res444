@@ -76,7 +76,7 @@ export function TenantInfoCards({ summary, loading }: TenantInfoCardsProps) {
               src={propertyImage}
               alt=""
               loading="lazy"
-              className="h-full w-full object-cover opacity-30"
+              className="h-full w-full object-cover opacity-10"
             />
           </div>
         ) : null}
