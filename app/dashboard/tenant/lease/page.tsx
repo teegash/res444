@@ -22,6 +22,9 @@ type LeaseDetails = {
   end_date: string | null
   monthly_rent: number | null
   deposit_amount: number | null
+  processing_fee: number | null
+  water_deposit: number | null
+  electricity_deposit: number | null
   status: string | null
   lease_agreement_url: string | null
   rent_auto_populated: boolean | null
@@ -356,6 +359,27 @@ export default function LeasePage() {
       : '—'
   const monthlyRent = formatCurrency(lease?.monthly_rent)
   const depositAmount = formatCurrency(lease?.deposit_amount)
+  const processingFee = formatCurrency(lease?.processing_fee)
+  const waterDeposit = formatCurrency(lease?.water_deposit)
+  const electricityDeposit = formatCurrency(lease?.electricity_deposit)
+  const moveInChargeValues = [
+    lease?.monthly_rent,
+    lease?.deposit_amount,
+    lease?.processing_fee,
+    lease?.water_deposit,
+    lease?.electricity_deposit,
+  ]
+  const totalMoveInCharges = moveInChargeValues.some(
+    (value) => typeof value === 'number' && Number.isFinite(value)
+  )
+    ? formatCurrency(
+        moveInChargeValues.reduce(
+          (total, value) =>
+            typeof value === 'number' && Number.isFinite(value) ? total + value : total,
+          0
+        )
+      )
+    : '—'
   const leaseStatus = useMemo(() => {
     if (!lease) return 'Unknown'
     const start = effectiveStartDate ? new Date(effectiveStartDate) : null
@@ -586,6 +610,10 @@ export default function LeasePage() {
           { label: 'End Date', value: formatDate(effectiveEndDate) },
           { label: 'Monthly Rent', value: monthlyRent },
           { label: 'Deposit Amount', value: depositAmount },
+          { label: 'Processing Fee', value: processingFee },
+          { label: 'Water Deposit', value: waterDeposit },
+          { label: 'Electricity Deposit', value: electricityDeposit },
+          { label: 'Total Move-in Charges', value: totalMoveInCharges },
         ],
       },
       {
@@ -639,6 +667,10 @@ export default function LeasePage() {
     leaseStatus,
     monthlyRent,
     depositAmount,
+    processingFee,
+    waterDeposit,
+    electricityDeposit,
+    totalMoveInCharges,
     agreementUrl,
     toast,
   ])
@@ -743,6 +775,18 @@ export default function LeasePage() {
                 <p className="font-semibold">{loading ? 'Loading…' : depositAmount}</p>
               </div>
               <div>
+                <p className="text-muted-foreground mb-1">Processing Fee</p>
+                <p className="font-semibold">{loading ? 'Loading…' : processingFee}</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground mb-1">Water Deposit</p>
+                <p className="font-semibold">{loading ? 'Loading…' : waterDeposit}</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground mb-1">Electricity Deposit</p>
+                <p className="font-semibold">{loading ? 'Loading…' : electricityDeposit}</p>
+              </div>
+              <div>
                 <p className="text-muted-foreground mb-1">Status</p>
                 <Badge className={statusBadgeClasses(leaseStatus)}>{leaseStatus}</Badge>
               </div>
@@ -800,6 +844,18 @@ export default function LeasePage() {
               <div>
                 <p className="font-medium">Security Deposit</p>
                 <p className="text-muted-foreground">{depositAmount}</p>
+              </div>
+              <div>
+                <p className="font-medium">Processing Fee</p>
+                <p className="text-muted-foreground">{processingFee}</p>
+              </div>
+              <div>
+                <p className="font-medium">Water Deposit</p>
+                <p className="text-muted-foreground">{waterDeposit}</p>
+              </div>
+              <div>
+                <p className="font-medium">Electricity Deposit</p>
+                <p className="text-muted-foreground">{electricityDeposit}</p>
               </div>
               <div>
                 <p className="font-medium">Auto-generated Lease</p>

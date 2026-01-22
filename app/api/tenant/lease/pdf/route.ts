@@ -61,6 +61,9 @@ export async function GET() {
           end_date,
           monthly_rent,
           deposit_amount,
+          processing_fee,
+          water_deposit,
+          electricity_deposit,
           status,
           lease_agreement_url,
           rent_auto_populated,
@@ -176,6 +179,26 @@ export async function GET() {
         .text(value || '—')
     }
 
+    const moveInChargeValues = [
+      lease.monthly_rent,
+      lease.deposit_amount,
+      lease.processing_fee,
+      lease.water_deposit,
+      lease.electricity_deposit,
+    ]
+    const hasMoveInCharges = moveInChargeValues.some(
+      (value) => typeof value === 'number' && Number.isFinite(value)
+    )
+    const totalMoveInCharges = hasMoveInCharges
+      ? formatCurrency(
+          moveInChargeValues.reduce(
+            (total, value) =>
+              typeof value === 'number' && Number.isFinite(value) ? total + value : total,
+            0
+          )
+        )
+      : '—'
+
     addSection('Property Details')
     addRow('Property', lease.unit?.building?.name || '—')
     addRow('Location', lease.unit?.building?.location || '—')
@@ -192,6 +215,10 @@ export async function GET() {
     addRow('End Date', formatDate(lease.end_date))
     addRow('Monthly Rent', formatCurrency(lease.monthly_rent))
     addRow('Security Deposit', formatCurrency(lease.deposit_amount))
+    addRow('Processing Fee', formatCurrency(lease.processing_fee))
+    addRow('Water Deposit', formatCurrency(lease.water_deposit))
+    addRow('Electricity Deposit', formatCurrency(lease.electricity_deposit))
+    addRow('Total Move-in Charges', totalMoveInCharges)
     addRow('Auto-generated', lease.lease_auto_generated ? 'Yes' : 'No')
     addRow('Rent Auto-populated', lease.rent_auto_populated ? 'Yes' : 'No')
     if (lease.rent_locked_reason) {

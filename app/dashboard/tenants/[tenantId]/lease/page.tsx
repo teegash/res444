@@ -40,6 +40,9 @@ interface LeaseResponse {
     end_date: string | null
     monthly_rent: number | null
     deposit_amount: number | null
+    processing_fee: number | null
+    water_deposit: number | null
+    electricity_deposit: number | null
     status: string | null
     lease_agreement_url?: string | null
     unit?: {
@@ -252,6 +255,9 @@ export default function TenantLeaseManagementPage() {
   const [durationMonths, setDurationMonths] = useState('12')
   const [monthlyRent, setMonthlyRent] = useState('')
   const [depositAmount, setDepositAmount] = useState('')
+  const [processingFee, setProcessingFee] = useState('')
+  const [waterDeposit, setWaterDeposit] = useState('')
+  const [electricityDeposit, setElectricityDeposit] = useState('')
 
   const leaseSummary = useMemo(() => data?.lease_status, [data])
   const tenant = data?.tenant
@@ -571,6 +577,9 @@ export default function TenantLeaseManagementPage() {
         )
         setMonthlyRent(payload.data.lease.monthly_rent?.toString() || '')
         setDepositAmount(payload.data.lease.deposit_amount?.toString() || '')
+        setProcessingFee(payload.data.lease.processing_fee?.toString() || '')
+        setWaterDeposit(payload.data.lease.water_deposit?.toString() || '')
+        setElectricityDeposit(payload.data.lease.electricity_deposit?.toString() || '')
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to load lease information.')
@@ -634,6 +643,9 @@ export default function TenantLeaseManagementPage() {
           duration_months: Number(durationMonths),
           monthly_rent: monthlyRent ? Number(monthlyRent) : null,
           deposit_amount: depositAmount ? Number(depositAmount) : null,
+          processing_fee: processingFee ? Number(processingFee) : null,
+          water_deposit: waterDeposit ? Number(waterDeposit) : null,
+          electricity_deposit: electricityDeposit ? Number(electricityDeposit) : null,
         }),
       })
 
@@ -664,6 +676,9 @@ export default function TenantLeaseManagementPage() {
         )
         setMonthlyRent(payload.data.monthly_rent?.toString() || '')
         setDepositAmount(payload.data.deposit_amount?.toString() || '')
+        setProcessingFee(payload.data.processing_fee?.toString() || '')
+        setWaterDeposit(payload.data.water_deposit?.toString() || '')
+        setElectricityDeposit(payload.data.electricity_deposit?.toString() || '')
       }
 
       toast({ title: 'Lease updated', description: 'Lease terms saved successfully.' })
@@ -731,6 +746,9 @@ export default function TenantLeaseManagementPage() {
           { label: 'Start Date', value: effectiveStartDate || startDate || '—' },
           { label: 'End Date', value: effectiveEndDate || '—' },
           { label: 'Deposit Amount', value: formatCurrency(lease.deposit_amount) },
+          { label: 'Processing Fee', value: formatCurrency(lease.processing_fee) },
+          { label: 'Water Deposit', value: formatCurrency(lease.water_deposit) },
+          { label: 'Electricity Deposit', value: formatCurrency(lease.electricity_deposit) },
           { label: 'Lease Status', value: displayLeaseStatus || lease.status || '—' },
           { label: 'Duration (months)', value: durationMonths },
         ],
@@ -859,6 +877,42 @@ export default function TenantLeaseManagementPage() {
                       min="0"
                       value={depositAmount}
                       onChange={(e) => setDepositAmount(e.target.value)}
+                      placeholder="KES"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs uppercase tracking-wide text-muted-foreground">
+                      Processing Fee (KES)
+                    </label>
+                    <Input
+                      type="number"
+                      min="0"
+                      value={processingFee}
+                      onChange={(e) => setProcessingFee(e.target.value)}
+                      placeholder="KES"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs uppercase tracking-wide text-muted-foreground">
+                      Water Deposit (KES)
+                    </label>
+                    <Input
+                      type="number"
+                      min="0"
+                      value={waterDeposit}
+                      onChange={(e) => setWaterDeposit(e.target.value)}
+                      placeholder="KES"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs uppercase tracking-wide text-muted-foreground">
+                      Electricity Deposit (KES)
+                    </label>
+                    <Input
+                      type="number"
+                      min="0"
+                      value={electricityDeposit}
+                      onChange={(e) => setElectricityDeposit(e.target.value)}
                       placeholder="KES"
                     />
                   </div>

@@ -129,6 +129,9 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
         end_date,
         monthly_rent,
         deposit_amount,
+        processing_fee,
+        water_deposit,
+        electricity_deposit,
         status,
         lease_agreement_url,
         organization_id,
@@ -188,6 +191,9 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     duration_months,
     monthly_rent,
     deposit_amount,
+    processing_fee,
+    water_deposit,
+    electricity_deposit,
     unit_id,
     tenant_user_id,
   } = payload || {}
@@ -216,6 +222,26 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
         { status: 400 }
       )
     }
+
+    const ensureNonNegativeNumberOrNull = (value: any, field: string) => {
+      if (value === null || value === undefined || value === '') return null
+      const normalized = Number(value)
+      if (!Number.isFinite(normalized)) {
+        throw new Error(`${field} must be a valid number.`)
+      }
+      if (normalized < 0) {
+        throw new Error(`${field} cannot be negative.`)
+      }
+      return normalized
+    }
+
+    const normalizedDepositAmount = ensureNonNegativeNumberOrNull(deposit_amount, 'Deposit amount')
+    const normalizedProcessingFee = ensureNonNegativeNumberOrNull(processing_fee, 'Processing fee')
+    const normalizedWaterDeposit = ensureNonNegativeNumberOrNull(water_deposit, 'Water deposit')
+    const normalizedElectricityDeposit = ensureNonNegativeNumberOrNull(
+      electricity_deposit,
+      'Electricity deposit'
+    )
 
     const startDateObj = new Date(`${start_date}T00:00:00.000Z`)
     if (Number.isNaN(startDateObj.getTime())) {
@@ -295,7 +321,10 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
       start_date,
       end_date: computedEndDate,
       monthly_rent: monthly_rent ?? null,
-      deposit_amount: deposit_amount ?? null,
+      deposit_amount: normalizedDepositAmount,
+      processing_fee: normalizedProcessingFee,
+      water_deposit: normalizedWaterDeposit,
+      electricity_deposit: normalizedElectricityDeposit,
       status: new Date(start_date) <= new Date() ? 'active' : 'pending',
       organization_id: organizationId,
       next_rent_due_date: toIsoDate(nextRentDue),
