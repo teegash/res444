@@ -205,9 +205,9 @@ export function CommunicationsTab() {
   return (
     <div className="space-y-4 mt-3 md:mt-6">
       <Card className="h-[calc(100svh-120px)] md:h-[600px] flex flex-col">
-        <CardHeader className="border-b bg-muted/30">
+        <CardHeader className="border-b bg-muted/30 py-3 md:py-6">
           <div className="flex items-center gap-3">
-            <Avatar className="h-10 w-10 bg-primary">
+            <Avatar className="h-9 w-9 md:h-10 md:w-10 bg-primary">
               {orgLogoUrl ? (
                 <AvatarImage src={orgLogoUrl} alt="Organization logo" />
               ) : null}
@@ -216,22 +216,22 @@ export function CommunicationsTab() {
               </AvatarFallback>
             </Avatar>
             <div>
-              <CardTitle className="text-base">Property Messaging</CardTitle>
-              <CardDescription className="text-xs">
+              <CardTitle className="text-sm md:text-base">Property Messaging</CardTitle>
+              <CardDescription className="text-[11px] md:text-xs">
                 Communicate with your property manager in real time
               </CardDescription>
             </div>
           </div>
         </CardHeader>
 
-        <CardContent ref={scrollAreaRef} className="flex-1 overflow-y-auto p-6 space-y-4">
+        <CardContent ref={scrollAreaRef} className="flex-1 overflow-y-auto p-4 md:p-6 space-y-3 md:space-y-4">
           {loading ? (
-            <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+            <div className="flex h-full items-center justify-center text-xs md:text-sm text-muted-foreground">
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               Loading conversation…
             </div>
           ) : formattedMessages.length === 0 ? (
-            <p className="text-center text-sm text-muted-foreground">
+            <p className="text-center text-xs md:text-sm text-muted-foreground">
               No messages yet. Start a conversation with your property team.
             </p>
           ) : (
@@ -241,7 +241,7 @@ export function CommunicationsTab() {
                 className={`flex gap-3 ${message.isTenant ? 'justify-end' : 'justify-start'}`}
               >
                 {!message.isTenant && (
-                  <Avatar className="h-8 w-8 bg-primary shrink-0">
+                  <Avatar className="h-7 w-7 md:h-8 md:w-8 bg-primary shrink-0">
                     {message.sender_avatar_url || orgLogoUrl ? (
                       <AvatarImage
                         src={message.sender_avatar_url || orgLogoUrl || undefined}
@@ -265,7 +265,7 @@ export function CommunicationsTab() {
                   }`}
                 >
                   <div
-                    className={`px-4 py-3 rounded-2xl ${
+                    className={`px-3 py-2 md:px-4 md:py-3 rounded-2xl ${
                       message.isNotice
                         ? 'bg-red-50 text-red-700 border border-red-200'
                         : message.isTenant
@@ -273,15 +273,17 @@ export function CommunicationsTab() {
                           : 'bg-muted text-foreground rounded-tl-sm'
                     }`}
                   >
-                    <p className="text-sm leading-relaxed whitespace-pre-line">
+                    <p className="text-xs md:text-sm leading-relaxed whitespace-pre-line">
                       {message.message_text ? message.message_text.replace(/^\[NOTICE\]\s*/, '') : ''}
                     </p>
                   </div>
-                  <span className="text-xs text-muted-foreground mt-1 px-1">{message.timestamp}</span>
+                  <span className="text-[10px] md:text-xs text-muted-foreground mt-1 px-1">
+                    {message.timestamp}
+                  </span>
                 </div>
 
                 {message.isTenant && (
-                  <Avatar className="h-8 w-8 bg-accent shrink-0">
+                  <Avatar className="h-7 w-7 md:h-8 md:w-8 bg-accent shrink-0">
                     {message.sender_avatar_url ? (
                       <AvatarImage src={message.sender_avatar_url} alt={user?.email || 'Tenant'} />
                     ) : null}
@@ -295,14 +297,14 @@ export function CommunicationsTab() {
           )}
         </CardContent>
 
-        <div className="border-t p-4 bg-muted/20 sticky bottom-0">
+        <div className="border-t p-3 md:p-4 bg-muted/20 sticky bottom-0">
           <div className="flex items-end gap-2">
             <Textarea
               placeholder="Type your message..."
               value={newMessage}
               onChange={(e) => setNewMessage(e.target.value)}
               rows={2}
-              className="resize-none"
+              className="resize-none text-xs md:text-sm"
             />
             <Button
               className="bg-primary hover:bg-primary/90 h-10 px-6 gap-2"
