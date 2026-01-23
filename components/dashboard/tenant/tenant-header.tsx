@@ -275,10 +275,10 @@ export function TenantHeader({ summary, loading }: TenantHeaderProps) {
 
   return (
     <Card className="border border-white/60 shadow-sm bg-white/70 backdrop-blur-md supports-[backdrop-filter]:bg-white/50 sticky top-0 z-10">
-      <div className="px-3 py-0 md:px-6 md:py-4">
+      <div className="px-3 pt-0.5 pb-0 md:px-6 md:py-4">
         <div className="flex flex-wrap items-center gap-0 md:gap-4">
           <div className="order-1">
-            <div className="relative w-8 h-8 md:w-20 md:h-20 rounded-2xl border border-slate-200 overflow-hidden bg-slate-50">
+            <div className="relative w-8 h-8 md:w-20 md:h-20 rounded-2xl border border-slate-200 overflow-hidden bg-slate-50 mb-0.5 md:mb-0">
               {profileImage ? (
                 <img src={profileImage} alt={fullName} className="w-full h-full object-cover" />
               ) : (
@@ -504,10 +504,10 @@ export function TenantHeader({ summary, loading }: TenantHeaderProps) {
           </div>
 
           <div className="order-3 w-full md:order-2 md:w-auto">
-            <h1 className="text-[13px] md:text-2xl font-bold text-foreground leading-tight">
+            <h1 className="text-[14px] md:text-2xl font-bold text-foreground leading-tight">
               {isLoading ? 'Loading...' : `Welcome ${fullName}`}
             </h1>
-            <p className="text-[10px] md:text-sm text-muted-foreground leading-tight">
+            <p className="text-[11px] md:text-sm text-muted-foreground leading-tight">
               {isLoading ? 'Fetching your details…' : unitLabel}
             </p>
           </div>
