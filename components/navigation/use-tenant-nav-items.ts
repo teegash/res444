@@ -9,7 +9,6 @@ import {
   History,
   Home,
   Lock,
-  LogOut,
   MessageSquare,
   Receipt,
   Settings,
@@ -45,12 +44,13 @@ export function useTenantNavItems() {
   const bottomItems: NavItem[] = useMemo(
     () => [
       { key: 'home', label: 'Home', icon: Home, href: '/dashboard/tenant' },
-      { key: 'payments', label: 'Pay', icon: Wallet, href: '/dashboard/tenant/payments' },
       { key: 'maintenance', label: 'Fix', icon: Wrench, href: '/dashboard/tenant/maintenance' },
       { key: 'messages', label: 'Messages', icon: MessageSquare, href: '/dashboard/tenant/messages' },
-      { key: 'logout', label: 'Logout', icon: LogOut, onClick: () => signOut() },
+      { key: 'lease', label: 'Lease', icon: FileText, href: '/dashboard/tenant/lease' },
+      { key: 'payments', label: 'Payments', icon: Wallet, href: '/dashboard/tenant/payments' },
+      { key: 'invoices', label: 'Invoices', icon: Receipt, href: '/dashboard/tenant/invoices' },
     ],
-    [signOut]
+    []
   )
 
   const quickActionItems: NavItem[] = useMemo(

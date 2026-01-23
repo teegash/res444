@@ -47,7 +47,7 @@ export const QuickLinksCard = ({
               whileTap={{ scale: 0.95 }}
               transition={{ type: 'spring', stiffness: 400, damping: 17 }}
               className={cn(
-                'flex flex-col items-center justify-center gap-2 p-4 rounded-2xl border text-xs font-semibold shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-lg focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ring-offset-background',
+                'flex flex-col items-center justify-center gap-1.5 p-3 rounded-2xl border text-[10px] font-semibold shadow-none transition-all hover:-translate-y-0.5 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ring-offset-background',
                 action.className
               )}
             >

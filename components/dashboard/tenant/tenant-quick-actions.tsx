@@ -9,12 +9,12 @@ export function TenantQuickActions() {
   const { quickActionItems } = useTenantNavItems()
 
   const actionTone: Record<string, string> = {
-    pay: 'border-emerald-200 text-emerald-700 bg-gradient-to-br from-emerald-50 via-white to-emerald-100/60 hover:border-emerald-300',
-    payments: 'border-blue-200 text-blue-700 bg-gradient-to-br from-blue-50 via-white to-blue-100/70 hover:border-blue-300',
-    invoices: 'border-purple-200 text-purple-700 bg-gradient-to-br from-purple-50 via-white to-purple-100/70 hover:border-purple-300',
-    maintenance: 'border-orange-200 text-orange-700 bg-gradient-to-br from-orange-50 via-white to-orange-100/70 hover:border-orange-300',
-    messages: 'border-sky-200 text-sky-700 bg-gradient-to-br from-sky-50 via-white to-sky-100/70 hover:border-sky-300',
-    lease: 'border-yellow-200 text-yellow-700 bg-gradient-to-br from-yellow-50 via-white to-yellow-100/70 hover:border-yellow-300',
+    pay: 'border-emerald-200 text-emerald-700 bg-emerald-50/80 hover:bg-emerald-100/70',
+    payments: 'border-blue-200 text-blue-700 bg-blue-50/80 hover:bg-blue-100/70',
+    invoices: 'border-purple-200 text-purple-700 bg-purple-50/80 hover:bg-purple-100/70',
+    maintenance: 'border-orange-200 text-orange-700 bg-orange-50/80 hover:bg-orange-100/70',
+    messages: 'border-sky-200 text-sky-700 bg-sky-50/80 hover:bg-sky-100/70',
+    lease: 'border-yellow-200 text-yellow-700 bg-yellow-50/80 hover:bg-yellow-100/70',
   }
 
   const actions = quickActionItems.map((item) => ({

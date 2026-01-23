@@ -1,6 +1,6 @@
 'use client'
 
-import { BottomNav } from './bottom-nav'
+import { BottomNavBar } from '@/components/ui/bottom-nav-bar'
 import { useTenantNavItems } from '@/components/navigation/use-tenant-nav-items'
 
 export function TenantMobileNav() {
@@ -8,7 +8,7 @@ export function TenantMobileNav() {
 
   return (
     <div className="md:hidden">
-      <BottomNav items={bottomItems} activeKey={activeKey} ariaLabel="Tenant navigation" />
+      <BottomNavBar items={bottomItems} activeKey={activeKey} stickyBottom />
     </div>
   )
 }
