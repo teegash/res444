@@ -269,19 +269,20 @@ export function TenantHeader({ summary, loading }: TenantHeaderProps) {
   const unitLabel =
     effectiveSummary?.lease?.unit_label ||
     effectiveSummary?.lease?.property_location ||
+    propertyName ||
     'Stay connected'
   const profileImage = effectiveSummary?.profile?.profile_picture_url || null
 
   return (
     <Card className="border border-white/60 shadow-sm bg-white/70 backdrop-blur-md supports-[backdrop-filter]:bg-white/50 sticky top-0 z-10">
-      <div className="px-4 py-3 md:px-6 md:py-4">
-        <div className="flex flex-wrap items-center gap-3 md:gap-4">
+      <div className="px-3 py-2 md:px-6 md:py-4">
+        <div className="flex flex-wrap items-center gap-2 md:gap-4">
           <div className="order-1">
-            <div className="relative w-12 h-12 md:w-20 md:h-20 rounded-2xl border border-slate-200 overflow-hidden bg-slate-50">
+            <div className="relative w-10 h-10 md:w-20 md:h-20 rounded-2xl border border-slate-200 overflow-hidden bg-slate-50">
               {profileImage ? (
                 <img src={profileImage} alt={fullName} className="w-full h-full object-cover" />
               ) : (
-                <div className="w-full h-full flex flex-col items-center justify-center text-slate-500 text-[10px] md:text-xs">
+                <div className="w-full h-full flex flex-col items-center justify-center text-slate-500 text-[9px] md:text-xs">
                   {fullName.slice(0, 2).toUpperCase()}
                 </div>
               )}
@@ -503,11 +504,11 @@ export function TenantHeader({ summary, loading }: TenantHeaderProps) {
           </div>
 
           <div className="order-3 w-full md:order-2 md:w-auto">
-            <h1 className="text-lg md:text-2xl font-bold text-foreground">
+            <h1 className="text-[15px] md:text-2xl font-bold text-foreground">
               {isLoading ? 'Loading...' : `Welcome ${fullName}`}
             </h1>
-            <p className="text-xs md:text-sm text-muted-foreground">
-              {isLoading ? 'Fetching your details…' : `${propertyName} • ${unitLabel}`}
+            <p className="text-[11px] md:text-sm text-muted-foreground">
+              {isLoading ? 'Fetching your details…' : unitLabel}
             </p>
           </div>
         </div>
