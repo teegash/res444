@@ -204,7 +204,7 @@ export function CommunicationsTab() {
 
   return (
     <div className="space-y-4 mt-3 md:mt-6">
-      <Card className="h-[calc(100svh-240px)] md:h-[600px] flex flex-col">
+      <Card className="h-[calc(100svh-120px)] md:h-[600px] flex flex-col">
         <CardHeader className="border-b bg-muted/30">
           <div className="flex items-center gap-3">
             <Avatar className="h-10 w-10 bg-primary">

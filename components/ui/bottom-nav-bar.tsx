@@ -12,7 +12,7 @@ type BottomNavItem = {
   onClick?: () => void
 }
 
-const MOBILE_LABEL_WIDTH = 72
+const MOBILE_LABEL_WIDTH = 58
 
 type BottomNavBarProps = {
   items: BottomNavItem[]
@@ -82,7 +82,7 @@ export function BottomNavBar({
               animate={{
                 width: isActive ? `${MOBILE_LABEL_WIDTH}px` : '0px',
                 opacity: isActive ? 1 : 0,
-                marginLeft: isActive ? '8px' : '0px',
+                marginLeft: isActive ? '4px' : '0px',
               }}
               transition={{
                 width: { type: 'spring', stiffness: 350, damping: 32 },

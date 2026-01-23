@@ -275,8 +275,8 @@ export function TenantHeader({ summary, loading }: TenantHeaderProps) {
 
   return (
     <Card className="border border-white/60 shadow-sm bg-white/70 backdrop-blur-md supports-[backdrop-filter]:bg-white/50 sticky top-0 z-10">
-      <div className="px-3 py-1 md:px-6 md:py-4">
-        <div className="flex flex-wrap items-center gap-1.5 md:gap-4">
+      <div className="px-3 py-0.5 md:px-6 md:py-4">
+        <div className="flex flex-wrap items-center gap-1 md:gap-4">
           <div className="order-1">
             <div className="relative w-10 h-10 md:w-20 md:h-20 rounded-2xl border border-slate-200 overflow-hidden bg-slate-50">
               {profileImage ? (
