@@ -1,6 +1,7 @@
 'use client'
 
-import { ArrowLeft, Bell, Filter } from 'lucide-react'
+import { useMemo, useState } from 'react'
+import { ArrowLeft, Bell } from 'lucide-react'
 import Link from 'next/link'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -9,10 +10,75 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Input } from '@/components/ui/input'
 
 export default function NoticesPage() {
+  const [searchValue, setSearchValue] = useState('')
+  const [categoryFilter, setCategoryFilter] = useState('all')
+  const [priorityFilter, setPriorityFilter] = useState('all')
+
+  const notices = [
+    {
+      id: 'notice-1',
+      title: 'Water Maintenance Schedule',
+      body:
+        'Dear Residents, We will be conducting scheduled water maintenance on December 15th, 2024, from 9:00 AM to 2:00 PM. During this time, water supply will be temporarily interrupted. We apologize for any inconvenience and appreciate your understanding.',
+      date: 'Dec 10, 2024',
+      priority: 'high',
+      category: 'maintenance',
+    },
+    {
+      id: 'notice-2',
+      title: 'January 2025 Rent Reminder',
+      body:
+        'This is a friendly reminder that your January 2025 rent payment of KES 45,000 is due on January 1st, 2025. Please ensure payment is made on time to avoid any late fees.',
+      date: 'Dec 8, 2024',
+      priority: 'normal',
+      category: 'payment',
+    },
+    {
+      id: 'notice-3',
+      title: 'Holiday Office Hours',
+      body:
+        'Please note that our office will be closed from December 24th, 2024 to January 2nd, 2025 for the holiday season. For emergencies, please contact our emergency line at +254 712 345 678.',
+      date: 'Dec 5, 2024',
+      priority: 'normal',
+      category: 'general',
+    },
+    {
+      id: 'notice-4',
+      title: 'Building Security Update',
+      body:
+        'We have upgraded our building security system. New access cards will be distributed starting December 12th. Please visit the office during business hours to collect your new card.',
+      date: 'Dec 3, 2024',
+      priority: 'normal',
+      category: 'security',
+    },
+    {
+      id: 'notice-5',
+      title: 'Parking Policy Reminder',
+      body:
+        "Please ensure all vehicles are parked in designated spots only. Unauthorized parking in visitor spaces or blocking emergency exits will result in towing at owner's expense.",
+      date: 'Nov 28, 2024',
+      priority: 'low',
+      category: 'policy',
+    },
+  ]
+
+  const filteredNotices = useMemo(() => {
+    const query = searchValue.trim().toLowerCase()
+    return notices.filter((notice) => {
+      if (categoryFilter !== 'all' && notice.category !== categoryFilter) return false
+      if (priorityFilter !== 'all' && notice.priority !== priorityFilter) return false
+      if (!query) return true
+      return (
+        notice.title.toLowerCase().includes(query) ||
+        notice.body.toLowerCase().includes(query)
+      )
+    })
+  }, [categoryFilter, notices, priorityFilter, searchValue])
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-yellow-50/30 via-white to-white">
       <div className="max-w-5xl mx-auto p-4 md:p-6 lg:p-8 space-y-6">
-        <div className="flex items-center gap-4 mb-6">
+        <div className="flex items-center gap-4 mb-3 md:mb-6">
           <Link href="/dashboard/tenant">
             <Button variant="ghost" size="sm">
               <ArrowLeft className="h-4 w-4 mr-2" />
@@ -25,7 +91,12 @@ export default function NoticesPage() {
             </div>
             <h1 className="text-xl md:text-2xl font-bold">Notices & Announcements</h1>
           </div>
-          <Button className="ml-auto" variant="outline" size="sm">
+          <Button className="ml-auto hidden md:inline-flex" variant="outline" size="sm">
+            Mark All as Read
+          </Button>
+        </div>
+        <div className="md:hidden">
+          <Button variant="outline" size="xs" className="h-8 px-3 text-xs">
             Mark All as Read
           </Button>
         </div>
@@ -59,9 +130,14 @@ export default function NoticesPage() {
           </CardHeader>
           <CardContent>
             <div className="grid gap-4 md:grid-cols-3">
-              <Input placeholder="Search notices..." />
-              <Select>
-                <SelectTrigger>
+              <Input
+                placeholder="Search notices..."
+                value={searchValue}
+                onChange={(event) => setSearchValue(event.target.value)}
+                className="w-full"
+              />
+              <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+                <SelectTrigger className="w-full">
                   <SelectValue placeholder="Category" />
                 </SelectTrigger>
                 <SelectContent>
@@ -73,8 +149,8 @@ export default function NoticesPage() {
                   <SelectItem value="policy">Policy</SelectItem>
                 </SelectContent>
               </Select>
-              <Select>
-                <SelectTrigger>
+              <Select value={priorityFilter} onValueChange={setPriorityFilter}>
+                <SelectTrigger className="w-full">
                   <SelectValue placeholder="Priority" />
                 </SelectTrigger>
                 <SelectContent>
@@ -95,101 +171,65 @@ export default function NoticesPage() {
             <CardDescription>Important announcements from property management</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {/* High Priority Notice */}
-            <div className="bg-red-50 p-6 rounded-lg border border-red-200">
-              <div className="flex items-start justify-between gap-4 mb-3">
-                <div className="flex-1 min-w-0">
-                  <div className="flex flex-wrap items-center gap-2 mb-2">
-                    <h3 className="font-semibold text-lg text-red-900 break-words">
-                      Water Maintenance Schedule
-                    </h3>
-                    <Badge className="bg-red-600">High</Badge>
-                    <Badge variant="outline" className="border-red-400 text-red-700">
-                      Maintenance
-                    </Badge>
+            {filteredNotices.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No notices match your filters.</p>
+            ) : (
+              filteredNotices.map((notice) => {
+                const isHigh = notice.priority === 'high'
+                const isPayment = notice.category === 'payment'
+                const isMaintenance = notice.category === 'maintenance'
+                const cardTone = isHigh
+                  ? 'bg-red-50 border-red-200'
+                  : isPayment
+                    ? 'bg-blue-50 border-blue-200'
+                    : isMaintenance
+                      ? 'bg-amber-50 border-amber-200'
+                      : 'bg-gray-50 border'
+                const titleTone = isHigh ? 'text-red-900' : 'text-foreground'
+                const bodyTone = isHigh ? 'text-red-800' : 'text-muted-foreground'
+                const dateTone = isHigh ? 'text-red-600' : 'text-muted-foreground'
+                return (
+                  <div key={notice.id} className={`p-6 rounded-lg ${cardTone}`}>
+                    <div className="flex items-start justify-between gap-4 mb-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex flex-wrap items-center gap-2 mb-2">
+                          <h3 className={`font-semibold text-lg break-words ${titleTone}`}>
+                            {notice.title}
+                          </h3>
+                          <Badge className={isHigh ? 'bg-red-600' : 'bg-slate-600'}>
+                            {notice.priority.charAt(0).toUpperCase() + notice.priority.slice(1)}
+                          </Badge>
+                          <Badge
+                            variant="outline"
+                            className={
+                              isMaintenance
+                                ? 'border-amber-400 text-amber-700'
+                                : isPayment
+                                  ? 'border-blue-400 text-blue-700'
+                                  : isHigh
+                                    ? 'border-red-400 text-red-700'
+                                    : 'border-slate-300 text-slate-600'
+                            }
+                          >
+                            {notice.category.charAt(0).toUpperCase() + notice.category.slice(1)}
+                          </Badge>
+                        </div>
+                        <p className={`text-sm mb-3 break-words ${bodyTone}`}>{notice.body}</p>
+                        <p className={`text-xs ${dateTone}`}>{notice.date}</p>
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Button size="sm" variant="outline" className={isHigh ? 'bg-white' : ''}>
+                        Mark as Read
+                      </Button>
+                      <Button size="sm" variant="outline" className={isHigh ? 'bg-white' : ''}>
+                        Archive
+                      </Button>
+                    </div>
                   </div>
-                  <p className="text-sm text-red-800 mb-3 break-words">
-                    Dear Residents, We will be conducting scheduled water maintenance on December 15th, 2024, from 9:00 AM to 2:00 PM. During this time, water supply will be temporarily interrupted. We apologize for any inconvenience and appreciate your understanding.
-                  </p>
-                  <p className="text-xs text-red-600">Dec 10, 2024</p>
-                </div>
-              </div>
-              <div className="flex gap-2">
-                <Button size="sm" variant="outline" className="bg-white">Mark as Read</Button>
-                <Button size="sm" variant="outline" className="bg-white">Archive</Button>
-              </div>
-            </div>
-
-            {/* Normal Priority Notice */}
-            <div className="bg-blue-50 p-6 rounded-lg border border-blue-200">
-              <div className="flex items-start justify-between gap-4 mb-3">
-                <div className="flex-1 min-w-0">
-                  <div className="flex flex-wrap items-center gap-2 mb-2">
-                    <h3 className="font-semibold text-lg break-words">January 2025 Rent Reminder</h3>
-                    <Badge variant="secondary">Normal</Badge>
-                    <Badge variant="outline" className="border-blue-400 text-blue-700">
-                      Payment
-                    </Badge>
-                  </div>
-                  <p className="text-sm text-muted-foreground mb-3 break-words">
-                    This is a friendly reminder that your January 2025 rent payment of KES 45,000 is due on January 1st, 2025. Please ensure payment is made on time to avoid any late fees.
-                  </p>
-                  <p className="text-xs text-muted-foreground">Dec 8, 2024</p>
-                </div>
-              </div>
-              <Button size="sm" variant="outline">Archive</Button>
-            </div>
-
-            <div className="bg-gray-50 p-6 rounded-lg border">
-              <div className="flex items-start justify-between gap-4 mb-3">
-                <div className="flex-1 min-w-0">
-                  <div className="flex flex-wrap items-center gap-2 mb-2">
-                    <h3 className="font-semibold text-lg break-words">Holiday Office Hours</h3>
-                    <Badge variant="secondary">Normal</Badge>
-                    <Badge variant="outline">General</Badge>
-                  </div>
-                  <p className="text-sm text-muted-foreground mb-3 break-words">
-                    Please note that our office will be closed from December 24th, 2024 to January 2nd, 2025 for the holiday season. For emergencies, please contact our emergency line at +254 712 345 678.
-                  </p>
-                  <p className="text-xs text-muted-foreground">Dec 5, 2024</p>
-                </div>
-              </div>
-              <Button size="sm" variant="outline">Archive</Button>
-            </div>
-
-            <div className="bg-gray-50 p-6 rounded-lg border">
-              <div className="flex items-start justify-between gap-4 mb-3">
-                <div className="flex-1 min-w-0">
-                  <div className="flex flex-wrap items-center gap-2 mb-2">
-                    <h3 className="font-semibold text-lg break-words">Building Security Update</h3>
-                    <Badge variant="secondary">Normal</Badge>
-                    <Badge variant="outline">Security</Badge>
-                  </div>
-                  <p className="text-sm text-muted-foreground mb-3 break-words">
-                    We have upgraded our building security system. New access cards will be distributed starting December 12th. Please visit the office during business hours to collect your new card.
-                  </p>
-                  <p className="text-xs text-muted-foreground">Dec 3, 2024</p>
-                </div>
-              </div>
-              <Button size="sm" variant="outline">Archive</Button>
-            </div>
-
-            <div className="bg-gray-50 p-6 rounded-lg border">
-              <div className="flex items-start justify-between gap-4 mb-3">
-                <div className="flex-1 min-w-0">
-                  <div className="flex flex-wrap items-center gap-2 mb-2">
-                    <h3 className="font-semibold text-lg break-words">Parking Policy Reminder</h3>
-                    <Badge variant="secondary">Low</Badge>
-                    <Badge variant="outline">Policy</Badge>
-                  </div>
-                  <p className="text-sm text-muted-foreground mb-3 break-words">
-                    Please ensure all vehicles are parked in designated spots only. Unauthorized parking in visitor spaces or blocking emergency exits will result in towing at owner's expense.
-                  </p>
-                  <p className="text-xs text-muted-foreground">Nov 28, 2024</p>
-                </div>
-              </div>
-              <Button size="sm" variant="outline">Archive</Button>
-            </div>
+                )
+              })
+            )}
           </CardContent>
         </Card>
 

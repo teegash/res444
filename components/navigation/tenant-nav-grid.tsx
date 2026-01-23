@@ -20,7 +20,7 @@ export function TenantNavGrid({
   onSelect,
 }: TenantNavGridProps) {
   return (
-    <div className={cn('grid gap-3', columns, className)} role="list">
+    <div className={cn('grid gap-2.5', columns, className)} role="list">
       {items.map((item) => {
         const Icon = item.icon
         const active = item.key === activeKey
@@ -28,7 +28,7 @@ export function TenantNavGrid({
         const content = (
           <div
             className={cn(
-              'flex flex-col items-center gap-1 rounded-2xl px-3 py-3 text-[11px] font-medium transition-all focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500',
+              'flex flex-col items-center gap-1 rounded-2xl px-2.5 py-2 text-[10px] font-medium transition-all focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500',
               isLogout
                 ? 'flex-row justify-center gap-2 rounded-xl bg-red-500 text-white shadow-[0_8px_20px_rgba(239,68,68,0.28)] hover:bg-red-600 w-full'
                 : active

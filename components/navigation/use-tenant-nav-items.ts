@@ -46,10 +46,10 @@ export function useTenantNavItems() {
     () => [
       { key: 'home', label: 'Home', icon: Home, href: '/dashboard/tenant' },
       { key: 'maintenance', label: 'Fix', icon: Wrench, href: '/dashboard/tenant/maintenance' },
-      { key: 'messages', label: 'Messages', icon: MessageSquare, href: '/dashboard/tenant/messages' },
-      { key: 'lease', label: 'Lease', icon: FileText, href: '/dashboard/tenant/lease' },
-      { key: 'payments', label: 'Payments', icon: Wallet, href: '/dashboard/tenant/payments' },
-      { key: 'invoices', label: 'Invoices', icon: Receipt, href: '/dashboard/tenant/invoices' },
+      { key: 'messages', label: 'Chat', icon: MessageSquare, href: '/dashboard/tenant/messages' },
+      { key: 'lease', label: 'Docs', icon: FileText, href: '/dashboard/tenant/lease' },
+      { key: 'payments', label: 'Stat', icon: Wallet, href: '/dashboard/tenant/payments' },
+      { key: 'invoices', label: 'Inv', icon: Receipt, href: '/dashboard/tenant/invoices' },
     ],
     []
   )

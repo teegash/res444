@@ -32,7 +32,7 @@ export function CommunicationsTab() {
   const [loading, setLoading] = useState(true)
   const [sending, setSending] = useState(false)
   const [orgLogoUrl, setOrgLogoUrl] = useState<string | null>(null)
-  const bottomRef = useRef<HTMLDivElement | null>(null)
+  const scrollAreaRef = useRef<HTMLDivElement | null>(null)
   const initialRender = useRef(true)
   const tenantAvatarRef = useRef<string | null>(null)
   const orgAvatarRef = useRef<string | null>(null)
@@ -105,8 +105,10 @@ export function CommunicationsTab() {
 
   useEffect(() => {
     if (loading) return
+    const container = scrollAreaRef.current
+    if (!container) return
     const behavior: ScrollBehavior = initialRender.current ? 'auto' : 'smooth'
-    bottomRef.current?.scrollIntoView({ behavior })
+    container.scrollTo({ top: container.scrollHeight, behavior })
     initialRender.current = false
   }, [messages, loading])
 
@@ -201,8 +203,8 @@ export function CommunicationsTab() {
   })
 
   return (
-    <div className="space-y-4 mt-6">
-      <Card className="h-[600px] flex flex-col">
+    <div className="space-y-4 mt-3 md:mt-6">
+      <Card className="h-[calc(100svh-240px)] md:h-[600px] flex flex-col">
         <CardHeader className="border-b bg-muted/30">
           <div className="flex items-center gap-3">
             <Avatar className="h-10 w-10 bg-primary">
@@ -222,7 +224,7 @@ export function CommunicationsTab() {
           </div>
         </CardHeader>
 
-        <CardContent className="flex-1 overflow-y-auto p-6 space-y-4">
+        <CardContent ref={scrollAreaRef} className="flex-1 overflow-y-auto p-6 space-y-4">
           {loading ? (
             <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -291,10 +293,9 @@ export function CommunicationsTab() {
               </div>
             ))
           )}
-          <div ref={bottomRef} />
         </CardContent>
 
-        <div className="border-t p-4 bg-muted/20">
+        <div className="border-t p-4 bg-muted/20 sticky bottom-0">
           <div className="flex items-end gap-2">
             <Textarea
               placeholder="Type your message..."
