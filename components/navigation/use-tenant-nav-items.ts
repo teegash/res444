@@ -9,6 +9,7 @@ import {
   History,
   Home,
   Lock,
+  LogOut,
   MessageSquare,
   Receipt,
   Settings,
