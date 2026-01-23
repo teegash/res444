@@ -80,20 +80,20 @@ export function TenantInfoCards({ summary, loading }: TenantInfoCardsProps) {
             />
           </div>
         ) : null}
-        <CardContent className="p-6 relative z-10">
-          <div className="flex items-center gap-4">
+        <CardContent className="p-6 relative z-10 space-y-3">
+          <div className="flex items-center gap-3">
             <div className="w-12 h-12 bg-blue-500/10 rounded-xl flex items-center justify-center shrink-0">
               <Home className="w-6 h-6 text-blue-600" />
             </div>
-            <div>
-              <p className="text-sm text-muted-foreground font-medium">Property</p>
-              <p className="text-xl font-bold text-foreground">
-                {loading ? 'Loading…' : propertyName}
-              </p>
-              <p className="text-xs text-muted-foreground">
-                {loading ? '' : unitLabel || propertyLocation}
-              </p>
-            </div>
+            <p className="text-sm text-muted-foreground font-medium">Property</p>
+          </div>
+          <div>
+            <p className="text-xl font-bold text-foreground">
+              {loading ? 'Loading…' : propertyName}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {loading ? '' : unitLabel || propertyLocation}
+            </p>
           </div>
         </CardContent>
       </Card>
