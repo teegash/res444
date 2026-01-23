@@ -35,7 +35,7 @@ export function useTenantNavItems() {
       { key: 'statement', label: 'Statement', icon: Receipt, href: '/dashboard/tenant/statement' },
       { key: 'notices', label: 'Notices', icon: Bell, href: '/dashboard/tenant/notices' },
       { key: 'transition', label: 'Transition', icon: ArrowLeftRight, href: '/dashboard/tenant/transition' },
-      { key: 'legal', label: 'Legal', icon: Lock, href: '/dashboard/tenant/legal' },
+      { key: 'legal', label: 'Legal', icon: Lock, href: '/dashboard/tenant/legal/consent' },
       { key: 'settings', label: 'Settings', icon: Settings, href: '/dashboard/tenant/settings' },
       { key: 'logout', label: 'Logout', icon: LogOut, onClick: () => signOut() },
     ],
@@ -67,8 +67,8 @@ export function useTenantNavItems() {
 
   const activeKey = useMemo(() => {
     if (!pathname) return 'home'
-    if (pathname.startsWith('/dashboard/tenant/payment')) return 'pay'
     if (pathname.startsWith('/dashboard/tenant/payments')) return 'payments'
+    if (pathname.startsWith('/dashboard/tenant/payment')) return 'pay'
     if (pathname.startsWith('/dashboard/tenant/maintenance')) return 'maintenance'
     if (pathname.startsWith('/dashboard/tenant/messages')) return 'messages'
     if (pathname.startsWith('/dashboard/tenant/invoices')) return 'invoices'

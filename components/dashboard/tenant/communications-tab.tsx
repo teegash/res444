@@ -10,7 +10,6 @@ import { Send, Loader2 } from 'lucide-react'
 import { useToast } from '@/components/ui/use-toast'
 import { useAuth } from '@/lib/auth/context'
 import { createClient } from '@/lib/supabase/client'
-import { useMediaQuery } from '@/hooks/useMediaQuery'
 
 interface CommunicationMessage {
   id: string
@@ -32,9 +31,9 @@ export function CommunicationsTab() {
   const [messages, setMessages] = useState<CommunicationMessage[]>([])
   const [loading, setLoading] = useState(true)
   const [sending, setSending] = useState(false)
+  const [orgLogoUrl, setOrgLogoUrl] = useState<string | null>(null)
   const bottomRef = useRef<HTMLDivElement | null>(null)
   const initialRender = useRef(true)
-  const isMobile = useMediaQuery('(max-width: 767px)')
   const tenantAvatarRef = useRef<string | null>(null)
   const orgAvatarRef = useRef<string | null>(null)
 
@@ -87,15 +86,29 @@ export function CommunicationsTab() {
   }, [fetchMessages])
 
   useEffect(() => {
-    if (loading) return
-    if (isMobile && initialRender.current) {
-      initialRender.current = false
-      return
+    const fetchOrganization = async () => {
+      try {
+        const response = await fetch('/api/organizations/current', { cache: 'no-store' })
+        if (!response.ok) return
+        const payload = await response.json().catch(() => ({}))
+        const logoUrl = payload?.data?.logo_url || null
+        setOrgLogoUrl(logoUrl)
+        if (logoUrl) {
+          orgAvatarRef.current = logoUrl
+        }
+      } catch {
+        // ignore logo lookup
+      }
     }
+    fetchOrganization()
+  }, [])
+
+  useEffect(() => {
+    if (loading) return
     const behavior: ScrollBehavior = initialRender.current ? 'auto' : 'smooth'
     bottomRef.current?.scrollIntoView({ behavior })
     initialRender.current = false
-  }, [messages, loading, isMobile])
+  }, [messages, loading])
 
   useEffect(() => {
     if (!user?.id) return
@@ -170,7 +183,13 @@ export function CommunicationsTab() {
     }
   }
 
-  const formattedMessages = messages.map((message) => {
+  const orderedMessages = [...messages].sort((a, b) => {
+    const aTime = a.created_at ? new Date(a.created_at).getTime() : 0
+    const bTime = b.created_at ? new Date(b.created_at).getTime() : 0
+    return aTime - bTime
+  })
+
+  const formattedMessages = orderedMessages.map((message) => {
     const text = message.message_text || ''
     return {
       ...message,
@@ -187,6 +206,9 @@ export function CommunicationsTab() {
         <CardHeader className="border-b bg-muted/30">
           <div className="flex items-center gap-3">
             <Avatar className="h-10 w-10 bg-primary">
+              {orgLogoUrl ? (
+                <AvatarImage src={orgLogoUrl} alt="Organization logo" />
+              ) : null}
               <AvatarFallback className="text-primary-foreground font-semibold">
                 {user?.email?.[0]?.toUpperCase() || 'Y'}
               </AvatarFallback>
@@ -218,8 +240,11 @@ export function CommunicationsTab() {
               >
                 {!message.isTenant && (
                   <Avatar className="h-8 w-8 bg-primary shrink-0">
-                    {message.sender_avatar_url ? (
-                      <AvatarImage src={message.sender_avatar_url} alt={message.sender_name || 'Organization'} />
+                    {message.sender_avatar_url || orgLogoUrl ? (
+                      <AvatarImage
+                        src={message.sender_avatar_url || orgLogoUrl || undefined}
+                        alt={message.sender_name || 'Organization'}
+                      />
                     ) : null}
                     <AvatarFallback className="text-primary-foreground text-xs font-semibold">
                       {(message.sender_name || 'PM')
