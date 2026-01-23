@@ -37,7 +37,7 @@ export function BottomNavBar({
       role="navigation"
       aria-label="Bottom Navigation"
       className={cn(
-        'bg-card dark:bg-card border border-border dark:border-sidebar-border rounded-full flex items-center p-2 shadow-xl space-x-1 min-w-[320px] max-w-[95vw] h-[52px]',
+        'bg-white/70 dark:bg-slate-950/70 border border-white/60 dark:border-slate-900/50 rounded-full flex items-center p-2 shadow-xl space-x-1 min-w-[320px] max-w-[95vw] h-[52px] backdrop-blur-md supports-[backdrop-filter]:bg-white/60',
         stickyBottom && 'fixed inset-x-0 bottom-4 mx-auto z-20 w-fit',
         className
       )}
@@ -63,6 +63,11 @@ export function BottomNavBar({
                 return
               }
               if (item.href) {
+                if (item.key === 'home') {
+                  router.push(item.href)
+                  router.refresh()
+                  return
+                }
                 router.push(item.href)
               }
             }}
