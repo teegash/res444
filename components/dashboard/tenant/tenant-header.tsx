@@ -275,8 +275,8 @@ export function TenantHeader({ summary, loading }: TenantHeaderProps) {
 
   return (
     <Card className="border border-white/60 shadow-sm bg-white/70 backdrop-blur-md supports-[backdrop-filter]:bg-white/50 sticky top-0 z-10">
-      <div className="px-3 py-0.5 md:px-6 md:py-4">
-        <div className="flex flex-col gap-1 md:flex-row md:items-center md:gap-4">
+      <div className="px-3 py-1 md:px-6 md:py-4">
+        <div className="flex flex-wrap items-center gap-1.5 md:gap-4">
           <div className="order-1">
             <div className="relative w-10 h-10 md:w-20 md:h-20 rounded-2xl border border-slate-200 overflow-hidden bg-slate-50">
               {profileImage ? (
@@ -503,7 +503,7 @@ export function TenantHeader({ summary, loading }: TenantHeaderProps) {
             </Button>
           </div>
 
-          <div className="order-4 hidden md:block md:order-2 md:w-auto">
+          <div className="order-3 w-full md:order-2 md:w-auto">
             <h1 className="text-[15px] md:text-2xl font-bold text-foreground">
               {isLoading ? 'Loading...' : `Welcome ${fullName}`}
             </h1>
@@ -511,14 +511,6 @@ export function TenantHeader({ summary, loading }: TenantHeaderProps) {
               {isLoading ? 'Fetching your details…' : unitLabel}
             </p>
           </div>
-        </div>
-        <div className="mt-1 md:hidden">
-          <h1 className="text-[14px] font-semibold text-foreground">
-            {isLoading ? 'Loading...' : `Welcome ${fullName}`}
-          </h1>
-          <p className="text-[10px] text-muted-foreground">
-            {isLoading ? 'Fetching your details…' : unitLabel}
-          </p>
         </div>
       </div>
     </Card>
