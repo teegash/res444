@@ -1,7 +1,6 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { TenantHeader } from '@/components/dashboard/tenant/tenant-header'
 import { TenantInfoCards } from '@/components/dashboard/tenant/tenant-info-cards'
 import { TenantQuickActions } from '@/components/dashboard/tenant/tenant-quick-actions'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -555,7 +554,7 @@ export default function TenantDashboardClient() {
     >
       <div className="max-w-7xl mx-auto p-4 md:p-6 lg:p-8">
         <div
-          className={`rounded-3xl bg-white/80 ring-1 shadow-sm backdrop-blur p-4 md:p-6 lg:p-8 space-y-6 ${
+          className={`rounded-3xl bg-white/80 ring-1 shadow-sm backdrop-blur p-4 md:p-6 lg:p-8 space-y-6 mt-4 md:mt-6 ${
             leaseExpired ? 'ring-rose-200/70' : 'ring-slate-200/60'
           }`}
         >
@@ -564,7 +563,6 @@ export default function TenantDashboardClient() {
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         )}
-        <TenantHeader summary={summary} loading={loading} />
         <TenantInfoCards summary={summary} loading={loading} />
 
         <Card className="shadow-sm">

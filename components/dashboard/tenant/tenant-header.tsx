@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Bell, LogOut, X } from 'lucide-react'
+import { Bell, LogOut, Menu, X } from 'lucide-react'
 import {
   Sheet,
   SheetClose,
@@ -15,6 +15,8 @@ import {
   SheetTitle,
   SheetTrigger,
 } from '@/components/ui/sheet'
+import { TenantNavGrid } from '@/components/navigation/tenant-nav-grid'
+import { useTenantNavItems } from '@/components/navigation/use-tenant-nav-items'
 import { useAuth } from '@/lib/auth/context'
 import { createClient } from '@/lib/supabase/client'
 
@@ -38,6 +40,7 @@ interface TenantHeaderProps {
       property_name: string | null
       property_location: string | null
       unit_label: string | null
+      end_date?: string | null
     } | null
   } | null
   loading?: boolean
@@ -61,22 +64,55 @@ export function TenantHeader({ summary, loading }: TenantHeaderProps) {
   const supabase = useMemo(() => createClient(), [])
   const [notifications, setNotifications] = useState<NotificationItem[]>([])
   const [sheetOpen, setSheetOpen] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [headerSummary, setHeaderSummary] = useState<TenantHeaderProps['summary']>(summary ?? null)
+  const [summaryLoading, setSummaryLoading] = useState(Boolean(loading))
+  const { menuItems, activeKey } = useTenantNavItems()
+  const effectiveSummary = summary !== undefined ? summary : headerSummary
+  const isLoading = summary !== undefined ? Boolean(loading) : summaryLoading
+
+  useEffect(() => {
+    if (summary !== undefined) {
+      setHeaderSummary(summary ?? null)
+      setSummaryLoading(Boolean(loading))
+    }
+  }, [summary, loading])
+
+  useEffect(() => {
+    if (summary !== undefined) return
+    const fetchSummary = async () => {
+      try {
+        setSummaryLoading(true)
+        const response = await fetch('/api/tenant/summary', { cache: 'no-store' })
+        if (!response.ok) {
+          return
+        }
+        const payload = await response.json().catch(() => ({}))
+        setHeaderSummary(payload.data || null)
+      } catch {
+        // ignore summary errors for header rendering
+      } finally {
+        setSummaryLoading(false)
+      }
+    }
+    fetchSummary()
+  }, [summary])
   const leaseExpired = useMemo(() => {
-    const endDate = summary?.lease?.end_date
-    if (!endDate || loading) return false
+    const endDate = effectiveSummary?.lease?.end_date
+    if (!endDate || isLoading) return false
     const parsed = new Date(endDate)
     if (Number.isNaN(parsed.getTime())) return false
     const today = new Date()
     const endDay = new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate())
     const currentDay = new Date(today.getFullYear(), today.getMonth(), today.getDate())
     return currentDay > endDay
-  }, [loading, summary?.lease?.end_date])
+  }, [effectiveSummary?.lease?.end_date, isLoading])
   const leaseExpiryDateLabel = useMemo(() => {
-    if (!summary?.lease?.end_date) return null
-    const parsed = new Date(summary.lease.end_date)
+    if (!effectiveSummary?.lease?.end_date) return null
+    const parsed = new Date(effectiveSummary.lease.end_date)
     if (Number.isNaN(parsed.getTime())) return null
     return parsed.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
-  }, [summary?.lease?.end_date])
+  }, [effectiveSummary?.lease?.end_date])
 
   const sortNotifications = useCallback((items: NotificationItem[]) => {
     return [...items].sort((a, b) => {
@@ -225,24 +261,27 @@ export function TenantHeader({ summary, loading }: TenantHeaderProps) {
   }
 
   const fullName =
-    summary?.profile?.full_name ||
+    effectiveSummary?.profile?.full_name ||
     (user?.user_metadata?.full_name ? user.user_metadata.full_name.split(' ')[0] : null) ||
     user?.email?.split('@')[0] ||
     'Resident'
-  const propertyName = summary?.lease?.property_name || 'Your Property'
-  const unitLabel = summary?.lease?.unit_label || summary?.lease?.property_location || 'Stay connected'
-  const profileImage = summary?.profile?.profile_picture_url || null
+  const propertyName = effectiveSummary?.lease?.property_name || 'Your Property'
+  const unitLabel =
+    effectiveSummary?.lease?.unit_label ||
+    effectiveSummary?.lease?.property_location ||
+    'Stay connected'
+  const profileImage = effectiveSummary?.profile?.profile_picture_url || null
 
   return (
     <Card className="border border-white/60 shadow-sm bg-white/70 backdrop-blur-md supports-[backdrop-filter]:bg-white/50 sticky top-0 z-10">
-      <div className="px-6 py-4">
-        <div className="flex flex-wrap items-center gap-4">
+      <div className="px-4 py-3 md:px-6 md:py-4">
+        <div className="flex flex-wrap items-center gap-3 md:gap-4">
           <div className="order-1">
-            <div className="relative w-20 h-20 rounded-2xl border border-slate-200 overflow-hidden bg-slate-50">
+            <div className="relative w-12 h-12 md:w-20 md:h-20 rounded-2xl border border-slate-200 overflow-hidden bg-slate-50">
               {profileImage ? (
                 <img src={profileImage} alt={fullName} className="w-full h-full object-cover" />
               ) : (
-                <div className="w-full h-full flex flex-col items-center justify-center text-slate-500 text-xs">
+                <div className="w-full h-full flex flex-col items-center justify-center text-slate-500 text-[10px] md:text-xs">
                   {fullName.slice(0, 2).toUpperCase()}
                 </div>
               )}
@@ -250,6 +289,47 @@ export function TenantHeader({ summary, loading }: TenantHeaderProps) {
           </div>
 
           <div className="order-2 ml-auto md:order-3 md:ml-auto flex items-center gap-2">
+            <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
+              <SheetTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="md:hidden"
+                  aria-label="Open tenant menu"
+                >
+                  <Menu className="h-4 w-4" />
+                </Button>
+              </SheetTrigger>
+              <SheetContent className="w-[92vw] max-w-[360px] px-0 sm:w-96 sm:max-w-none">
+                <SheetHeader className="px-4 pt-4 pb-3 sm:px-6 sm:pt-6 sm:pb-4 border-b border-border/60 bg-gradient-to-r from-[#f4f6fb] to-white sticky top-0 z-10">
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="flex-1">
+                      <SheetTitle className="text-base sm:text-lg">Menu</SheetTitle>
+                      <SheetDescription className="text-xs sm:text-sm">
+                        Quick access to your tenant portal.
+                      </SheetDescription>
+                    </div>
+                    <SheetClose asChild>
+                      <button
+                        type="button"
+                        className="flex items-center justify-center w-7 h-7 sm:w-8 sm:h-8 rounded-full border border-border text-foreground hover:bg-muted transition"
+                        aria-label="Close menu"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </SheetClose>
+                  </div>
+                </SheetHeader>
+                <div className="px-4 py-4 sm:px-6 max-h-[70vh] overflow-y-auto">
+                  <TenantNavGrid
+                    items={menuItems}
+                    activeKey={activeKey}
+                    columns="grid-cols-2"
+                    onSelect={() => setMenuOpen(false)}
+                  />
+                </div>
+              </SheetContent>
+            </Sheet>
             {leaseExpired && (
               <Badge className="bg-rose-600 text-white text-[10px] px-2 py-1">
                 Lease expired
@@ -258,7 +338,7 @@ export function TenantHeader({ summary, loading }: TenantHeaderProps) {
             <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
               <SheetTrigger asChild>
                 <Button variant="ghost" size="icon" className="relative">
-                  <Bell className="w-5 h-5" />
+                  <Bell className="w-4 h-4 md:w-5 md:h-5" />
                   {unreadCount > 0 && (
                     <Badge className="absolute -top-1 -right-1 w-5 h-5 flex items-center justify-center p-0 bg-red-600">
                       {unreadCount}
@@ -418,16 +498,16 @@ export function TenantHeader({ summary, loading }: TenantHeaderProps) {
               className="rounded-full bg-gradient-to-r from-red-600 to-rose-500 text-white shadow-sm shadow-red-500/30 border border-white/15 hover:from-red-700 hover:to-rose-600 hover:shadow-md hover:shadow-red-500/35 active:scale-[0.98] transition-all focus-visible:ring-2 focus-visible:ring-red-500/40"
               aria-label="Logout"
             >
-              <LogOut className="w-5 h-5" />
+              <LogOut className="w-4 h-4 md:w-5 md:h-5" />
             </Button>
           </div>
 
           <div className="order-3 w-full md:order-2 md:w-auto">
-            <h1 className="text-2xl font-bold text-foreground">
-              {loading ? 'Loading...' : `Welcome ${fullName}`}
+            <h1 className="text-lg md:text-2xl font-bold text-foreground">
+              {isLoading ? 'Loading...' : `Welcome ${fullName}`}
             </h1>
-            <p className="text-sm text-muted-foreground">
-              {loading ? 'Fetching your details…' : `${propertyName} • ${unitLabel}`}
+            <p className="text-xs md:text-sm text-muted-foreground">
+              {isLoading ? 'Fetching your details…' : `${propertyName} • ${unitLabel}`}
             </p>
           </div>
         </div>
